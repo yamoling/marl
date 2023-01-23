@@ -1,0 +1,16 @@
+# MARL
+## Requirements
+- poetry
+- python3.10
+
+## Getting started
+```bash
+$ poetry install
+$ poetry shell
+(your-venv) $ python src/main.py
+```
+
+## Building the project
+```bash
+$ poetry build
+```
