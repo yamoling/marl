@@ -3,6 +3,11 @@ from .logger_interface import Logger
 from .tensorboard_logger import TensorBoardLogger
 
 
-def default() -> Logger:
+def default(path: str=None) -> Logger:
     """Returns the default logger"""
-    return TensorBoardLogger(f"logs/{time()}")
+    if path is None:
+        path = f"logs/{time()}"
+    elif not path.startswith("logs/"):
+        import os
+        path = os.path.join("logs", path)
+    return TensorBoardLogger(path)

@@ -12,15 +12,16 @@ class TensorBoardLogger(Logger):
         self.to_print = []
 
     def log(self, tag: str, data: Union[Metrics, Measurement, float], time_step: int):
-        if isinstance(data, (float, int)):
-            self.sw.add_scalar(tag, data, time_step)
-        elif isinstance(data, Measurement):
-            self.sw.add_scalar(tag, data.value, time_step)
-        elif isinstance(data, Metrics):
-            for s, value in data.items():
-                self.log(f"{tag}/{s}", value, time_step)
-        else:
-            raise ValueError(f"Unsupported data type: {type(data)}")
+        match data:
+            case float() | int():
+                self.sw.add_scalar(tag, data, time_step)
+            case Measurement():
+                self.sw.add_scalar(tag, data.value, time_step)
+            case Metrics():
+                for s, value in data.items():
+                    self.log(f"{tag}/{s}", value, time_step)
+            case other:
+                raise ValueError(f"Unsupported data type: {type(other)}")
 
     def print(self, tag: str, data: Union[Measurement, Metrics, float]):
         if isinstance(data, Metrics):
@@ -35,7 +36,3 @@ class TensorBoardLogger(Logger):
             self.to_print.insert(0, prefix)
         logging.info("  \t".join(self.to_print))
         self.to_print = []
-
-    def __del__(self):
-        # self.sw.close()
-        pass

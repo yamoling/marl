@@ -31,3 +31,8 @@ class VDN(RDQN):
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
         l = super().compute_loss(qvalues, qtargets, batch)
         return l
+
+    def summary(self) -> dict[str,]:
+        summary = super().summary()
+        summary["name"] = "Value Decomposition Network"
+        return summary

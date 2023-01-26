@@ -1,5 +1,4 @@
-from typing import Any
-
+import json
 import random
 import numpy as np
 
@@ -8,7 +7,7 @@ from .policy import Policy
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
 
-    def __init__(self, actions: list[Any], tau: float = 1.):
+    def __init__(self, actions: list, tau: float = 1.):
         self._actions = actions
         self._tau = tau
         """Temperature parameter"""
@@ -39,9 +38,18 @@ class EpsilonGreedy(Policy):
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 
-    def update(self):
-        pass
+    def save(self, to_path: str):
+        with open(to_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "epsilon": self._epsilon,
+                "n_agents": self._n_agents
+            }, f)
 
+    def load(self, from_path: str):
+        with open(from_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            self._epsilon = data["epsilon"]
+            self._n_agents = data["n_agents"]
 
 class DecreasingEpsilonGreedy(EpsilonGreedy):
     """Linearly decreasing epsilon greedy"""
@@ -60,6 +68,23 @@ class DecreasingEpsilonGreedy(EpsilonGreedy):
     def update(self):
         self._epsilon = max(self._epsilon - self._decrease_amount, self._min_epsilon)
 
+    def save(self, to_path: str):
+        with open(to_path, "w", encoding="utf-8") as f:
+            json.dump({
+                "epsilon": self._epsilon,
+                "n_agents": self._n_agents,
+                "decrease_amount": self._decrease_amount,
+                "min_epsilon": self._min_epsilon
+            }, f)
+    
+    def load(self, from_path: str):
+        with open(from_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            self._epsilon = data["epsilon"]
+            self._n_agents = data["n_agents"]
+            self._decrease_amount = data["decrease_amount"]
+            self._min_epsilo = data["min_epsilon"]
+
 
 class ArgMax(Policy):
     """Exploiting the strategy"""
@@ -70,3 +95,9 @@ class ArgMax(Policy):
         qvalues[available_actions == 0.] = -float("inf")
         actions = qvalues.argmax(-1)
         return actions
+    
+    def save(self, to_path: str):
+        return
+
+    def load(self, from_path: str):
+        return

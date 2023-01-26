@@ -1,10 +1,10 @@
+import os
 from dataclasses import dataclass
 from copy import deepcopy
 import torch
 from rlenv import RLEnv, Transition, Observation
-from marl import RLAlgorithm, nn
+from marl import nn
 from marl.models import TransitionMemory, Batch
-from marl.utils import get_device
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to
 
@@ -30,6 +30,7 @@ class DQN(QLearning):
     def __init__(
         self, 
         env: RLEnv, 
+        test_env: RLEnv=None,
         gamma=0.99,
         tau=1e-2,
         batch_size=64,
@@ -39,7 +40,9 @@ class DQN(QLearning):
         train_policy: Policy=None,
         test_policy: Policy=None,
         memory: TransitionMemory=None,
-        device: torch.device=None
+        device: torch.device=None,
+        log_path: str=None,
+        seed: int=None
     ):
         self.qnetwork = defaults_to(qnetwork, nn.model_bank.MLP.from_env(env))
         self.qtarget = deepcopy(self.qnetwork)
@@ -49,13 +52,19 @@ class DQN(QLearning):
         self.loss_function = torch.nn.MSELoss()
         super().__init__(
             env=env, 
+            test_env=defaults_to(test_env, deepcopy(env)),
             memory=defaults_to(memory, TransitionMemory(50_000)),
             batch_size=batch_size, 
             optimizer=defaults_to(optimizer, torch.optim.Adam(self.qnetwork.parameters(), lr=lr)), 
             device=device,
             train_policy=defaults_to(train_policy, EpsilonGreedy(env.n_agents, 0.1)),
-            test_policy=defaults_to(test_policy, EpsilonGreedy(env.n_agents, 0.01))
+            test_policy=defaults_to(test_policy, EpsilonGreedy(env.n_agents, 0.01)),
+            log_path=log_path,
+            seed=seed
         )
+        self.qnetwork = self.qnetwork.to(self.device)
+        self.qtarget = self.qtarget.to(self.device)
+
     
     def after_step(self, _step_num: int, transition: Transition):
         self.memory.add(transition)
@@ -98,5 +107,48 @@ class DQN(QLearning):
             target_param.data.copy_(new_value, non_blocking=True)
 
     def save(self, to_path: str):
-        pass
+        os.makedirs(to_path, exist_ok=True)
+        qnetwork_path = os.path.join(to_path, "qnetwork.weights")
+        qtarget_path = os.path.join(to_path, "qtarget.weights")
+        train_policy_path = os.path.join(to_path, "train_policy")
+        test_policy_path = os.path.join(to_path, "test_policy")
+        torch.save(self.qnetwork.state_dict(), qnetwork_path)
+        torch.save(self.qtarget.state_dict(), qtarget_path)
+        self.train_policy.save(train_policy_path)
+        self.test_policy.save(test_policy_path)
+        
 
+    def load(self, from_path: str):
+        qnetwork_path = os.path.join(from_path, "qnetwork.weights")
+        qtarget_path = os.path.join(from_path, "qtarget.weights")
+        train_policy_path = os.path.join(from_path, "train_policy")
+        test_policy_path = os.path.join(from_path, "test_policy")
+        self.qnetwork.load_state_dict(torch.load(qnetwork_path))
+        self.qtarget.load_state_dict(torch.load(qtarget_path))
+        self.train_policy.load(train_policy_path)
+        self.test_policy.load(test_policy_path)
+
+    def summary(self) -> dict[str,]:
+        return {
+            "name": "DQN",
+            "gamma": self.gamma,
+            "batch_size": self.batch_size,
+            "tau": self.tau,
+            "optimizer": {
+                "name": self.optimizer.__class__.__name__,
+                "learning rate": self.optimizer.param_groups[0]["lr"]
+            },
+            "memory": {
+                "type": self.memory.__class__.__name__,
+                "size": len(self.memory)
+            },
+            "qnetwork": str(self.qnetwork),
+            "train_policy": {
+                "name": self.train_policy.__class__.__name__,
+                **self.train_policy.__dict__
+            },
+            "test_policy" : {
+                "name": self.test_policy.__class__.__name__,
+                **self.test_policy.__dict__
+            }
+        }

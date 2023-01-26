@@ -11,14 +11,17 @@ class QLearning(RLAlgorithm):
     def __init__(
         self, 
         env: RLEnv, 
+        test_env: RLEnv,
         train_policy: Policy, 
         test_policy: Policy,
         memory: ReplayMemory, 
         batch_size: int, 
         optimizer: torch.optim.Optimizer, 
-        device: torch.device=None
+        device: torch.device=None,
+        log_path: str=None,
+        seed: int=None
     ) -> None:
-        super().__init__(env)
+        super().__init__(env, test_env=test_env, log_path=log_path, seed=seed)
         self.memory = memory
         self.batch_size = batch_size
         self.device = defaults_to(device, get_device())

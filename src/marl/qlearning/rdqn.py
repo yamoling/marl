@@ -18,20 +18,24 @@ class RDQN(DQN):
 
     def __init__(
         self, 
-        env: RLEnv, 
+        env: RLEnv,
+        test_env: RLEnv=None,
         gamma=0.99,
         tau=0.01, 
         batch_size=64,
         lr=1e-4,
-        qnetwork: nn.RecurrentNN = None, 
-        optimizer: torch.optim.Optimizer = None, 
-        train_policy: Policy = None, 
-        test_policy: Policy = None, 
+        qnetwork: nn.RecurrentNN=None, 
+        optimizer: torch.optim.Optimizer=None, 
+        train_policy: Policy=None, 
+        test_policy: Policy=None, 
         memory: EpisodeMemory=None, 
-        device: torch.device = None
+        device: torch.device=None,
+        log_path: str=None,
+        seed: int=None
     ) -> None:
         super().__init__(
             env=env, 
+            test_env=test_env,
             gamma=gamma, 
             tau=tau, 
             batch_size=batch_size,
@@ -41,9 +45,11 @@ class RDQN(DQN):
             test_policy=test_policy,
             device=device,
             memory=defaults_to(memory, EpisodeMemory(50_000)), 
-            qnetwork=defaults_to(qnetwork, nn.model_bank.RNNQMix.from_env(env))
+            qnetwork=defaults_to(qnetwork, nn.model_bank.RNNQMix.from_env(env)),
+            log_path=log_path,
+            seed=seed
         )
-        self.hidden_states = None
+        self.hidden_states=None
         
 
     def after_step(self, _step_num: int, _transition):
@@ -55,7 +61,7 @@ class RDQN(DQN):
         self.update()
 
     def before_episode(self, episode_num: int):
-        self.hidden_states = None
+        self.hidden_states=None
 
     def _sample(self) -> Batch:
         return self.memory.sample(self.batch_size)\
@@ -91,3 +97,8 @@ class RDQN(DQN):
         next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
+
+    def summary(self) -> dict[str,]:
+        summary = super().summary()
+        summary["name"] = "Recurrent DQN"
+        return summary

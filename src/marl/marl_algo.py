@@ -1,4 +1,5 @@
-from copy import deepcopy
+import os
+import json
 from abc import ABC, abstractmethod
 import numpy as np
 from tqdm import tqdm
@@ -7,18 +8,22 @@ from . import logging
 
 
 class RLAlgorithm(ABC):
-    def __init__(self, env: RLEnv) -> None:
+    def __init__(self, env: RLEnv, test_env: RLEnv, log_path: str=None, seed: int=None) -> None:
         super().__init__()
         self.env = env
-        self.test_env = deepcopy(env)
-        self.logger = logging.default()
+        self.test_env = test_env
+        self.logger = logging.default(log_path)
         self._best_score = -float("inf")
-        import os
         self._checkpoint = os.path.join(self.logger.logdir, "checkpoint")
+        self._seed = seed
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         """Get the action to perform given the input observation"""
+
+    def summary(self) -> dict[str,]:
+        """Dictionary of the relevant algorithm parameters for experiment logging purposes"""
+        return {"todo": "No parameters saved"}
 
     def save(self, to_path: str):
         """Save the algorithm state to the specified file."""
@@ -40,7 +45,7 @@ class RLAlgorithm(ABC):
         self.logger.log_print("Test", metrics, time_step)
         if metrics.score > self._best_score:
             self._best_score = metrics.score
-            self.save(self.logger.logdir)
+            self.save(f"{self._checkpoint}-{time_step}")
 
     def after_step(self, transition: Transition, step_num: int):
         """Hook after every training step."""
@@ -53,6 +58,25 @@ class RLAlgorithm(ABC):
 
     def train(self, test_interval: int=200, n_tests: int=10, n_episodes: int=None, n_steps: int=None, quiet=False):
         """Start the training loop"""
+        with open(f"{self.logger.logdir}/experiment.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "seed": self._seed,
+                "env": {
+                    "name": self.env.name,
+                    "n_actions": self.env.n_actions,
+                    "n_agents": self.env.n_agents,
+                    "obs_shape": self.env.observation_shape,
+                    "extras_shape": self.env.extra_feature_shape
+                },
+                "training": {
+                    "n_steps": n_steps,
+                    "n_episodes": n_episodes,
+                    "test_interval": test_interval,
+                    "n_tests": n_tests
+                },
+                "algorithm": self.summary()
+            }, f, indent=4)
+
         if not ((n_episodes is None) != (n_steps is None)):
             raise ValueError(f"Exactly one of n_episodes ({n_episodes}) and n_steps ({n_steps}) must be set !")
         if n_episodes is not None:
@@ -125,3 +149,15 @@ class RLAlgorithm(ABC):
                 obs = new_obs
             episodes.append(episode.build())
         self.after_tests(time_step, episodes)
+
+    def seed(self, seed_value: int=None):
+        if seed_value is None:
+            return
+        import torch
+        import random
+        import os
+        os.environ["PYTHONHASHSEED"] = str(seed_value)
+        torch.manual_seed(seed_value)
+        np.random.seed(seed_value)
+        random.seed(seed_value)
+        self.env.seed(seed_value)
