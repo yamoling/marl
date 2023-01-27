@@ -30,8 +30,7 @@ class RDQN(DQN):
         test_policy: Policy=None, 
         memory: EpisodeMemory=None, 
         device: torch.device=None,
-        log_path: str=None,
-        seed: int=None
+        log_path: str=None
     ) -> None:
         super().__init__(
             env=env, 
@@ -46,8 +45,7 @@ class RDQN(DQN):
             device=device,
             memory=defaults_to(memory, EpisodeMemory(50_000)), 
             qnetwork=defaults_to(qnetwork, nn.model_bank.RNNQMix.from_env(env)),
-            log_path=log_path,
-            seed=seed
+            log_path=log_path
         )
         self.hidden_states=None
         

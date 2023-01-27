@@ -14,3 +14,8 @@ $ poetry shell
 ```bash
 $ poetry build
 ```
+
+For pywebview
+sudo apt install libcairo2-dev libxt-dev libgirepository1.0-dev
+
+pip install pycairo PyGObject

@@ -8,14 +8,14 @@ from . import logging
 
 
 class RLAlgorithm(ABC):
-    def __init__(self, env: RLEnv, test_env: RLEnv, log_path: str=None, seed: int=None) -> None:
+    def __init__(self, env: RLEnv, test_env: RLEnv, log_path: str=None) -> None:
         super().__init__()
         self.env = env
         self.test_env = test_env
         self.logger = logging.default(log_path)
         self._best_score = -float("inf")
         self._checkpoint = os.path.join(self.logger.logdir, "checkpoint")
-        self._seed = seed
+        self._seed: int | None = None
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
@@ -97,7 +97,6 @@ class RLAlgorithm(ABC):
                     obs = self.env.reset()
                 action = self.choose_action(obs)
                 obs_, reward, done, info = self.env.step(action)
-                print(reward)
                 transition = Transition(obs, action, reward, done, info, obs_)
                 self.after_step(i, transition)
                 episode.add(transition)
@@ -146,6 +145,7 @@ class RLAlgorithm(ABC):
         self.after_tests(time_step, episodes)
 
     def seed(self, seed_value: int=None):
+        self._seed = seed_value
         if seed_value is None:
             return
         import torch

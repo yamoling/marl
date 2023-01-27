@@ -41,8 +41,7 @@ class DQN(QLearning):
         test_policy: Policy=None,
         memory: TransitionMemory=None,
         device: torch.device=None,
-        log_path: str=None,
-        seed: int=None
+        log_path: str=None
     ):
         self.qnetwork = defaults_to(qnetwork, nn.model_bank.MLP.from_env(env))
         self.qtarget = deepcopy(self.qnetwork)
@@ -59,8 +58,7 @@ class DQN(QLearning):
             device=device,
             train_policy=defaults_to(train_policy, EpsilonGreedy(env.n_agents, 0.1)),
             test_policy=defaults_to(test_policy, EpsilonGreedy(env.n_agents, 0.01)),
-            log_path=log_path,
-            seed=seed
+            log_path=log_path
         )
         self.qnetwork = self.qnetwork.to(self.device)
         self.qtarget = self.qtarget.to(self.device)
