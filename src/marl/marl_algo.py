@@ -21,9 +21,9 @@ class RLAlgorithm(ABC):
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         """Get the action to perform given the input observation"""
 
-    def summary(self) -> dict[str,]:
+    def summary(self) -> dict:
         """Dictionary of the relevant algorithm parameters for experiment logging purposes"""
-        return {"todo": "No parameters saved"}
+        return {"name": self.__class__.__name__}
 
     def save(self, to_path: str):
         """Save the algorithm state to the specified file."""
@@ -61,13 +61,7 @@ class RLAlgorithm(ABC):
         with open(f"{self.logger.logdir}/experiment.json", "w", encoding="utf-8") as f:
             json.dump({
                 "seed": self._seed,
-                "env": {
-                    "name": self.env.name,
-                    "n_actions": self.env.n_actions,
-                    "n_agents": self.env.n_agents,
-                    "obs_shape": self.env.observation_shape,
-                    "extras_shape": self.env.extra_feature_shape
-                },
+                "env": self.env.summary(),
                 "training": {
                     "n_steps": n_steps,
                     "n_episodes": n_episodes,
@@ -103,6 +97,7 @@ class RLAlgorithm(ABC):
                     obs = self.env.reset()
                 action = self.choose_action(obs)
                 obs_, reward, done, info = self.env.step(action)
+                print(reward)
                 transition = Transition(obs, action, reward, done, info, obs_)
                 self.after_step(i, transition)
                 episode.add(transition)

@@ -130,7 +130,7 @@ class DQN(QLearning):
 
     def summary(self) -> dict[str,]:
         return {
-            "name": "DQN",
+            "name": self.__class__.__name__,
             "gamma": self.gamma,
             "batch_size": self.batch_size,
             "tau": self.tau,

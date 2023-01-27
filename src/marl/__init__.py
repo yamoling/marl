@@ -8,4 +8,4 @@ from . import nn
 from . import qlearning
 from . import policy
 
-from .qlearning import VDN, DQN, RDQN
+from .qlearning import RecurrentVDN, DQN, RDQN

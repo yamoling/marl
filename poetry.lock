@@ -1099,7 +1099,7 @@ rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
 name = "rlenv"
-version = "0.2.1"
+version = "0.2.2"
 description = "A strongly typed Reinforcement Learning framework"
 category = "main"
 optional = false
@@ -1119,7 +1119,7 @@ tqdm = "^4.64.1"
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "ecb18efad690b0c024f6d8f605f7c018cc764cc0"
+resolved_reference = "cb819a44a67704e1a5325c3707ba1679e14e5104"
 
 [[package]]
 name = "rsa"
