@@ -98,7 +98,7 @@ class RLAlgorithm(ABC):
                 action = self.choose_action(obs)
                 obs_, reward, done, info = self.env.step(action)
                 transition = Transition(obs, action, reward, done, info, obs_)
-                self.after_step(i, transition)
+                self.after_step(transition, i)
                 episode.add(transition)
                 obs = obs_
         self.test(n_steps, n_tests)
@@ -117,7 +117,7 @@ class RLAlgorithm(ABC):
                     action = self.choose_action(obs)
                     obs_, reward, done, info = self.env.step(action)
                     transition = Transition(obs, action, reward, done, info, obs_)
-                    self.after_step(step, transition)
+                    self.after_step(transition, step)
                     episode.add(transition)
                     obs = obs_
                     step += 1

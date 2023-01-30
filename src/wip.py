@@ -9,7 +9,15 @@ env, test_env = rlenv.Builder(LaserEnv("maps/lvl3"))\
         .extrinsic_reward("exp", anneal=50, initial_reward=1)\
         .build_all()
     
-algo = marl.RecurrentVDN(env, test_env=test_env, train_policy=marl.policy.DecreasingEpsilonGreedy(env.n_agents, decrease_amount=5e-5), log_path="debug")
+# algo = marl.RecurrentVDN(
+#         env, 
+#         test_env=test_env, 
+#         train_policy=marl.policy.DecreasingEpsilonGreedy(env.n_agents, decrease_amount=5e-5), 
+#         log_path="debug"
+# )
+algo = marl.TableQLearning(env, test_env, log_path="debug")
+algo.seed(0)
 
-app = QLearningInspector(algo, debug=True)
+algo.train(n_steps=200)
+# app = QLearningInspector(algo, debug=True)
 print("Done")

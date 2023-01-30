@@ -64,7 +64,7 @@ class DQN(QLearning):
         self.qtarget = self.qtarget.to(self.device)
 
     
-    def after_step(self, _step_num: int, transition: Transition):
+    def after_step(self, transition: Transition, _step_num: int):
         self.memory.add(transition)
         self.update()
     
