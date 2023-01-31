@@ -8,6 +8,35 @@ from rlenv import RLEnv, Observation
 
 
 class QLearning(RLAlgorithm):
+    def __init__(self, env: RLEnv, test_env: RLEnv, log_path: str = None, train_policy: Policy=None, test_policy:Policy=None, gamma=0.99) -> None:
+        super().__init__(env, test_env, log_path)
+        self.train_policy = train_policy
+        self.test_policy = test_policy
+        self.policy = train_policy
+        self.gamma = gamma
+
+    def before_tests(self):
+        self.policy = self.test_policy
+        return super().before_tests()
+
+    def after_tests(self, time_step: int, episodes):
+        self.policy = self.train_policy
+        return super().after_tests(time_step, episodes)
+
+    def choose_action(self, obs: Observation) -> list[int]:
+        with torch.no_grad():
+            qvalues = self.compute_qvalues(obs)
+            qvalues = qvalues.cpu().numpy()
+        return self.policy.get_action(qvalues, obs.available_actions)
+
+    @abstractmethod
+    def compute_qvalues(self, data: Observation) -> torch.Tensor:
+        """Compute the qvalues for the given input data."""
+    
+    
+
+
+class DeepQLearning(QLearning):
     def __init__(
         self, 
         env: RLEnv, 
@@ -31,28 +60,20 @@ class QLearning(RLAlgorithm):
         """The current policy (either train or test)"""
 
     @abstractmethod
-    def compute_qvalues(self, data: Batch|Observation) -> torch.Tensor:
+    def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
         """
         Compute the qvalues for the given input data.
         - If the input is a `Batch`, the output should have an appropriate shape for the loss function
         - If the input is an `Observation`, the output shoud have shape (n_agents, n_actions)
         """
-        pass
     
     @abstractmethod
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         """Compute the target Qvalues for the given batch with Bellman's equation."""
-        pass
 
     @abstractmethod
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
         pass
-
-    def choose_action(self, obs: Observation) -> list[int]:
-        with torch.no_grad():
-            qvalues = self.compute_qvalues(obs)
-            qvalues = qvalues.cpu().numpy()
-        return self.policy.get_action(qvalues, obs.available_actions)
 
     @abstractmethod
     def _sample(self) -> Batch:
@@ -77,11 +98,3 @@ class QLearning(RLAlgorithm):
         loss.backward()
         self.optimizer.step()
         self.train_policy.update()
-
-    def before_tests(self):
-        self.policy = self.test_policy
-        return super().before_tests()
-
-    def after_tests(self, time_step, episodes):
-        self.policy = self.train_policy
-        return super().after_tests(time_step, episodes)

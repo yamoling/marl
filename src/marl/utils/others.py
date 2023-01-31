@@ -13,7 +13,12 @@ def get_device(device: str="auto") -> torch.device:
 
 
 def defaults_to(value: T | None, default: T)  -> T:
-    """Shortcut to retrieve a default value"""
+    """
+    Shortcut to retrieve a default value.
+    
+    NB: by using this method, the default object is created in every case! Do not use this method
+    if the instanciation is expensive.
+    """
     if value is not None:
         return value
     return default

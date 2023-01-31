@@ -15,9 +15,10 @@ env, test_env = rlenv.Builder(LaserEnv("maps/lvl3"))\
 #         train_policy=marl.policy.DecreasingEpsilonGreedy(env.n_agents, decrease_amount=5e-5), 
 #         log_path="debug"
 # )
-algo = marl.TableQLearning(env, test_env, log_path="debug")
+algo = marl.VanillaQLearning(env, test_env, log_path="debug")
+algo.load("logs/tabular-baseline-maps/lvl3-run_0/checkpoint-85000")
 algo.seed(0)
+debugger = QLearningInspector(algo)
+debugger.run(debug=True)
 
-algo.train(n_steps=200)
-# app = QLearningInspector(algo, debug=True)
 print("Done")

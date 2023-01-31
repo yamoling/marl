@@ -8,13 +8,13 @@ import cv2
 from dataclasses import dataclass
 from websockets.server import serve, WebSocketServerProtocol
 from rlenv.models import EpisodeBuilder, Transition, Observation
-from marl.qlearning import QLearning
+from marl.qlearning import DeepQLearning
 from marl import RLAlgorithm
 
 
 @dataclass
 class TrainingState:
-    algo: QLearning
+    algo: DeepQLearning
     current_episode: EpisodeBuilder
     last_reward: float
     obs: Observation
@@ -22,7 +22,7 @@ class TrainingState:
     step_num: int
     
 
-    def __init__(self, algo: QLearning) -> None:
+    def __init__(self, algo: DeepQLearning) -> None:
         self.algo = algo
         self.current_episode = EpisodeBuilder()
         self.obs = self.algo.env.reset()
@@ -53,9 +53,11 @@ class TrainingState:
 
 
 class QLearningInspector(RLAlgorithm):
-    def __init__(self, algo: QLearning, webview=False, debug=False) -> None:
+    def __init__(self, algo: DeepQLearning) -> None:
         super().__init__(algo.env, algo.test_env, "debug")
         self.algo = algo
+        
+    def run(self, webview=False, debug=False):
         if webview:
             t = threading.Thread(target=lambda: asyncio.run(self.run_server()))
             t.daemon = True

@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import numpy as np
 
@@ -39,6 +40,7 @@ class EpsilonGreedy(Policy):
         return chosen_actions
 
     def save(self, to_path: str):
+        os.makedirs(os.path.dirname(to_path), exist_ok=True)
         with open(to_path, "w", encoding="utf-8") as f:
             json.dump({
                 "epsilon": self._epsilon,
@@ -69,6 +71,7 @@ class DecreasingEpsilonGreedy(EpsilonGreedy):
         self._epsilon = max(self._epsilon - self._decrease_amount, self._min_epsilon)
 
     def save(self, to_path: str):
+        os.makedirs(os.path.dirname(to_path), exist_ok=True)
         with open(to_path, "w", encoding="utf-8") as f:
             json.dump({
                 "epsilon": self._epsilon,

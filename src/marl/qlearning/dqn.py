@@ -8,10 +8,10 @@ from marl.models import TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to
 
-from .qlearning import QLearning
+from .qlearning import DeepQLearning
 
 @dataclass
-class DQN(QLearning):
+class DQN(DeepQLearning):
     """
     Independent Deep Q-Network agent with shared QNetwork.
     If agents require different behaviours, an agentID should be included in the 
