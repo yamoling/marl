@@ -36,7 +36,7 @@ class RLAlgorithm(ABC):
     def before_tests(self):
         """Hook before tests, for instance to swap from training to testing policy."""
 
-    def after_tests(self, time_step: int, episodes: list[Episode]):
+    def after_tests(self, episodes: list[Episode], time_step: int):
         """
         Hook after tests. Logs test metrics by default and saves the model if required.
         Subclasses should swap from testing back to training policy too.
@@ -83,6 +83,7 @@ class RLAlgorithm(ABC):
         e = 0
         episode = EpisodeBuilder()
         obs = self.env.reset()
+        self.before_episode(0)
         for step in range(0, n_steps, test_interval):
             self.test(step, n_tests)
             stop = min(n_steps, step + test_interval)
@@ -142,7 +143,7 @@ class RLAlgorithm(ABC):
                 episode.add(transition)
                 obs = new_obs
             episodes.append(episode.build())
-        self.after_tests(time_step, episodes)
+        self.after_tests(episodes, time_step)
 
     def seed(self, seed_value: int=None):
         self._seed = seed_value

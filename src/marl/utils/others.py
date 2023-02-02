@@ -1,4 +1,5 @@
 from typing import TypeVar
+import re
 
 T = TypeVar("T")
 
@@ -23,3 +24,10 @@ def defaults_to(value: T | None, default: T)  -> T:
         return value
     return default
     
+
+def alpha_num_order(string):
+   """ Returns all numbers on 5 digits to let sort the string with numeric order.
+   Ex: alphaNumOrder("a6b12.125")  ==> "a00006b00012.00125"
+   """
+   return ''.join([format(int(x), '08d') if x.isdigit()
+                   else x for x in re.split(r'(\d+)', string)])

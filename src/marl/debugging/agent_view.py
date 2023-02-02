@@ -32,7 +32,6 @@ class TrainingState:
         self.algo.before_episode(self.episode_num)
 
     def step(self):
-        print("Step", self.step_num)
         if self.current_episode.is_done:
             episode = self.current_episode.build()
             self.algo.after_episode(self.episode_num, episode)
@@ -46,7 +45,7 @@ class TrainingState:
             action = self.algo.choose_action(self.obs)
             obs_, self.last_reward, done, info = self.algo.env.step(action)
             transition = Transition(self.obs, action, self.last_reward, done, info, obs_)
-            self.algo.after_step(self.step_num, transition)
+            self.algo.after_step(transition, self.step_num)
             self.current_episode.add(transition)
             self.obs = obs_
             self.step_num += 1
@@ -73,7 +72,7 @@ class QLearningInspector(RLAlgorithm):
 
     async def run_server(self):
         # Strange stuff that needs to be done otherwise the ws server stops
-        async with serve(self.handler, "localhost", 5172):
+        async with serve(self.handler, "0.0.0.0", 5172):
             await asyncio.Future()
 
     async def send_update(self, ws: WebSocketServerProtocol, training: TrainingState):
@@ -96,7 +95,6 @@ class QLearningInspector(RLAlgorithm):
         self.algo.seed(0)
         await self.send_update(ws, training)
         async for message in ws:
-            print(message)
             data: dict = json.loads(message)
             steps = data.get("amount", 1)
             updateUI = data.get("command") != "skip"

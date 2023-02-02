@@ -62,7 +62,12 @@ function update(newObs: number[], newExtras: number[], newQvalues: number[], ava
     extras.value = newExtras;
     qvalues.value = newQvalues;
     availableActions.value = available;
-    rainbow.setNumberRange(minQValue.value, maxQValue.value);
+    const min = minQValue.value;
+    let max = maxQValue.value;
+    if (min == max) {
+        max++;
+    }
+    rainbow.setNumberRange(min, max);
 }
 
 defineProps({ agentNum: { type: Number, required: true } })
