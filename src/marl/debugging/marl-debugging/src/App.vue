@@ -1,7 +1,7 @@
 <template>
     <NavBar @navChange="navChange"></NavBar>
     <main>
-      <Legacy v-if="selectedMode == 'Legacy'"></Legacy>
+      <Legacy v-if="selectedMode == 'Training'"></Legacy>
       <TrainingReplay v-else-if="selectedMode == 'Replays'"></TrainingReplay>
     </main>
 </template>

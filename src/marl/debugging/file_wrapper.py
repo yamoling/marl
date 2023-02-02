@@ -1,9 +1,10 @@
 import os
+import shutil
 import json
-from rlenv import Episode, Observation
-from rlenv.models import Metrics
+from rlenv import Episode, Observation, Transition
 from marl.qlearning import QLearning
 from marl.utils.algo_wrapper import AlgorithmWrapper
+from marl.utils import alpha_num_order
 
 
 class FileWrapper(AlgorithmWrapper):
@@ -48,9 +49,17 @@ class FileWrapper(AlgorithmWrapper):
         self.training = True
         folder_path = os.path.join(self.directory, "test", f"step-{time_step}")
         os.makedirs(folder_path, exist_ok=True)
+        # Log metrics
         metrics = Episode.agregate_metrics(episodes)
         with open(os.path.join(folder_path, "metrics.json"), "w", encoding="utf-8") as f:
             json.dump(metrics.to_json(), f)
+        # Move test videos to the appropriate folder
+        video_folder = os.path.join(self.directory, "test", "videos")
+        video_paths = sorted(os.listdir(video_folder), key=alpha_num_order)
+        for i, v in enumerate(video_paths):
+            src = os.path.join(video_folder, v)
+            dst = os.path.join(folder_path, f"{i}.mp4")
+            shutil.move(src, dst)
         for i, (episode, qvalues) in enumerate(zip(episodes, self.testing_qvalues)):
             episode_path =  os.path.join(folder_path, f"{i}.json")
             with open(episode_path, "w", encoding="utf-8") as f:

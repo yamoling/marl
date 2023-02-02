@@ -1,7 +1,7 @@
 <template>
-    <div class="container agent-info">
+    <div class="m-1 col agent-info">
         <h3> Agent {{ agentNum }}</h3>
-        <table>
+        <table class="table table-responsive">
             <tr>
                 <th :colspan="obs.length" style="background-color: beige;">Observation</th>
                 <th :colspan="extras.length" style="background-color: whitesmoke;">Extras</th>
@@ -12,7 +12,7 @@
             </tr>
         </table>
         <h4> Actions & Qvalues </h4>
-        <table>
+        <table class="table table-responsive">
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
@@ -36,44 +36,35 @@
 
 <script setup lang="ts">
 
-import { ref, computed } from "vue";
+import { computed, watch } from "vue";
 import Rainbow from "rainbowvis.js";
 
-const obs = ref([] as number[]);
-const extras = ref([] as number[]);
-const qvalues = ref([] as number[]);
-const availableActions = ref([] as number[]);
+interface Props {
+    agentNum: number,
+    qvalues: number[],
+    obs: number[],
+    extras: number[],
+    availableActions: number[]
+}
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"];
-
-const minQValue = computed(() => Math.min(...qvalues.value));
-const maxQValue = computed(() => Math.max(...qvalues.value));
-const backgroundColours = computed(() => qvalues.value.map(q => rainbow.colourAt(q)));
-
-
-
-
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 
-function update(newObs: number[], newExtras: number[], newQvalues: number[], available: number[]) {
-    obs.value = newObs;
-    extras.value = newExtras;
-    qvalues.value = newQvalues;
-    availableActions.value = available;
-    const min = minQValue.value;
-    let max = maxQValue.value;
+const props = defineProps<Props>();
+const backgroundColours = computed(() => {
+    const min = Math.min(...props.qvalues);
+    let max = Math.max(...props.qvalues);
     if (min == max) {
         max++;
     }
     rainbow.setNumberRange(min, max);
-}
+    return props.qvalues.map(q => rainbow.colourAt(q));
+});
 
-defineProps({ agentNum: { type: Number, required: true } })
 
 
-defineExpose({ update });
 </script>
 
 
@@ -83,14 +74,5 @@ defineExpose({ update });
     border-style: solid;
     border-color: gainsboro;
     border-radius: 2%;
-}
-
-.danger {
-    opacity: 50%;
-}
-
-th,
-td {
-    text-align: center;
 }
 </style>

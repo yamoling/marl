@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 const navItems = [
-    "Legacy",
+    "Training",
     "Replays"
 ]
 const selectedItem = ref(navItems[0]);
