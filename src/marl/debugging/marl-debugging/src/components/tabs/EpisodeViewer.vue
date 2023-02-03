@@ -4,7 +4,7 @@
             <div class="row text-center">
                 <AgentInfo v-for="agent in nAgents" :agent-num="agent - 1"
                     :available-actions="episode.available_actions[currentStep][agent - 1]"
-                    :qvalues="episode.qvalues[currentStep][agent - 1]" :extras="episode.extras[currentStep][agent - 1]"
+                    :qvalues="episode.qvalues[currentStep]?.[agent - 1]" :extras="episode.extras[currentStep][agent - 1]"
                     :obs="episode.obs[currentStep][agent - 1]">
                 </AgentInfo>
             </div>
@@ -38,6 +38,19 @@ const episode = ref({} as Episode);
 const currentStep = ref(0);
 const frames = ref([] as string[]);
 const reward = ref(0);
+document.addEventListener("keyup", (event) => {
+    switch (event.key) {
+        case "ArrowLeft":
+        case "ArrowUp":
+            step(-1)
+            break;
+        case "ArrowRight":
+        case "ArrowDown":
+            step(1);
+            break
+        default: return;
+    }
+})
 
 
 const nAgents = computed(() => (episode.value.qvalues == null) ? 0 : episode.value.qvalues[0].length);
@@ -73,7 +86,7 @@ function setEpisode(step: number, num: number) {
 
 
 function step(amount: number) {
-    currentStep.value += amount;
+    currentStep.value = Math.max(0, Math.min(episodeLength.value, currentStep.value + amount));
 }
 
 function changeStep(event: KeyboardEvent) {

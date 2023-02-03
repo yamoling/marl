@@ -36,12 +36,12 @@
 
 <script setup lang="ts">
 
-import { computed, watch } from "vue";
+import { computed } from "vue";
 import Rainbow from "rainbowvis.js";
 
 interface Props {
     agentNum: number,
-    qvalues: number[],
+    qvalues: number[] | undefined,
     obs: number[],
     extras: number[],
     availableActions: number[]
@@ -54,6 +54,9 @@ rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 const props = defineProps<Props>();
 const backgroundColours = computed(() => {
+    if (props.qvalues == null) {
+        return "white";
+    }
     const min = Math.min(...props.qvalues);
     let max = Math.max(...props.qvalues);
     if (min == max) {

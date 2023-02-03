@@ -48,13 +48,14 @@ class FileWrapper(AlgorithmWrapper):
     def after_tests(self, episodes: list[Episode], time_step: int):
         self.training = True
         folder_path = os.path.join(self.directory, "test", f"step-{time_step}")
+        self.save(folder_path)
         os.makedirs(folder_path, exist_ok=True)
         # Log metrics
         metrics = Episode.agregate_metrics(episodes)
         with open(os.path.join(folder_path, "metrics.json"), "w", encoding="utf-8") as f:
             json.dump(metrics.to_json(), f)
         # Move test videos to the appropriate folder
-        video_folder = os.path.join(self.directory, "test", "videos")
+        video_folder = os.path.join(self.directory, "videos")
         video_paths = sorted(os.listdir(video_folder), key=alpha_num_order)
         for i, v in enumerate(video_paths):
             src = os.path.join(video_folder, v)

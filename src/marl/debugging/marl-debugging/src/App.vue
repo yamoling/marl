@@ -1,7 +1,9 @@
 <template>
-    <NavBar @navChange="navChange"></NavBar>
+    <NavBar ref="nav" @navChange="onNavChange"></NavBar>
     <main>
-      <Legacy v-if="selectedMode == 'Training'"></Legacy>
+      <FileExplorer v-if="selectedMode== 'File selection'" path="logs" :isDirectory="true" @fileSelected="fileSelected">
+      </FileExplorer>
+      <Legacy v-else-if="selectedMode == 'Training'"></Legacy>
       <TrainingReplay v-else-if="selectedMode == 'Replays'"></TrainingReplay>
     </main>
 </template>
@@ -9,14 +11,27 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import FileExplorer from './components/FileExplorer.vue';
 import Legacy from './components/Legacy.vue';
 import NavBar from "./components/NavBar.vue";
 import TrainingReplay from './components/TrainingReplay.vue';
+import { HTTP_URL } from './constants';
 
-const selectedMode = ref("legacy");
+interface Nav {
+  change: (tabName: NavItems) => void
+}
 
-function navChange(newActiveTab: string) {
+type NavItems = "File selection" | "Training" | "Replays";
+const selectedMode = ref("File selection" as NavItems);
+const nav = ref(null as Nav | null);
+
+function onNavChange(newActiveTab: NavItems) {
   selectedMode.value = newActiveTab;
+}
+
+function fileSelected(path: string) {
+  fetch(`${HTTP_URL}/load/${path}`)
+    .then(() => nav.value?.change("Replays"));
 }
 </script>
 

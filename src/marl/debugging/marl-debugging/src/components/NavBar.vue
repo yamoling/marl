@@ -15,6 +15,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 const navItems = [
+    "File selection",
     "Training",
     "Replays"
 ]
@@ -25,5 +26,7 @@ function change(navItem: string) {
     selectedItem.value = navItem;
     emit("navChange", navItem);
 }
+
+defineExpose({ change });
 
 </script>

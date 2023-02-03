@@ -14,19 +14,6 @@ CORS(app)
 
 
 @dataclass
-class Test:
-    name: str
-    episodes: list[str]
-    metrics: Metrics
-
-    def to_json(self):
-        return {
-            "name": self.name,
-            "episodes": self.episodes
-        }
-
-
-@dataclass
 class ServerState:
     train_episodes_paths: list[str]
     tests_folders_paths: list[str]
@@ -36,7 +23,8 @@ class ServerState:
         self._replay_dir = replay_dir
         self.train_episodes_paths = []
         self.tests_folders_paths = []
-        self.update()
+        if replay_dir is not None:
+            self.update()
 
     def update(self):
         paths = sorted(os.listdir(self.train_dir), key=alpha_num_order)
@@ -86,7 +74,7 @@ class ServerState:
             success, frame = cap.read()
         return encoded_frames
 
-state = ServerState("files/")
+state: ServerState = ServerState(None)
 
 
 
@@ -130,8 +118,21 @@ def get_metrics(kind: Literal["train", "test"]):
 def get_frames(step_num: str, episode_num: str):
     frames = state.get_video_frames(int(step_num), int(episode_num))
     return frames
+
+
+@app.route("/ls/<path:path>")
+def ls(path: str):
+    files = sorted(os.listdir(path), key=alpha_num_order)
+    files = [os.path.join(path, f) for f in files]
+    files = [{"path": f, "isDirectory": os.path.isdir(f)} for f in files]
+    return files
     
-        
+
+@app.route("/load/<path:path>")
+def load_directory(path: str):
+    state._replay_dir = path
+    state.update()
+    return ""
 
 
 def upload_file(filename: str) -> bytes:
@@ -139,5 +140,7 @@ def upload_file(filename: str) -> bytes:
         return f.read()
 
 
-def run(port=5174, debug=False):
+def run(root_folder: str, port=5174, debug=False):
+    state._replay_dir = root_folder
+    state.update()
     app.run("0.0.0.0", port=port, debug=debug)
