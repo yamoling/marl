@@ -1,6 +1,5 @@
-from typing import List, Optional, Tuple
 from dataclasses import dataclass
-from rlenv import Episode, Transition, Observation
+from rlenv import Episode, Transition
 import torch
 import numpy as np
 
@@ -23,7 +22,6 @@ class Batch:
     masks: torch.Tensor
     states: torch.Tensor
     states_: torch.Tensor
-    """The target shape for loss computation"""
     is_weights: torch.Tensor|None = None
     """Importance Sampling weights"""
     data_index: list[int]|None = None

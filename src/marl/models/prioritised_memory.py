@@ -1,4 +1,4 @@
-from typing import List, TypeVar
+from typing import TypeVar
 from sumtree import SumTree
 import torch
 
@@ -67,18 +67,21 @@ class PrioritizedMemory(ReplayMemory[T]):
         # within a reasonable range, avoiding the possibility of extremely large updates. (Appendix B.2.1, Proportional prioritization)
         weights = weights / weights.max()
 
-        batch = self.get_batch(sample_idxs)
+        batch = self._get_batch(sample_idxs)
         batch.is_weights = weights.unsqueeze(-1)
         batch.data_index = sample_idxs
         return batch
 
-    def get_batch(self, indices: list[int]) -> Batch:
-        return self.memory.get_batch(indices)
+    def _get_batch(self, indices: list[int]) -> Batch:
+        return self.memory._get_batch(indices)
 
     def __len__(self) -> int:
         return len(self.memory)
 
-    def update(self, indices: list[int], priorities: torch.Tensor):
+    def update(self, qvalues: torch.Tensor, qtargets: torch.Tensor):
+        pass
+
+    def old_update(self, indices: list[int], priorities: torch.Tensor):
         # priorities = td-errors
         priorities = priorities.detach().cpu()
         priorities = priorities.squeeze().abs() + self.eps
@@ -89,3 +92,9 @@ class PrioritizedMemory(ReplayMemory[T]):
             # where eps is a small positive constant that prevents the edge-case of transitions not being
             # revisited once their error is zero. (Section 3.3)
             self.tree.update(idx, priority.item())
+
+
+
+class TDErrorMemory(PrioritizedMemory):
+    def update(self, indices: list[int], priorities: torch.Tensor):
+        return super().update(indices, priorities)

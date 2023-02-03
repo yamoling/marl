@@ -140,7 +140,6 @@ def upload_file(filename: str) -> bytes:
         return f.read()
 
 
-def run(root_folder: str, port=5174, debug=False):
-    state._replay_dir = root_folder
+def run(port=5174, debug=False):
     state.update()
     app.run("0.0.0.0", port=port, debug=debug)

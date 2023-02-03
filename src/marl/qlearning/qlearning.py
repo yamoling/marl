@@ -73,7 +73,7 @@ class DeepQLearning(QLearning):
 
     @abstractmethod
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        pass
+        """Computes and returns the loss"""
 
     @abstractmethod
     def _sample(self) -> Batch:

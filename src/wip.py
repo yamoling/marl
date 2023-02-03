@@ -4,7 +4,7 @@ import marl
 from marl.debugging.server import run
 
 
-run(root_folder="logs/vdn-plain-maps/lvl3-seed_0",port=5174, debug=True)
+run(port=5174, debug=True)
 exit(0)
 
 env, test_env = rlenv.Builder(LaserEnv("maps/lvl3"))\
