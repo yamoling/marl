@@ -24,7 +24,7 @@ class Batch:
     states_: torch.Tensor
     is_weights: torch.Tensor|None = None
     """Importance Sampling weights"""
-    data_index: list[int]|None = None
+    sample_index: list[int]|None = None
 
     @property
     def one_hot_actions(self) -> torch.Tensor:
@@ -50,16 +50,7 @@ class Batch:
         masks = torch.tensor(np.array([e.mask for e in episodes])).transpose(1, 0)
         states = torch.tensor(np.array([e.states[:-1] for e in episodes])).transpose(1, 0)
         states_ = torch.tensor(np.array([e.states[1:] for e in episodes])).transpose(1, 0)
-
-        # Reshape the data for inference such that we merge dimensions 1 and 2 (required for GRU)
-        _, _, n_agents, obs_size = obs.shape
-        n_actions = available_actions_.shape[-1]
-        # # actions = actions.reshape(max_episode_len, size * n_agents, 1)
-        # obs = obs.reshape(max_episode_len, size * n_agents, obs_size)
-        # obs_ = obs_.reshape(max_episode_len, size * n_agents, obs_size)
-        # extras = extras.reshape(max_episode_len, size * n_agents, -1)
-        # extras_ = extras_.reshape(max_episode_len, size * n_agents, -1)
-        # available_actions_ = available_actions_.reshape(max_episode_len, size * n_agents, n_actions)
+        _, _, n_agents, n_actions = available_actions_.shape[-1]
         return Batch(
             size=size,
             max_episode_len=max_episode_len,
@@ -112,6 +103,53 @@ class Batch:
             masks=torch.ones(batch_size, dtype=torch.float32),
             states=torch.from_numpy(np.array(states, dtype=np.float32)),
             states_=torch.from_numpy(np.array(states_, dtype=np.float32))
+        )
+
+    @staticmethod
+    def from_transition_slices(transitions: list[list[Transition]]) -> "Batch":
+        n_agents = transitions[0][0].n_agents
+        n_actions = transitions[0][0].obs.available_actions.shape[-1]
+        size = len(transitions)
+        slice_length = len(transitions[0])
+        obs, extras, actions, rewards, dones, obs_, extras_, available_actions_, states, states_, masks = [], [], [], [], [], [], [], [], [], [], []
+        for slices in transitions:
+            obs.append([t.obs.data for t in slices])
+            extras.append([t.obs.extras for t in slices])
+            actions.append([t.action for t in slices])
+            rewards.append([t.reward for t in slices])
+            dones.append([t.done for t in slices])
+            obs_.append([t.obs_.data for t in slices])
+            extras_.append([t.obs_.extras for t in slices])
+            available_actions_.append([t.obs_.available_actions for t in slices])
+            states.append([t.obs.state for t in slices])
+            states_.append([t.obs_.state for t in slices])
+            # Mask transitions that are not from the same episode as **the first one**
+            # - transitions of the same episode get 1.0
+            # - transitions of an other episode get 0.0
+            done = False
+            mask = []
+            for t in slices:
+                mask.append(float(not done))
+                done = done or t.is_done
+            masks.append(mask)
+        masks = np.array(masks, dtype=np.float32)
+        
+        return Batch(
+            size=size,
+            max_episode_len=slice_length,
+            n_agents=n_agents,
+            n_actions=n_actions,
+            obs=torch.from_numpy(np.array(obs)),
+            obs_ = torch.from_numpy(np.array(obs_)),
+            extras=torch.from_numpy(np.array(extras)),
+            extras_=torch.from_numpy(np.array(extras_)),
+            actions=torch.from_numpy(np.array(actions)).unsqueeze(-1),
+            available_actions_=torch.from_numpy(np.array(available_actions_)),
+            rewards=torch.from_numpy(np.array(rewards, dtype=np.float32)),
+            states=torch.from_numpy(np.array(states)),
+            states_=torch.from_numpy(np.array(states_)),
+            dones=torch.from_numpy(np.array(dones)),
+            masks=torch.from_numpy(np.array(masks, dtype=np.float32))
         )
 
     def for_individual_learners(self) -> "Batch":

@@ -186,7 +186,6 @@ poetry.toml
 
 logs/*
 old/
-analysis/
 config/
 .devcontainer
 nohup.out

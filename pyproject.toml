@@ -10,10 +10,14 @@ python = ">=3.10, <3.11"
 torch = "^1.13.1"
 numpy = "^1.23.4"
 rlenv = {git = "https://github.com/yamoling/rlenv.git"}
-sumtree = "^0.1.5"
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
 laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
+sumtree = "^0.2.1"
+
+[tool.poetry.group.dev.dependencies]
+matplotlib = "^3.6.3"
+pandas = "^1.5.3"
 pywebview = {extras = ["qt"], version = "^4.0.1"}
 pycairo = "^1.23.0"
 pygobject = "^3.42.2"
@@ -21,7 +25,6 @@ websockets = "^10.4"
 flask = "^2.2.2"
 flask-cors = "^3.0.10"
 
-[tool.poetry.dev-dependencies]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

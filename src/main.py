@@ -39,7 +39,8 @@ def train_table_qlearning(run_id: int):
         train_policy=marl.policy.DecreasingEpsilonGreedy(env.n_agents, decrease_amount=5e-6, min_eps=5e-2),
         test_policy=marl.policy.ArgMax(),
         log_path=log_path,
-        replay_memory=marl.models.TransitionMemory(50_000)
+        # replay_memory=marl.models.TransitionMemory(50_000),
+        replay_memory=marl.models.PrioritizedMemory(marl.models.TransitionMemory(50_000), alpha=0.7, beta=0.4)
     )
     algo = marl.debugging.FileWrapper(algo, algo.logger.logdir)
     algo.seed(run_id)
@@ -82,19 +83,42 @@ def train_vdn_plain(run_id: int):
     algo.seed(run_id)
     algo.train(n_steps=1_000_000, test_interval=5000, n_tests=1)
 
+def train_n_step(run_num: int) -> list[str]:
+    env, test_env = rlenv.Builder("CartPole-v1").build_all()
+    n_step_algo = marl.qlearning.NStepReturn(
+        3,
+        env=env,
+        test_env=test_env,
+        memory=marl.models.TransitionSliceMemory(2_000, 3)
+    )
+    n_step_algo.seed(run_num)
+    return n_step_algo.train(n_steps=10_000, test_interval=500, n_tests=5, quiet=True)
+
+
+def train_dqn(run_num: int) -> str:
+    env, test_env = rlenv.Builder("CartPole-v1").build_all()
+    n_step_algo = marl.qlearning.DQN(
+        env=env,
+        test_env=test_env,
+        memory=marl.models.TransitionMemory(2_000)
+    )
+    n_step_algo.seed(run_num)
+    return n_step_algo.train(n_steps=10_000, test_interval=500, n_tests=5, quiet=True)
+
 
 def run_experiment(n_runs: int, pool_size: int):
     from multiprocessing import Pool
     with Pool(pool_size) as p:
-        p.map(train_table_qlearning, range(n_runs))
-        p.map(train_vanilla, range(n_runs))
-        p.map(train_vdn_extrinsic, range(n_runs))
-        p.map(train_vdn_plain, range(n_runs))
+        logdirs = {
+            "dqn": p.map(train_dqn, range(n_runs)),
+            "n-step dqn": p.map(train_n_step, range(n_runs))
+        }
+    print(logdirs)
 
 
 if __name__ == "__main__":
     print(marl.__version__)
-    run_experiment(n_runs=5, pool_size=8)
+    run_experiment(n_runs=5, pool_size=7)
     # train_table_qlearning(0)
     # train_vanilla(0)
     # train_vdn_extrinsic(0)

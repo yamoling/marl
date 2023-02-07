@@ -56,7 +56,7 @@ class RLAlgorithm(ABC):
     def after_episode(self, episode_num: int, episode: Episode):
         """Hook after every training episode."""
 
-    def train(self, test_interval: int=200, n_tests: int=10, n_episodes: int=None, n_steps: int=None, quiet=False):
+    def train(self, test_interval: int=200, n_tests: int=10, n_episodes: int=None, n_steps: int=None, quiet=False) -> str:
         """Start the training loop"""
         with open(f"{self.logger.logdir}/experiment.json", "w", encoding="utf-8") as f:
             json.dump({
@@ -77,6 +77,7 @@ class RLAlgorithm(ABC):
             self._train_episodes(n_episodes, test_interval, n_tests, quiet)
         else:
             self._train_steps(n_steps, test_interval, n_tests, quiet)
+        return self.logger.logdir
 
     def _train_steps(self, n_steps: int, test_interval: int, n_tests: int, quiet=False):
         """Train an agent and log on the basis of step numbers"""
@@ -145,10 +146,8 @@ class RLAlgorithm(ABC):
             episodes.append(episode.build())
         self.after_tests(episodes, time_step)
 
-    def seed(self, seed_value: int=None):
+    def seed(self, seed_value: int):
         self._seed = seed_value
-        if seed_value is None:
-            return
         import torch
         import random
         import os

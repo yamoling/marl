@@ -1,10 +1,14 @@
 from laser_env import LaserEnv
 import rlenv
 import marl
-from marl.debugging.server import run
+# from marl.debugging.server import run
 
 
-run(port=5174, debug=True)
+
+
+
+
+# run(port=5174, debug=True)
 exit(0)
 
 env, test_env = rlenv.Builder(LaserEnv("maps/lvl3"))\

@@ -132,9 +132,9 @@ class ReplayTableQLearning(VanillaQLearning):
         next_obs_data = torch.concat([batch.obs_, batch.extras_], dim=-1).numpy()
         next_qvalues = self.batch_get(next_obs_data)
         next_qvalues = np.max(next_qvalues, axis=-1)
-        target_qvalues = batch.rewards.numpy() + self.gamma * next_qvalues
+        qtargets = batch.rewards.numpy() + self.gamma * next_qvalues
 
-        new_qvalues = (1 - self.lr) * qvalues + self.lr * target_qvalues
+        new_qvalues = (1 - self.lr) * qvalues + self.lr * qtargets
         
         # Setting new qvalues
         actions = np.squeeze(actions, axis=-1)
@@ -142,12 +142,12 @@ class ReplayTableQLearning(VanillaQLearning):
             for agent_obs, agent_action, agent_q in zip(o, a, q):
                 h = self.hash_ndarray(agent_obs)
                 self.qtable[h][agent_action] = agent_q
+        self.memory.update(batch, qvalues, qtargets)
 
     def summary(self) -> dict:
         return {
             **super().summary(),
-            "memory_size": self.memory._memory.maxlen,
-            "memory_type": self.memory.__class__.__name__,
+            "memory": self.memory.summary(),
             "lr": self.lr
         }
         

@@ -70,7 +70,7 @@ class RDQN(DQN):
         match data:
             case Batch() as batch:
                 qvalues = self.qnetwork.forward(batch.obs, batch.extras)[0]
-                qvalues = qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents, batch.n_actions)
+                qvalues = qvalues.reshape(batch.max_episode_len, batch.size, self.env.n_agents, self.env.n_actions)
                 qvalues = qvalues.gather(index=batch.actions, dim=-1).squeeze(-1)
                 return qvalues
             case Observation() as obs:
@@ -92,7 +92,7 @@ class RDQN(DQN):
         next_qvalues, _ = self.qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
+        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, self.env.n_agents)
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
 
