@@ -1,7 +1,7 @@
 import torch
 import pickle
 import numpy as np
-from rlenv import RLEnv, Observation, Transition
+from rlenv import Observation, Transition
 from .qlearning import QLearning
 from marl.models import TransitionMemory
 from marl.policy import Policy, EpsilonGreedy, DecreasingEpsilonGreedy
@@ -11,17 +11,14 @@ from marl.utils import defaults_to
 class VanillaQLearning(QLearning):
     def __init__(
         self, 
-        env: RLEnv,
-        test_env: RLEnv,
         train_policy: Policy=None,
         test_policy: Policy=None,
         lr=0.1,
         gamma=0.99,
-        log_path: str = None,
     ):
-        train_policy = defaults_to(train_policy, DecreasingEpsilonGreedy(env.n_agents, decrease_amount=5e-4))
-        test_policy = defaults_to(test_policy, EpsilonGreedy(env.n_agents, 0.01))
-        super().__init__(env, test_env, log_path, train_policy, test_policy, gamma)
+        train_policy = defaults_to(train_policy, DecreasingEpsilonGreedy(decrease_amount=5e-4))
+        test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        super().__init__(train_policy, test_policy, gamma)
         self.lr = lr
         self.qtable: dict[int, np.ndarray[np.float32]] = {}
 
@@ -31,7 +28,7 @@ class VanillaQLearning(QLearning):
         for agent_obs in obs_data:
             h = self.hash_ndarray(agent_obs)
             if h not in self.qtable:
-                self.qtable[h] = np.ones(self.env.n_actions, dtype=np.float32)
+                self.qtable[h] = np.ones(obs.available_actions.shape[-1], dtype=np.float32)
             agent_qvalues = self.qtable[h]
             qvalues.append(agent_qvalues)
         return torch.from_numpy(np.array(qvalues))
@@ -91,28 +88,25 @@ class VanillaQLearning(QLearning):
 class ReplayTableQLearning(VanillaQLearning):
     def __init__(
         self, 
-        env: RLEnv, 
-        test_env: RLEnv, 
         train_policy: Policy = None, 
         test_policy: Policy = None, 
         lr=0.1, 
         gamma=0.99, 
-        log_path: str = None,
         replay_memory: TransitionMemory=None,
         batch_size=64
     ):
-        super().__init__(env, test_env, train_policy, test_policy, lr, gamma, log_path)
+        super().__init__(train_policy, test_policy, lr, gamma)
         self.memory = defaults_to(replay_memory, TransitionMemory(50_000))
         self.batch_size = batch_size
 
-    def batch_get(self, obs_data: np.ndarray) -> np.ndarray[np.float32]:
+    def batch_get(self, obs_data: np.ndarray, n_actions: int) -> np.ndarray[np.float32]:
         qvalues = []
         for obs in obs_data:
             agent_qvalues = []
             for agent_obs in obs:
                 h = self.hash_ndarray(agent_obs)
                 if h not in self.qtable:
-                    self.qtable[h] = np.ones(self.env.n_actions, dtype=np.float32)
+                    self.qtable[h] = np.ones(n_actions, dtype=np.float32)
                 agent_qvalues.append(self.qtable[h])
             qvalues.append(agent_qvalues)
         return np.array(qvalues)
@@ -126,11 +120,11 @@ class ReplayTableQLearning(VanillaQLearning):
         actions = batch.actions.numpy()
 
         obs_data = torch.concat([batch.obs, batch.extras], dim=-1).numpy()
-        qvalues = self.batch_get(obs_data)
+        qvalues = self.batch_get(obs_data, transition.n_actions)
         qvalues = np.squeeze(np.take_along_axis(qvalues, actions, axis=-1), axis=-1)
 
         next_obs_data = torch.concat([batch.obs_, batch.extras_], dim=-1).numpy()
-        next_qvalues = self.batch_get(next_obs_data)
+        next_qvalues = self.batch_get(next_obs_data, transition.n_actions)
         next_qvalues = np.max(next_qvalues, axis=-1)
         qtargets = batch.rewards.numpy() + self.gamma * next_qvalues
 

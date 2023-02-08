@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass
 from copy import deepcopy
 import torch
-from rlenv import RLEnv, Transition, Observation
+from rlenv import Transition, Observation
 from marl import nn
 from marl.models import TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
@@ -28,41 +28,32 @@ class DQN(DeepQLearning):
     device: torch.device
 
     def __init__(
-        self, 
-        env: RLEnv, 
-        test_env: RLEnv=None,
+        self,
+        qnetwork: nn.LinearNN,
         gamma=0.99,
         tau=1e-2,
         batch_size=64,
         lr=1e-4,
-        qnetwork: nn.LinearNN=None,
         optimizer: torch.optim.Optimizer=None,
         train_policy: Policy=None,
         test_policy: Policy=None,
         memory: TransitionMemory=None,
         device: torch.device=None,
-        log_path: str=None
     ):
-        self.qnetwork = defaults_to(qnetwork, nn.model_bank.MLP.from_env(env))
-        self.qtarget = deepcopy(self.qnetwork)
-        self.gamma = gamma
-        self.tau = tau
         """Soft update tau value"""
-        self.loss_function = torch.nn.MSELoss()
         super().__init__(
-            env=env, 
-            test_env=defaults_to(test_env, deepcopy(env)),
             memory=defaults_to(memory, TransitionMemory(50_000)),
             batch_size=batch_size, 
-            optimizer=defaults_to(optimizer, torch.optim.Adam(self.qnetwork.parameters(), lr=lr)), 
+            optimizer=defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr)), 
             device=device,
-            train_policy=defaults_to(train_policy, EpsilonGreedy(env.n_agents, 0.1)),
-            test_policy=defaults_to(test_policy, EpsilonGreedy(env.n_agents, 0.01)),
-            log_path=log_path
+            train_policy=defaults_to(train_policy, EpsilonGreedy(0.1)),
+            test_policy=defaults_to(test_policy, EpsilonGreedy(0.01)),
+            gamma=gamma
         )
-        self.qnetwork = self.qnetwork.to(self.device)
-        self.qtarget = self.qtarget.to(self.device)
-
+        self.qnetwork = qnetwork.to(self.device)
+        self.qtarget = deepcopy(self.qnetwork).to(self.device)
+        self.tau = tau
+        self.loss_function = torch.nn.MSELoss()
     
     def after_step(self, transition: Transition, _step_num: int):
         self.memory.add(transition)
@@ -90,10 +81,8 @@ class DQN(DeepQLearning):
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, _batch: Batch) -> torch.Tensor:
         return self.loss_function(qvalues, qtargets)
 
-    def _sample(self) -> Batch:
-        batch = self.memory.sample(self.batch_size)
-        batch.for_individual_learners()
-        return batch
+    def process_batch(self, batch: Batch) -> Batch:
+        return batch.for_individual_learners()
 
     def update(self):
         super().update()

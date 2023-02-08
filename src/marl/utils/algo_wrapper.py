@@ -1,9 +1,9 @@
 from rlenv import Episode, Transition, Observation
-from marl import RLAlgorithm
+from marl import RLAlgo
 
 
-class AlgorithmWrapper(RLAlgorithm):
-    def __init__(self, algo: RLAlgorithm) -> None:
+class AlgorithmWrapper(RLAlgo):
+    def __init__(self, algo: RLAlgo) -> None:
         super().__init__(algo.env, algo.test_env, algo.logger.logdir)
         self.algo = algo
 

@@ -1,6 +1,7 @@
 __version__ = "0.1.0"
 
-from .marl_algo import RLAlgorithm
+from .marl_algo import RLAlgo, RLAlgoWrapper
+from .runner import Runner
 
 from . import logging
 from . import models

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from websockets.server import serve, WebSocketServerProtocol
 from rlenv.models import EpisodeBuilder, Transition, Observation
 from marl.qlearning import DeepQLearning
-from marl import RLAlgorithm
+from marl import RLAlgo
 
 
 @dataclass
@@ -51,7 +51,7 @@ class TrainingState:
             self.step_num += 1
 
 
-class QLearningInspector(RLAlgorithm):
+class QLearningInspector(RLAlgo):
     def __init__(self, algo: DeepQLearning) -> None:
         super().__init__(algo.env, algo.test_env, "debug")
         self.algo = algo

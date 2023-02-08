@@ -18,23 +18,18 @@ class RDQN(DQN):
 
     def __init__(
         self, 
-        env: RLEnv,
-        test_env: RLEnv=None,
+        qnetwork: nn.RecurrentNN, 
         gamma=0.99,
         tau=0.01, 
         batch_size=64,
         lr=1e-4,
-        qnetwork: nn.RecurrentNN=None, 
         optimizer: torch.optim.Optimizer=None, 
         train_policy: Policy=None, 
         test_policy: Policy=None, 
         memory: EpisodeMemory=None, 
         device: torch.device=None,
-        log_path: str=None
     ) -> None:
         super().__init__(
-            env=env, 
-            test_env=test_env,
             gamma=gamma, 
             tau=tau, 
             batch_size=batch_size,
@@ -44,8 +39,7 @@ class RDQN(DQN):
             test_policy=test_policy,
             device=device,
             memory=defaults_to(memory, EpisodeMemory(50_000)), 
-            qnetwork=defaults_to(qnetwork, nn.model_bank.RNNQMix.from_env(env)),
-            log_path=log_path
+            qnetwork=qnetwork
         )
         self.hidden_states=None
         
@@ -70,7 +64,7 @@ class RDQN(DQN):
         match data:
             case Batch() as batch:
                 qvalues = self.qnetwork.forward(batch.obs, batch.extras)[0]
-                qvalues = qvalues.reshape(batch.max_episode_len, batch.size, self.env.n_agents, self.env.n_actions)
+                qvalues = qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents, batch.n_actions)
                 qvalues = qvalues.gather(index=batch.actions, dim=-1).squeeze(-1)
                 return qvalues
             case Observation() as obs:
@@ -92,7 +86,7 @@ class RDQN(DQN):
         next_qvalues, _ = self.qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, self.env.n_agents)
+        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
 

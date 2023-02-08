@@ -16,7 +16,7 @@ class RecurrentVDN(RDQN):
         next_qvalues, _ = self.qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, self.env.n_agents)
+        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
         next_qvalues = next_qvalues.sum(dim=-1)
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets

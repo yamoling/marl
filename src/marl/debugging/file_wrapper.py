@@ -1,7 +1,7 @@
 import os
 import shutil
 import json
-from rlenv import Episode, Observation, Transition
+from rlenv import Episode, Observation
 from marl.qlearning import QLearning
 from marl.utils.algo_wrapper import AlgorithmWrapper
 from marl.utils import alpha_num_order

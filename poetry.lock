@@ -2008,7 +2008,7 @@ tqdm = "^4.64.1"
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "6dffa7b934d39bf2a50032d9b037b9b68ca71b7d"
+resolved_reference = "3cb0a52dc9bab21d059db0a9733dcc57c589f5f0"
 
 [[package]]
 name = "rsa"

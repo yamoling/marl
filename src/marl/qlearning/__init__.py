@@ -1,5 +1,5 @@
 from .table_qlearning import VanillaQLearning, ReplayTableQLearning
-from .qlearning import DeepQLearning, QLearning
+from .qlearning import DeepQLearning, QLearning, IDeepQLearning, IQLearning
 from .vdn import RecurrentVDN, LinearVDN
 from .dqn import DQN
 from .rdqn import RDQN
