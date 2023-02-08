@@ -38,7 +38,7 @@ const episode = ref({} as Episode);
 const currentStep = ref(0);
 const frames = ref([] as string[]);
 const reward = ref(0);
-document.addEventListener("keyup", (event) => {
+document.addEventListener("keydown", (event) => {
     switch (event.key) {
         case "ArrowLeft":
         case "ArrowUp":

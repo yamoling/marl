@@ -2,8 +2,8 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { Episode } from "../models/Episode";
 import { Metrics } from "../models/Metric";
-import { Test } from "../models/Test";
 import { HTTP_URL } from "../constants";
+import { Test } from "../models/Test";
 
 export const useEpisodeStore = defineStore("ReplayStore", () => {
 
@@ -11,9 +11,9 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
     const loadingTrain = ref(false);
     const loadingMetrics = ref(false);
     const trainingList = ref([] as string[]);
-    const testingList = ref([] as string[]);
+    const testingList = ref([] as Test[]);
     const testMetrics = ref([] as Metrics[]);
-
+    const testEpisodeMetrics = ref([] as Metrics[][]);
 
     function refresh() {
         loadingTests.value = true;
@@ -31,6 +31,7 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
             .then(testList => {
                 testingList.value = testList;
                 loadingTests.value = false;
+                testEpisodeMetrics.value = testingList.value.map(t => new Array(t.episodes.length));
             });
 
         // fetch(`${HTTP_URL}/metrics/train`)
@@ -46,6 +47,14 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
     }
     refresh();
 
+
+    async function loadTestEpisodeMetrics(stepNum: number, episodeNum: number) {
+        console.log(stepNum, episodeNum, testEpisodeMetrics.value[stepNum][episodeNum]);
+        if (testEpisodeMetrics.value[stepNum][episodeNum] == undefined) {
+            const resp = await fetch(`${HTTP_URL}/metrics/test/${stepNum}/${episodeNum}`);
+            testEpisodeMetrics.value[stepNum][episodeNum] = await resp.json();
+        }
+    }
 
     async function getTrainEpisode(num: number): Promise<Episode> {
         const resp = await fetch(`${HTTP_URL}/episode/train/${num}`);
@@ -63,5 +72,5 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
     }
 
 
-    return { loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, getTrainEpisode, getTestEpisode, refresh, getTestFrames };
+    return { loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, testEpisodeMetrics, getTrainEpisode, getTestEpisode, refresh, getTestFrames, loadTestEpisodeMetrics };
 });

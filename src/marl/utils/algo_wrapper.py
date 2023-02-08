@@ -4,7 +4,7 @@ from marl import RLAlgo
 
 class AlgorithmWrapper(RLAlgo):
     def __init__(self, algo: RLAlgo) -> None:
-        super().__init__(algo.env, algo.test_env, algo.logger.logdir)
+        super().__init__()
         self.algo = algo
 
     def choose_action(self, observation: Observation):
@@ -33,7 +33,3 @@ class AlgorithmWrapper(RLAlgo):
     
     def after_episode(self, episode_num: int, episode: Episode):
         return self.algo.after_episode(episode_num, episode)
-
-    def seed(self, seed_value: int = None):
-        return self.algo.seed(seed_value)
-    

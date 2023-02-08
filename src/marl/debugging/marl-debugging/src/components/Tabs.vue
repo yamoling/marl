@@ -24,4 +24,6 @@ function changeTab(newTab: string) {
 }
 
 
+defineExpose({ changeTab })
+
 </script>

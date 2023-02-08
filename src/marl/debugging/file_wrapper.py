@@ -55,10 +55,10 @@ class FileWrapper(AlgorithmWrapper):
         with open(os.path.join(folder_path, "metrics.json"), "w", encoding="utf-8") as f:
             json.dump(metrics.to_json(), f)
         # Move test videos to the appropriate folder
-        video_folder = os.path.join(self.directory, "videos")
-        video_paths = sorted(os.listdir(video_folder), key=alpha_num_order)
+        video_paths = sorted(os.listdir(self.directory), key=alpha_num_order)
+        video_paths = [p for p in video_paths if p.endswith((".mp4", ".avi"))]
         for i, v in enumerate(video_paths):
-            src = os.path.join(video_folder, v)
+            src = os.path.join(self.directory, v)
             dst = os.path.join(folder_path, f"{i}.mp4")
             shutil.move(src, dst)
         for i, (episode, qvalues) in enumerate(zip(episodes, self.testing_qvalues)):

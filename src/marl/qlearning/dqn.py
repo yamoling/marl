@@ -6,12 +6,12 @@ from rlenv import Transition, Observation
 from marl import nn
 from marl.models import TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
-from marl.utils import defaults_to
+from marl.utils import defaults_to, get_device
 
-from .qlearning import DeepQLearning
+from .qlearning import IDeepQLearning
 
 @dataclass
-class DQN(DeepQLearning):
+class DQN(IDeepQLearning):
     """
     Independent Deep Q-Network agent with shared QNetwork.
     If agents require different behaviours, an agentID should be included in the 
@@ -41,19 +41,25 @@ class DQN(DeepQLearning):
         device: torch.device=None,
     ):
         """Soft update tau value"""
-        super().__init__(
-            memory=defaults_to(memory, TransitionMemory(50_000)),
-            batch_size=batch_size, 
-            optimizer=defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr)), 
-            device=device,
-            train_policy=defaults_to(train_policy, EpsilonGreedy(0.1)),
-            test_policy=defaults_to(test_policy, EpsilonGreedy(0.01)),
-            gamma=gamma
-        )
+        super().__init__()
+        self.gamma = gamma
+        self.tau = tau
+        self.batch_size = batch_size
+        self.device = defaults_to(device, get_device())
         self.qnetwork = qnetwork.to(self.device)
         self.qtarget = deepcopy(self.qnetwork).to(self.device)
-        self.tau = tau
         self.loss_function = torch.nn.MSELoss()
+        self.memory = defaults_to(memory, TransitionMemory(50_000))
+        self.optimizer = defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr))
+        self.train_policy = defaults_to(train_policy, EpsilonGreedy(0.1))
+        self.test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        self.policy = train_policy
+
+    def choose_action(self, obs: Observation) -> list[int]:
+        with torch.no_grad():
+            qvalues = self.compute_qvalues(obs)
+            qvalues = qvalues.cpu().numpy()
+        return self.policy.get_action(qvalues, obs.available_actions)
     
     def after_step(self, transition: Transition, _step_num: int):
         self.memory.add(transition)
@@ -85,13 +91,35 @@ class DQN(DeepQLearning):
         return batch.for_individual_learners()
 
     def update(self):
-        super().update()
+        if len(self.memory) < self.batch_size:
+            return
+        batch = self.memory.sample(self.batch_size).to(self.device)
+        batch = self.process_batch(batch)
+        # Compute qvalues and qtargets (delegated to child classes)
+        qvalues = self.compute_qvalues(batch)
+        with torch.no_grad():
+            qtargets = self.compute_targets(batch)
+        assert qvalues.shape == qtargets.shape, f"Predicted qvalues ({qvalues.shape}) and target qvalues ({qtargets.shape}) do not have the same shape !"
+        # Compute the loss and apply gradient descent
+        loss = self.compute_loss(qvalues, qtargets, batch)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step(None)
+        self.train_policy.update()
         self._target_soft_update()
 
     def _target_soft_update(self):
         for param, target_param in zip(self.qnetwork.parameters(), self.qtarget.parameters()):
             new_value = (1-self.tau) * target_param.data + self.tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
+
+    def before_tests(self):
+        self.policy = self.test_policy
+        return super().before_tests()
+
+    def after_tests(self, time_step: int, episodes):
+        self.policy = self.train_policy
+        return super().after_tests(time_step, episodes)
 
     def save(self, to_path: str):
         os.makedirs(to_path, exist_ok=True)

@@ -1,4 +1,7 @@
+import { Metrics } from "./Metric";
+
 export interface Test {
-    name: string,
-    episodes: string[]
+    filename: string,
+    episodes: string[],
+    metrics: Metrics
 }

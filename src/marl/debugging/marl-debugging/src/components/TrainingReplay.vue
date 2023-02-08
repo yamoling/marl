@@ -1,6 +1,6 @@
 <template>
     <h3>Training replay</h3>
-    <Tabs @tab-change="changeTab"></Tabs>
+    <Tabs ref="tabs" @tab-change="onTabChanged"></Tabs>
     <div id="tab-content">
         <Overview v-show="currentTab == 'Overview'" @episode-selected="selectEpisode"></Overview>
         <EpisodeViewer v-show="currentTab == 'Inspect'" ref="inspect">
@@ -16,20 +16,26 @@ import Tabs from './Tabs.vue';
 import EpisodeViewer from './tabs/EpisodeViewer.vue';
 import Overview from './tabs/Overview.vue';
 
+interface Tabs {
+    changeTab: (newTab: "Overview" | "Inspect") => void
+}
+
+const tabs = ref(null as Tabs | null);
+
 interface EpisodeViewerInterface {
-    setEpisode: (step: number, num: number) => void
+    setEpisode: (step: number, episodeNum: number) => void
 }
 
 const currentTab = ref("Overview" as "Overview" | "Inspect");
 const inspect = ref(null as EpisodeViewerInterface | null);
 
-function changeTab(newTab: "Overview" | "Inspect") {
+function onTabChanged(newTab: "Overview" | "Inspect") {
     currentTab.value = newTab;
 }
 
-function selectEpisode(kind: "test" | "train", episodeNum: number) {
-    inspect.value?.setEpisode(episodeNum, 0);
-    currentTab.value = "Inspect";
+function selectEpisode(stepNum: number, episodeNum: number) {
+    inspect.value?.setEpisode(stepNum, episodeNum);
+    tabs.value?.changeTab('Inspect');
 }
 
 </script>
