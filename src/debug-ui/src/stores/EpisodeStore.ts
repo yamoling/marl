@@ -34,10 +34,6 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
                 testEpisodeMetrics.value = testingList.value.map(t => new Array(t.episodes.length));
             });
 
-        // fetch(`${HTTP_URL}/metrics/train`)
-        //     .then(resp => resp.json())
-        //     .then(metrics => trainMetrics.value = metrics);
-
         fetch(`${HTTP_URL}/metrics/test`)
             .then(resp => resp.json())
             .then(metrics => {

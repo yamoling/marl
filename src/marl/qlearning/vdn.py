@@ -48,7 +48,7 @@ class VDN(DeepQWrapper):
 
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         next_qvalues = self.algo.qtarget.forward(batch.obs_, batch.extras_)
-        if isinstance(next_qvalues, tuple):
+        if self.algo.qtarget.is_recurrent:
             next_qvalues = next_qvalues[0]
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]

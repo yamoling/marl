@@ -1,7 +1,7 @@
 <template>
     <canvas id="score">
 
-    </canvas>
+</canvas>
 </template>
 
 <script setup lang="ts">
@@ -55,6 +55,4 @@ onMounted(() => {
 })
 </script>
 
-<style>
-
-</style>
+<style></style>

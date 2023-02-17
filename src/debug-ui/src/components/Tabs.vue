@@ -1,5 +1,5 @@
 <template>
-    <ul class="nav nav-tabs">
+    <ul class="nav nav-tabs mb-2">
         <li v-for="tabName in tabs" class="nav-item" @click="() => changeTab(tabName)">
             <a href="#" class="nav-link" :class="currentTab == tabName ? 'active' : ''"> {{ tabName }} </a>
         </li>
@@ -8,13 +8,15 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+export interface ITabs<T extends readonly string[]> {
+    changeTab: (newTab: T[number]) => void,
+    currentTab: T[number]
+};
 
-
-const tabs = [
-    "Overview",
-    "Inspect"
-];
-const currentTab = ref(tabs[0]);
+const props = defineProps<{
+    tabs: readonly string[]
+}>();
+const currentTab = ref(props.tabs[0]);
 
 const emit = defineEmits(["tabChange"]);
 
@@ -24,6 +26,5 @@ function changeTab(newTab: string) {
 }
 
 
-defineExpose({ changeTab })
-
+defineExpose({ changeTab, currentTab })
 </script>

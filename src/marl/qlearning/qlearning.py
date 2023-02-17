@@ -21,7 +21,7 @@ class IDeepQLearning(IQLearning):
         - If the input is a `Batch`, the output should have an appropriate shape for the loss function
         - If the input is an `Observation`, the output shoud have shape (n_agents, n_actions)
         """
-    
+
     @abstractmethod
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         """Compute the target Qvalues for the given batch with Bellman's equation."""

@@ -3,10 +3,10 @@
         <h1>Rl Debugger</h1>
         <nav>
             <ul class="list-group">
-                    <li class="list-group-item" :class="item == selectedItem ? 'active' : ''" v-for="item in navItems"
-                        @click="() => change(item)">
-                        {{ item }}
-                    </li>
+                <li class="list-group-item" :class="item == selectedItem ? 'active' : ''" v-for="item in navItems"
+                    @click="() => change(item)">
+                    {{ item }}
+                </li>
             </ul>
         </nav>
     </aside>
@@ -15,7 +15,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 const navItems = [
-    "File selection",
     "Training",
     "Replays"
 ]

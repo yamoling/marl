@@ -1,6 +1,5 @@
 import torch
 from marl.models import Batch
-from .dqn import DQN
 from .qlearning_wrapper import DeepQWrapper, IDeepQLearning
 
 class NStepReturn(DeepQWrapper):

@@ -34,7 +34,6 @@ def parse_tensorboard(log_dirs: list[str], tags: list[str]=None) -> dict[str, pd
                 if tag not in dfs:
                     index = [item.step for item in ea.Scalars(tag)]
                     dfs[tag] = pd.DataFrame(index=index)
-                    print(f"New index for tag {tag} of length {len(index)}")
                 df = dfs[tag]
                 df[column_name] = [item.value for item in ea.Scalars(tag)]
     return dfs

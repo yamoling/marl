@@ -24,5 +24,10 @@ if __name__ == "__main__":
     # parser.add_argument("--uniform", nargs="+")
     # parser.add_argument("--per", nargs="+")
     # args = parser.parse_args()
-    logs = {'3-step return': ['logs/1675764590.3751836'], 'plain': ['logs/1675764590.4472265']}
+    logs = {
+        'vdn': ['logs/vdn-0', 'logs/vdn-1', 'logs/vdn-2', 'logs/vdn-3', 'logs/vdn-4'], 
+        'nstep': ['logs/vdn-n_step-0', 'logs/vdn-n_step-1', 'logs/vdn-n_step-2', 'logs/vdn-n_step-3', 'logs/vdn-n_step-4'],
+        "intrinsic+n-step": ['logs/vdn-intrinsic-nstep-0', 'logs/vdn-intrinsic-nstep-1', 'logs/vdn-intrinsic-nstep-2', 'logs/vdn-intrinsic-nstep-3', 'logs/vdn-intrinsic-nstep-4'],
+        "nstep+per": ['logs/vdn-n_step-0', 'logs/vdn-n_step-1', 'logs/vdn-n_step-2', 'logs/vdn-n_step-3', 'logs/vdn-n_step-4']
+    }
     aggregate(logs, "aggregated", ["Test/avg_score", "Test/max_score"])

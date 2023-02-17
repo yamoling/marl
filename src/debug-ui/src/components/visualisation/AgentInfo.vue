@@ -25,7 +25,8 @@
             <tbody>
                 <tr>
                     <th scope="row"> Qvalues </th>
-                    <td v-for="(q, action) in qvalues" :style='{ "background-color": "#" + backgroundColours[action] }'>
+                    <td v-if="qvalues != null" v-for="(q, action) in qvalues"
+                        :style='{ "background-color": "#" + backgroundColours[action] }'>
                         {{ q.toFixed(4) }}
                     </td>
                 </tr>
@@ -39,20 +40,18 @@
 import { computed } from "vue";
 import Rainbow from "rainbowvis.js";
 
-interface Props {
-    agentNum: number,
-    qvalues: number[] | undefined,
-    obs: number[],
-    extras: number[],
-    availableActions: number[]
-}
-
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"];
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 
-const props = defineProps<Props>();
+const props = defineProps<{
+    agentNum: number,
+    qvalues: number[] | undefined,
+    obs: number[],
+    extras: number[],
+    availableActions: number[]
+}>();
 const backgroundColours = computed(() => {
     if (props.qvalues == null) {
         return "white";

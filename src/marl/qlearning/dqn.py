@@ -53,7 +53,7 @@ class DQN(IDeepQLearning):
         self.optimizer = defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr))
         self.train_policy = defaults_to(train_policy, EpsilonGreedy(0.1))
         self.test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
-        self.policy = train_policy
+        self.policy = self.train_policy
 
     def choose_action(self, obs: Observation) -> list[int]:
         with torch.no_grad():
@@ -84,7 +84,8 @@ class DQN(IDeepQLearning):
         target_qvalues = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return target_qvalues
 
-    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, _batch: Batch) -> torch.Tensor:
+    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+        self.memory.update(batch.sample_index, qvalues, qtargets)
         return self.loss_function(qvalues, qtargets)
 
     def process_batch(self, batch: Batch) -> Batch:
