@@ -54,27 +54,36 @@
             <div class="row">
                 <MetricsPlotter :metrics="metrics" :reverse-labels="true" :max-steps="50" />
             </div>
+            <div class="row">
+                <EpisodeViewer v-if="selectedEpisode != null" class="col-auto" :frames="frames"
+                    :episode="selectedEpisode" />
+            </div>
         </div>
-</div>
+    </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { HTTP_URL, WS_URL } from '../../constants';
+import { WS_URL } from '../../constants';
+import { ReplayEpisode } from '../../models/Episode';
 import { Metrics } from '../../models/Metric';
+import { useEpisodeStore } from '../../stores/EpisodeStore';
 import MetricsPlotter from '../charts/MetricsPlotter.vue';
-import Rendering from '../visualisation/Rendering.vue';
+import EpisodeViewer from '../replay/EpisodeViewer.vue';
 
 
+const replayStore = useEpisodeStore();
 const episodes = ref([] as number[]);
 const episodeSteps = ref([] as number[]);
 const metrics = ref([] as Metrics[]);
 const trainSteps = ref(20);
 const isTraining = ref(false);
+const selectedEpisode = ref(null as ReplayEpisode | null);
+const frames = ref([] as string[]);
 defineProps<{
     algorithm: string,
     level: string,
-    wrappers: string[],
+    wrappers: string[]
 }>();
 
 
@@ -82,7 +91,6 @@ function train() {
     const ws = new WebSocket(WS_URL);
     ws.onmessage = (event: MessageEvent) => {
         const data = JSON.parse(event.data) as { step: number, episode: number, metrics: Metrics };
-        console.log(data);
         episodes.value.unshift(data.episode);
         episodeSteps.value.unshift(data.step);
         metrics.value.unshift(data.metrics);
@@ -100,22 +108,13 @@ function train() {
 
 function onEpisodeSelected(episodeNum: number) {
     console.log("Episode selected: ", episodeNum);
+    replayStore.getCurrentTrainEpisode(episodeNum).then(episode => selectedEpisode.value = episode);
+
+    replayStore.getCurrentTrainFrames(episodeNum).then(f => {
+        frames.value = f;
+    });
 }
 
-/*
-function step(n: number) {
-    fetch(`${HTTP_URL}/algo/train/${n}`)
-        .then(response => response.json())
-        .then(data => {
-            console.log(data);
-            previousImage.value = data.prev_frame;
-            currentImage.value = data.current_frame;
-            episode.value = data.episode;
-            currentStep.value += n;
-            reward.value = data.episode.rewards[currentStep.value - 1];
-        });
-}
-*/
 </script>
 
 <style scoped>

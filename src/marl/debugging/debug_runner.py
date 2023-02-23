@@ -9,14 +9,14 @@ import marl
 from marl.models import ReplayMemory
 from marl.qlearning import IDeepQLearning
 
-from .file_wrapper import FileWrapper
+from .debug_wrapper import QLearningDebugger
 
 
 class DebugRunner(marl.Runner):
     def __init__(self, env, test_env, algo: IDeepQLearning, logdir: str, memory: ReplayMemory = None):
         self._q_function = algo
-        if not isinstance(algo, FileWrapper):
-            algo = FileWrapper(algo, logdir)
+        if not isinstance(algo, QLearningDebugger):
+            algo = QLearningDebugger(algo, logdir)
         super().__init__(env, test_env=test_env, algo=algo, logdir=logdir)
         self.step_num = 0
         self.episode_num = 0
@@ -26,8 +26,13 @@ class DebugRunner(marl.Runner):
         self.memory = memory
         self._prev_frame = None
         self._current_frame = None
+        self.stop = False
         # Type hinting
-        self._algo: FileWrapper
+        self._algo: QLearningDebugger
+        # Start server
+        self.start_ws_server()
+        
+    def start_ws_server(self):
         t = threading.Thread(target=lambda: asyncio.run(self.run_server()))
         t.daemon = True
         t.start()
@@ -46,9 +51,16 @@ class DebugRunner(marl.Runner):
         await self.train(json_data["steps"], ws)
 
     async def run_server(self):
-        # Strange stuff that needs to be done otherwise the ws server stops
-        async with serve(self.client_handler, "0.0.0.0", 5172):
-            await asyncio.Future()
+        while not self.stop:
+            try:
+                async with serve(self.client_handler, "0.0.0.0", 5172):
+                    while not self.stop:
+                        await asyncio.sleep(0.25)
+            # If the previous websocket server is still running
+            except OSError:
+                print("Could not start websocket server, retrying in 0.25s")
+                await asyncio.sleep(0.25)
+        print("Websocket server closed")
 
     async def train(self, n_steps: int, ws: WebSocketServerProtocol):
         stop = self.step_num + n_steps

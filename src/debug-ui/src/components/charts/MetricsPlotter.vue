@@ -27,6 +27,18 @@ function updateChart() {
             label: 'Train score',
             data: props.metrics.map(m => m.score)
         },
+        {
+            label: 'Episode length',
+            data: props.metrics.map(m => m.episode_length)
+        },
+        {
+            label: 'Gems collected',
+            data: props.metrics.map(m => m.gems_collected)
+        },
+        {
+            label: 'In elevator',
+            data: props.metrics.map(m => m.in_elevator)
+        }
     ];
     if (props.maxSteps != undefined) {
         labels = labels.slice(0, props.maxSteps);

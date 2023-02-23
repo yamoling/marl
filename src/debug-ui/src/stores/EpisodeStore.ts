@@ -1,6 +1,6 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { Episode } from "../models/Episode";
+import { ReplayEpisode } from "../models/Episode";
 import { Metrics } from "../models/Metric";
 import { HTTP_URL } from "../constants";
 import { Test } from "../models/Test";
@@ -52,12 +52,12 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
         }
     }
 
-    async function getTrainEpisode(num: number): Promise<Episode> {
+    async function getTrainEpisode(num: number): Promise<ReplayEpisode> {
         const resp = await fetch(`${HTTP_URL}/episode/train/${num}`);
         return await resp.json();
     }
 
-    async function getTestEpisode(step: number, index: number): Promise<Episode> {
+    async function getTestEpisode(step: number, index: number): Promise<ReplayEpisode> {
         const resp = await fetch(`${HTTP_URL}/episode/test/${step}/${index}`);
         return await resp.json();
     }
@@ -67,6 +67,21 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
         return await resp.json();
     }
 
+    async function getTrainFrames(episodeNum: number): Promise<string[]> {
+        const resp = await fetch(`${HTTP_URL}/frames/train/${episodeNum}`);
+        return await resp.json();
+    }
 
-    return { loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, testEpisodeMetrics, getTrainEpisode, getTestEpisode, refresh, getTestFrames, loadTestEpisodeMetrics };
+    async function getCurrentTrainEpisode(episodeNum: number): Promise<ReplayEpisode> {
+        const resp = await fetch(`${HTTP_URL}/train/episode/${episodeNum}`);
+        return await resp.json();
+    }
+
+    async function getCurrentTrainFrames(episodeNum: number): Promise<string[]> {
+        const resp = await fetch(`${HTTP_URL}/train/frames/${episodeNum}`);
+        return await resp.json();
+    }
+
+
+    return { loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, testEpisodeMetrics, getTrainEpisode, getCurrentTrainFrames, getCurrentTrainEpisode, getTestEpisode, refresh, getTestFrames, loadTestEpisodeMetrics, getTrainFrames };
 });
