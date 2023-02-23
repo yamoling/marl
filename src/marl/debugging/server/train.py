@@ -5,6 +5,9 @@ import marl
 import rlenv
 from copy import deepcopy
 from laser_env import LaserEnv
+from rlenv import Transition
+from marl.models import PrioritizedMemory
+from marl.utils.others import encode_b64_image
 from ..replay import replay_episode, replay_video
 
 ALGORITHMS = [ "DQN", "VDN linear"]
@@ -72,5 +75,50 @@ class TrainServerState:
         with open(path, "r") as f:
             actions = json.load(f)
         frames = replay_video(deepcopy(self.env), actions)
-        frames = [self.runner.encode_frame(f) for f in frames]
+        frames = [encode_b64_image(f) for f in frames]
         return frames
+
+    def get_memory_priorities(self) -> tuple[float, list[float]]:
+        # Won't work with DQN
+        match self.runner._algo.algo.algo.memory:
+            case PrioritizedMemory() as pm:
+                p = []
+                for i in range(len(pm._tree)):
+                    p.append(pm._tree[i])
+                return pm._tree.total, p
+            case _: return 1., []
+
+
+    def get_transition_from_memory(self, index: int) -> dict:
+        # Won't work with DQN
+        match self.runner._algo.algo.algo.memory:
+            case PrioritizedMemory() as pm:
+                transition: rlenv.Transition = pm[index]
+                frames = self.replay_episode_from_memory(index, pm, deepcopy(self.env))
+                return {
+                    **transition.to_json(),
+                    "prev_frame": encode_b64_image(frames[0]),
+                    "current_frame": encode_b64_image(frames[1])
+                }
+            case _: return {}
+
+    def _find_start_of_episode(self, index: int, pm: PrioritizedMemory[Transition]) -> int | None:
+        while index > 0:
+            index -= 1
+            if pm[index].done:
+                return index + 1
+        return None
+    
+    def replay_episode_from_memory(self, transition_index: int, pm: PrioritizedMemory[Transition], env: rlenv.RLEnv):
+        start = self._find_start_of_episode(transition_index, pm)
+        if start is None:
+            return None
+        env.reset()
+        for i in range(start, transition_index):
+            actions = pm[i].action
+            env.step(actions)
+        prev_frame = env.render("rgb_array")
+        env.step(pm[transition_index].action)
+        frame = env.render("rgb_array")
+        return prev_frame, frame
+

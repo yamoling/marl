@@ -56,6 +56,9 @@
                 <EpisodeViewer ref="episodeViewer" v-if="selectedEpisode != null" class="col-auto" :frames="frames"
                     :episode="selectedEpisode" />
             </div>
+            <div class="row">
+                <ReplayMemory />
+            </div>
         </div>
     </div>
 </template>
@@ -68,6 +71,7 @@ import { Metrics } from '../../models/Metric';
 import { useEpisodeStore } from '../../stores/EpisodeStore';
 import MetricsPlotter from '../charts/MetricsPlotter.vue';
 import EpisodeViewer from '../replay/EpisodeViewer.vue';
+import ReplayMemory from '../visualisation/ReplayMemory.vue';
 
 
 const replayStore = useEpisodeStore();

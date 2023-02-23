@@ -129,6 +129,17 @@ def get_train_frames2(episode_num: str):
     episode_num = int(episode_num)
     return train_state.get_train_frames(episode_num)
 
+@app.route("/train/memory/priorities")
+def get_priorities():
+    cumsum, priorities = train_state.get_memory_priorities()
+    return { "cumsum": cumsum, "priorities": priorities }
+
+@app.route("/train/memory/transition/<transition_num>")
+def get_transition(transition_num: str):
+    transition_num = int(transition_num)
+    return train_state.get_transition_from_memory(transition_num)
+
+
 def upload_file(filename: str) -> bytes:
     with open(filename, "rb") as f:
         return f.read()

@@ -1,16 +1,16 @@
 import os
 import json
 from rlenv import Episode, Observation
-from marl.qlearning import QLearning
+from marl.qlearning import DeepQLearning
 from marl.utils.algo_wrapper import AlgorithmWrapper
 
 
 class QLearningDebugger(AlgorithmWrapper):
-    def __init__(self, algo: QLearning, directory: str):
+    def __init__(self, algo: DeepQLearning, directory: str):
         super().__init__(algo)
         os.makedirs(directory, exist_ok=True)
         self.directory = directory
-        self.algo: QLearning = self.algo
+        self.algo: DeepQLearning = self.algo
         self.training = True
         self.training_qvalues: list = []
 

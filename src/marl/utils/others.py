@@ -1,3 +1,6 @@
+import base64
+import cv2
+import numpy as np
 from typing import TypeVar
 import re
 
@@ -31,3 +34,9 @@ def alpha_num_order(string):
    """
    return ''.join([format(int(x), '08d') if x.isdigit()
                    else x for x in re.split(r'(\d+)', string)])
+
+
+def encode_b64_image(image: np.ndarray) -> str:
+    if image is None:
+        return ""
+    return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")

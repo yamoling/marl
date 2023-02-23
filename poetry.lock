@@ -2198,14 +2198,14 @@ resolved_reference = "a08f056181fcfad41acc8e09447a947066dfbf65"
 
 [[package]]
 name = "sumtree"
-version = "0.2.1"
+version = "0.2.2"
 description = "Fast and simple SumTree implementation in Rust"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "sumtree-0.2.1-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:8ad4bf796ffeae08f53463c1c27e19cf70811d5e447edd07d60a6d873640210f"},
-    {file = "sumtree-0.2.1.tar.gz", hash = "sha256:d54092517b9e90096479f6efcb9cdad3d2a678aac8884ad7ed58cf8343692b62"},
+    {file = "sumtree-0.2.2-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:943f22c769b354785672ea5b549ec177e52c4dd158fa70b55f7033378e417053"},
+    {file = "sumtree-0.2.2.tar.gz", hash = "sha256:f8682668fc5241854bf1f1412e792df406fe02285fe7800acd25b6db3eda9612"},
 ]
 
 [[package]]

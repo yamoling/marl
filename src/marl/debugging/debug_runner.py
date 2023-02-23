@@ -8,8 +8,10 @@ from rlenv.models import EpisodeBuilder, Episode, Transition
 import marl
 from marl.models import ReplayMemory
 from marl.qlearning import IDeepQLearning
+from marl.utils.others import encode_b64_image
 
 from .debug_wrapper import QLearningDebugger
+from .debug_memory import DebugMemory
 
 
 class DebugRunner(marl.Runner):
@@ -87,11 +89,6 @@ class DebugRunner(marl.Runner):
             self._prev_frame = self._current_frame
             self._current_frame = self._env.render("rgb_array")
 
-    def encode_frame(self, frame):
-        if frame is None:
-            return ""
-        return base64.b64encode(cv2.imencode(".jpg", frame)[1]).decode("ascii")
-
     def get_state(self) -> dict:
         episode = self.current_episode.build()
         episode_json = episode.to_json()
@@ -101,6 +98,6 @@ class DebugRunner(marl.Runner):
         episode_json["extras"] += self.obs.extras.tolist()
         return {
             "episode": episode_json,
-            "prev_frame": self.encode_frame(self._prev_frame),
-            "current_frame": self.encode_frame(self._current_frame)
+            "prev_frame": encode_b64_image(self._prev_frame),
+            "current_frame": encode_b64_image(self._current_frame)
         }

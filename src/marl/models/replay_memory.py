@@ -28,6 +28,10 @@ class ReplayMemory(Generic[T], ABC):
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.randint(0, len(self), batch_size)
         return self._get_batch(indices)
+    
+    @property
+    def max_size(self):
+        return self._max_size
 
     @abstractmethod
     def _get_batch(self, indices: list[int]) -> Batch:
@@ -35,6 +39,9 @@ class ReplayMemory(Generic[T], ABC):
 
     def __len__(self) -> int:
         return len(self._memory)
+    
+    def __getitem__(self, index: int) -> T:
+        return self._memory[index]
 
     def summary(self):
         return {
