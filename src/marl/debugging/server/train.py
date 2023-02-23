@@ -13,6 +13,7 @@ ENV_WRAPPERS = ["TimeLimit", "VideoRecorder", "IntrinsicReward", "AgentId"]
 @dataclass
 class TrainServerState:
     runner: marl.debugging.DebugRunner
+    env: rlenv.RLEnv
     
     def __init__(self) -> None:
         self.runner = None
@@ -32,15 +33,19 @@ class TrainServerState:
         if prioritized:
             logdir = f"{logdir}-per"
         builder = rlenv.Builder(LaserEnv(map_file))
+        other_builder = rlenv.Builder(LaserEnv(map_file))
         for wrapper in wrappers:
             match wrapper:
                 case "TimeLimit": builder.time_limit(time_limit)
                 case "VideoRecorder": builder.record("videos")
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
-                case "AgentId": builder.agent_id()
+                case "AgentId": 
+                    builder.agent_id()
+                    other_builder.agent_id()
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
         builder.add_logger("action", directory=logdir)
         env, test_env = builder.build_all()
+        self.env = other_builder.build()
         memory = marl.models.TransitionMemory(memory_size)
         if prioritized:
             memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=0.4)
@@ -57,7 +62,7 @@ class TrainServerState:
             qvalues = json.load(f)
         with open(os.path.join(base_path, "actions.json"), "r") as f:
             actions = json.load(f)
-        episode = replay_episode(deepcopy(self.runner._env), actions)
+        episode = replay_episode(deepcopy(self.env), actions)
         json_data = episode.to_json()
         json_data["qvalues"] = qvalues
         return json_data
@@ -66,6 +71,6 @@ class TrainServerState:
         path = os.path.join(self.runner._logger.logdir, "train", f"{episode_num}", "actions.json")
         with open(path, "r") as f:
             actions = json.load(f)
-        frames = replay_video(deepcopy(self.runner._env), actions)
+        frames = replay_video(deepcopy(self.env), actions)
         frames = [self.runner.encode_frame(f) for f in frames]
         return frames

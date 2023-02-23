@@ -12,9 +12,10 @@
                         <input type="number" class="form-control" v-model.number="trainSteps" @keyup.enter="train"
                             size="2" />
                         <span class="input-group-text"> steps </span>
-                        <button type="button" class="btn btn-success" @click="train">
+                        <button type="button" class="btn btn-success" @click="train" :disabled="isTraining">
                             Train
-                            <font-awesome-icon icon="fa-solid fa-solid fa-forward-step" />
+                            <font-awesome-icon v-if="!isTraining" icon="fa-solid fa-solid fa-forward-step" />
+                            <font-awesome-icon v-else icon="fa-solid fa-solid fa-spinner" spin />
                         </button>
                     </div>
                 </div>
@@ -33,13 +34,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-if="isTraining">
-                                <font-awesome-icon icon="fa-solid fa-solid fa-spinner" spin />
-                            </tr>
                             <tr v-for="(episode, i) in episodes" @click="() => onEpisodeSelected(episodes[i])"
                                 class="table-item">
                                 <td> Episode {{ episode }}</td>
-                                <td> {{ episodeSteps[i] }} </td>
+                                <td> {{ steps[i] }} </td>
                                 <td> {{ metrics[i].episode_length }}</td>
                                 <td> {{ metrics[i].score }} </td>
                                 <td> {{ metrics[i].gems_collected }} </td>
@@ -55,7 +53,7 @@
                 <MetricsPlotter :metrics="metrics" :reverse-labels="true" :max-steps="50" />
             </div>
             <div class="row">
-                <EpisodeViewer v-if="selectedEpisode != null" class="col-auto" :frames="frames"
+                <EpisodeViewer ref="episodeViewer" v-if="selectedEpisode != null" class="col-auto" :frames="frames"
                     :episode="selectedEpisode" />
             </div>
         </div>
@@ -74,12 +72,13 @@ import EpisodeViewer from '../replay/EpisodeViewer.vue';
 
 const replayStore = useEpisodeStore();
 const episodes = ref([] as number[]);
-const episodeSteps = ref([] as number[]);
+const steps = ref([] as number[]);
 const metrics = ref([] as Metrics[]);
 const trainSteps = ref(20);
 const isTraining = ref(false);
 const selectedEpisode = ref(null as ReplayEpisode | null);
 const frames = ref([] as string[]);
+const episodeViewer = ref(null as typeof EpisodeViewer | null);
 defineProps<{
     algorithm: string,
     level: string,
@@ -92,16 +91,14 @@ function train() {
     ws.onmessage = (event: MessageEvent) => {
         const data = JSON.parse(event.data) as { step: number, episode: number, metrics: Metrics };
         episodes.value.unshift(data.episode);
-        episodeSteps.value.unshift(data.step);
+        steps.value.unshift(data.step);
         metrics.value.unshift(data.metrics);
     }
     ws.onopen = () => {
         isTraining.value = true;
         ws.send(JSON.stringify({ steps: trainSteps.value }));
     }
-    ws.onclose = () => {
-        isTraining.value = false;
-    }
+    ws.onclose = () => isTraining.value = false;
 }
 
 
@@ -109,11 +106,20 @@ function train() {
 function onEpisodeSelected(episodeNum: number) {
     console.log("Episode selected: ", episodeNum);
     replayStore.getCurrentTrainEpisode(episodeNum).then(episode => selectedEpisode.value = episode);
-
-    replayStore.getCurrentTrainFrames(episodeNum).then(f => {
-        frames.value = f;
-    });
+    replayStore.getCurrentTrainFrames(episodeNum).then(f => frames.value = f);
 }
+
+function reset() {
+    episodeViewer.value?.reset();
+    episodes.value = [];
+    steps.value = [];
+    metrics.value = [];
+    selectedEpisode.value = null;
+    frames.value = [];
+    isTraining.value = false;
+}
+
+defineExpose({ reset });
 
 </script>
 

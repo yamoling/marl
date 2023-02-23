@@ -38,10 +38,10 @@ import Rendering from '../visualisation/Rendering.vue';
 
 
 const currentStep = ref(0);
-const reward = ref(0);
+const reward = computed(() => props.episode.rewards[currentStep.value] | 0);
 const props = defineProps<{
     frames: string[]
-    episode: ReplayEpisode | null
+    episode: ReplayEpisode
 }>();
 document.addEventListener("keydown", (event) => {
     switch (event.key) {
@@ -94,5 +94,11 @@ function changeStep(event: KeyboardEvent) {
         }
     }
 }
+
+function reset() {
+    currentStep.value = 0;
+}
+
+defineExpose({ reset });
 
 </script>
