@@ -4,7 +4,7 @@ from typing import Generic, TypeVar, Deque
 from rlenv import Episode, Transition
 import numpy as np
 
-from .batch import Batch
+from marl.models.batch import Batch
 
 
 T = TypeVar("T")
@@ -21,7 +21,7 @@ class ReplayMemory(Generic[T], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def update(self, indices: Batch, qvalues, qtargets):
+    def update(self, indices: list[int], qvalues, qtargets):
         """Update the data in the memory"""
 
     def sample(self, batch_size: int) -> Batch:

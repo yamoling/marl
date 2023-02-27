@@ -10,4 +10,4 @@ from . import qlearning
 from . import debugging
 from . import policy
 
-from .qlearning import RecurrentVDN, DQN, RDQN, LinearVDN, VanillaQLearning, ReplayTableQLearning
+from .qlearning import DQN, RDQN, VDN, VanillaQLearning, ReplayTableQLearning

@@ -5,6 +5,7 @@ import { HTTP_URL } from "../constants";
 export const useAlgorithmStore = defineStore("AlgorithmStore", () => {
 
     const algorithms = ref([] as string[]);
+    const algoWrappers = ref([] as string[]);
     const envWrappers = ref([] as string[]);
     const maps = ref([] as string[]);
 
@@ -19,10 +20,14 @@ export const useAlgorithmStore = defineStore("AlgorithmStore", () => {
         fetch(`${HTTP_URL}/env/maps/list`)
             .then(resp => resp.json())
             .then(levelList => maps.value = levelList);
+
+        fetch(`${HTTP_URL}/algo/wrapper/list`)
+            .then(resp => resp.json())
+            .then(wrappers => algoWrappers.value = wrappers);
     }
 
     refresh();
 
 
-    return { algorithms, envWrappers, maps };
+    return { algorithms, algoWrappers, envWrappers, maps };
 });

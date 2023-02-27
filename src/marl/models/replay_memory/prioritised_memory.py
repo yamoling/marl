@@ -2,7 +2,7 @@ from typing import List, TypeVar
 from sumtree import SumTree
 import torch
 
-from .batch import Batch
+from ..batch import Batch
 from .replay_memory import ReplayMemory
 
 
@@ -18,7 +18,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    def __init__(self, memory: ReplayMemory[T], alpha: float, beta: float, eps: float = 1e-2) -> None:
+    def __init__(self, memory: ReplayMemory[T], alpha=0.7, beta=0.4, eps: float = 1e-2):
         super().__init__(0)
         self._wrapped_memory = memory
         self._tree = SumTree(memory.max_size)
@@ -95,3 +95,13 @@ class PrioritizedMemory(ReplayMemory[T]):
             # where eps is a small positive constant that prevents the edge-case of transitions not being
             # revisited once their error is zero. (Section 3.3)
             self._tree.update(idx, priority.item())
+
+    def summary(self):
+        return {
+            **super().summary(),
+            "params": {
+                "alpha": self._alpha,
+                "beta": self._beta,
+                "eps": self._eps
+            }
+        }

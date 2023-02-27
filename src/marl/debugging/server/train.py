@@ -12,6 +12,7 @@ from ..replay import replay_episode, replay_video
 
 ALGORITHMS = [ "DQN", "VDN linear"]
 ENV_WRAPPERS = ["TimeLimit", "VideoRecorder", "IntrinsicReward", "AgentId"]
+ALGO_WRAPPERS = ["N-step"]
 
 @dataclass
 class TrainServerState:
@@ -39,7 +40,9 @@ class TrainServerState:
         other_builder = rlenv.Builder(LaserEnv(map_file))
         for wrapper in wrappers:
             match wrapper:
-                case "TimeLimit": builder.time_limit(time_limit)
+                case "TimeLimit": 
+                    builder.time_limit(time_limit)
+                    other_builder.time_limit(time_limit)
                 case "VideoRecorder": builder.record("videos")
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": 
@@ -112,7 +115,7 @@ class TrainServerState:
     def replay_episode_from_memory(self, transition_index: int, pm: PrioritizedMemory[Transition], env: rlenv.RLEnv):
         start = self._find_start_of_episode(transition_index, pm)
         if start is None:
-            return None
+            return [None, None]
         env.reset()
         for i in range(start, transition_index):
             actions = pm[i].action

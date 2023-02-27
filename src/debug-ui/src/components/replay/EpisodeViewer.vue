@@ -1,32 +1,40 @@
 <template>
-    <div class="row" v-if="episode != null">
-        <div class="col-8">
-            <div class="row text-center">
-                <AgentInfo v-for="agent in nAgents" :agent-num="agent - 1"
-                    :available-actions="episode.available_actions[currentStep][agent - 1]"
-                    :qvalues="episode.qvalues[currentStep]?.[agent - 1]"
-                    :extras="episode.extras[currentStep][agent - 1]" :obs="episode.obs[currentStep][agent - 1]">
-                </AgentInfo>
-            </div>
-            <div class="row">
-                <div class="mx-auto col-auto">
-                    <div class="input-group">
-                        <button type="button" class="btn btn-success" @click="() => step(-1)">
-                            <font-awesome-icon icon="fa-solid fa-solid fa-backward-step" />
-                        </button>
-                        <span class="input-group-text"> Current step </span>
-                        <input type="text" class="form-control" :value="currentStep" size="5"
-                            @keyup.enter="changeStep" />
-                        <span class="input-group-text"> / {{ episodeLength }} </span>
-                        <button type="button" class="btn btn-success" @click="() => step(1)">
-                            <font-awesome-icon icon="fa-solid fa-solid fa-forward-step" />
-                        </button>
-                    </div>
+        <div class="card">
+            <div class="card-header row">
+                <h5 class="col-auto"> Episode replay </h5>
+                <div class="col text-end">
+                    <button type="button" class="btn-close" @click="() => emits('close')"></button>
                 </div>
             </div>
-        </div>
-        <Rendering class="col-4" :current-image="currentImage" :previous-image="previousImage" :reward="reward">
-        </Rendering>
+            <div class="card-body row">
+                <div class="col-8">
+                    <div class="row text-center">
+                        <AgentInfo v-for="agent in nAgents" :agent-num="agent - 1"
+                            :available-actions="episode.available_actions[currentStep]?.[agent - 1]"
+                            :qvalues="episode.qvalues[currentStep]?.[agent - 1]"
+                            :extras="episode.extras[currentStep]?.[agent - 1]" :obs="episode.obs[currentStep]?.[agent - 1]">
+                        </AgentInfo>
+                    </div>
+                    <div class="row">
+                        <div class="mx-auto col-auto">
+                            <div class="input-group">
+                                <button type="button" class="btn btn-success" @click="() => step(-1)">
+                                    <font-awesome-icon icon="fa-solid fa-solid fa-backward-step" />
+                                </button>
+                                <span class="input-group-text"> Current step </span>
+                                <input type="text" class="form-control" :value="currentStep" size="5"
+                                    @keyup.enter="changeStep" />
+                                <span class="input-group-text"> / {{ episodeLength }} </span>
+                                <button type="button" class="btn btn-success" @click="() => step(1)">
+                                    <font-awesome-icon icon="fa-solid fa-solid fa-forward-step" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <Rendering class="col-4" :current-image="currentImage" :previous-image="previousImage" :reward="reward">
+                </Rendering>
+            </div>
     </div>
 </template>
 
@@ -38,7 +46,8 @@ import Rendering from '../visualisation/Rendering.vue';
 
 
 const currentStep = ref(0);
-const reward = computed(() => props.episode.rewards[currentStep.value] | 0);
+
+const reward = computed(() => props.episode?.rewards?.[currentStep.value] || 0);
 const props = defineProps<{
     frames: string[]
     episode: ReplayEpisode
@@ -100,5 +109,5 @@ function reset() {
 }
 
 defineExpose({ reset });
-
+const emits = defineEmits(["close"]);
 </script>

@@ -25,7 +25,7 @@
             <tbody>
                 <tr>
                     <th scope="row"> Qvalues </th>
-                    <td v-if="qvalues != null" v-for="(q, action) in qvalues"
+                        <td v-if="qvalues" v-for="(q, action) in qvalues"
                         :style='{ "background-color": "#" + backgroundColours[action] }'>
                         {{ q.toFixed(4) }}
                     </td>
@@ -47,7 +47,7 @@ rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 const props = defineProps<{
     agentNum: number,
-    qvalues: number[] | undefined,
+    qvalues: number[] | null | undefined,
     obs: number[],
     extras: number[],
     availableActions: number[]

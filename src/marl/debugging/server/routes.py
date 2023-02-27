@@ -89,6 +89,11 @@ def load_directory(path: str):
 def get_algorithms():
     return ALGORITHMS
 
+
+@app.route("/algo/wrappers/list")
+def get_algo_wrappers():
+    return ["N-step"]
+
 @app.route("/env/wrapper/list")
 def get_env_wrappers():
     return ENV_WRAPPERS

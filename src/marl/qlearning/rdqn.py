@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import torch
-from rlenv import RLEnv, Observation, Episode
+from rlenv import Observation, Episode
 from marl import nn
 from marl.models import EpisodeMemory, Batch
 from marl.policy import Policy
@@ -56,7 +56,7 @@ class RDQN(DQN):
         self.hidden_states=None
 
     def _sample(self) -> Batch:
-        return self.memory.sample(self.batch_size)\
+        return self.memory.sample(self._batch_size)\
             .for_rnn()\
             .for_individual_learners()
 
@@ -68,8 +68,8 @@ class RDQN(DQN):
                 qvalues = qvalues.gather(index=batch.actions, dim=-1).squeeze(-1)
                 return qvalues
             case Observation() as obs:
-                obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)
-                obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device, non_blocking=True)
+                obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self._device, non_blocking=True)
+                obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self._device, non_blocking=True)
                 qvalues, self.hidden_states = self.qnetwork.forward(obs_data, obs_extras, self.hidden_states)
                 return qvalues.squeeze(0)
             case _: raise ValueError("Invalid input data type for 'compute_qvalues'")
@@ -87,7 +87,7 @@ class RDQN(DQN):
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
         next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
-        targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
+        targets = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return targets
 
     def summary(self) -> dict[str,]:

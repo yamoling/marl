@@ -1,24 +1,38 @@
 <template>
     <div>
-        <div class=" progress-stacked mb-2 col-10" style="height: 40px;">
-            <div v-for="prio, i in priorities" class="progress" style="height: 100%;"
-                :style="{ width: `${(prio * 100) / cumsum}%` }" @click="() => changeSelected(i)">
-                <div v-if="selected == i" class="progress-bar" :class="COLORS[i % COLORS.length]"
-                    style="border: 1px solid;"> </div>
-                <div v-else class="progress-bar" :class="COLORS[i % COLORS.length]"> </div>
+        <h4> Replay memory</h4>
+        Cumulative sum: {{ cumsum.toFixed(2) }} <br />
+        <span v-if="selected >= 0"> Selected value: {{ priorities[selected].toFixed(3) }}</span>
+        <label> Number of lines
+            <input type="text" v-model="numberOfLines" size="5">
+        </label>
+
+        <div class="col-12 row mb-1" style="border: 1px solid">
+            <div v-for="prio, i in priorities" class="p-0 text-center" style="height: 50px; overflow: hidden;" :style="{
+                width: `${(prio * 100 * numberOfLines) / cumsum}%`, backgroundColor: '#' + rainbow.colourAt(prio),
+                border: (selected == i) ? '1px solid' : 'none'
+            }" @click="() => changeSelected(i)">
+                {{ prio.toFixed(3) }}
             </div>
         </div>
-        <div class="row">
-            <div class="mx-auto col-auto">
+
+        <div class="row mx-auto mb-2">
+            <div class="col-auto">
                 <div class="input-group">
-                    <button type="button" class="btn btn-success" @click="() => changeSelected(selected-1)">
+                    <button type="button" class="btn btn-success" @click="() => changeSelected(selected - 1)">
                         <font-awesome-icon icon="fa-solid fa-solid fa-backward-step" />
                     </button>
                     <span class="input-group-text"> Selected {{ selected }} </span>
-                    <button type="button" class="btn btn-success" @click="() => changeSelected(selected+1)">
+                    <button type="button" class="btn btn-success" @click="() => changeSelected(selected + 1)">
                         <font-awesome-icon icon="fa-solid fa-solid fa-forward-step" />
                     </button>
                 </div>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" @click="loadPriorities">
+                    <!-- Reload icon -->
+                    <font-awesome-icon icon="fa-solid fa-solid fa-sync" :class="loadingPriorities ? 'spin' : ''" />
+                </button>
             </div>
         </div>
         <div class="row mb-2">
@@ -29,41 +43,36 @@
                 <img :src="'data:image/jpg;base64, ' + currentImage">
             </div>
         </div>
-        <button role="button" class="btn btn-primary" @click="loadPriorities">
-            Get priorities
-        </button>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useMemoryStore } from '../../stores/MemoryStore';
+import Rainbow from "rainbowvis.js";
 
-const COLORS = [
-    'bg-primary',
-    'bg-secondary',
-    'bg-success',
-    'bg-danger',
-    'bg-warning',
-    'bg-info',
-    'bg-light',
-    'bg-dark',
-] as const;
+const rainbow = new Rainbow();
+rainbow.setSpectrum("deepskyblue", "turquoise", "lightgreen", "limegreen");
 
+const loadingPriorities = ref(false);
+const numberOfLines = ref(10);
 const memorySize = ref(0);
 const priorities = ref([] as number[]);
-const selected = ref(0);
+const selected = ref(-1 as number);
 const currentImage = ref("");
 const previousImage = ref("");
 const cumsum = ref(0);
 const store = useMemoryStore();
 
-
 function loadPriorities() {
+    selected.value = -1;
+    loadingPriorities.value = true;
     store.getPriorities().then(p => {
+        rainbow.setNumberRange(0, Math.max(...p.priorities));
         priorities.value = p.priorities;
         cumsum.value = p.cumsum;
         memorySize.value = p.priorities.length;
+        loadingPriorities.value = false;
     });
 }
 
@@ -75,4 +84,6 @@ function changeSelected(newSelectedIndex: number) {
         previousImage.value = t.prev_frame;
     });
 }
+
+
 </script>

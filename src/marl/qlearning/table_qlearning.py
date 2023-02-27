@@ -40,7 +40,7 @@ class VanillaQLearning(QLearning):
 
         next_qvalues = self.compute_qvalues(transition.obs_).numpy()
         next_qvalues = np.max(next_qvalues, axis=-1, keepdims=True)
-        target_qvalues = transition.reward + self.gamma * next_qvalues
+        target_qvalues = transition.reward + self._gamma * next_qvalues
 
         new_qvalues = (1 - self.lr) * qvalues + self.lr * target_qvalues
         
@@ -79,7 +79,7 @@ class VanillaQLearning(QLearning):
             **super().summary(),
             "train_policy": self.train_policy.__class__.__name__,
             "test_policy": self.test_policy.__class__.__name__,
-            "gamma": self.gamma,
+            "gamma": self._gamma,
             "lr": self.lr
         }
 
@@ -126,7 +126,7 @@ class ReplayTableQLearning(VanillaQLearning):
         next_obs_data = torch.concat([batch.obs_, batch.extras_], dim=-1).numpy()
         next_qvalues = self.batch_get(next_obs_data, transition.n_actions)
         next_qvalues = np.max(next_qvalues, axis=-1)
-        qtargets = batch.rewards.numpy() + self.gamma * next_qvalues
+        qtargets = batch.rewards.numpy() + self._gamma * next_qvalues
 
         new_qvalues = (1 - self.lr) * qvalues + self.lr * qtargets
         

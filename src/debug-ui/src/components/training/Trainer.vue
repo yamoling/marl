@@ -22,39 +22,39 @@
             </div>
             <div class="row">
                 <div class="col-auto mx-auto">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th> Episode </th>
-                                <th> Step </th>
-                                <th> Length </th>
-                                <th> Score </th>
-                                <th> Gems </th>
-                                <th> In elevator </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="(episode, i) in episodes" @click="() => onEpisodeSelected(episodes[i])"
-                                class="table-item">
-                                <td> Episode {{ episode }}</td>
-                                <td> {{ steps[i] }} </td>
-                                <td> {{ metrics[i].episode_length }}</td>
-                                <td> {{ metrics[i].score }} </td>
-                                <td> {{ metrics[i].gems_collected }} </td>
-                                <td> {{ metrics[i].in_elevator }} </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <div class="col-5">
-            <div class="row">
-                <MetricsPlotter :metrics="metrics" :reverse-labels="true" :max-steps="50" />
-            </div>
-            <div class="row">
-                <EpisodeViewer ref="episodeViewer" v-if="selectedEpisode != null" class="col-auto" :frames="frames"
-                    :episode="selectedEpisode" />
+                        <table class="table table-sm text-center">
+                            <thead>
+                                <tr>
+                                    <th> Episode </th>
+                                    <th> Step </th>
+                                    <th> Length </th>
+                                    <th> Score </th>
+                                    <th> Gems </th>
+                                    <th> In elevator </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(episode, i) in episodes" @click="() => onEpisodeSelected(episodes[i])"
+                                                    class="table-item" :class="episode == selectedEpisodeNum ? 'selected' : ''">
+                                                    <td> Episode {{ episode }}</td>
+                                                    <td> {{ steps[i] }} </td>
+                                                    <td> {{ metrics[i].episode_length }}</td>
+                                                    <td> {{ metrics[i].score }} </td>
+                                                    <td> {{ metrics[i].gems_collected }} </td>
+                                                    <td> {{ metrics[i].in_elevator }} </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <div class="row">
+                                    <MetricsPlotter :metrics="metrics" :reverse-labels="true" :max-steps="50" />
+                                </div>
+                                <div class="row">
+                                    <EpisodeViewer ref="episodeViewer" v-if="selectedEpisode != null" class="col-auto" :frames="frames"
+                                                :episode="selectedEpisode" @close="() => selectedEpisode = null" />
             </div>
             <div class="row">
                 <ReplayMemory />
@@ -81,6 +81,7 @@ const metrics = ref([] as Metrics[]);
 const trainSteps = ref(20);
 const isTraining = ref(false);
 const selectedEpisode = ref(null as ReplayEpisode | null);
+const selectedEpisodeNum = ref(null as number | null);
 const frames = ref([] as string[]);
 const episodeViewer = ref(null as typeof EpisodeViewer | null);
 defineProps<{
@@ -109,6 +110,7 @@ function train() {
 
 function onEpisodeSelected(episodeNum: number) {
     console.log("Episode selected: ", episodeNum);
+    selectedEpisodeNum.value = episodeNum;
     replayStore.getCurrentTrainEpisode(episodeNum).then(episode => selectedEpisode.value = episode);
     replayStore.getCurrentTrainFrames(episodeNum).then(f => frames.value = f);
 }
@@ -130,6 +132,10 @@ defineExpose({ reset });
 <style scoped>
 .table-item:hover {
     cursor: pointer;
+    background-color: #e9ecef;
+}
+
+.table-item.selected {
     background-color: #e9ecef;
 }
 </style>

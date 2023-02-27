@@ -8,6 +8,11 @@ from rlenv import Observation
 
 
 class IQLearning(RLAlgo):
+    @property
+    @abstractmethod
+    def gamma(self) -> float:
+        """The discount factor"""
+
     @abstractmethod
     def compute_qvalues(self, data: Observation) -> torch.Tensor:
         """Compute the qvalues for the given input data."""
@@ -46,7 +51,7 @@ class QLearning(IQLearning):
         self.train_policy = train_policy
         self.test_policy = test_policy
         self.policy = train_policy
-        self.gamma = gamma
+        self._gamma = gamma
 
     def before_tests(self):
         self.policy = self.test_policy

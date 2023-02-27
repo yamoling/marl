@@ -1,8 +1,8 @@
 <template>
     <Tabs ref="tabs" :tabs="tabNames" />
     <TrainingConfig v-show="tabs.currentTab == 'Config'" @start="onConfigDone" />
-                        <Trainer ref="trainer" v-show="tabs.currentTab == 'Training'" :algorithm="config.algo" :wrappers="config.wrappers"
-    :level="config.level" />
+    <Trainer ref="trainer" v-show="tabs.currentTab == 'Training'" :algorithm="config.algo" :wrappers="config.wrappers"
+        :level="config.level" />
 </template>
 
 <script setup lang="ts">

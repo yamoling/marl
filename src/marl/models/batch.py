@@ -153,7 +153,7 @@ class Batch:
         )
 
     def for_individual_learners(self) -> "Batch":
-        """Reshape rewards, dones and masks such that each agent has its own."""
+        """Reshape rewards, dones and masks such that each agent has its own (identical) signal."""
         self.rewards = self.rewards.repeat_interleave(self.n_agents).reshape(*self.rewards.shape, self.n_agents)
         self.dones = self.dones.repeat_interleave(self.n_agents).reshape(*self.dones.shape, self.n_agents)
         self.masks = self.masks.repeat_interleave(self.n_agents).reshape(*self.masks.shape, self.n_agents)
@@ -176,3 +176,7 @@ class Batch:
                 value = value.to(device, non_blocking=True)
                 setattr(self, key, value)
         return self
+
+    @property
+    def device(self) -> torch.device:
+        return self.obs.device
