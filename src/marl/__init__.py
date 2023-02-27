@@ -11,3 +11,4 @@ from . import debugging
 from . import policy
 
 from .qlearning import DQN, RDQN, VDN, VanillaQLearning, ReplayTableQLearning
+from .qlearning import DeepQBuilder 

@@ -5,15 +5,15 @@ from .nstep_memory import NStepReturnMemory
 from .prioritised_memory import PrioritizedMemory
 
 class MemoryBuilder:
-    def __init__(self, max_size: int, kind: Literal["transition", "episode"]):
-        self.kind = kind
-        match kind:
+    def __init__(self, max_size: int, memory_type: Literal["transition", "episode"]):
+        self.memory_type = memory_type
+        match memory_type:
             case "transition": self.memory = TransitionMemory(max_size)
             case "episode": self.memory = EpisodeMemory(max_size)
             case other: raise ValueError(f"Unknown memory kind: {other}")
 
     def nstep(self, n: int, gamma: float):
-        assert self.kind == "transition", "Can currently only use nstep return with transition memory"
+        assert self.memory_type == "transition", "NStep memory is currently only implemented for transition memory"
         self.memory = NStepReturnMemory(self.memory, n, gamma)
         return self
 

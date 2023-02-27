@@ -20,12 +20,13 @@ class DQN(IDeepQLearning):
     _gamma: float
     _tau: float
     _batch_size: int
-    lr: float
     _qnetwork: nn.LinearNN
     _optimizer: torch.optim.Optimizer
     _policy: Policy
     _memory: TransitionMemory
     _device: torch.device
+    _qnetwork: nn.LinearNN
+    _qtarget: nn.LinearNN
 
     def __init__(
         self,

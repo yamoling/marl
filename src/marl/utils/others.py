@@ -1,14 +1,14 @@
 import base64
 import cv2
 import numpy as np
-from typing import TypeVar
+from typing import TypeVar, Literal
 import re
 
 T = TypeVar("T")
 
 import torch
 
-def get_device(device: str="auto") -> torch.device:
+def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
     """Get the given device"""
     if device == "auto" or device == "" or device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"

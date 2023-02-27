@@ -11,10 +11,10 @@ from .dqn import DQN
 @dataclass
 class RDQN(DQN):
     # Type hinting
-    qnetwork: nn.RecurrentNN
-    qtarget: nn.RecurrentNN
-    memory: EpisodeMemory
-    hidden_states: torch.Tensor | None
+    _qnetwork: nn.RecurrentNN
+    _qtarget: nn.RecurrentNN
+    _memory: EpisodeMemory
+    _hidden_states: torch.Tensor | None
 
     def __init__(
         self, 
@@ -41,7 +41,7 @@ class RDQN(DQN):
             memory=defaults_to(memory, EpisodeMemory(50_000)), 
             qnetwork=qnetwork
         )
-        self.hidden_states=None
+        self._hidden_states=None
         
 
     def after_step(self, _step_num: int, _transition):
@@ -49,28 +49,28 @@ class RDQN(DQN):
         pass
 
     def after_episode(self, episode_num: int, episode: Episode):
-        self.memory.add(episode)
+        self._memory.add(episode)
         self.update()
 
     def before_episode(self, episode_num: int):
-        self.hidden_states=None
+        self._hidden_states=None
 
     def _sample(self) -> Batch:
-        return self.memory.sample(self._batch_size)\
+        return self._memory.sample(self._batch_size)\
             .for_rnn()\
             .for_individual_learners()
 
     def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
         match data:
             case Batch() as batch:
-                qvalues = self.qnetwork.forward(batch.obs, batch.extras)[0]
+                qvalues = self._qnetwork.forward(batch.obs, batch.extras)[0]
                 qvalues = qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents, batch.n_actions)
                 qvalues = qvalues.gather(index=batch.actions, dim=-1).squeeze(-1)
                 return qvalues
             case Observation() as obs:
                 obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self._device, non_blocking=True)
                 obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self._device, non_blocking=True)
-                qvalues, self.hidden_states = self.qnetwork.forward(obs_data, obs_extras, self.hidden_states)
+                qvalues, self._hidden_states = self._qnetwork.forward(obs_data, obs_extras, self._hidden_states)
                 return qvalues.squeeze(0)
             case _: raise ValueError("Invalid input data type for 'compute_qvalues'")
 
@@ -83,7 +83,7 @@ class RDQN(DQN):
         return loss
 
     def compute_targets(self, batch: Batch) -> torch.Tensor:
-        next_qvalues, _ = self.qtarget.forward(batch.obs_, batch.extras_)
+        next_qvalues, _ = self._qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
         next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)

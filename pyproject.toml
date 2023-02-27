@@ -13,7 +13,7 @@ rlenv = {git = "https://github.com/yamoling/rlenv.git"}
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
 laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
-sumtree = "^0.2.1"
+sumtree = "^0.2.2"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"

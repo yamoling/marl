@@ -402,14 +402,14 @@ numpy = "*"
 
 [[package]]
 name = "dm-env-rpc"
-version = "1.1.4"
+version = "1.1.5"
 description = "A networking protocol for agent-environment communication."
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "dm-env-rpc-1.1.4.tar.gz", hash = "sha256:8c20b6a67fefcb7fcfc2c80188ead25fe07e0a46fad3b25d7fe70d118cd0c58c"},
-    {file = "dm_env_rpc-1.1.4-py3-none-any.whl", hash = "sha256:98feba83224430e5dd73d49858f714e9c360e5d33267398a5814576077fe7568"},
+    {file = "dm-env-rpc-1.1.5.tar.gz", hash = "sha256:bee54d7727314f2f8e2270fccfa6d1bb3f4e2fcc2c7c2f7722a5b2e2eed1343e"},
+    {file = "dm_env_rpc-1.1.5-py3-none-any.whl", hash = "sha256:3dd5b4dce5e513710e74dde517645d9d38c0ca09c6803c32b777bd538654db68"},
 ]
 
 [package.dependencies]
@@ -2481,4 +2481,4 @@ test = ["pytest (>=3.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.11"
-content-hash = "c42b35032e570c2b16d84ecf2c48900a73d5fc71d11f133b9142ebaf3578e316"
+content-hash = "e1aa853a5def89264b0562a604a98f834c25ad98a011621e04f2539ce50edda8"
