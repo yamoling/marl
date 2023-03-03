@@ -5,8 +5,9 @@ import { Metrics } from "../models/Metric";
 import { HTTP_URL } from "../constants";
 import { Test } from "../models/Test";
 
-export const useEpisodeStore = defineStore("ReplayStore", () => {
+export const useReplayStore = defineStore("ReplayStore", () => {
 
+    const logdirs = ref([] as string[]);
     const loadingTests = ref(false);
     const loadingTrain = ref(false);
     const loadingMetrics = ref(false);
@@ -19,14 +20,14 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
         loadingTests.value = true;
         loadingTrain.value = true;
         loadingMetrics.value = true;
-        fetch(`${HTTP_URL}/list/train`)
+        fetch(`${HTTP_URL}/replay/train/list`)
             .then(resp => resp.json())
             .then(trainList => {
-                trainingList.value = trainList.map((e: string) => e.substring(0, e.length - 5));
+                trainingList.value = trainList;
                 loadingTrain.value = false;
             });
 
-        fetch(`${HTTP_URL}/list/test`)
+        fetch(`${HTTP_URL}/replay/test/list`)
             .then(resp => resp.json())
             .then(testList => {
                 testingList.value = testList;
@@ -34,26 +35,26 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
                 testEpisodeMetrics.value = testingList.value.map(t => new Array(t.episodes.length));
             });
 
-        fetch(`${HTTP_URL}/metrics/test`)
+        fetch(`${HTTP_URL}/ls/logs`)
             .then(resp => resp.json())
-            .then(metrics => {
-                testMetrics.value = metrics;
-                loadingMetrics.value = false;
+            .then(d => {
+                const dirs = d as any[];
+                logdirs.value = dirs.map(d => d.path);
             });
+
     }
     refresh();
 
 
     async function loadTestEpisodeMetrics(stepNum: number, episodeNum: number) {
-        console.log(stepNum, episodeNum, testEpisodeMetrics.value[stepNum][episodeNum]);
         if (testEpisodeMetrics.value[stepNum][episodeNum] == undefined) {
             const resp = await fetch(`${HTTP_URL}/metrics/test/${stepNum}/${episodeNum}`);
             testEpisodeMetrics.value[stepNum][episodeNum] = await resp.json();
         }
     }
 
-    async function getTrainEpisode(num: number): Promise<ReplayEpisode> {
-        const resp = await fetch(`${HTTP_URL}/episode/train/${num}`);
+    async function getEpisode(directory: string): Promise<ReplayEpisode> {
+        const resp = await fetch(`${HTTP_URL}/replay/episode/${directory}`);
         return await resp.json();
     }
 
@@ -83,5 +84,5 @@ export const useEpisodeStore = defineStore("ReplayStore", () => {
     }
 
 
-    return { loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, testEpisodeMetrics, getTrainEpisode, getCurrentTrainFrames, getCurrentTrainEpisode, getTestEpisode, refresh, getTestFrames, loadTestEpisodeMetrics, getTrainFrames };
+    return { logdirs, loadingMetrics, loadingTests, loadingTrain, testMetrics, trainingList, testingList, testEpisodeMetrics, getEpisode, getCurrentTrainFrames, getCurrentTrainEpisode, getTestEpisode, refresh, getTestFrames, loadTestEpisodeMetrics, getTrainFrames };
 });

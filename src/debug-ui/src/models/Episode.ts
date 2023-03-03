@@ -1,17 +1,29 @@
+import { Metrics } from "./Metric"
+
+export interface ReplayEpisodeSummary {
+    name: string,
+    directory: string,
+    metrics: Metrics,
+}
+
 export interface ReplayEpisode {
+    name: string,
+    directory: string,
+    episode: Episode,
+    metrics: Metrics,
+    qvalues: number[][][],
+    frames: string[]
+}
+
+
+export interface Episode {
     obs: number[][][],
     extras: number[][][],
     actions: number[][],
     rewards: number[],
     available_actions: number[][][],
     states: number[][][],
-    metrics: {
-        score: number,
-        episode_length: number,
-    },
-    qvalues: number[][][],
 }
-
 
 export interface Transition {
     obs: number[][],

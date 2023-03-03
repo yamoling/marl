@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from rlenv import Observation, Episode, Transition
-from marl.models import Batch
+from marl.models import Batch, ReplayMemory
 from .qlearning import IDeepQLearning
 
 
@@ -13,6 +13,10 @@ class DeepQWrapper(IDeepQLearning):
     @property
     def gamma(self) -> float:
         return self.algo.gamma
+    
+    @property
+    def memory(self) -> ReplayMemory:
+        return self.algo.memory
 
     def compute_qvalues(self, data):
         return self.algo.compute_qvalues(data)

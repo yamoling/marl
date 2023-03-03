@@ -6,61 +6,60 @@ import rlenv
 from copy import deepcopy
 from laser_env import LaserEnv
 from rlenv import Transition
-from marl.models import PrioritizedMemory
+from marl.models import PrioritizedMemory, Experiment
 from marl.utils.others import encode_b64_image
 from ..replay import replay_episode, replay_video
 
-ALGORITHMS = [ "DQN", "VDN linear"]
-ENV_WRAPPERS = ["TimeLimit", "VideoRecorder", "IntrinsicReward", "AgentId"]
-ALGO_WRAPPERS = ["N-step"]
+@dataclass
+class MemoryConfig:
+    prioritized: bool
+    size: int
+    nstep: int
+
+@dataclass
+class TrainConfig:
+    recurrent: bool
+    vdn: bool
+    env_wrappers: list[str]
+    time_limit: int
+    level: str
+    memory: MemoryConfig
 
 @dataclass
 class TrainServerState:
-    runner: marl.debugging.DebugRunner
-    env: rlenv.RLEnv
+    runner: marl.debugging.DebugRunner | None
+    env: rlenv.RLEnv | None
     
     def __init__(self) -> None:
         self.runner = None
 
-    def create_algo(
-        self,
-        algo_name: str, 
-        map_file: str, 
-        wrappers: list[str], 
-        prioritized: bool, 
-        memory_size: int, 
-        time_limit: int|None
-    ):
+    def create_algo(self, config: TrainConfig) -> str:
+        """Creates the algorithm and returns its logging directory"""
         if self.runner is not None:
             self.runner.stop = True
-        logdir = os.path.join("logs", f"{map_file.replace('/', '_')}-{algo_name}")
-        if prioritized:
+        logdir = os.path.join("logs", f"{config.level.replace('/', '_')}")
+        if config.memory.prioritized:
             logdir = f"{logdir}-per"
-        builder = rlenv.Builder(LaserEnv(map_file))
-        other_builder = rlenv.Builder(LaserEnv(map_file))
-        for wrapper in wrappers:
+        builder = rlenv.Builder(LaserEnv(config.level))
+        for wrapper in config.env_wrappers:
             match wrapper:
-                case "TimeLimit": 
-                    builder.time_limit(time_limit)
-                    other_builder.time_limit(time_limit)
+                case "TimeLimit": builder.time_limit(config.time_limit)
                 case "VideoRecorder": builder.record("videos")
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
-                case "AgentId": 
-                    builder.agent_id()
-                    other_builder.agent_id()
+                case "AgentId": builder.agent_id()
+                case "LogActions": builder.add_logger("action", directory=logdir)
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
-        builder.add_logger("action", directory=logdir)
         env, test_env = builder.build_all()
-        self.env = other_builder.build()
-        memory = marl.models.TransitionMemory(memory_size)
-        if prioritized:
-            memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=0.4)
-        qnetwork = marl.nn.model_bank.MLP.from_env(env)
-        algo = marl.qlearning.DQN(qnetwork=qnetwork, memory=memory)
-        if algo_name == "VDN linear":
-            algo = marl.qlearning.vdn.VDN(algo)
-        algo = marl.debugging.QLearningDebugger(algo, logdir)
+        memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
+        if config.memory.prioritized:
+            memory_builder.prioritized()
+        qbuilder = marl.DeepQBuilder(config.recurrent, env)
+        if config.vdn:
+            qbuilder.vdn()
+        qbuilder.memory(memory_builder.build())
+        algo = marl.debugging.QLearningDebugger(qbuilder.build(), logdir)
         self.runner = marl.debugging.DebugRunner(env, test_env=test_env, algo=algo, logdir=logdir)
+        return logdir
 
     def get_train_episode(self, episode_num: int) -> dict:
         base_path = os.path.join(self.runner._logger.logdir, "train", f"{episode_num}")
@@ -89,7 +88,7 @@ class TrainServerState:
                 for i in range(len(pm._tree)):
                     p.append(pm._tree[i])
                 return pm._tree.total, p
-            case _: return 1., []
+            case other: return len(other), [1] * len(other)
 
 
     def get_transition_from_memory(self, index: int) -> dict:
@@ -125,3 +124,6 @@ class TrainServerState:
         frame = env.render("rgb_array")
         return prev_frame, frame
 
+    @property
+    def env(self) -> rlenv.RLEnv:
+        return self.runner._env

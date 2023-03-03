@@ -42,6 +42,10 @@ class IDeepQLearning(IQLearning):
         e.g: batch.for_rnn(), batch.for_independent_learners(), ...
         """
 
+    @property
+    @abstractmethod
+    def memory(self) -> ReplayMemory:
+        """The attached replay memory"""
 
 
 

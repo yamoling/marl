@@ -13,11 +13,11 @@ export interface ITabs<T extends readonly string[]> {
     currentTab: T[number]
 };
 
+
 const props = defineProps<{
     tabs: readonly string[]
 }>();
 const currentTab = ref(props.tabs[0]);
-
 const emit = defineEmits(["tabChange"]);
 
 function changeTab(newTab: string) {

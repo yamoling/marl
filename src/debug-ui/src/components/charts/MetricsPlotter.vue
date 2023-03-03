@@ -10,7 +10,7 @@ import { onMounted, watch } from 'vue';
 import { Metrics } from '../../models/Metric';
 
 let chart: Chart;
-const emits = defineEmits(["episodeSelected"]);
+const emits = defineEmits(["testEpisodeSelected"]);
 const props = defineProps<{
     metrics: Metrics[],
     reverseLabels: boolean,
@@ -72,7 +72,7 @@ onMounted(() => {
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {
-                    emits('episodeSelected', "test", datasetElement[0].index)
+                    emits('testEpisodeSelected', "test", datasetElement[0].index)
                 }
             }
         }

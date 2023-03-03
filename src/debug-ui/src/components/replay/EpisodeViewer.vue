@@ -1,18 +1,15 @@
 <template>
-        <div class="card">
-            <div class="card-header row">
-                <h5 class="col-auto"> Episode replay </h5>
-                <div class="col text-end">
-                    <button type="button" class="btn-close" @click="() => emits('close')"></button>
+    <div ref="modal" class="modal fade" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5> Episode replay </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </div>
-            <div class="card-body row">
-                <div class="col-8">
-                    <div class="row text-center">
-                        <AgentInfo v-for="agent in nAgents" :agent-num="agent - 1"
-                            :available-actions="episode.available_actions[currentStep]?.[agent - 1]"
-                            :qvalues="episode.qvalues[currentStep]?.[agent - 1]"
-                            :extras="episode.extras[currentStep]?.[agent - 1]" :obs="episode.obs[currentStep]?.[agent - 1]">
+                <div class="modal-body row">
+                    <div class="row mb-1 mx-auto">
+                        <AgentInfo v-for="agent in nAgents" class="col-6" :episode="episode" :agent-num="agent - 1"
+                            :current-step="currentStep">
                         </AgentInfo>
                     </div>
                     <div class="row">
@@ -31,58 +28,57 @@
                             </div>
                         </div>
                     </div>
+                    <Rendering class="col-auto mx-auto" :current-image="currentFrame" :previous-image="previousFrame"
+                        :reward="reward" />
                 </div>
-                <Rendering class="col-4" :current-image="currentImage" :previous-image="previousImage" :reward="reward">
-                </Rendering>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                </div>
+
             </div>
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ReplayEpisode } from '../../models/Episode';
 import AgentInfo from '../visualisation/AgentInfo.vue';
 import Rendering from '../visualisation/Rendering.vue';
 
 
 const currentStep = ref(0);
+const modal = ref({} as HTMLElement);
 
-const reward = computed(() => props.episode?.rewards?.[currentStep.value] || 0);
+const reward = computed(() => props.episode?.episode?.rewards?.[currentStep.value] || 0);
+const nAgents = computed(() => (props?.episode?.qvalues == null) ? 0 : props.episode.qvalues[0].length);
+const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
+const currentFrame = computed(() => props.episode?.frames?.at(currentStep.value) || '');
+const previousFrame = computed(() => {
+    if (currentStep.value <= 0) {
+        return ""
+    }
+    return props.episode?.frames?.at(currentStep.value - 1) || '';
+})
 const props = defineProps<{
     frames: string[]
-    episode: ReplayEpisode
+    episode: ReplayEpisode | null
 }>();
-document.addEventListener("keydown", (event) => {
-    switch (event.key) {
-        case "ArrowLeft":
-        case "ArrowUp":
-            step(-1)
-            break;
-        case "ArrowRight":
-        case "ArrowDown":
-            step(1);
-            break
-        default: return;
-    }
-})
 
-
-const nAgents = computed(() => (props?.episode?.qvalues == null) ? 0 : props.episode.qvalues[0].length);
-const episodeLength = computed(() => (props?.episode?.qvalues == null) ? 0 : props.episode.qvalues.length);
-const previousImage = computed(() => {
-    if (currentStep.value <= 0) {
-        return "";
-    }
-    if (props.frames.length > 0) {
-        return props.frames[currentStep.value - 1];
-    }
-    return "";
-});
-const currentImage = computed(() => {
-    if (props.frames.length > 0) {
-        return props.frames[currentStep.value];
-    }
-    return "";
+onMounted(() => {
+    modal.value.addEventListener("keydown", (event) => {
+        switch (event.key) {
+            case "ArrowLeft":
+            case "ArrowUp":
+                step(-1)
+                break;
+            case "ArrowRight":
+            case "ArrowDown":
+                step(1);
+                break
+            default: return;
+        }
+    });
 });
 
 
@@ -96,9 +92,7 @@ function changeStep(event: KeyboardEvent) {
         currentStep.value = currentStep.value;
     } else {
         const newValue = parseInt(target.value);
-        if (isNaN(newValue)) {
-            currentStep.value = currentStep.value;
-        } else {
+        if (!isNaN(newValue)) {
             currentStep.value = newValue;
         }
     }
@@ -109,5 +103,4 @@ function reset() {
 }
 
 defineExpose({ reset });
-const emits = defineEmits(["close"]);
 </script>

@@ -2,23 +2,18 @@ import asyncio
 import threading
 import json
 from websockets.server import serve, WebSocketServerProtocol
-import base64
-import cv2
 from rlenv.models import EpisodeBuilder, Episode, Transition
+
 import marl
 from marl.models import ReplayMemory
-from marl.qlearning import IDeepQLearning
 from marl.utils.others import encode_b64_image
 
 from .debug_wrapper import QLearningDebugger
-from .debug_memory import DebugMemory
 
 
 class DebugRunner(marl.Runner):
-    def __init__(self, env, test_env, algo: IDeepQLearning, logdir: str, memory: ReplayMemory = None):
-        self._q_function = algo
-        if not isinstance(algo, QLearningDebugger):
-            algo = QLearningDebugger(algo, logdir)
+    def __init__(self, env, test_env, algo: QLearningDebugger, logdir: str, memory: ReplayMemory = None):
+        self._q_function = algo.algo
         super().__init__(env, test_env=test_env, algo=algo, logdir=logdir)
         self.step_num = 0
         self.episode_num = 0
@@ -33,6 +28,7 @@ class DebugRunner(marl.Runner):
         self._algo: QLearningDebugger
         # Start server
         self.start_ws_server()
+        self.write_experiment_summary()
         
     def start_ws_server(self):
         t = threading.Thread(target=lambda: asyncio.run(self.run_server()))

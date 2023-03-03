@@ -7,11 +7,11 @@
 <script setup lang="ts">
 import Chart from 'chart.js/auto';
 import { onMounted, watch } from 'vue';
-import { useEpisodeStore } from "../../stores/EpisodeStore";
+import { useReplayStore } from "../../stores/ReplayStore;
 
-const replayStore = useEpisodeStore();
+const replayStore = useReplayStore();
 var chart: Chart;
-const emits = defineEmits(["episodeSelected"]);
+const emits = defineEmits(["testEpisodeSelected"]);
 
 watch(replayStore, updateChart)
 
@@ -46,7 +46,7 @@ onMounted(() => {
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {
-                    emits('episodeSelected', "test", datasetElement[0].index)
+                    emits('testEpisodeSelected', "test", datasetElement[0].index)
                 }
             }
         }

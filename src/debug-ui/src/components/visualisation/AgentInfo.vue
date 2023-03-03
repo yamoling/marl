@@ -1,5 +1,5 @@
 <template>
-    <div class="m-1 col agent-info">
+    <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
         <table class="table table-responsive">
             <tr>
@@ -25,7 +25,7 @@
             <tbody>
                 <tr>
                     <th scope="row"> Qvalues </th>
-                        <td v-if="qvalues" v-for="(q, action) in qvalues"
+                    <td v-if="qvalues" v-for="(q, action) in qvalues"
                         :style='{ "background-color": "#" + backgroundColours[action] }'>
                         {{ q.toFixed(4) }}
                     </td>
@@ -39,30 +39,58 @@
 
 import { computed } from "vue";
 import Rainbow from "rainbowvis.js";
+import { ReplayEpisode } from "../../models/Episode";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"];
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 
+
 const props = defineProps<{
+    episode: ReplayEpisode | null,
     agentNum: number,
-    qvalues: number[] | null | undefined,
-    obs: number[],
-    extras: number[],
-    availableActions: number[]
+    currentStep: number,
 }>();
+
+const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
+
+const obs = computed(() => {
+    if (props.episode == null) return [];
+    return props.episode.episode.obs[props.currentStep][props.agentNum];
+});
+
+const extras = computed(() => {
+    if (props.episode == null) return []
+    return props.episode.episode.extras[props.currentStep][props.agentNum];
+});
+
+const availableActions = computed(() => {
+    if (props.episode == null) return [];
+    return props.episode.episode.available_actions[props.currentStep][props.agentNum];
+});
+
+const qvalues = computed(() => {
+    if (props.episode == null) return [];
+    if (props.currentStep >= episodeLength.value) return [];
+    return props.episode.qvalues[props.currentStep][props.agentNum];
+});
+
+
+
+
+
 const backgroundColours = computed(() => {
-    if (props.qvalues == null) {
+    if (qvalues.value.length == 0) {
         return "white";
     }
-    const min = Math.min(...props.qvalues);
-    let max = Math.max(...props.qvalues);
+    const min = Math.min(...qvalues.value);
+    let max = Math.max(...qvalues.value);
     if (min == max) {
         max++;
     }
     rainbow.setNumberRange(min, max);
-    return props.qvalues.map(q => rainbow.colourAt(q));
+    return qvalues.value.map(q => rainbow.colourAt(q));
 });
 
 

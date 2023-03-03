@@ -1,60 +1,112 @@
 <template>
-    <h3>Replay</h3>
-    <Tabs ref="tabs" :tabs="tabNames"></Tabs>
-    <div id="tab-content">
-        <div v-show="tabs.currentTab == 'File selection'">
-            <h4> Select a file </h4>
-            <FileExplorer path="logs" :is-directory="true" @file-selected="onReplayFileSelected" />
+    <!-- <div class="row">
+        <div class="col-auto text-center" ref="trainList">
+            <h4> Training </h4>
+            <table class="table table-sm table-striped table-hover text-center">
+                <thead style="position: sticky; top: 0; z-index: 1;">
+                    <th class="px-1"> # Episode </th>
+                    <th class="px-1"> Length</th>
+                    <th class="px-1"> Score </th>
+                    <th class="px-1"> Gems </th>
+                    <th class="px-1"> Elevator</th>
+                </thead>
+                <tbody style="overflow-y: auto; height: 100px;">
+                    <tr v-for="train in globalState.experiment?.train" @click="() => onTrainEpisodeClicked(train)">
+                        <td> {{ train.name }} </td>
+                        <td> {{ train.metrics.episode_length }}</td>
+                        <td> {{ train.metrics.score }} </td>
+                        <td> {{ train.metrics.gems_collected }}</td>
+                        <td> {{ train.metrics.in_elevator }}</td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
-        <Overview v-show="tabs.currentTab == 'Overview'" @episode-selected="selectEpisode"></Overview>
-        <EpisodeViewer v-show="tabs.currentTab == 'Inspect'" :episode="episode" :frames="frames">
-        </EpisodeViewer>
+        <div class="col-2 scrollable-list" ref="testList">
+            <h4> Testing </h4>
+            <font-awesome-icon v-if="replayStore.loadingTests" icon="fa-solid fa-spinner" />
+            <div class="accordion">
+                <div v-for="(test, testNum) in replayStore.testingList" class="accordion-item">
+                    <h4 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                            :data-bs-target="'#' + test.filename" aria-expanded="true" :aria-controls="test.filename"
+                            @click="() => test.episodes.forEach((_, e) => replayStore.loadTestEpisodeMetrics(testNum, e))">
+                            {{ test.filename }}
+                        </button>
+                    </h4>
+                    <div :id="test.filename" class="accordion-collapse collapse">
+                        <div class="accordion-body">
+                            <table class="table table-sm">
+                                <tr>
+                                    <th> File </th>
+                                    <th> Score </th>
+                                    <th> Length </th>
+                                </tr>
+                                <tr v-for="(e, episodeNum) in test.episodes">
+                                    <td>
+                                        <a href="#" @click="() => onTestEpisodeClicked(testNum, episodeNum)">
+                                            {{ e }}
+                                        </a>
+                                    </td>
+                                    <td>
+                                        {{ replayStore.testEpisodeMetrics?.[testNum]?.[episodeNum]?.score }}
+                                    </td>
+                                    <td>
+                                        {{ replayStore.testEpisodeMetrics?.[testNum]?.[episodeNum]?.episode_length }}
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div> -->
+    <div>
+        <Overview @request-view-episode="showModal" />
+        <EpisodeViewer :episode="globalState.viewingEpisode" :frames="[]" id="episodeViewer" />
     </div>
 </template>
 
-
 <script setup lang="ts">
+import { useReplayStore } from '../../stores/ReplayStore';
 import { ref } from 'vue';
-import Tabs from '../Tabs.vue';
-import { ITabs } from "../Tabs.vue";
+import { Collapse } from "bootstrap/dist/js/bootstrap.bundle.min.js";
+import { useGlobalState } from '../../stores/GlobalState';
+import Overview from '../Overview.vue';
+import { Modal } from "bootstrap";
 import EpisodeViewer from './EpisodeViewer.vue';
-import Overview from './Overview.vue';
-import { useEpisodeStore } from '../../stores/EpisodeStore';
-import { Episode } from '../../models/Episode';
-import FileExplorer from '../FileExplorer.vue';
-import { HTTP_URL } from '../../constants';
-
-const tabNames = [
-    "File selection",
-    "Overview",
-    "Inspect"
-] as const;
-
-const tabs = ref({} as ITabs<typeof tabNames>);
-const store = useEpisodeStore();
-const episode = ref(null as Episode | null);
-const frames = ref([] as string[]);
 
 
-
-function selectEpisode(stepNum: number, episodeNum: number) {
-    store.getTestEpisode(stepNum, episodeNum)
-        .then(e => {
-            console.log(e);
-            episode.value = e;
-        });
-    store.getTestFrames(stepNum, episodeNum)
-        .then(newFrames => frames.value = newFrames);
-    tabs.value.changeTab('Inspect');
+interface Collapsable {
+    collapse: () => void,
+    toggle: () => void,
+    show: () => void
 }
 
-function onReplayFileSelected(path: string) {
-    fetch(`${HTTP_URL}/load/${path}`)
-        .then(() => tabs.value.changeTab('Overview'));
+
+
+const testList = ref(null as null | HTMLElement);
+const replayStore = useReplayStore();
+const globalState = useGlobalState();
+
+
+function showModal() {
+    new Modal("#episodeViewer").show();
 }
+
+function onPlotClicked(kind: string, index: number) {
+    console.log(kind, index);
+    const id = `div:nth-child(${index + 1}) > div.collapse`;
+    const elem = testList.value?.querySelector(id) as HTMLElement | null;
+    // emits('episodeSelected', kind, index);
+    const selectedAccordeon = new Collapse(elem) as Collapsable;
+    console.log(selectedAccordeon);
+    selectedAccordeon?.show();
+    elem?.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    replayStore.testingList[index].episodes.forEach((_, episodeNum) => {
+        replayStore.loadTestEpisodeMetrics(index, episodeNum);
+    });
+}
+
 
 </script>
-
-<style>
-
-</style>

@@ -22,21 +22,19 @@ class Runner:
         self._logger = logging.default(logdir)
         self._seed = None
         self._best_score = -float("inf")
-        self._checkpoint = os.path.join(self._logger.logdir, "checkpoint")
+        self._checkpoint = os.path.join(self.logdir, "checkpoint")
+
+    def write_experiment_summary(self, train_summary: dict=None):
+        with open(f"{self.logdir}/experiment.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "env": self._env.summary(),
+                "training": train_summary,
+                "algorithm": self._algo.summary()
+            }, f, indent=4)
 
     def train(self, test_interval: int=200, n_tests: int=10, n_episodes: int=None, n_steps: int=None, quiet=False) -> str:
         """Start the training loop"""
-        with open(f"{self._logger.logdir}/experiment.json", "w", encoding="utf-8") as f:
-            json.dump({
-                "env": self._env.summary(),
-                "training": {
-                    "n_steps": n_steps,
-                    "n_episodes": n_episodes,
-                    "test_interval": test_interval,
-                    "n_tests": n_tests
-                },
-                "algorithm": self._algo.summary()
-            }, f, indent=4)
+        self.write_experiment_summary({"n_steps": n_steps, "n_episodes": n_episodes, "test_interval": test_interval, "n_tests": n_tests})
 
         if not ((n_episodes is None) != (n_steps is None)):
             raise ValueError(f"Exactly one of n_episodes ({n_episodes}) and n_steps ({n_steps}) must be set !")
@@ -44,7 +42,7 @@ class Runner:
             self._train_episodes(n_episodes, test_interval, n_tests, quiet)
         else:
             self._train_steps(n_steps, test_interval, n_tests, quiet)
-        return self._logger.logdir
+        return self.logdir
 
     def _train_steps(self, n_steps: int, test_interval: int, n_tests: int, quiet=False):
         """Train an agent and log on the basis of step numbers"""
@@ -131,3 +129,7 @@ class Runner:
         random.seed(seed_value)
         self._env.seed(seed_value)
         self._test_env.seed(seed_value)
+
+    @property
+    def logdir(self) -> str:
+        return self._logger.logdir

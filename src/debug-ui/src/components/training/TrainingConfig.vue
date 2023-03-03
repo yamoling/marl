@@ -1,46 +1,81 @@
 <template>
     <div>
-        <div class="row mb-2">
-            <div class="col-auto">
-                <div class="input-group mb-1">
-                    <label class="input-group-text">Algorithms</label>
-                    <select class="form-select" v-model="selectedAlgo">
-                        <option v-for="algo in algoStore.algorithms" :value="algo"> {{ algo }}</option>
-                    </select>
-                </div>
-                <div class="input-group mb-1">
-                    <label class="input-group-text">Select a level</label>
-                    <select class="form-select" v-model="selectedLevel">
-                        <option v-for="algo in algoStore.maps" :value="algo">
-                            {{ algo }}
-                        </option>
-                    </select>
-                </div>
-            </div>
-        </div>
-
         <fieldset class="row mb-2">
             <div class="col-auto">
-                <legend>Algorithm wrappers</legend>
+                <legend>Experiment name</legend>
                 <div class="form-check form-switch">
                     <label class="form-check-label">
-                        <input class="form-check-input" type="checkbox" role="switch" name="n-step" @change="algoWrapperChanged" />
-                        N-step return
-                        <input type="number" size="5" v-model="nStep" />
+                        <input v-model="autoName" class="form-check-input" type="checkbox" role="switch" />
+                        Automatic
                     </label>
+                </div>
+
+                <div class="input-group mb-1">
+                    <label class="input-group-text">Name </label>
+                    <input type="text" :disabled="autoName" class="form-control" v-model="experimentName">
                 </div>
             </div>
         </fieldset>
 
-        <fieldset class="row mb-2">
-            <div class="col-auto">
-                <legend>Env wrappers</legend>
-                <div v-for="wrapper in algoStore.envWrappers" class="form-check form-switch">
+        <div class="row mb-2">
+            <fieldset class="col-auto">
+                <legend>Algo config</legend>
+                <div class="form-check form-switch">
                     <label class="form-check-label">
-                        <input class="form-check-input" type="checkbox" role="switch" :name="wrapper"
-                            @change="envWrapperChanged" />
-                        {{ wrapper }}
-                        <input v-if="wrapper == 'TimeLimit'" type="number" size="8" v-model="timeLimitValue" />
+                        <input v-model="isRecurrent" class="form-check-input" type="checkbox" role="switch" />
+                        Recurrent
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input v-model="vdn" class="form-check-input" type="checkbox" role="switch" />
+                        VDN
+                    </label>
+                </div>
+
+                <div class="input-group mb-1">
+                    <label class="input-group-text">Select a level</label>
+                    <select class="form-select" v-model="selectedLevel">
+                        <option v-for="algo in 6" :value="'lvl' + algo">
+                            Level {{ algo }}
+                        </option>
+                    </select>
+                </div>
+            </fieldset>
+        </div>
+
+        <fieldset class="row mb-2">
+            <div ref="envWrappers" class="col-auto">
+                <legend>Env wrappers</legend>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="TimeLimit" checked />
+                        TimeLimit
+                        <input type="number" size="8" v-model="timeLimitValue" />
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="VideoRecorder" />
+                        Video recorder
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="IntrinsicReward" />
+                        Intrinsic reward
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="AgentId" checked />
+                        Add agent ID
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="LogActions" checked />
+                        Log actions
                     </label>
                 </div>
             </div>
@@ -50,18 +85,24 @@
             <div class="col-auto">
                 <legend>Replay Memory</legend>
                 <div class="input-group mb-1">
-                    <span class="input-group-text"> Size </span>
+                    <label class="input-group-text"> Size </label>
                     <input type="text" class="form-control" v-model.number="memorySize" size="2" />
                 </div>
 
-                <div class="input-group mb-1">
-                    <label class="input-group-text"> Priotitized
-                        <input type="checkbox" class="form-check-input m-1 mx-3" v-model="priotitizedMemory" />
+                <div class="form-check form-switch mb-1">
+                    <label class="form-check-label">
+                        <input class="form-check-input" type="checkbox" role="switch" name="AgentId"
+                            v-model="prioritizedMemory" />
+                        Prioritized
                     </label>
+                </div>
+
+                <div class="input-group mb-1">
+                    <label class="input-group-text"> N step return </label>
+                    <input type="text" class="form-control" v-model.number="nStep" size="2" />
                 </div>
             </div>
         </fieldset>
-
 
         <button v-if="!loading" role="button" class="btn btn-primary" @click="send">
             Start
@@ -74,29 +115,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { HTTP_URL } from '../../constants';
-import { useAlgorithmStore } from '../../stores/AlgoStore';
+import { useGlobalState } from '../../stores/GlobalState';
+import { useReplayStore } from '../../stores/ReplayStore';
 
-
-const algoStore = useAlgorithmStore();
+const globalState = useGlobalState();
 const loading = ref(false);
-const selectedAlgo = ref(algoStore.algorithms[0]);
-const selectedLevel = ref(algoStore.maps[0]);
+const customExperimentName = ref("");
+const autoName = ref(true);
+const isRecurrent = ref(false);
+const vdn = ref(true);
+const selectedLevel = ref("lvl3");
 const timeLimitValue = ref(20);
-const nStep = ref(5);
+const nStep = ref(1);
 const memorySize = ref(10000);
-const priotitizedMemory = ref(true);
-const envWrappers = [] as string[];
-const algoWrappers = [] as string[];
-
+const prioritizedMemory = ref(false);
+const envWrappers = ref({} as HTMLElement);
 const emits = defineEmits(['start']);
 
-function send() {
-    if (selectedAlgo.value == null || selectedLevel.value == null) {
-        alert("Please select an algorithm and a level");
-        return;
+const experimentName = computed(() => {
+    if (!autoName.value) {
+        return customExperimentName.value;
     }
+    return computeAutoName();
+});
+
+function send() {
     loading.value = true;
     fetch(`${HTTP_URL}/algo/create`, {
         method: "POST",
@@ -104,19 +149,25 @@ function send() {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            algo: selectedAlgo.value,
-            wrappers: envWrappers,
-            timeLimit: timeLimitValue.value,
+            recurrent: isRecurrent.value,
+            vdn: vdn.value,
+            env_wrappers: gatherSelectedEnvWrappers(),
+            time_limit: timeLimitValue.value,
             level: selectedLevel.value,
             memory: {
                 size: memorySize.value,
-                prioritized: priotitizedMemory.value
-            }
+                prioritized: prioritizedMemory.value,
+                nstep: nStep.value
+            },
         })
     })
-        .then(() => {
+        .then(resp => resp.text())
+        .then(logdir => {
+            const replayStore = useReplayStore();
+            globalState.logdir = logdir;
+            replayStore.logdirs.push(logdir);
             loading.value = false;
-            emits('start', selectedAlgo.value, selectedLevel.value, envWrappers)
+            emits('start', isRecurrent.value, vdn.value, selectedLevel.value, envWrappers)
         })
         .catch(e => {
             alert("Error while starting the training");
@@ -125,22 +176,34 @@ function send() {
         })
 }
 
-function envWrapperChanged(e: Event) {
-    const target = e.target as HTMLInputElement;
-    if (target.checked) {
-        envWrappers.push(target.name);
-    } else {
-        envWrappers.splice(envWrappers.indexOf(target.name), 1);
-    }
+function gatherSelectedEnvWrappers() {
+    return [...envWrappers.value.querySelectorAll("input[type=checkbox]:checked")]
+        .map(i => {
+            const input = i as HTMLInputElement;
+            return input.name;
+        });
 }
 
-function algoWrapperChanged(e: Event) {
-    const target = e.target as HTMLInputElement;
-    if (target.checked) {
-        algoWrappers.push(target.name);
+function computeAutoName() {
+    let name = selectedLevel.value;
+    if (vdn.value) {
+        name += "-vdn";
+        if (isRecurrent.value) {
+            name += "-recurrent";
+        }
+    } else if (isRecurrent.value) {
+        name += "-rdqn";
     } else {
-        algoWrappers.splice(algoWrappers.indexOf(target.name), 1);
+        name += "-dqn";
     }
+    if (prioritizedMemory.value) {
+        name += "-per";
+    }
+    if (nStep.value > 1) {
+        name += `-${nStep.value}_steps`;
+    }
+    customExperimentName.value = name;
+    return name;
 }
 
 </script>

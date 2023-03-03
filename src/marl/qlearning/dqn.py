@@ -4,7 +4,7 @@ from copy import deepcopy
 import torch
 from rlenv import Transition, Observation
 from marl import nn
-from marl.models import TransitionMemory, Batch
+from marl.models import ReplayMemory, TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to, get_device
 
@@ -59,6 +59,10 @@ class DQN(IDeepQLearning):
     @property
     def gamma(self) -> float:
         return self._gamma
+    
+    @property
+    def memory(self) -> ReplayMemory[Transition]:
+        return self._memory
 
     def choose_action(self, obs: Observation) -> list[int]:
         with torch.no_grad():

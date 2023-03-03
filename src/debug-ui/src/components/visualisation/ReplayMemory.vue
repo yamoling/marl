@@ -79,7 +79,6 @@ function loadPriorities() {
 function changeSelected(newSelectedIndex: number) {
     selected.value = newSelectedIndex;
     store.getTransition(newSelectedIndex).then(t => {
-        console.log(t);
         currentImage.value = t.current_frame;
         previousImage.value = t.prev_frame;
     });
