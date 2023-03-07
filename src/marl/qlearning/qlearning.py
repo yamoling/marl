@@ -13,6 +13,11 @@ class IQLearning(RLAlgo):
     def gamma(self) -> float:
         """The discount factor"""
 
+    @property
+    @abstractmethod
+    def policy(self) -> Policy:
+        """The qlearning policy"""
+
     @abstractmethod
     def compute_qvalues(self, data: Observation) -> torch.Tensor:
         """Compute the qvalues for the given input data."""
@@ -57,9 +62,9 @@ class QLearning(IQLearning):
         self.policy = train_policy
         self._gamma = gamma
 
-    def before_tests(self):
+    def before_tests(self, time_step: int):
         self.policy = self.test_policy
-        return super().before_tests()
+        return super().before_tests(time_step)
 
     def after_tests(self, time_step: int, episodes):
         self.policy = self.train_policy

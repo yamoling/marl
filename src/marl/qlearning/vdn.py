@@ -1,6 +1,6 @@
 """
 Value Decomposition Network is a Q-learning extension that applies to cooperative multi-agent environments
-with a discrete action space.
+with discrete action spaces.
 VDN optimises the sum of rewards instead of the individual rewards of each agent.
 """
 
@@ -9,7 +9,8 @@ from rlenv import Observation
 from marl.models import Batch
 from .rdqn import RDQN
 from .dqn import DQN
-from .qlearning_wrapper import DeepQWrapper
+
+from ..wrappers import DeepQWrapper
 
 
 class VDN(DeepQWrapper):
@@ -33,3 +34,8 @@ class VDN(DeepQWrapper):
         next_qvalues = next_qvalues.sum(dim=-1)
         targets = batch.rewards + self.algo._gamma * next_qvalues * (1 - batch.dones)
         return targets
+
+    def summary(self) -> dict:
+        summary = super().summary()
+        summary["name"] = f"VDN({summary['name']})"
+        return summary

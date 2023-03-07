@@ -6,7 +6,7 @@
                 <div class="form-check form-switch">
                     <label class="form-check-label">
                         <input v-model="autoName" class="form-check-input" type="checkbox" role="switch" />
-                        Automatic
+                        Generate automatically
                     </label>
                 </div>
 
@@ -72,12 +72,6 @@
                         Add agent ID
                     </label>
                 </div>
-                <div class="form-check form-switch">
-                    <label class="form-check-label">
-                        <input class="form-check-input" type="checkbox" role="switch" name="LogActions" checked />
-                        Log actions
-                    </label>
-                </div>
             </div>
         </fieldset>
 
@@ -109,7 +103,7 @@
             <font-awesome-icon icon="fa-solid fa-play" />
         </button>
         <button v-else role="button" class="btn btn-primary" disabled>
-            <font-awesome-icon icon="fa-solid fa-spinner" spin />
+            <font-awesome-icon icon="spinner" spin />
         </button>
     </div>
 </template>
@@ -136,6 +130,9 @@ const emits = defineEmits(['start']);
 
 const experimentName = computed(() => {
     if (!autoName.value) {
+        if (!customExperimentName.value.startsWith("logs/")) {
+            customExperimentName.value = `logs/${customExperimentName.value}`;
+        }
         return customExperimentName.value;
     }
     return computeAutoName();
@@ -143,13 +140,12 @@ const experimentName = computed(() => {
 
 function send() {
     loading.value = true;
-    fetch(`${HTTP_URL}/algo/create`, {
+    fetch(`${HTTP_URL}/train/create`, {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             recurrent: isRecurrent.value,
+            logdir: experimentName.value,
             vdn: vdn.value,
             env_wrappers: gatherSelectedEnvWrappers(),
             time_limit: timeLimitValue.value,
@@ -161,11 +157,12 @@ function send() {
             },
         })
     })
-        .then(resp => resp.text())
-        .then(logdir => {
+        .then(resp => resp.json())
+        .then((data: { logdir: string, port: number }) => {
             const replayStore = useReplayStore();
-            globalState.logdir = logdir;
-            replayStore.logdirs.push(logdir);
+            globalState.logdir = data.logdir;
+            globalState.wsPort = data.port;
+            replayStore.logdirs.push(data.logdir);
             loading.value = false;
             emits('start', isRecurrent.value, vdn.value, selectedLevel.value, envWrappers)
         })
@@ -185,7 +182,7 @@ function gatherSelectedEnvWrappers() {
 }
 
 function computeAutoName() {
-    let name = selectedLevel.value;
+    let name = `logs/${selectedLevel.value}`;
     if (vdn.value) {
         name += "-vdn";
         if (isRecurrent.value) {
@@ -202,6 +199,8 @@ function computeAutoName() {
     if (nStep.value > 1) {
         name += `-${nStep.value}_steps`;
     }
+    const now = new Date();
+    name += `-${now.toISOString()}`
     customExperimentName.value = name;
     return name;
 }

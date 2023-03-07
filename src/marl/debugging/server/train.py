@@ -6,40 +6,26 @@ import rlenv
 from copy import deepcopy
 from laser_env import LaserEnv
 from rlenv import Transition
-from marl.models import PrioritizedMemory, Experiment
-from marl.utils.others import encode_b64_image
+from marl.models import PrioritizedMemory
+from marl.utils.others import encode_b64_image, get_available_port
+
 from ..replay import replay_episode, replay_video
+from .messages import TrainConfig, StartTrain
 
-@dataclass
-class MemoryConfig:
-    prioritized: bool
-    size: int
-    nstep: int
-
-@dataclass
-class TrainConfig:
-    recurrent: bool
-    vdn: bool
-    env_wrappers: list[str]
-    time_limit: int
-    level: str
-    memory: MemoryConfig
 
 @dataclass
 class TrainServerState:
-    runner: marl.debugging.DebugRunner | None
+    runner: marl.debugging.WebRunner | None
     env: rlenv.RLEnv | None
     
     def __init__(self) -> None:
         self.runner = None
 
-    def create_algo(self, config: TrainConfig) -> str:
+    def create_runner(self, config: TrainConfig):
         """Creates the algorithm and returns its logging directory"""
         if self.runner is not None:
             self.runner.stop = True
-        logdir = os.path.join("logs", f"{config.level.replace('/', '_')}")
-        if config.memory.prioritized:
-            logdir = f"{logdir}-per"
+        logger = marl.logging.WSLogger(config.logdir)
         builder = rlenv.Builder(LaserEnv(config.level))
         for wrapper in config.env_wrappers:
             match wrapper:
@@ -47,19 +33,28 @@ class TrainServerState:
                 case "VideoRecorder": builder.record("videos")
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": builder.agent_id()
-                case "LogActions": builder.add_logger("action", directory=logdir)
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
         env, test_env = builder.build_all()
         memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
         if config.memory.prioritized:
             memory_builder.prioritized()
+        if config.memory.nstep > 1:
+            memory_builder.nstep(config.memory.nstep, 0.99)
         qbuilder = marl.DeepQBuilder(config.recurrent, env)
         if config.vdn:
             qbuilder.vdn()
         qbuilder.memory(memory_builder.build())
-        algo = marl.debugging.QLearningDebugger(qbuilder.build(), logdir)
-        self.runner = marl.debugging.DebugRunner(env, test_env=test_env, algo=algo, logdir=logdir)
-        return logdir
+        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), logger.logdir)
+        self.runner = marl.Runner(env, test_env=test_env, algo=algo, logger=logger)
+        return logger.port
+        
+    def train(self, params: StartTrain):
+        self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
+        self.runner._logger._disconnect_clients = True
+
+    def test(self, params: StartTrain):
+        self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
+        self.runner._logger._disconnect_clients = True
 
     def get_train_episode(self, episode_num: int) -> dict:
         base_path = os.path.join(self.runner._logger.logdir, "train", f"{episode_num}")
@@ -80,16 +75,15 @@ class TrainServerState:
         frames = [encode_b64_image(f) for f in frames]
         return frames
 
-    def get_memory_priorities(self) -> tuple[float, list[float]]:
+    def get_memory_priorities(self):
         # Won't work with DQN
         match self.runner._algo.algo.algo.memory:
             case PrioritizedMemory() as pm:
-                p = []
+                p: list[float] = []
                 for i in range(len(pm._tree)):
                     p.append(pm._tree[i])
                 return pm._tree.total, p
-            case other: return len(other), [1] * len(other)
-
+            case other: return float(len(other)), [1.] * len(other)
 
     def get_transition_from_memory(self, index: int) -> dict:
         # Won't work with DQN

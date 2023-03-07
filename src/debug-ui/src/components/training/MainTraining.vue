@@ -1,6 +1,6 @@
 <template>
     <div>
-        <TrainingConfig v-if="!globalState.logdir" @start="onConfigDone" />
+        <TrainingConfig v-if="!globalState.logdir" />
         <Trainer ref="trainer" v-show="globalState.logdir != null" />
     </div>
 </template>
@@ -13,9 +13,5 @@ import TrainingConfig from './TrainingConfig.vue';
 
 const globalState = useGlobalState();
 const trainer = ref({} as typeof Trainer);
-
-function onConfigDone() {
-    trainer.value.reset();
-}
 
 </script>

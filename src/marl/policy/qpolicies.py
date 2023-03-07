@@ -38,9 +38,10 @@ class EpsilonGreedy(Policy):
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 
-    def save(self, to_path: str):
-        os.makedirs(os.path.dirname(to_path), exist_ok=True)
-        with open(to_path, "w", encoding="utf-8") as f:
+    def save(self, to_directory: str):
+        os.makedirs(os.path.dirname(to_directory), exist_ok=True)
+        os.path.join(to_directory, "")
+        with open(to_directory, "w", encoding="utf-8") as f:
             json.dump({
                 "epsilon": self._epsilon
             }, f)

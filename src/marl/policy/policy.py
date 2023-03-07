@@ -16,10 +16,10 @@ class Policy(ABC):
     def update(self):
         """Update the policy"""
 
-    def save(self, to_path: str):
-        """Save the policy to a file"""
+    def save(self, to_directory: str):
+        """Save the policy to a directory"""
         raise NotImplementedError()
 
-    def load(self, from_path: str):
-        """Load the policy from a file"""
+    def load(self, from_directory: str):
+        """Load the policy from a directory"""
         raise NotImplementedError()

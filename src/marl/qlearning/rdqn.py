@@ -44,15 +44,15 @@ class RDQN(DQN):
         self._hidden_states=None
         
 
-    def after_step(self, _step_num: int, _transition):
-        """Override DQN behaviour: nothing to do after step in RDQN"""
+    def after_step(self, _time_step: int, _transition):
+        # Override DQN behaviour: nothing to do after step in RDQN
         pass
 
-    def after_episode(self, episode_num: int, episode: Episode):
+    def after_train_episode(self, episode_num: int, episode: Episode):
         self._memory.add(episode)
         self.update()
 
-    def before_episode(self, episode_num: int):
+    def before_train_episode(self, episode_num: int):
         self._hidden_states=None
 
     def _sample(self) -> Batch:

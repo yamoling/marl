@@ -1,33 +1,19 @@
 import os
 from flask import request
 from marl.utils import alpha_num_order
-from .replay import Item
-from .train import MemoryConfig, TrainConfig
+from .messages import MemoryConfig, TrainConfig, StartTest, StartTrain
 from marl.debugging.server import app, replay_state, train_state
 
-
-@app.route("/replay/train/list")
-def list_train_files():
-    return replay_state.get_files("train")
-
-@app.route("/replay/test/list")
-def list_test_files():
-    files = replay_state.get_files("test")
-    res = []
-    for i, file in enumerate(files):
-        # episodes = replay_state.get_test_episodes(i)
-        # with open(os.path.join(replay_state.test_dir, file, "metrics.json"), "r", encoding="utf-8") as f:
-        #     metrics = json.load(f)
-        res.append(Item(file, {}))
-    files = res
-    return files
 
 
 @app.route("/replay/episode/<path:path>")
 def get_episode(path: str):
     # Security issue here !
-    print(path)
     return replay_state.get_episode(path).to_json()
+
+@app.route("/replay/tests/summary/<path:path>")
+def get_test_summary(path: str):
+    return [e.to_json() for e in replay_state.get_tests_at(path)]
 
 
 @app.route("/ls/<path:path>")
@@ -40,6 +26,7 @@ def ls(path: str):
 
 @app.route("/load/<path:path>")
 def load_directory(path: str):
+    print("Load directory", path)
     replay_state.update(path)
     train, test = replay_state.experiment_summary()
     train = [t.to_json() for t in train]
@@ -49,32 +36,37 @@ def load_directory(path: str):
         "test": test
     }
 
-
-
 @app.route("/env/maps/list")
 def list_maps():
     return sorted(os.listdir("maps"), key=alpha_num_order)
 
 
-@app.route("/algo/create", methods=["POST"])
+@app.route("/train/create", methods=["POST"])
 def create_algo():
+    print("Create algo")
     data: dict = request.get_json()
     data["level"] = os.path.join("maps", data["level"])
     data["memory"] = MemoryConfig(**data["memory"])
     train_config = TrainConfig(**data)
-    logdir = train_state.create_algo(train_config)
-    replay_state.update(logdir)
-    return logdir
+    port = train_state.create_runner(train_config)
+    replay_state.update(train_config.logdir)
+    return {
+        "logdir": train_config.logdir,
+        "port": port
+    }
 
-@app.route("/train/episode/<episode_num>")
-def get_train_episode2(episode_num: str):
-    episode_num = int(episode_num)
-    return train_state.get_train_episode(episode_num)
 
-@app.route("/train/frames/<episode_num>")
-def get_train_frames(episode_num: str):
-    episode_num = int(episode_num)
-    return train_state.get_train_frames(episode_num)
+@app.route("/train/start", methods=["POST"])
+def train_start():
+    data: dict = request.get_json()
+    train_state.train(StartTrain(**data))
+    return ""
+
+@app.route("/test/start", methods=["POST"])
+def test_start():
+    data: dict = request.get_json()
+    train_state.test(StartTest(**data))
+    return ""
 
 @app.route("/train/memory/priorities")
 def get_priorities():

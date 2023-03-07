@@ -33,7 +33,7 @@ class VanillaQLearning(QLearning):
             qvalues.append(agent_qvalues)
         return torch.from_numpy(np.array(qvalues))
 
-    def after_step(self, transition: Transition, step_num: int):
+    def after_step(self, transition: Transition, time_step: int):
         qvalues = self.compute_qvalues(transition.obs).numpy()
         actions = transition.action[:, np.newaxis]
         qvalues = np.take_along_axis(qvalues, actions, axis=-1)
@@ -48,7 +48,7 @@ class VanillaQLearning(QLearning):
         for o, a, q in zip(obs_data, transition.action, new_qvalues):
             h = self.hash_ndarray(o)
             self.qtable[h][a] = q
-        return super().after_step(transition, step_num)
+        return super().after_step(transition, time_step)
 
     @staticmethod
     def hash_ndarray(data: np.ndarray) -> int:
@@ -112,7 +112,7 @@ class ReplayTableQLearning(VanillaQLearning):
         return np.array(qvalues)
 
 
-    def after_step(self, transition: Transition, step_num: int):
+    def after_step(self, transition: Transition, time_step: int):
         self.memory.add(transition)
         if len(self.memory) < self.batch_size:
             return

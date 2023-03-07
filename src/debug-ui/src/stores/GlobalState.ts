@@ -6,13 +6,15 @@ import { ReplayEpisode } from "../models/Episode";
 
 export const useGlobalState = defineStore("GlobalState", () => {
     const logdir = ref(null as string | null);
+    const wsPort = ref(null as number | null);
     const experiment = ref(null as Experiment | null);
     const viewingEpisode = ref(null as ReplayEpisode | null);
 
-    watch(logdir, () => {
-        console.log("changed logdir");
-        getExperiment().then(resp => experiment.value = resp);
-        return;
+    watch(logdir, (newValue, oldValue) => {
+        experiment.value = null;
+        if (newValue != null) {
+            getExperiment().then(resp => experiment.value = resp);
+        }
     });
 
 
@@ -22,5 +24,9 @@ export const useGlobalState = defineStore("GlobalState", () => {
         return experiment;
     }
 
-    return { logdir, experiment, viewingEpisode };
+    async function refreshExperiment() {
+        experiment.value = await getExperiment();
+    }
+
+    return { logdir, experiment, viewingEpisode, wsPort, refreshExperiment };
 });

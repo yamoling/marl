@@ -1,45 +1,41 @@
 <template>
-    <canvas id="score">
-
-</canvas>
+    <div>
+        <h3> {{ title }}</h3>
+        <canvas v-show="metrics.length > 0" ref="canvas"></canvas>
+        <p v-show="metrics.length == 0"> Nothing to show at the moment</p>
+    </div>
 </template>
 
 <script setup lang="ts">
 import Chart from 'chart.js/auto';
-import { onMounted, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { Metrics } from '../../models/Metric';
 
 let chart: Chart;
 const emits = defineEmits(["testEpisodeSelected"]);
+const canvas = ref({} as HTMLCanvasElement);
 const props = defineProps<{
     metrics: Metrics[],
     reverseLabels: boolean,
-    maxSteps: number | undefined
+    maxSteps: number | undefined,
+    title: string
 }>();
 
 function updateChart() {
+    if (props.metrics.length == 0) {
+        return;
+    }
     let labels = [...Array(props.metrics.length).keys()];
     if (props.reverseLabels) {
         labels.reverse();
     }
-    let datasets = [
-        {
-            label: 'Train score',
-            data: props.metrics.map(m => m.score)
-        },
-        {
-            label: 'Episode length',
-            data: props.metrics.map(m => m.episode_length)
-        },
-        {
-            label: 'Gems collected',
-            data: props.metrics.map(m => m.gems_collected)
-        },
-        {
-            label: 'In elevator',
-            data: props.metrics.map(m => m.in_elevator)
+    const names = Object.keys(props.metrics[0]).filter(name => !name.startsWith("min") && !name.startsWith("max") && !name.startsWith("std"));
+    let datasets = names.map(n => {
+        return {
+            label: n,
+            data: props.metrics.map((m: any) => m[n])
         }
-    ];
+    });
     if (props.maxSteps != undefined) {
         labels = labels.slice(0, props.maxSteps);
         datasets = datasets.map(d => {
@@ -57,16 +53,11 @@ watch(props, () => updateChart());
 
 
 onMounted(() => {
-    chart = new Chart(document.getElementById('score') as HTMLCanvasElement, {
+    chart = new Chart(canvas.value, {
         type: 'line',
         data: {
             labels: [],
-            datasets: [
-                {
-                    label: 'Score',
-                    data: []
-                }
-            ]
+            datasets: []
         },
         options: {
             animation: false,

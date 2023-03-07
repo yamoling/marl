@@ -13,7 +13,6 @@
         </li>
         <li v-if="childFiles.length > 100"> {{ childFiles.length - 100 }} file not shown </li>
     </ul>
-
 </template>
 
 <script setup lang="ts">
@@ -46,7 +45,6 @@ function fileClicked() {
 }
 
 function fileSelected(path: string) {
-    console.log("Path selected: ", path);
     emits('fileSelected', path);
 }
 

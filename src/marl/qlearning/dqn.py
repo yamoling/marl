@@ -63,6 +63,10 @@ class DQN(IDeepQLearning):
     @property
     def memory(self) -> ReplayMemory[Transition]:
         return self._memory
+    
+    @property
+    def policy(self) -> Policy:
+        return self._policy
 
     def choose_action(self, obs: Observation) -> list[int]:
         with torch.no_grad():
@@ -70,7 +74,7 @@ class DQN(IDeepQLearning):
             qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
     
-    def after_step(self, transition: Transition, _step_num: int):
+    def after_step(self, transition: Transition, _time_step: int):
         self._memory.add(transition)
         self.update()
     
@@ -123,9 +127,9 @@ class DQN(IDeepQLearning):
             new_value = (1-self._tau) * target_param.data + self._tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
 
-    def before_tests(self):
+    def before_tests(self, time_step: int):
         self._policy = self._test_policy
-        return super().before_tests()
+        return super().before_tests(time_step)
 
     def after_tests(self, time_step: int, episodes):
         self._policy = self._train_policy

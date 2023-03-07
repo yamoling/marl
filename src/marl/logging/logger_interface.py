@@ -29,41 +29,17 @@ class Logger(ABC):
         stdout_handler = logging.StreamHandler(sys.stderr)
         logging.basicConfig(format="%(message)s", level=logging.INFO, handlers=[file_handler, stdout_handler])
 
-    @overload
-    def log(self, tag: str, data: Metrics, time_step: int):
-        pass
-
-    @overload
-    def log(self, tag: str, data: Measurement, time_step: int):
-        pass
-
-    @overload
-    def log(self, tag: str, data: float, time_step: int):
-        pass
-
     @abstractmethod
-    def log(self, tag, data, time_step):
-        """Log the data to TensorBoard."""
+    def log(self, tag: str, data: Metrics, time_step: int):
+        """Log the data."""
 
-    def log_print(self, tag: str, data: Union[Metrics, Measurement, float], time_step: int):
+    def log_print(self, tag: str, data: Metrics, time_step: int):
         """Log to TensorBoard and add the data to the printing queue."""
         self.log(tag, data, time_step)
         self.print(tag, data)
 
-    @overload
-    def print(self, tag: str, data: Measurement):
-        pass
-
-    @overload
-    def print(self, tag: str, data: Metrics):
-        pass
-
-    @overload
-    def print(self, tag: str, data: float):
-        pass
-
     @abstractmethod
-    def print(self, tag, data):
+    def print(self, tag: str, data: Metrics):
         """Add the data to the printing queue."""
 
     @abstractmethod

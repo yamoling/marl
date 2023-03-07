@@ -31,6 +31,7 @@ function createExperiment() {
 }
 
 function onExperimentSelected() {
+  console.log("Experiment selected")
   tabs.value.changeTab("Replay");
 }
 </script>

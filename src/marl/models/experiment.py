@@ -5,6 +5,7 @@ import os
 import json
 from laser_env import LaserEnv
 import rlenv
+from marl import RLAlgo
 from marl.utils.others import encode_b64_image, alpha_num_order
 
 
@@ -44,7 +45,7 @@ class Experiment:
         if "AgentIdWrapper" in env_name:
             builder.agent_id()
         
-        time_limit = self.summary["env"].get("time_limit", None)
+        time_limit: int|None = self.summary["env"].get("time_limit", None)
         if time_limit is not None:
             builder.time_limit(time_limit)
         self.env = builder.build()
@@ -56,6 +57,12 @@ class Experiment:
     @property
     def test_dir(self) -> str:
         return os.path.join(self.logdir, "test")
+
+    def from_checkpoint(self, checkpoint_dir: str) -> RLAlgo:
+        algo_wrappers: str = self.summary["algorithm"]["name"]
+        algo_wrappers = algo_wrappers.replace('(', ')').split(')')
+        print(algo_wrappers)
+        
     
     def train_summary(self) -> list[ReplayEpisode]:
         summary = []
@@ -75,6 +82,16 @@ class Experiment:
                 summary.append(ReplayEpisode(episode_dir, Metrics(**json.load(f))))
         return summary
     
+    def test_episode_summary(self, test_directory: str) -> list[ReplayEpisode]:
+        summary = []
+        for directory in sorted(os.listdir(test_directory), key=alpha_num_order):
+            episode_dir = os.path.join(test_directory, directory)
+            # Only consider episode directories.
+            if os.path.isdir(episode_dir):
+                with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
+                    summary.append(ReplayEpisode(episode_dir, Metrics(**json.load(f))))
+        return summary
+    
     def list_trainings(self) -> list[str]:
         try: return sorted(os.listdir(self.train_dir), key=alpha_num_order)
         except FileNotFoundError: return []
@@ -83,8 +100,8 @@ class Experiment:
         try: return sorted(os.listdir(self.test_dir), key=alpha_num_order)
         except FileNotFoundError: return []
 
-    def list_test_episodes(self, step_num: int) -> list[str]:
-        return sorted(os.listdir(os.path.join(self.test_dir, f"{step_num}")), key=alpha_num_order)
+    def list_test_episodes(self, time_step: int) -> list[str]:
+        return sorted(os.listdir(os.path.join(self.test_dir, f"{time_step}")), key=alpha_num_order)
 
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
