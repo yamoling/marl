@@ -11,25 +11,18 @@ class TensorBoardLogger(Logger):
         self.sw = SummaryWriter(self.logdir)
         self.to_print = []
 
-    def log(self, tag: str, data: Union[Metrics, Measurement, float], time_step: int):
+    def log(self, tag: str, data: Metrics, time_step: int):
         match data:
-            case float() | int():
-                self.sw.add_scalar(tag, data, time_step)
-            case Measurement():
-                self.sw.add_scalar(tag, data.value, time_step)
             case Metrics():
-                for s, value in data.items():
-                    self.log(f"{tag}/{s}", value, time_step)
+                for s, measurement in data.items():
+                    self.log(f"{tag}/{s}", measurement.value, time_step)
             case other:
                 raise ValueError(f"Unsupported data type: {type(other)}")
 
-    def print(self, tag: str, data: Union[Measurement, Metrics, float]):
-        if isinstance(data, Metrics):
-            for key, value in data.items():
-                self.print(f"{tag}/{key}", value)
-            self.flush()
-        else:
-            self.to_print.append(f"{tag} {data}")
+    def print(self, tag: str, data: Metrics):
+        for key, value in data.items():
+            self.print(f"{tag}/{key}", value)
+        self.flush()
 
     def flush(self, prefix: str=None):
         if prefix is not None:

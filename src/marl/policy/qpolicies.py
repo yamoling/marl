@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import numpy as np
 
@@ -25,43 +26,41 @@ class SoftmaxPolicy(Policy):
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
 
-    def __init__(self, n_agents: int, epsilon: float) -> None:
+    def __init__(self, epsilon: float) -> None:
         self._epsilon = epsilon
-        self._n_agents = n_agents
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
         qvalues[available_actions == 0.] = -np.inf
         chosen_actions = qvalues.argmax(axis=-1)
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
-        r = np.random.random(self._n_agents)
+        r = np.random.random(len(qvalues))
         mask = r < self._epsilon
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 
-    def save(self, to_path: str):
-        with open(to_path, "w", encoding="utf-8") as f:
+    def save(self, to_directory: str):
+        os.makedirs(os.path.dirname(to_directory), exist_ok=True)
+        os.path.join(to_directory, "")
+        with open(to_directory, "w", encoding="utf-8") as f:
             json.dump({
-                "epsilon": self._epsilon,
-                "n_agents": self._n_agents
+                "epsilon": self._epsilon
             }, f)
 
     def load(self, from_path: str):
         with open(from_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             self._epsilon = data["epsilon"]
-            self._n_agents = data["n_agents"]
 
 class DecreasingEpsilonGreedy(EpsilonGreedy):
     """Linearly decreasing epsilon greedy"""
 
     def __init__(
         self,
-        n_agents: int,
         epsilon: float = 1.0,
         decrease_amount: float = 1e-4,
         min_eps: float = 1e-2
     ) -> None:
-        super().__init__(n_agents, epsilon)
+        super().__init__(epsilon)
         self._decrease_amount = decrease_amount
         self._min_epsilon = min_eps
 
@@ -69,10 +68,10 @@ class DecreasingEpsilonGreedy(EpsilonGreedy):
         self._epsilon = max(self._epsilon - self._decrease_amount, self._min_epsilon)
 
     def save(self, to_path: str):
+        os.makedirs(os.path.dirname(to_path), exist_ok=True)
         with open(to_path, "w", encoding="utf-8") as f:
             json.dump({
                 "epsilon": self._epsilon,
-                "n_agents": self._n_agents,
                 "decrease_amount": self._decrease_amount,
                 "min_epsilon": self._min_epsilon
             }, f)
@@ -81,7 +80,6 @@ class DecreasingEpsilonGreedy(EpsilonGreedy):
         with open(from_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             self._epsilon = data["epsilon"]
-            self._n_agents = data["n_agents"]
             self._decrease_amount = data["decrease_amount"]
             self._min_epsilo = data["min_epsilon"]
 

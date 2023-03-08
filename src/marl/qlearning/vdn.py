@@ -1,26 +1,23 @@
+"""
+Value Decomposition Network is a Q-learning extension that applies to cooperative multi-agent environments
+with discrete action spaces.
+VDN optimises the sum of rewards instead of the individual rewards of each agent.
+"""
+
 import torch
 from rlenv import Observation
 from marl.models import Batch
 from .rdqn import RDQN
+from .dqn import DQN
+
+from ..wrappers import DeepQWrapper
 
 
-class VDN(RDQN):
-    """
-    Value Decomposition Network is a Q-learning extension that applies to cooperative multi-agent environments
-    with a discrete action space.
-    VDN optimises the sum of rewards instead of the individual rewards of each agent.
-    """
-    def compute_targets(self, batch: Batch) -> torch.Tensor:
-        next_qvalues, _ = self.qtarget.forward(batch.obs_, batch.extras_)
-        next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
-        next_qvalues = next_qvalues.sum(dim=-1)
-        targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
-        return targets
-
-    def _sample(self) -> Batch:
-        return self.memory.sample(self.batch_size).for_rnn()
+class VDN(DeepQWrapper):
+    def __init__(self, wrapped: DQN|RDQN) -> None:
+        super().__init__(wrapped)
+        # Type hinting
+        self.algo: DQN | RDQN = self.algo 
 
     def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
         qvalues = super().compute_qvalues(data)
@@ -28,11 +25,17 @@ class VDN(RDQN):
             qvalues = qvalues.sum(dim=-1)
         return qvalues
 
-    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        l = super().compute_loss(qvalues, qtargets, batch)
-        return l
+    def compute_targets(self, batch: Batch) -> torch.Tensor:
+        next_qvalues = self.algo._qtarget.forward(batch.obs_, batch.extras_)
+        if self.algo._qtarget.is_recurrent:
+            next_qvalues = next_qvalues[0]
+        next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+        next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
+        next_qvalues = next_qvalues.sum(dim=-1)
+        targets = batch.rewards + self.algo._gamma * next_qvalues * (1 - batch.dones)
+        return targets
 
-    def summary(self) -> dict[str,]:
+    def summary(self) -> dict:
         summary = super().summary()
-        summary["name"] = "Value Decomposition Network"
+        summary["name"] = f"VDN({summary['name']})"
         return summary
