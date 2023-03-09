@@ -7,9 +7,12 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body row">
+                    <!-- Loading spinner -->
+                    <font-awesome-icon v-if="episode == null" class="mx-auto" icon="spinner" spin
+                        style="height:100px; width: 100px;" />
                     <div class="row mb-1 mx-auto">
                         <AgentInfo v-for="agent in nAgents" class="col-6" :episode="episode" :agent-num="agent - 1"
-                            :current-step="currentStep">
+                            :current-step="currentStep" :rainbow="rainbow">
                         </AgentInfo>
                     </div>
                     <div class="row">
@@ -41,14 +44,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { ReplayEpisode } from '../../models/Episode';
+import Rainbow from "rainbowvis.js";
 import AgentInfo from '../visualisation/AgentInfo.vue';
 import Rendering from '../visualisation/Rendering.vue';
 
 
 const currentStep = ref(0);
 const modal = ref({} as HTMLElement);
+const rainbow = new Rainbow();
+rainbow.setSpectrum("red", "yellow", "olivedrab")
 
 const reward = computed(() => props.episode?.episode?.rewards?.[currentStep.value] || 0);
 const nAgents = computed(() => (props?.episode?.qvalues == null) ? 0 : props.episode.qvalues[0].length);
@@ -64,6 +70,19 @@ const props = defineProps<{
     frames: string[]
     episode: ReplayEpisode | null
 }>();
+
+
+watch(props, (newProps) => {
+    // Get the min and the max of the qvalues
+    const episode = newProps.episode;
+    if (episode == null) {
+        return;
+    }
+    const minQValue = Math.min(...episode?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
+    const maxQValue = Math.max(...episode?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
+    rainbow.setNumberRange(minQValue, maxQValue);
+});
+
 
 onMounted(() => {
     modal.value.addEventListener("keydown", (event) => {
@@ -97,10 +116,4 @@ function changeStep(event: KeyboardEvent) {
         }
     }
 }
-
-function reset() {
-    currentStep.value = 0;
-}
-
-defineExpose({ reset });
 </script>

@@ -7,6 +7,15 @@ class MemoryConfig:
     nstep: int
 
 @dataclass
+class GeneratorConfig:
+    n_gems: int
+    n_agents: int
+    n_lasers: int
+    wall_density: float
+    width: int
+    height: int
+
+@dataclass
 class TrainConfig:
     recurrent: bool
     logdir: str
@@ -14,7 +23,9 @@ class TrainConfig:
     env_wrappers: list[str]
     time_limit: int
     level: str
+    static_map: bool
     memory: MemoryConfig
+    generator: GeneratorConfig
 
 @dataclass
 class StartTrain:

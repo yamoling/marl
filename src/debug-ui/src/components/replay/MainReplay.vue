@@ -17,9 +17,14 @@ import { ReplayEpisode } from '../../models/Episode';
 const viewingEpisode = ref(null as ReplayEpisode | null);
 let modal = {} as Modal;
 
-function showModal(episode: ReplayEpisode) {
-    viewingEpisode.value = episode;
+async function showModal(episode: Promise<ReplayEpisode>) {
+    viewingEpisode.value = null;
     modal.show();
+    try {
+        viewingEpisode.value = await episode;
+    } catch (e) {
+        alert("Failed to load episode");
+    }
 }
 
 onMounted(() => {

@@ -6,7 +6,7 @@ from tqdm import tqdm
 from . import logging
 from .marl_algo import RLAlgo
 from .utils import defaults_to
-
+from marl.models import Experiment
 
 class Runner:
     def __init__(
@@ -27,32 +27,22 @@ class Runner:
         self._best_score = -float("inf")
         self._checkpoint = os.path.join(self.logdir, "checkpoint")
         self._current_step = 0
-        self._episode_builder = EpisodeBuilder()
+        self._episode_builder = None
         self._episode_num = 0
         self._obs: Observation|None = None
-        self.write_experiment_summary()
+        self._experiment = Experiment(self.logdir, self.summary())
 
-    def write_experiment_summary(self, train_summary: dict=None):
-        with open(f"{self.logdir}/experiment.json", "w", encoding="utf-8") as f:
-            json.dump({
-                **self.summary(),
-                "training": train_summary,
-            }, f, indent=4)
+    def _before_train_episode(self):
+        self._episode_builder = EpisodeBuilder()
+        self._obs = self._env.reset()
+        self._algo.before_train_episode(self._episode_num)
+        self._experiment.save_train_env(self._episode_num, self._env.summary())
 
     def train(self, n_steps: int, test_interval: int=200, n_tests: int=10, quiet=False) -> str:
         """Start the training loop"""
-        self.write_experiment_summary({"n_steps": n_steps, "test_interval": test_interval, "n_tests": n_tests})
-        #self._train_steps(n_steps, test_interval, n_tests, quiet)
-        self.train_steps(n_steps, test_interval, n_tests, quiet)
-        
-
-    def train_steps(self, n_steps: int, test_interval: int, n_tests: int, quiet=False) -> str:
-        """Start the training loop"""
         stop = self._current_step + n_steps
-        if self._current_step == 0:
-            self._obs = self._env.reset()
-            self._algo.before_train_episode(self._episode_num)
-        # TODO: tqdm
+        if self._episode_num == 0:
+            self._before_train_episode()
         while self._current_step < stop:
             if self._current_step % test_interval == 0:
                 self.test(n_tests, quiet=quiet)
@@ -61,9 +51,7 @@ class Runner:
                 self._algo.after_train_episode(self._episode_num, episode)
                 self._logger.log("Train", episode.metrics, self._current_step)
                 self._episode_num += 1
-                self._algo.before_train_episode(self._episode_num)
-                self._episode_builder = EpisodeBuilder()
-                self._obs = self._env.reset()
+                self._before_train_episode()
             action = self._algo.choose_action(self._obs)
             obs_, reward, done, info = self._env.step(action)
             transition = Transition(self._obs, action, reward, done, info, obs_)
@@ -71,35 +59,6 @@ class Runner:
             self._episode_builder.add(transition)
             self._obs = obs_
             self._current_step += 1
-
-
-    def _train_steps(self, n_steps: int, test_interval: int|None, n_tests: int, quiet=False):
-        """Train an agent and log on the basis of step numbers"""
-        e = 0
-        episode = EpisodeBuilder()
-        obs = self._env.reset()
-        if test_interval is None:
-            test_interval = n_steps
-        self._algo.before_train_episode(e)
-        for step in range(self._current_step, self._current_step + n_steps, test_interval):
-            self.test(n_tests, quiet=quiet)
-            stop = min(n_steps, step + test_interval)
-            for i in tqdm(range(step, stop), leave=True, desc=f"Train {step}/{n_steps}", dynamic_ncols=True, disable=quiet):
-                if episode.is_done:
-                    episode = episode.build()
-                    self._algo.after_train_episode(e, episode)
-                    self._logger.log("Train", episode.metrics, i)
-                    e += 1
-                    self._algo.before_train_episode(e)
-                    episode = EpisodeBuilder()
-                    obs = self._env.reset()
-                action = self._algo.choose_action(obs)
-                obs_, reward, done, info = self._env.step(action)
-                transition = Transition(obs, action, reward, done, info, obs_)
-                self._algo.after_step(transition, i)
-                episode.add(transition)
-                obs = obs_
-        self.test(n_steps, n_tests, quiet=quiet)
 
     def test(self, ntests: int, quiet=False):
         """Test the agent"""
@@ -117,6 +76,7 @@ class Runner:
                 obs = new_obs
             episode = episode.build()
             self._algo.after_test_episode(self._current_step, i, episode)
+            self._experiment.save_test_env(self._current_step, i, self._test_env.summary())
             episodes.append(episode)
         # Log test metrics
         metrics = Episode.agregate_metrics(episodes)

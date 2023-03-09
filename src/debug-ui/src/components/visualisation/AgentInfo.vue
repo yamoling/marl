@@ -7,7 +7,9 @@
                 <th :colspan="extras.length" style="background-color: whitesmoke;">Extras</th>
             </tr>
             <tr>
-                <td class="observation" style="background-color: beige;" v-for="o in obs"> {{ o.toFixed(3) }}</td>
+                <td v-if="obsNumDims == 1" class="observation" style="background-color: beige;" v-for="o in obs"> {{
+                    o.toFixed(3) }}</td>
+                <td v-else :colspan="obs.length"></td>
                 <td class="extras" style="background-color: whitesmoke" v-for="e in extras"> {{ e.toFixed(3) }}</td>
             </tr>
         </table>
@@ -38,19 +40,17 @@
 <script setup lang="ts">
 
 import { computed } from "vue";
-import Rainbow from "rainbowvis.js";
+import type Rainbow from "rainbowvis.js";
 import { ReplayEpisode } from "../../models/Episode";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"];
-const rainbow = new Rainbow();
-rainbow.setSpectrum("red", "yellow", "olivedrab")
-
 
 
 const props = defineProps<{
     episode: ReplayEpisode | null,
     agentNum: number,
     currentStep: number,
+    rainbow: Rainbow
 }>();
 
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
@@ -76,25 +76,27 @@ const qvalues = computed(() => {
     return props.episode.qvalues[props.currentStep][props.agentNum];
 });
 
-
-
-
-
 const backgroundColours = computed(() => {
     if (qvalues.value.length == 0) {
         return "white";
     }
-    const min = Math.min(...qvalues.value);
-    let max = Math.max(...qvalues.value);
-    if (min == max) {
-        max++;
-    }
-    rainbow.setNumberRange(min, max);
-    return qvalues.value.map(q => rainbow.colourAt(q));
+    // const min = Math.min(...qvalues.value);
+    // let max = Math.max(...qvalues.value);
+    // if (min == max) {
+    //     max++;
+    // }
+    // props.rainbow.setNumberRange(min, max);
+    return qvalues.value.map(q => props.rainbow.colourAt(q));
 });
 
+const obsNumDims = computed(() => {
+    if (props.episode == null) return 0;
+    return arrayShape(props.episode.episode.obs).length;
+});
 
-
+function arrayShape(arr: any[]): number[] {
+    return arr.length ? [...[arr.length], ...arrayShape(arr[0])] : [];
+}
 </script>
 
 

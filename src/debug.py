@@ -7,4 +7,6 @@ def debugger_is_active() -> bool:
     return hasattr(sys, 'gettrace') and sys.gettrace() is not None
 
 enable_flask_debug_mode = not debugger_is_active()
-run(port=5174, debug=enable_flask_debug_mode)
+
+# static_path = os.path.join(os.getcwd(), "src", "debug-ui", "dist")
+run(port=5000, debug=enable_flask_debug_mode)

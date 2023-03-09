@@ -14,7 +14,7 @@
                     <th class="px-1"> Elevator</th>
                 </thead>
                 <tbody>
-                    <tr v-for="train in globalState.experiment?.train" @click="() => onTrainEpisodeClicked(train)">
+                    <tr v-for="train in globalState.experiment?.train" @click="() => onEpisodeClicked(train)">
                         <td> {{ train.name }} </td>
                         <td> {{ train.metrics.episode_length }}</td>
                         <td> {{ train.metrics.score }} </td>
@@ -64,7 +64,7 @@
                             <font-awesome-icon icon="spinner" spin />
                         </td>
                     </tr>
-                    <tr v-for="test in testsAtStep" @click="() => onTestEpisodeClicked(test)">
+                    <tr v-for="test in testsAtStep" @click="() => onEpisodeClicked(test)">
                         <td> {{ test.name }} </td>
                         <td> {{ test.metrics.episode_length }} </td>
                         <td> {{ test.metrics.score }} </td>
@@ -96,17 +96,9 @@ async function onTestClicked(test: ReplayEpisodeSummary) {
     testsAtStep.value = await replayStore.getTestEpisodes(test.directory)
 }
 
-async function onTestEpisodeClicked(episode: ReplayEpisodeSummary) {
-    const replayEpisode = await replayStore.getEpisode(episode.directory);
-    emits("requestViewEpisode", replayEpisode);
+async function onEpisodeClicked(episode: ReplayEpisodeSummary) {
+    emits("requestViewEpisode", replayStore.getEpisode(episode.directory));
 }
-
-async function onTrainEpisodeClicked(episode: ReplayEpisodeSummary) {
-    console.log(episode.directory);
-    const replayEpisode = await replayStore.getEpisode(episode.directory);
-    emits("requestViewEpisode", replayEpisode);
-}
-
 
 const emits = defineEmits(["requestViewEpisode"]);
 

@@ -19,7 +19,7 @@ class ReplayServerState:
             self.update(replay_dir)
 
     def update(self, log_dir: str):
-        self.experiment = Experiment(log_dir)
+        self.experiment = Experiment.load(log_dir)
 
     def experiment_summary(self) -> tuple[list[ReplayEpisode], list[ReplayEpisode]]:
         return self.experiment.train_summary(), self.experiment.test_summary()

@@ -10,8 +10,7 @@ from .replay import ReplayServerState
 replay_state = ReplayServerState(None)
 train_state = TrainServerState()
 
-
-from .routes import upload_file
-
-def run(port=5174, debug=False):
-    app.run("0.0.0.0", port=port, debug=debug)
+def run(port=5000, static_path: str=None, debug=False):
+    from . import routes
+    app.static_folder = static_path
+    app.run(port=port, debug=debug)

@@ -5,6 +5,7 @@ import marl
 import rlenv
 from copy import deepcopy
 from laser_env import LaserEnv
+import laser_env
 from rlenv import Transition
 from marl.models import PrioritizedMemory
 from marl.utils.others import encode_b64_image, get_available_port
@@ -15,7 +16,7 @@ from .messages import TrainConfig, StartTrain
 
 @dataclass
 class TrainServerState:
-    runner: marl.debugging.WebRunner | None
+    runner: marl.Runner | None
     env: rlenv.RLEnv | None
     
     def __init__(self) -> None:
@@ -23,31 +24,47 @@ class TrainServerState:
 
     def create_runner(self, config: TrainConfig):
         """Creates the algorithm and returns its logging directory"""
-        if self.runner is not None:
-            self.runner.stop = True
         logger = marl.logging.WSLogger(config.logdir)
-        builder = rlenv.Builder(LaserEnv(config.level))
+        env, test_env = self._create_env(config)
+        memory = self._create_memory(config)
+        qbuilder = marl.DeepQBuilder()
+        if config.vdn:
+            qbuilder.vdn()
+        qbuilder.qnetwork_default(env)
+        qbuilder.memory(memory)
+        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), logger.logdir)
+        self.runner = marl.Runner(env, test_env=test_env, algo=algo, logger=logger)
+        return logger.port
+    
+    @staticmethod
+    def _create_env(config: TrainConfig):
+        if config.static_map:
+            env = LaserEnv(config.level)
+        else:
+            generator = (laser_env.LevelGenerator(config.generator.width, config.generator.height, config.generator.n_agents)
+                         .wall_density(config.generator.wall_density)
+                         .lasers(config.generator.n_lasers)
+                         .gems(config.generator.n_gems))
+            env = laser_env.GeneratorWrapper(generator)
+        builder = rlenv.Builder(env)
         for wrapper in config.env_wrappers:
             match wrapper:
                 case "TimeLimit": builder.time_limit(config.time_limit)
-                case "VideoRecorder": builder.record("videos")
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": builder.agent_id()
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
-        env, test_env = builder.build_all()
+        return builder.build_all()
+    
+    @staticmethod
+    def _create_memory(config: TrainConfig) -> marl.models.ReplayMemory:
         memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
         if config.memory.prioritized:
             memory_builder.prioritized()
         if config.memory.nstep > 1:
             memory_builder.nstep(config.memory.nstep, 0.99)
-        qbuilder = marl.DeepQBuilder(config.recurrent, env)
-        if config.vdn:
-            qbuilder.vdn()
-        qbuilder.memory(memory_builder.build())
-        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), logger.logdir)
-        self.runner = marl.Runner(env, test_env=test_env, algo=algo, logger=logger)
-        return logger.port
+        return memory_builder.build()
         
+
     def train(self, params: StartTrain):
         self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
         self.runner._logger._disconnect_clients = True

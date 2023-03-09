@@ -13,7 +13,6 @@ class WebRunner(marl.Runner):
         self.obs = self._env.reset()
         self._algo.before_train_episode(self.episode_num)
         self.memory = memory
-        self.stop = False
         # Type hinting
         self._algo: IQLearning
         self._logger: WSLogger

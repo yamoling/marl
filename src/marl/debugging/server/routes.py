@@ -1,9 +1,8 @@
 import os
 from flask import request
 from marl.utils import alpha_num_order
-from .messages import MemoryConfig, TrainConfig, StartTest, StartTrain
+from .messages import MemoryConfig, TrainConfig, StartTest, StartTrain, GeneratorConfig
 from marl.debugging.server import app, replay_state, train_state
-
 
 
 @app.route("/replay/episode/<path:path>")
@@ -47,6 +46,7 @@ def create_algo():
     data: dict = request.get_json()
     data["level"] = os.path.join("maps", data["level"])
     data["memory"] = MemoryConfig(**data["memory"])
+    data["generator"] = GeneratorConfig(**data["generator"])
     train_config = TrainConfig(**data)
     port = train_state.create_runner(train_config)
     replay_state.update(train_config.logdir)
@@ -70,6 +70,8 @@ def test_start():
 
 @app.route("/train/memory/priorities")
 def get_priorities():
+    # For some reason, pylint thinks that the return type cannot be unpacked
+    # pylint: disable=E0633
     cumsum, priorities = train_state.get_memory_priorities()
     return { "cumsum": cumsum, "priorities": priorities }
 

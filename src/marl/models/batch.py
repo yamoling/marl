@@ -154,19 +154,19 @@ class Batch:
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones and masks such that each agent has its own (identical) signal."""
-        self.rewards = self.rewards.repeat_interleave(self.n_agents).reshape(*self.rewards.shape, self.n_agents)
-        self.dones = self.dones.repeat_interleave(self.n_agents).reshape(*self.dones.shape, self.n_agents)
-        self.masks = self.masks.repeat_interleave(self.n_agents).reshape(*self.masks.shape, self.n_agents)
+        self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
+        self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
+        self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
     def for_rnn(self) -> "Batch":
         """Reshape observations, extras and available actions such that dimensions 1 and 2 are merged (required for GRU)"""
         obs_size = self.obs.shape[3:]
-        self.obs = self.obs.reshape(self.max_episode_len, self.size * self.n_agents, *obs_size)
-        self.obs_ = self.obs_.reshape(self.max_episode_len, self.size * self.n_agents, *obs_size)
-        self.extras = self.extras.reshape(self.max_episode_len, self.size * self.n_agents, -1)
-        self.extras_ = self.extras_.reshape(self.max_episode_len, self.size * self.n_agents, -1)
-        self.available_actions_ = self.available_actions_.reshape(self.max_episode_len, self.size * self.n_agents, self.n_actions)
+        self.obs = self.obs.view(self.max_episode_len, self.size * self.n_agents, *obs_size)
+        self.obs_ = self.obs_.view(self.max_episode_len, self.size * self.n_agents, *obs_size)
+        self.extras = self.extras.view(self.max_episode_len, self.size * self.n_agents, -1)
+        self.extras_ = self.extras_.view(self.max_episode_len, self.size * self.n_agents, -1)
+        self.available_actions_ = self.available_actions_.view(self.max_episode_len, self.size * self.n_agents, self.n_actions)
         return self
 
     def to(self, device: torch.device) -> "Batch":

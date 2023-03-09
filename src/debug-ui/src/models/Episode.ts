@@ -17,7 +17,7 @@ export interface ReplayEpisode {
 
 
 export interface Episode {
-    obs: number[][][],
+    obs: number[][][] | number[][][][][],
     extras: number[][][],
     actions: number[][],
     rewards: number[],
