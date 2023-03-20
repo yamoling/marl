@@ -1,16 +1,13 @@
 from dataclasses import dataclass
-import os
-import json
 import marl
 import rlenv
 from copy import deepcopy
-from laser_env import LaserEnv
 import laser_env
 from rlenv import Transition
 from marl.models import PrioritizedMemory
-from marl.utils.others import encode_b64_image, get_available_port
+from marl.utils.others import encode_b64_image
+from marl import Runner
 
-from ..replay import replay_episode, replay_video
 from .messages import TrainConfig, StartTrain
 
 
@@ -36,16 +33,24 @@ class TrainServerState:
         self.runner = marl.Runner(env, test_env=test_env, algo=algo, logger=logger)
         return logger.port
     
+    def load_checkpoint(self, checkpoint_dir: str):
+        self.runner = Runner.from_checkpoint(checkpoint_dir)
+
     @staticmethod
     def _create_env(config: TrainConfig):
+        obs_type = laser_env.ObservationType.from_str(config.obs_type)
         if config.static_map:
-            env = LaserEnv(config.level)
+            env = laser_env.StaticLaserEnv(config.level, obs_type)
         else:
-            generator = (laser_env.LevelGenerator(config.generator.width, config.generator.height, config.generator.n_agents)
-                         .wall_density(config.generator.wall_density)
-                         .lasers(config.generator.n_lasers)
-                         .gems(config.generator.n_gems))
-            env = laser_env.GeneratorWrapper(generator)
+            env = laser_env.DynamicLaserEnv(
+                width=config.generator.width, 
+                height=config.generator.height, 
+                num_agents=config.generator.n_agents,
+                num_gems=config.generator.n_gems,
+                num_lasers=config.generator.n_lasers,
+                obs_type=obs_type,
+                wall_density=config.generator.wall_density,
+            )
         builder = rlenv.Builder(env)
         for wrapper in config.env_wrappers:
             match wrapper:
@@ -63,7 +68,6 @@ class TrainServerState:
         if config.memory.nstep > 1:
             memory_builder.nstep(config.memory.nstep, 0.99)
         return memory_builder.build()
-        
 
     def train(self, params: StartTrain):
         self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
@@ -72,25 +76,6 @@ class TrainServerState:
     def test(self, params: StartTrain):
         self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
         self.runner._logger._disconnect_clients = True
-
-    def get_train_episode(self, episode_num: int) -> dict:
-        base_path = os.path.join(self.runner._logger.logdir, "train", f"{episode_num}")
-        with open(os.path.join(base_path, "qvalues.json"), "r") as f:
-            qvalues = json.load(f)
-        with open(os.path.join(base_path, "actions.json"), "r") as f:
-            actions = json.load(f)
-        episode = replay_episode(deepcopy(self.env), actions)
-        json_data = episode.to_json()
-        json_data["qvalues"] = qvalues
-        return json_data
-    
-    def get_train_frames(self, episode_num: int) -> dict:
-        path = os.path.join(self.runner._logger.logdir, "train", f"{episode_num}", "actions.json")
-        with open(path, "r") as f:
-            actions = json.load(f)
-        frames = replay_video(deepcopy(self.env), actions)
-        frames = [encode_b64_image(f) for f in frames]
-        return frames
 
     def get_memory_priorities(self):
         # Won't work with DQN

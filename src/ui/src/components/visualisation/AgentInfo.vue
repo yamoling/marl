@@ -1,18 +1,10 @@
 <template>
     <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
-        <table class="table table-responsive">
-            <tr>
-                <th :colspan="obs.length" style="background-color: beige;">Observation</th>
-                <th :colspan="extras.length" style="background-color: whitesmoke;">Extras</th>
-            </tr>
-            <tr>
-                <td v-if="obsNumDims == 1" class="observation" style="background-color: beige;" v-for="o in obs"> {{
-                    o.toFixed(3) }}</td>
-                <td v-else :colspan="obs.length"></td>
-                <td class="extras" style="background-color: whitesmoke" v-for="e in extras"> {{ e.toFixed(3) }}</td>
-            </tr>
-        </table>
+        <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obsRelativePos" />
+        <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
+        <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" />
+        <p v-else> No preview available for obs type {{ obsType }}</p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
             <thead>
@@ -42,8 +34,14 @@
 import { computed } from "vue";
 import type Rainbow from "rainbowvis.js";
 import { ReplayEpisode } from "../../models/Episode";
+import RelativePositions from "./observation/RelativePositions.vue";
+import Layered from "./observation/Layered.vue";
+import Flattened from "./observation/Flattened.vue";
+import { useGlobalState } from "../../stores/GlobalState";
 
-const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"];
+const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
+const globalState = useGlobalState();
+const obsType = computed(() => globalState.experiment?.envInfo.obs_type);
 
 
 const props = defineProps<{
@@ -80,23 +78,13 @@ const backgroundColours = computed(() => {
     if (qvalues.value.length == 0) {
         return "white";
     }
-    // const min = Math.min(...qvalues.value);
-    // let max = Math.max(...qvalues.value);
-    // if (min == max) {
-    //     max++;
-    // }
-    // props.rainbow.setNumberRange(min, max);
     return qvalues.value.map(q => props.rainbow.colourAt(q));
 });
 
-const obsNumDims = computed(() => {
-    if (props.episode == null) return 0;
-    return arrayShape(props.episode.episode.obs).length;
-});
+const obsRelativePos = computed(() => obs.value as number[]);
+const obsFlattened = obsRelativePos;
+const obsLayered = computed(() => obs.value as number[][][]);
 
-function arrayShape(arr: any[]): number[] {
-    return arr.length ? [...[arr.length], ...arrayShape(arr[0])] : [];
-}
 </script>
 
 

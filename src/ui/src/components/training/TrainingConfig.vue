@@ -90,6 +90,14 @@
                         Static map
                     </label>
                 </div>
+                <div class="input-group mb-3">
+                    <label class="input-group-text">Options</label>
+                    <select class="form-select" v-model="obsType">
+                        <option v-for="obs in OBS_TYPES" :value="obs"> {{ obs }}</option>
+                    </select>
+                </div>
+
+
 
                 <div v-if="staticMap">
                     <div v-for="col in 2" class="row">
@@ -157,6 +165,7 @@ import { computed, ref } from 'vue';
 import { HTTP_URL } from '../../constants';
 import { useGlobalState } from '../../stores/GlobalState';
 import { useReplayStore } from '../../stores/ReplayStore';
+import { OBS_TYPES } from "../../models/EnvInfo";
 
 const globalState = useGlobalState();
 const loading = ref(false);
@@ -168,6 +177,7 @@ const isRecurrent = ref(false);
 const vdn = ref(true);
 
 // Map config
+const obsType = ref("FLATTENED");
 const staticMap = ref(true);
 const selectedLevel = ref(3);
 const width = ref(10);
@@ -185,14 +195,19 @@ const prioritizedMemory = ref(false);
 const envWrappers = ref({} as HTMLElement);
 const emits = defineEmits(['start']);
 
-const experimentName = computed(() => {
-    if (!autoName.value) {
-        if (!customExperimentName.value.startsWith("logs/")) {
-            customExperimentName.value = `logs/${customExperimentName.value}`;
+const experimentName = computed({
+    get() {
+        if (!autoName.value) {
+            if (!customExperimentName.value.startsWith("logs/")) {
+                customExperimentName.value = `logs/${customExperimentName.value}`;
+            }
+            return customExperimentName.value;
         }
-        return customExperimentName.value;
-    }
-    return computeAutoName();
+        return computeAutoName();
+    },
+    set(newValue) {
+        customExperimentName.value = newValue;
+    },
 });
 
 function send() {
@@ -208,6 +223,7 @@ function send() {
             time_limit: timeLimitValue.value,
             static_map: staticMap.value,
             level: `lvl${selectedLevel.value}`,
+            obs_type: obsType.value,
             generator: {
                 width: width.value,
                 height: height.value,

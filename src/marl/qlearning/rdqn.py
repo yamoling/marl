@@ -92,5 +92,6 @@ class RDQN(DQN):
 
     def summary(self) -> dict[str,]:
         summary = super().summary()
-        summary["name"] = "Recurrent DQN"
+        summary["name"] = "RDQN"
+        summary["recurrent"] = True
         return summary

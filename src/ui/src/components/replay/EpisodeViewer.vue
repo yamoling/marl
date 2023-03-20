@@ -74,6 +74,7 @@ const props = defineProps<{
 
 watch(props, (newProps) => {
     // Get the min and the max of the qvalues
+    currentStep.value = 0;
     const episode = newProps.episode;
     if (episode == null) {
         return;

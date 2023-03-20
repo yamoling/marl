@@ -23,6 +23,7 @@ class TrainConfig:
     env_wrappers: list[str]
     time_limit: int
     level: str
+    obs_type: str
     static_map: bool
     memory: MemoryConfig
     generator: GeneratorConfig

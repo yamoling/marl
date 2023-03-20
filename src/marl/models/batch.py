@@ -50,7 +50,7 @@ class Batch:
         masks = torch.tensor(np.array([e.mask for e in episodes])).transpose(1, 0)
         states = torch.tensor(np.array([e.states[:-1] for e in episodes])).transpose(1, 0)
         states_ = torch.tensor(np.array([e.states[1:] for e in episodes])).transpose(1, 0)
-        _, _, n_agents, n_actions = available_actions_.shape[-1]
+        *_, n_agents, n_actions = available_actions_.shape
         return Batch(
             size=size,
             max_episode_len=max_episode_len,
@@ -162,11 +162,11 @@ class Batch:
     def for_rnn(self) -> "Batch":
         """Reshape observations, extras and available actions such that dimensions 1 and 2 are merged (required for GRU)"""
         obs_size = self.obs.shape[3:]
-        self.obs = self.obs.view(self.max_episode_len, self.size * self.n_agents, *obs_size)
-        self.obs_ = self.obs_.view(self.max_episode_len, self.size * self.n_agents, *obs_size)
-        self.extras = self.extras.view(self.max_episode_len, self.size * self.n_agents, -1)
-        self.extras_ = self.extras_.view(self.max_episode_len, self.size * self.n_agents, -1)
-        self.available_actions_ = self.available_actions_.view(self.max_episode_len, self.size * self.n_agents, self.n_actions)
+        self.obs = self.obs.reshape(self.max_episode_len, self.size * self.n_agents, *obs_size)
+        self.obs_ = self.obs_.reshape(self.max_episode_len, self.size * self.n_agents, *obs_size)
+        self.extras = self.extras.reshape(self.max_episode_len, self.size * self.n_agents, -1)
+        self.extras_ = self.extras_.reshape(self.max_episode_len, self.size * self.n_agents, -1)
+        self.available_actions_ = self.available_actions_.reshape(self.max_episode_len, self.size * self.n_agents, self.n_actions)
         return self
 
     def to(self, device: torch.device) -> "Batch":

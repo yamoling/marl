@@ -24,6 +24,12 @@ class ReplayServerState:
     def experiment_summary(self) -> tuple[list[ReplayEpisode], list[ReplayEpisode]]:
         return self.experiment.train_summary(), self.experiment.test_summary()
     
+    def experiment_obs_type(self) -> str:
+        return self.experiment.obs_type.name
+    
+    def env_info(self) -> dict:
+        return self.experiment.env_info
+    
     def get_tests_at(self, test_directory: str) -> list[ReplayEpisode]:
         return self.experiment.test_episode_summary(test_directory)
 

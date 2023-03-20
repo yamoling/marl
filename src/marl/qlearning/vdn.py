@@ -13,7 +13,7 @@ from .dqn import DQN
 
 class RecurrentVDN(RDQN):
     def process_batch(self, batch: Batch) -> Batch:
-        return super().process_batch(batch)
+        return batch.for_rnn()
     
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         next_qvalues, _ = self._qtarget.forward(batch.obs_, batch.extras_)
@@ -35,7 +35,7 @@ class RecurrentVDN(RDQN):
     
     def summary(self) -> dict:
         summary = super().summary()
-        summary["name"] = f"VDN({summary['name']})"
+        summary["name"] = f"RecurrentVDN({summary['name']})"
         return summary
 
 class LinearVDN(DQN):
@@ -61,5 +61,5 @@ class LinearVDN(DQN):
     
     def summary(self) -> dict:
         summary = super().summary()
-        summary["name"] = f"VDN({summary['name']})"
+        summary["name"] = f"LinearVDN({summary['name']})"
         return summary

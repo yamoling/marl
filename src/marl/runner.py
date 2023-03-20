@@ -1,5 +1,5 @@
-import json
 import os
+import json
 from copy import deepcopy
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Observation
 from tqdm import tqdm
@@ -43,7 +43,8 @@ class Runner:
         stop = self._current_step + n_steps
         if self._episode_num == 0:
             self._before_train_episode()
-        while self._current_step < stop:
+        for i in tqdm(range(self._current_step, stop), desc="Training", unit="Step", leave=True, disable=quiet):
+            self._current_step = i
             if self._current_step % test_interval == 0:
                 self.test(n_tests, quiet=quiet)
             if self._episode_builder.is_done:
@@ -83,7 +84,7 @@ class Runner:
         self._logger.log_print("Test", metrics, self._current_step)
         if metrics.score > self._best_score:
             self._best_score = metrics.score
-            self._algo.save(f"{self._checkpoint}-{self._current_step}")
+            self._algo.save(f"{self._checkpoint}-{self._current_step}-score-{self._best_score:.3f}")
         self._algo.after_tests(episodes, self._current_step)
 
     def seed(self, seed_value: int):
@@ -101,10 +102,21 @@ class Runner:
 
     def summary(self) -> dict:
         return {
-                "env": self._env.summary(),
-                "algorithm": self._algo.summary(),
-                "seed": self._seed
-            }
+            "env": self._env.summary(),
+            "algorithm": self._algo.summary(),
+            "seed": self._seed
+        }
+    
+    @staticmethod
+    def from_checkpoint(checkpoint_dir: str) -> "Runner":
+        experiment_dir = checkpoint_dir
+        while not (os.path.exists(os.path.join(experiment_dir, "experiment.json"))):
+            experiment_dir = os.path.dirname(experiment_dir)
+        with open(os.path.join(experiment_dir, "experiment.json"), "r") as f:
+            experiment_summary: dict[str, str] = json.load(f)
+        env = Experiment.restore_env(checkpoint_dir)
+        algo = Experiment.restore_algo(experiment_summary["algorithm"])
+        return Runner(env, algo)
 
     @property
     def logdir(self) -> str:

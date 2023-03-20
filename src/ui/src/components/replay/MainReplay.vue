@@ -1,6 +1,6 @@
 <template>
     <div>
-        <Overview @request-view-episode="showModal" />
+        <Overview @request-view-episode="showModal" @load-model="loadModel" />
         <EpisodeViewer :episode="viewingEpisode" :frames="[]" id="episodeViewer" />
     </div>
 </template>
@@ -25,6 +25,10 @@ async function showModal(episode: Promise<ReplayEpisode>) {
     } catch (e) {
         alert("Failed to load episode");
     }
+}
+
+async function loadModel() {
+    alert("Not implemented yet");
 }
 
 onMounted(() => {

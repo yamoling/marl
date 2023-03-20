@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from rlenv.models import Episode, EpisodeBuilder, Transition, Metrics
-from copy import deepcopy
 import os
 import json
 import tempfile
-from laser_env import LaserEnv
+from laser_env import LaserEnv, StaticLaserEnv, DynamicLaserEnv
 import laser_env
 import rlenv
 from marl import RLAlgo
@@ -73,6 +72,10 @@ class Experiment:
     @property
     def test_dir(self) -> str:
         return os.path.join(self.logdir, "test")
+    
+    @property
+    def env_info(self) -> dict:
+        return self.summary["env"]
 
     def from_checkpoint(self, checkpoint_dir: str) -> RLAlgo:
         algo_wrappers: str = self.summary["algorithm"]["name"]
@@ -122,34 +125,48 @@ class Experiment:
 
     def list_test_episodes(self, time_step: int) -> list[str]:
         return sorted(os.listdir(os.path.join(self.test_dir, f"{time_step}")), key=alpha_num_order)
-
+    
     @staticmethod
-    def restore_env(episode_folder: str) -> rlenv.RLEnv:
-        with open(os.path.join(episode_folder, "env.json"), "r") as f:
-            env_summary: dict[str, str] = json.load(f)
-        # Observation type
-        obs_dtype = None
-        for enum in laser_env.ObservationType:
-            if enum.name == env_summary["obs_type"]:
-                obs_dtype = enum
-                break
-        if obs_dtype is None:
-            raise ValueError(f"Observation type {env_summary['obs_type']} not found.")
+    def restore_env(episode_or_experiment_folder: str, force_static=False) -> rlenv.RLEnv:
+        # 1) Retrieve the env summary
+        env_json_path = os.path.join(episode_or_experiment_folder, "env.json")
+        test_0 = os.path.join(episode_or_experiment_folder, "0", "env.json")
+        if os.path.exists(env_json_path):
+            with open(env_json_path, "r") as f:
+                env_summary: dict[str, str] = json.load(f)
+        elif os.path.exists(test_0):
+            with open(test_0, "r") as f:
+                env_summary: dict[str, str] = json.load(f)
+        else:
+            with open(os.path.join(episode_or_experiment_folder, "experiment.json"), "r") as f:
+                env_summary = json.load(f)["env"]
         
-        # File content
-        with tempfile.NamedTemporaryFile("w", delete=False) as f:
-            f.write(env_summary["map_file_content"])
-        builder = rlenv.Builder(LaserEnv(f.name, enum))
-        os.remove(f.name)
+        # 2) Restore the env
+        if force_static:
+            env = StaticLaserEnv.from_summary(env_summary)
+        else:
+            match env_summary["name"]:
+                case laser_env.DynamicLaserEnv.__name__:
+                    env = laser_env.DynamicLaserEnv.from_summary(env_summary)
+                case laser_env.StaticLaserEnv.__name__:
+                    env = StaticLaserEnv.from_summary(env_summary)
+                case other: raise NotImplementedError(f"Cannot restore env {other}")
         
-        # Wrappers
-        wrappers: list[str] = env_summary["name"].replace('(', ')').split(')')
-        if "AgentIdWrapper" in wrappers:
-            builder.agent_id()
-        if "TimeLimitWrapper" in wrappers:
-            time_limit: int = env_summary["time_limit"]
-            builder.time_limit(time_limit)
+        # 3) Restore wrappers
+        return rlenv.wrappers.from_summary(env, env_summary)
+    
+    @staticmethod
+    def restore_algo(algo_summary: dict[str, str]) -> RLAlgo:
+        import marl
+        builder = (marl.DeepQBuilder()
+                   .gamma(algo_summary["gamma"])
+                   .batch_size(algo_summary["batch_size"])
+                   .tau(algo_summary["tau"]))
+        builder = builder.recurrent(algo_summary["recurrent"])
+        if "VDN" in algo_summary["name"]: 
+            builder = builder.vdn()
         return builder.build()
+
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         with (open(os.path.join(episode_folder, "qvalues.json"), "r") as q, 
@@ -159,7 +176,7 @@ class Experiment:
             qvalues = json.load(q)
             metrics = json.load(m)
             actions = json.load(a)
-        env = self.restore_env(episode_folder)
+        env = self.restore_env(episode_folder, force_static=True)
         obs = env.reset()
         frames = [encode_b64_image(env.render('rgb_array'))]
         episode = EpisodeBuilder()

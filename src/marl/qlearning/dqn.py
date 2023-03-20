@@ -135,23 +135,23 @@ class DQN(IDeepQLearning):
         self._policy = self._train_policy
         return super().after_tests(time_step, episodes)
 
-    def save(self, to_path: str):
-        os.makedirs(to_path, exist_ok=True)
-        qnetwork_path = os.path.join(to_path, "qnetwork.weights")
-        qtarget_path = os.path.join(to_path, "qtarget.weights")
-        train_policy_path = os.path.join(to_path, "train_policy")
-        test_policy_path = os.path.join(to_path, "test_policy")
+    def save(self, to_directory: str):
+        os.makedirs(to_directory, exist_ok=True)
+        qnetwork_path = os.path.join(to_directory, "qnetwork.weights")
+        qtarget_path = os.path.join(to_directory, "qtarget.weights")
+        train_policy_path = os.path.join(to_directory, "train_policy")
+        test_policy_path = os.path.join(to_directory, "test_policy")
         torch.save(self._qnetwork.state_dict(), qnetwork_path)
         torch.save(self._qtarget.state_dict(), qtarget_path)
         self._train_policy.save(train_policy_path)
         self._test_policy.save(test_policy_path)
         
 
-    def load(self, from_path: str):
-        qnetwork_path = os.path.join(from_path, "qnetwork.weights")
-        qtarget_path = os.path.join(from_path, "qtarget.weights")
-        train_policy_path = os.path.join(from_path, "train_policy")
-        test_policy_path = os.path.join(from_path, "test_policy")
+    def load(self, from_directory: str):
+        qnetwork_path = os.path.join(from_directory, "qnetwork.weights")
+        qtarget_path = os.path.join(from_directory, "qtarget.weights")
+        train_policy_path = os.path.join(from_directory, "train_policy")
+        test_policy_path = os.path.join(from_directory, "test_policy")
         self._qnetwork.load_state_dict(torch.load(qnetwork_path))
         self._qtarget.load_state_dict(torch.load(qtarget_path))
         self._train_policy.load(train_policy_path)
@@ -163,6 +163,7 @@ class DQN(IDeepQLearning):
             "gamma": self._gamma,
             "batch_size": self._batch_size,
             "tau": self._tau,
+            "recurrent": False,
             "optimizer": {
                 "name": self._optimizer.__class__.__name__,
                 "learning rate": self._optimizer.param_groups[0]["lr"]
@@ -171,14 +172,11 @@ class DQN(IDeepQLearning):
                 "type": self._memory.__class__.__name__,
                 "size": len(self._memory)
             },
-            "qnetwork": str(self._qnetwork),
-            "train_policy": {
-                "name": self._train_policy.__class__.__name__,
-                **self._train_policy.__dict__
+            "qnetwork": {
+                "name": self._qnetwork.__class__.__name__,
+                "layers": str(self._qnetwork)
             },
-            "test_policy" : {
-                "name": self._test_policy.__class__.__name__,
-                **self._test_policy.__dict__
-            }
+            "train_policy": self._train_policy.summary(),
+            "test_policy" : self._test_policy.summary()
         }
     

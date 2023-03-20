@@ -12,8 +12,13 @@ def get_episode(path: str):
 
 @app.route("/replay/tests/summary/<path:path>")
 def get_test_summary(path: str):
+    """Load the test episodes from a test directory"""
     return [e.to_json() for e in replay_state.get_tests_at(path)]
 
+@app.route("/replay/checkpoint/load/<path:path>")
+def load_checkpoint(path: str):
+    train_state.load_checkpoint(path)
+    return ""
 
 @app.route("/ls/<path:path>")
 def ls(path: str):
@@ -32,7 +37,8 @@ def load_directory(path: str):
     test = [t.to_json() for t in test]
     return {
         "train": train,
-        "test": test
+        "test": test,
+        "envInfo": replay_state.env_info()
     }
 
 @app.route("/env/maps/list")

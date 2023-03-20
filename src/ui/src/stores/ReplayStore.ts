@@ -10,11 +10,9 @@ export const useReplayStore = defineStore("ReplayStore", () => {
     function refresh() {
         fetch(`${HTTP_URL}/ls/logs`)
             .then(resp => resp.json())
-            .then(d => {
-                const dirs = d as any[];
+            .then((dirs: { path: string }[]) => {
                 logdirs.value = dirs.map(d => d.path);
             });
-
     }
     refresh();
 
