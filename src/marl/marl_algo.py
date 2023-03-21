@@ -1,3 +1,5 @@
+import json
+from typing_extensions import Self
 from abc import ABC, abstractmethod
 import numpy as np
 from rlenv.models import Episode, Transition, Observation
@@ -15,11 +17,23 @@ class RLAlgo(ABC):
         }
 
     def save(self, to_path: str):
-        """Save the algorithm state to the specified file."""
-        raise NotImplementedError()
+        """Save the algorithm state to the specified file.
+        Saves the algorithm summary by default."""
+        with open(to_path, "w") as f:
+            json.dump(self.summary(), f)
 
-    def load(self, from_path: str):
-        """Load the algorithm state from the specified file."""
+    @classmethod
+    def load(cls, from_path: str):
+        """
+        Load the algorithm state from the specified file.
+        By default, loads the algorithm from its summary."""
+        with open(from_path, "r") as f:
+            summary = json.load(f)
+            return cls.from_summary(summary)
+
+    @classmethod
+    def from_summary(cls, summary: dict) -> Self:
+        """Instantiate the algorithm from its summary"""
         raise NotImplementedError()
 
     def before_tests(self, time_step: int):

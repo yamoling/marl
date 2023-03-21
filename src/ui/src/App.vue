@@ -1,6 +1,7 @@
 <template>
   <main>
     <Header @create-experiment="createExperiment" @experiment-selected="onExperimentSelected" />
+    <Home></Home>
     <Tabs ref="tabs" :tabs="tabNames" />
     <MainTraining v-show="tabs.currentTab == 'Train'" />
     <MainReplay v-show="tabs.currentTab == 'Replay'" />
@@ -16,6 +17,7 @@ import type { ITabs } from './components/Tabs.vue';
 import { ref } from 'vue';
 import MainReplay from './components/replay/MainReplay.vue';
 import { useGlobalState } from './stores/GlobalState';
+import Home from './components/Home.vue';
 
 const tabNames = [
   "Train",

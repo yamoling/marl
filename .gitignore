@@ -188,5 +188,5 @@ logs/*
 old/
 config/
 .devcontainer
-nohup.out
+nohup*
 files/

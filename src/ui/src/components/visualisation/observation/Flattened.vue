@@ -4,7 +4,7 @@
             <thead>
                 <tr>
                     <th> </th>
-                    <th :colspan="layerSize"> Oservation </th>
+                    <th :colspan="layerSize"> Observation </th>
                 </tr>
             </thead>
             <tbody>

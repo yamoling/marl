@@ -13,3 +13,4 @@ from . import wrappers
 
 from .qlearning import DQN, RDQN, LinearVDN, RecurrentVDN, VanillaQLearning, ReplayTableQLearning
 from .qlearning import DeepQBuilder 
+from .utils.load_save import from_summary

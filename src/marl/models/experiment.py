@@ -76,13 +76,11 @@ class Experiment:
     @property
     def env_info(self) -> dict:
         return self.summary["env"]
-
-    def from_checkpoint(self, checkpoint_dir: str) -> RLAlgo:
-        algo_wrappers: str = self.summary["algorithm"]["name"]
-        algo_wrappers = algo_wrappers.replace('(', ')').split(')')
-        print(algo_wrappers)
-        
     
+    @property
+    def algo_info(self) -> dict:
+        return self.summary["algorithm"]
+
     def train_summary(self) -> list[ReplayEpisode]:
         summary = []
         base_dir = self.train_dir
@@ -128,14 +126,14 @@ class Experiment:
     
     @staticmethod
     def restore_env(episode_or_experiment_folder: str, force_static=False) -> rlenv.RLEnv:
-        # 1) Retrieve the env summary
-        env_json_path = os.path.join(episode_or_experiment_folder, "env.json")
-        test_0 = os.path.join(episode_or_experiment_folder, "0", "env.json")
-        if os.path.exists(env_json_path):
-            with open(env_json_path, "r") as f:
+        # 1) Retrieve the env summary (priorise env.json over experiment.json ["env"])
+        train_env_json = os.path.join(episode_or_experiment_folder, "env.json")
+        test_env_json = os.path.join(episode_or_experiment_folder, "0", "env.json")
+        if os.path.exists(train_env_json):
+            with open(train_env_json, "r") as f:
                 env_summary: dict[str, str] = json.load(f)
-        elif os.path.exists(test_0):
-            with open(test_0, "r") as f:
+        elif os.path.exists(test_env_json):
+            with open(test_env_json, "r") as f:
                 env_summary: dict[str, str] = json.load(f)
         else:
             with open(os.path.join(episode_or_experiment_folder, "experiment.json"), "r") as f:
@@ -155,18 +153,6 @@ class Experiment:
         # 3) Restore wrappers
         return rlenv.wrappers.from_summary(env, env_summary)
     
-    @staticmethod
-    def restore_algo(algo_summary: dict[str, str]) -> RLAlgo:
-        import marl
-        builder = (marl.DeepQBuilder()
-                   .gamma(algo_summary["gamma"])
-                   .batch_size(algo_summary["batch_size"])
-                   .tau(algo_summary["tau"]))
-        builder = builder.recurrent(algo_summary["recurrent"])
-        if "VDN" in algo_summary["name"]: 
-            builder = builder.vdn()
-        return builder.build()
-
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         with (open(os.path.join(episode_folder, "qvalues.json"), "r") as q, 

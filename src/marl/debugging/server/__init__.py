@@ -6,9 +6,11 @@ CORS(app)
 
 from .train import TrainServerState
 from .replay import ReplayServerState
+from .server_state import ServerState
 
-replay_state = ReplayServerState(None)
+replay_state = ReplayServerState()
 train_state = TrainServerState()
+state = ServerState()
 
 def run(port=5000, static_path: str=None, debug=False):
     from . import routes

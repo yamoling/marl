@@ -2,10 +2,12 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { ReplayEpisode, ReplayEpisodeSummary } from "../models/Episode";
 import { HTTP_URL } from "../constants";
+import { Experiment } from "../models/Experiment";
 
 export const useReplayStore = defineStore("ReplayStore", () => {
 
     const logdirs = ref([] as string[]);
+    const experiments = ref([] as Experiment[]);
 
     function refresh() {
         fetch(`${HTTP_URL}/ls/logs`)
@@ -26,6 +28,11 @@ export const useReplayStore = defineStore("ReplayStore", () => {
         return await resp.json();
     }
 
+    async function getExperiments(): Promise<Experiment[]> {
+        const resp = await fetch(`${HTTP_URL}/experiments/list`);
+        return await resp.json();
+    }
 
-    return { logdirs, getEpisode, getTestEpisodes };
+
+    return { logdirs, getEpisode, getTestEpisodes, getExperiments };
 });

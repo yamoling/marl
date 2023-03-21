@@ -19,11 +19,12 @@ let modal = {} as Modal;
 
 async function showModal(episode: Promise<ReplayEpisode>) {
     viewingEpisode.value = null;
-    modal.show();
     try {
+        modal.show();
         viewingEpisode.value = await episode;
     } catch (e) {
         alert("Failed to load episode");
+        modal.hide()
     }
 }
 

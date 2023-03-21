@@ -41,7 +41,7 @@ import { useGlobalState } from "../../stores/GlobalState";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
 const globalState = useGlobalState();
-const obsType = computed(() => globalState.experiment?.envInfo.obs_type);
+const obsType = computed(() => globalState.experiment?.envInfo.DynamicLaserEnv?.obs_type);
 
 
 const props = defineProps<{

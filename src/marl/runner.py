@@ -1,5 +1,6 @@
 import os
 import json
+from time import time
 from copy import deepcopy
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Observation
 from tqdm import tqdm
@@ -14,7 +15,8 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         logger: logging.Logger=None,
-        test_env: RLEnv=None
+        test_env: RLEnv=None,
+        start_step=0
     ):
         self._env = env
         self._test_env = defaults_to(test_env, deepcopy(env))
@@ -24,9 +26,10 @@ class Runner:
         else:
             self._logger = logger
         self._seed = None
+        self._creation_timestamp = int(time())
         self._best_score = -float("inf")
         self._checkpoint = os.path.join(self.logdir, "checkpoint")
-        self._current_step = 0
+        self._current_step = start_step
         self._episode_builder = None
         self._episode_num = 0
         self._obs: Observation|None = None
@@ -104,20 +107,24 @@ class Runner:
         return {
             "env": self._env.summary(),
             "algorithm": self._algo.summary(),
-            "seed": self._seed
+            "seed": self._seed,
+            "timestamp": self._creation_timestamp
         }
     
     @staticmethod
     def from_checkpoint(checkpoint_dir: str) -> "Runner":
+        import marl
         experiment_dir = checkpoint_dir
         while not (os.path.exists(os.path.join(experiment_dir, "experiment.json"))):
             experiment_dir = os.path.dirname(experiment_dir)
         with open(os.path.join(experiment_dir, "experiment.json"), "r") as f:
             experiment_summary: dict[str, str] = json.load(f)
         env = Experiment.restore_env(checkpoint_dir)
-        algo = Experiment.restore_algo(experiment_summary["algorithm"])
+        algo = marl.from_summary(experiment_summary["algorithm"])
+        algo.load(checkpoint_dir)
         return Runner(env, algo)
 
     @property
     def logdir(self) -> str:
         return self._logger.logdir
+    

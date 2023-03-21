@@ -165,7 +165,7 @@ import { computed, ref } from 'vue';
 import { HTTP_URL } from '../../constants';
 import { useGlobalState } from '../../stores/GlobalState';
 import { useReplayStore } from '../../stores/ReplayStore';
-import { OBS_TYPES } from "../../models/EnvInfo";
+import { OBS_TYPES } from "../../models/Infos";
 
 const globalState = useGlobalState();
 const loading = ref(false);

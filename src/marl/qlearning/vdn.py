@@ -59,7 +59,3 @@ class LinearVDN(DQN):
             qvalues = qvalues.sum(dim=-1)
         return qvalues
     
-    def summary(self) -> dict:
-        summary = super().summary()
-        summary["name"] = f"LinearVDN({summary['name']})"
-        return summary

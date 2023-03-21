@@ -73,10 +73,6 @@ class TrainServerState:
         self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
         self.runner._logger._disconnect_clients = True
 
-    def test(self, params: StartTrain):
-        self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
-        self.runner._logger._disconnect_clients = True
-
     def get_memory_priorities(self):
         # Won't work with DQN
         match self.runner._algo.algo.algo.memory:

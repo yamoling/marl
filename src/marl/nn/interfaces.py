@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing_extensions import Self
 from abc import ABC, abstractmethod
 import torch
 
@@ -28,6 +28,23 @@ class NN(torch.nn.Module, ABC):
     def is_recurrent(self) -> bool:
         """Returns whether the model is recurrent or not"""
         return False
+    
+    def summary(self) -> dict[str, ]:
+        return {
+            "name": self.__class__.__name__,
+            "input_shape": self.input_shape,
+            "extras_shape": self.extras_shape,
+            "output_shape": self.output_shape,
+            "layers": str(self)
+        }
+    
+    @classmethod
+    def from_summary(cls, summary: dict[str, ]) -> Self:
+        return cls(
+            input_shape=summary["input_shape"],
+            extras_shape=summary["extras_shape"],
+            output_shape=summary["output_shape"],
+        )
 
 class LinearNN(NN, ABC):
     """Abstract class defining a linear neural network"""

@@ -33,7 +33,7 @@ class Policy(ABC):
     @classmethod
     def load(cls, from_file: str):
         """Load the policy from a directory"""
-        with open(from_file, "w", encoding="utf-8") as f:
+        with open(from_file, "r", encoding="utf-8") as f:
             summary = json.load(f)
             return cls.from_summary(summary)
     

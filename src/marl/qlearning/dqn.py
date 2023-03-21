@@ -154,8 +154,9 @@ class DQN(IDeepQLearning):
         test_policy_path = os.path.join(from_directory, "test_policy")
         self._qnetwork.load_state_dict(torch.load(qnetwork_path))
         self._qtarget.load_state_dict(torch.load(qtarget_path))
-        self._train_policy.load(train_policy_path)
-        self._test_policy.load(test_policy_path)
+        self._train_policy = self._train_policy.__class__.load(train_policy_path)
+        self._test_policy = self._test_policy.__class__.load(test_policy_path)
+        self._policy = self._train_policy
 
     def summary(self) -> dict[str,]:
         return {
@@ -168,15 +169,26 @@ class DQN(IDeepQLearning):
                 "name": self._optimizer.__class__.__name__,
                 "learning rate": self._optimizer.param_groups[0]["lr"]
             },
-            "memory": {
-                "type": self._memory.__class__.__name__,
-                "size": len(self._memory)
-            },
-            "qnetwork": {
-                "name": self._qnetwork.__class__.__name__,
-                "layers": str(self._qnetwork)
-            },
+            "memory": self.memory.summary(),
+            "qnetwork": self._qnetwork.summary(),
             "train_policy": self._train_policy.summary(),
             "test_policy" : self._test_policy.summary()
         }
+    
+    @classmethod
+    def from_summary(cls, summary: dict[str,]):
+        from marl import policy
+        train_policy = policy.from_summary(summary["train_policy"])
+        test_policy = policy.from_summary(summary["test_policy"])
+        from marl import nn
+        qnetwork = nn.from_summary(summary["qnetwork"])
+        return cls(
+            qnetwork=qnetwork,
+            gamma=summary["gamma"],
+            tau=summary["tau"],
+            batch_size=summary["batch_size"],
+            lr=summary["optimizer"]["learning rate"],
+            train_policy=train_policy,
+            test_policy=test_policy,
+        )
     
