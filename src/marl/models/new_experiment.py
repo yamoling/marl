@@ -7,8 +7,9 @@ from rlenv.models import RLEnv, Metrics, Episode, EpisodeBuilder, Transition
 from rlenv import wrappers
 import laser_env
 from marl.models import RLAlgo, Runner
+from marl.wrappers import ReplayWrapper
 from marl.logging import Logger
-from marl.utils.others import encode_b64_image, alpha_num_order
+from marl.utils import encode_b64_image, alpha_num_order, CorruptExperimentException
 
 
 @dataclass
@@ -51,7 +52,6 @@ class ReplayEpisode(ReplayEpisodeSummary):
 class Experiment:
     logdir: str
     summary: dict[str, ]
-    runner: Runner | None = None
     _algo: RLAlgo | None = None
     _env: RLEnv | None = None
 
@@ -69,7 +69,6 @@ class Experiment:
         self._algo = algo
         self._env = env
         self.summary = summary
-        self.runner = None
         if save:
             self.save()
 
@@ -84,16 +83,15 @@ class Experiment:
         with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
             json.dump(self.summary, f)
 
-    def get_runner(self, checkpoint: str=None, logger: Logger=None):
-        if self.runner is not None:
-            return self.runner
+    def create_runner(self, checkpoint: str=None, logger: Logger=None) -> Runner:
         start_step = 0
         if checkpoint is not None:
             self.algo.load(checkpoint)
             start_step = int(os.path.basename(checkpoint))
+        
         return Runner(
             env=self.env, 
-            algo=self.algo,
+            algo=ReplayWrapper(self.algo, self.logdir),
             logger=logger,
             start_step=start_step,
         )
@@ -126,11 +124,14 @@ class Experiment:
         base_dir = self.test_dir
         try: test_dirs = sorted(os.listdir(base_dir), key=alpha_num_order)
         except FileNotFoundError: return []
-        for directory in test_dirs:
-            episode_dir = os.path.join(base_dir, directory)
-            with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
-                summary.append(ReplayEpisodeSummary(episode_dir, Metrics(**json.load(f))))
-        return summary    
+        try:
+            for directory in test_dirs:
+                episode_dir = os.path.join(base_dir, directory)
+                with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
+                    summary.append(ReplayEpisodeSummary(episode_dir, Metrics(**json.load(f))))
+            return summary    
+        except FileNotFoundError:
+            raise CorruptExperimentException(f"Test directory {base_dir} is corrupted.")
     
     @staticmethod
     def get_test_episodes(test_directory: str) -> list[ReplayEpisodeSummary]:

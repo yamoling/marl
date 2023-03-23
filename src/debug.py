@@ -9,4 +9,4 @@ def debugger_is_active() -> bool:
 enable_flask_debug_mode = not debugger_is_active()
 
 # static_path = os.path.join(os.getcwd(), "src", "debug-ui", "dist")
-run(port=5000, debug=enable_flask_debug_mode)
+run(port=5000, debug=False)

@@ -45,6 +45,10 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     async function loadExperiment(logdir: string): Promise<Experiment> {
         loading.value = true;
         const resp = await fetch(`${HTTP_URL}/experiment/load/${logdir}`);
+        if (!resp.ok) {
+            loading.value = false;
+            throw new Error(await resp.text());
+        }
         const experiment = await resp.json() as Experiment;
         loading.value = false;
         return experiment;
@@ -55,12 +59,13 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function createExperiment(logdir: string, params: any) {
+        const data = JSON.stringify(params);
         const url = `${HTTP_URL}/experiment/create`;
         // 1 crete the experiment
         const resp = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(params)
+            body: data
         });
         // 2 Add the experimentInfo to the store
         experimentInfos.value.set(logdir, await resp.json());

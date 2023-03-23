@@ -22,6 +22,8 @@ class TrainConfig:
     vdn: bool
     env_wrappers: list[str]
     time_limit: int
+    time_penalty: float
+    forced_actions: dict[int, int]
     level: str
     obs_type: str
     static_map: bool

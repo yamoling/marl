@@ -24,6 +24,11 @@
                             <td> {{ train.metrics.gems_collected }}</td>
                             <td> {{ train.metrics.in_elevator }}</td>
                         </tr>
+                        <tr v-if="isTraining">
+                            <td colspan="5">
+                                <font-awesome-icon icon="spinner" spin />
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -53,6 +58,11 @@
                             <td @click.stop="() => loadModel(test)" style="cursor: pointer; padding-right: 10px;"
                                 title="Load this model">
                                 <font-awesome-icon class="text-warning" icon="bolt" />
+                            </td>
+                        </tr>
+                        <tr v-if="isTraining">
+                            <td colspan="6">
+                                <font-awesome-icon icon="spinner" spin />
                             </td>
                         </tr>
                     </tbody>
@@ -100,6 +110,7 @@ import { Experiment } from '../models/Experiment';
 
 const props = defineProps<{
     experiment: Experiment
+    isTraining: boolean
     toShow: "test" | "train"
 }>();
 

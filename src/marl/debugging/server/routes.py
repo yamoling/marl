@@ -4,6 +4,7 @@ from flask import request
 from marl.utils import alpha_num_order
 from .messages import MemoryConfig, TrainConfig, StartTrain, GeneratorConfig
 from marl.debugging.server import app, replay_state, train_state, state
+from marl.utils import CorruptExperimentException
 from . import replay
 
 
@@ -27,15 +28,26 @@ def start_train(logdir: str):
     data: dict = request.get_json()
     return { "port" : state.train(logdir, StartTrain(**data)) }
 
+@app.route("/runner/create/<path:logdir>", methods=["POST"])
+def create_runner(logdir: str):
+    data: dict = request.get_json()
+    state.create_runner(logdir, data.get("checkpoint_dir", None))
+    logger = state.get_logger(logdir)
+    return { "port" : logger.port}
+
 @app.route("/experiment/create", methods=["POST"])
 def create_experiment():
     data: dict = request.get_json()
     data["level"] = data["level"]
     data["memory"] = MemoryConfig(**data["memory"])
     data["generator"] = GeneratorConfig(**data["generator"])
+    data["forced_actions"] = {int(key): value for key, value in data["forced_actions"].items()}
     train_config = TrainConfig(**data)
-    exp = state.create_experiment(train_config)
-    return exp.summary
+    try:
+        exp = state.create_experiment(train_config)
+        return exp.summary
+    except Exception as e:
+        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
     
 
 @app.route("/experiment/list")
@@ -44,12 +56,15 @@ def list_experiments():
 
 @app.route("/experiment/load/<path:logdir>", methods=["GET"])
 def load_experiment(logdir: str):
-    experiment = state.load_experiment(logdir)
-    return {
-        **experiment.summary,
-        "train": [t.to_json() for t in experiment.train_summary()],
-        "test": [t.to_json() for t in experiment.test_summary()],
-    }
+    try:
+        experiment = state.load_experiment(logdir)
+        return {
+            **experiment.summary,
+            "train": [t.to_json() for t in experiment.train_summary()],
+            "test": [t.to_json() for t in experiment.test_summary()],
+        }
+    except CorruptExperimentException as e:
+        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @app.route("/experiment/load/<path:logdir>", methods=["DELETE"])
 def unload_experiment(logdir: str):
@@ -67,27 +82,6 @@ def delete_experiment(logdir: str):
 @app.route("/env/maps/list")
 def list_maps():
     return sorted(os.listdir("maps"), key=alpha_num_order)
-
-@app.route("/train/create", methods=["POST"])
-def create_algo():
-    data: dict = request.get_json()
-    data["level"] = data["level"]
-    data["memory"] = MemoryConfig(**data["memory"])
-    data["generator"] = GeneratorConfig(**data["generator"])
-    train_config = TrainConfig(**data)
-    port = train_state.create_runner(train_config)
-    replay_state.update(train_config.logdir)
-    return {
-        "logdir": train_config.logdir,
-        "port": port
-    }
-
-
-@app.route("/train/start", methods=["POST"])
-def train_start():
-    data: dict = request.get_json()
-    train_state.train(StartTrain(**data))
-    return ""
 
 
 @app.route("/train/memory/priorities")

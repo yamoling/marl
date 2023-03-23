@@ -61,6 +61,7 @@ class Runner:
             self._episode_builder.add(transition)
             self._obs = obs_
             self._current_step += 1
+        self._logger.close()
 
     def test(self, ntests: int, quiet=False):
         """Test the agent"""

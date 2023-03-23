@@ -33,10 +33,11 @@
                             </button>
                         </td>
                     </tr>
-                    <tr>
+                    <tr class="text-center">
                         <td colspan="6">
                             <!-- Add button -->
-                            <button class="btn btn-sm btn-success px-4" @click="() => emits('create-experiment')">
+                            <button style="width: 20%;" class="btn btn-success" @click="() => emits('create-experiment')"
+                                title="Create a new experiment">
                                 <font-awesome-icon :icon="['fas', 'plus']" />
                             </button>
                         </td>

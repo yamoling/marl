@@ -5,7 +5,8 @@
     <Tabs ref="tabs" @tab-delete="onTabDeleted" />
     <Home v-show="tabs.currentTab == 'Home'" @experiment-selected="onExperimentSelected"
       @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()" />
-    <ExperimentMain v-for="logdir in openedLogdirs" v-show="logdir == tabs.currentTab" :logdir="logdir" />
+    <ExperimentMain v-for="logdir in openedLogdirs" v-show="logdir == tabs.currentTab" :logdir="logdir"
+      @close-experiment="tabs.deleteTab" />
   </main>
 </template>
 
@@ -33,7 +34,6 @@ function createExperiment() {
 
 function onExperimentSelected(logdir: string) {
   modal.hide();
-  console.log("Adding tab: " + logdir)
   openedLogdirs.value.push(logdir);
   tabs.value.addTab(logdir);
   tabs.value.changeTab(logdir);

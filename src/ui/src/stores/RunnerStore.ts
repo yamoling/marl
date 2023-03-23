@@ -2,33 +2,48 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import { HTTP_URL, wsURL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
-import { useExperimentStore } from "./ExperimentStore";
-import { Experiment } from "../models/Experiment";
 
 export const useRunnerStore = defineStore("RunnerStore", () => {
     const loading = ref(false);
-    const experimentStore = useExperimentStore();
+    const runners = new Map<string, string>();
 
-
-    async function createRunner(experiment_logdir: string, checkpoint: string | null = null) {
+    async function createRunner(logdir: string, checkpoint: string | null = null) {
         loading.value = true;
-        try {
-            const resp = await fetch(`${HTTP_URL}/runner/create/${experiment_logdir}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ checkpoint })
-            });
-            const runner = await resp.json();
-            loading.value = false;
-            return runner;
-        } catch (e: any) {
-            loading.value = false;
-            throw e;
+        const resp = await fetch(`${HTTP_URL}/runner/create/${logdir}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ checkpoint })
+        });
+        const { port } = await resp.json() as { port: number };
+        runners.set(logdir, wsURL(port));
+        loading.value = false;
+    }
+
+    async function registerObserver(logdir: string, notify: (data: ReplayEpisodeSummary | null) => void) {
+        if (!runners.has(logdir)) {
+            await createRunner(logdir);
+        }
+        const url = runners.get(logdir) as string;
+        const ws = new WebSocket(url);
+        ws.onmessage = (event: MessageEvent) => {
+            if ((event.data as string).length == 0) {
+                notify(null);
+            } else {
+                notify(JSON.parse(event.data) as ReplayEpisodeSummary | null);
+            }
+        };
+        ws.onclose = () => {
+            console.log("Connection lost at ", url);
         }
     }
 
-    async function startTraining(logdir: string, numSteps: number, testInterval: number, numTests: number): Promise<number> {
-        const resp = await fetch(`${HTTP_URL}/runner/train/start/${logdir}`, {
+    async function startTraining(
+        logdir: string,
+        numSteps: number,
+        testInterval: number,
+        numTests: number,
+    ) {
+        await fetch(`${HTTP_URL}/runner/train/start/${logdir}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -37,29 +52,6 @@ export const useRunnerStore = defineStore("RunnerStore", () => {
                 num_tests: numTests
             })
         });
-        const port = await resp.json() as { port: number };
-        console.log(port)
-        setTimeout(() => listen(logdir, port.port), 200);
-        return port.port;
     }
-
-    function listen(logdir: string, port: number) {
-        const ws = new WebSocket(wsURL(port));
-        const experiment = experimentStore.loadedExperiments.get(logdir) as Experiment;
-        const trainList = experiment.train;
-        const testList = experiment.test;
-        ws.onmessage = (event: MessageEvent) => {
-            console.log(event.data);
-            const data = JSON.parse(event.data) as ReplayEpisodeSummary;
-            // Remove the logdir from data.directory
-            const directory = data.directory.replace(logdir, "");
-            if (directory.startsWith("test")) {
-                testList.push(data);
-            } else {
-                trainList.push(data);
-            }
-        }
-    }
-
-    return { startTraining };
+    return { startTraining, registerObserver };
 });

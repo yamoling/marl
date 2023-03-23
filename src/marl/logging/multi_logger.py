@@ -18,3 +18,7 @@ class MultiLogger(Logger):
     def flush(self, prefix: str|None = None) -> None:
         for logger in self.loggers:
             logger.flush(prefix)
+
+    def close(self) -> None:
+        for logger in self.loggers:
+            logger.close()

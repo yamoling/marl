@@ -10,20 +10,6 @@ from marl.models import ReplayEpisodeSummary
 from .logger_interface import Logger
 
 
-@dataclass
-class LogItem:
-    tag: str
-    metrics: Metrics | None
-    time_step: int
-
-    def to_json(self):
-        data = {
-            "tag": self.tag,
-            "step": self.time_step
-        } 
-        if self.metrics is not None:
-            data["metrics"] = self.metrics.to_json()
-        return data
 
 @dataclass
 class WSLogger(Logger):
@@ -63,12 +49,15 @@ class WSLogger(Logger):
 
     async def update_loop(self):
         while not self._stop:
-            log: ReplayEpisodeSummary = await self.messages.get()
-            json_data = json.dumps(log.to_json())
+            log: ReplayEpisodeSummary | None = await self.messages.get()
+            if log is not None:
+                data = json.dumps(log.to_json())
+            else:
+                data = ""
             to_remove = set()
             for client in self.clients:
                 try:
-                    await client.send(json_data)
+                    await client.send(data)
                 except:
                     to_remove.add(client)
             self.clients.difference_update(to_remove)
@@ -89,7 +78,6 @@ class WSLogger(Logger):
 
     def log(self, tag: str, data: Metrics, time_step: int):
         directory = os.path.join(self.logdir, tag, f"{time_step}")
-        # self.messages.put_nowait(LogItem(tag, data, time_step))
         self.messages.put_nowait(ReplayEpisodeSummary(directory, data))
 
     def print(self, tag: str, data):
@@ -97,3 +85,6 @@ class WSLogger(Logger):
         
     def flush(self, prefix: str | None = None):
         pass
+
+    def close(self):
+        return self.messages.put_nowait(None)

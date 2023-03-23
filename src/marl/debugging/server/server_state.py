@@ -5,6 +5,7 @@ import rlenv
 import laser_env
 from dataclasses import dataclass
 from marl.models import Experiment
+from marl.utils import EmptyForcedActionsException
 from marl import Runner
 import marl
 
@@ -15,11 +16,13 @@ class ServerState:
     logdir: str
     loggers: dict[str, marl.logging.WSLogger]
     experiments: dict[str, Experiment]
+    runners = dict[str, Runner]
 
     def __init__(self, logdir="logs") -> None:
         self.experiments = {}
         self.logdir = logdir
         self.loggers = {}
+        self.runners = {}
 
     def list_experiments(self):
         experiments: dict[str, Experiment] = {}
@@ -40,10 +43,15 @@ class ServerState:
         return experiment
 
     def stop_experiment(self, logdir: str):
+        if logdir in self.loggers:
+            logger = self.loggers.pop(logdir)
+            logger.stop()
         if logdir in self.experiments:
             self.experiments.pop(logdir)
-        if logdir in self.loggers:
-            self.loggers.pop(logdir)
+        if logdir in self.runners:
+            self.runners.pop(logdir)
+            
+
     
     def delete_experiment(self, logdir: str):
         try:
@@ -69,20 +77,28 @@ class ServerState:
         self.experiments[config.logdir] = experiment
         return experiment
     
-    def get_runner(self, logdir: str, checkpoint_dir: str=None) -> Runner:
-        experiment = self.experiments[logdir]
-        if experiment.runner is None:
+    def create_runner(self, logdir: str, checkpoint_dir: str=None):
+        """Creates the runner for the experiment and returns its logger"""
+        if logdir not in self.runners:
             logger = marl.logging.WSLogger(logdir)
             self.loggers[logdir] = logger
-            return experiment.get_runner(checkpoint_dir, logger)
-        return experiment.get_runner(checkpoint_dir, logger)
+            runner = self.experiments[logdir].create_runner(checkpoint_dir, logger)
+            self.runners[logdir] = runner
+
+    def get_runner(self, logdir: str, checkpoint_dir: str=None) -> Runner:
+        if logdir not in self.runners:
+            return self.create_runner(logdir, checkpoint_dir)
+        return self.runners[logdir]
+    
+    def get_logger(self, logdir: str):
+        return self.loggers[logdir]
     
     def train(self, logdir: str, config: StartTrain):
         runner = self.get_runner(logdir)
-        thread_function = lambda: runner.train(config.num_steps, n_tests=config.num_tests, test_interval=config.test_interval)
+        thread_function = lambda: runner.train(config.num_steps, n_tests=config.num_tests, test_interval=config.test_interval, quiet=True)
         threading.Thread(target=thread_function).start()
         return self.loggers[logdir].port
-    
+
     @staticmethod
     def _create_env(config: TrainConfig):
         obs_type = laser_env.ObservationType.from_str(config.obs_type)
@@ -104,6 +120,11 @@ class ServerState:
                 case "TimeLimit": builder.time_limit(config.time_limit)
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": builder.agent_id()
+                case "TimePenalty": builder.time_penalty(config.time_penalty)
+                case "ForceAction": 
+                    if len(config.forced_actions) == 0:
+                        raise EmptyForcedActionsException()
+                    builder.force_actions(config.forced_actions)
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
         return builder.build()
     

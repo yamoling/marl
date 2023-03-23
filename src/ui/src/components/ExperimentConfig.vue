@@ -1,6 +1,6 @@
 <template>
     <div ref="modal" class="modal fade" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable ">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5> Experiment creation </h5>
@@ -49,7 +49,7 @@
                                         <input class="form-check-input" type="checkbox" role="switch" name="TimeLimit"
                                             checked />
                                         TimeLimit
-                                        <input type="number" size="8" v-model="timeLimitValue" />
+                                        <input type="number" size="8" v-model.number="timeLimitValue" />
                                     </label>
                                 </div>
                                 <div class="form-check form-switch">
@@ -64,6 +64,45 @@
                                         <input class="form-check-input" type="checkbox" role="switch" name="AgentId"
                                             checked />
                                         Add agent ID
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <label class="form-check-label">
+                                        <input class="form-check-input" type="checkbox" role="switch" name="Penalty" />
+                                        Time penalty
+                                        <input type="number" size="8" v-model.number="timePenalty" />
+                                    </label>
+                                </div>
+                                <div class="form-check form-switch">
+                                    <label class="form-check-label">
+                                        <input class="form-check-input" type="checkbox" role="switch" name="ForceAction" />
+                                        Force actions
+                                        <ul>
+                                            <li v-for="[agent, action] in forcedActions">
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                    @click.stop="() => forcedActions.delete(agent)">
+                                                    <font-awesome-icon icon="fa fa-minus" />
+                                                </button>
+                                                Agent {{ agent }}: {{ ACTION_MEANINGS[action] }}
+                                            </li>
+                                            <li class="input-group">
+                                                <label class="input-group-text"> Agent </label>
+                                                <select class="form-select" style="width: 80px;"
+                                                    v-model.number="forcedAgent">
+                                                    <option v-for="agent in 4" :value="agent - 1"> {{ agent - 1 }} </option>
+                                                </select>
+                                                <label class="input-group-text"> Action </label>
+                                                <select class="form-select" style="width: 100px;"
+                                                    v-model.number="forcedAction">
+                                                    <option v-for="(action, value) in ACTION_MEANINGS" :value="value"> {{
+                                                        action
+                                                    }} </option>
+                                                </select>
+                                                <button class="btn btn-sm btn-outline-success" @click="addForcedAgent">
+                                                    <font-awesome-icon icon="fa fa-plus" />
+                                                </button>
+                                            </li>
+                                        </ul>
                                     </label>
                                 </div>
                             </div>
@@ -180,6 +219,7 @@
 import { computed, ref } from 'vue';
 import { OBS_TYPES } from "../models/Infos";
 import { useExperimentStore } from '../stores/ExperimentStore';
+import { ACTION_MEANINGS } from "../constants";
 
 const experimentStore = useExperimentStore();
 const loading = ref(false);
@@ -194,8 +234,8 @@ const vdn = ref(true);
 const obsType = ref("FLATTENED" as typeof OBS_TYPES[number]);
 const staticMap = ref(true);
 const selectedLevel = ref(3);
-const width = ref(10);
-const height = ref(10);
+const width = ref(5);
+const height = ref(5);
 const numAgents = ref(2);
 const numLasers = ref(0);
 const numGems = ref(3);
@@ -207,6 +247,10 @@ const nStep = ref(1);
 const memorySize = ref(10000);
 const prioritizedMemory = ref(false);
 const envWrappers = ref({} as HTMLElement);
+const timePenalty = ref(-0.1);
+const forcedActions = ref(new Map<number, number>());
+const forcedAgent = ref(0);
+const forcedAction = ref(0);
 const emits = defineEmits(["experiment-created"]);
 
 const experimentName = computed({
@@ -235,7 +279,9 @@ async function send() {
             time_limit: timeLimitValue.value,
             static_map: staticMap.value,
             level: `lvl${selectedLevel.value}`,
+            forced_actions: Object.fromEntries(forcedActions.value),
             obs_type: obsType.value,
+            time_penalty: timePenalty.value,
             generator: {
                 width: width.value,
                 height: height.value,
@@ -266,6 +312,12 @@ function gatherSelectedEnvWrappers() {
             const input = i as HTMLInputElement;
             return input.name;
         });
+}
+
+function addForcedAgent() {
+    forcedActions.value.set(forcedAgent.value, forcedAction.value);
+    forcedAction.value = 0;
+    forcedAgent.value += 1;
 }
 
 function computeAutoName() {

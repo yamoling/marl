@@ -7,7 +7,7 @@
         <ExperimentSummary class="mb-2" :experiment="experiment" />
         <div class="col-4 text-center">
             <MetricsPlotter :metrics="metrics" :reverse-labels="false" :title="plotTitle" :max-steps="50" />
-            <div class="input-group input-group-sm">
+            <div class="input-group input-group-sm mb-3">
                 <label class="input-group-text"> What to show </label>
                 <select class="form-select" v-model="toPlot">
                     <option selected>Open this select menu</option>
@@ -15,16 +15,21 @@
                     <option value="train"> Trainings </option>
                 </select>
             </div>
-            <ExperimentRunner :logdir="logdir" />
+            <div class="shadow p-2">
+                <ExperimentRunner :logdir="logdir" @new-train="onTrainEpisode" @new-test="onTestEpisode"
+                    @train-start="isTraining = true" @train-stop="isTraining = false" />
+            </div>
         </div>
         <div class="col">
-            <ExperimentTable :experiment="experiment" :to-show="toPlot" @view-episode="viewer.viewEpisode" />
+            <ExperimentTable :experiment="experiment" :to-show="toPlot" @view-episode="viewer.viewEpisode"
+                :is-training="isTraining" />
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { ReplayEpisodeSummary } from '../models/Episode';
 import { Experiment } from '../models/Experiment';
 import { useExperimentStore } from '../stores/ExperimentStore';
 import MetricsPlotter from './charts/MetricsPlotter.vue';
@@ -38,6 +43,7 @@ const props = defineProps<{
     logdir: string
 }>();
 
+const isTraining = ref(false);
 const store = useExperimentStore();
 const experiment = ref(null as Experiment | null);
 const viewer = ref({} as typeof EpisodeViewer);
@@ -59,12 +65,31 @@ const metrics = computed(() => {
 });
 
 
+function onTrainEpisode(data: ReplayEpisodeSummary) {
+    if (experiment.value == null) {
+        return;
+    }
+    experiment.value.train.push(data);
+}
+
+function onTestEpisode(episode: ReplayEpisodeSummary) {
+    if (experiment.value == null) {
+        return;
+    }
+    experiment.value.test.push(episode);
+}
+
 onMounted(async () => {
-    console.log("Mounting the experiment Main");
-    console.log("Loading experiment from onMounted")
-    const exp = await store.loadExperiment(props.logdir);
-    console.log(exp);
-    experiment.value = exp;
+    try {
+        experiment.value = await store.loadExperiment(props.logdir);
+    } catch (e) {
+        if (confirm("Error loading experiment: " + e + ".\nDo you want to delete the experiment?")) {
+            store.deleteExperiment(props.logdir);
+            emits("close-experiment", props.logdir);
+        }
+    }
 });
+
+const emits = defineEmits(["close-experiment"]);
 
 </script>

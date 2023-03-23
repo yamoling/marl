@@ -5,7 +5,7 @@ import shutil
 import time
 import logging
 import sys
-from rlenv.models import Measurement, Metrics
+from rlenv.models import Metrics
 
 
 class Logger(ABC):
@@ -33,6 +33,9 @@ class Logger(ABC):
         """Log to TensorBoard and add the data to the printing queue."""
         self.log(tag, data, time_step)
         self.print(tag, data)
+
+    def close(self):
+        """Close the logger."""
 
     @abstractmethod
     def print(self, tag: str, data: Metrics):
