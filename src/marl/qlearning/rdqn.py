@@ -38,7 +38,7 @@ class RDQN(DQN):
             train_policy=train_policy, 
             test_policy=test_policy,
             device=device,
-            memory=defaults_to(memory, EpisodeMemory(50_000)), 
+            memory=defaults_to(memory, lambda: EpisodeMemory(50_000)), 
             qnetwork=qnetwork
         )
         self._hidden_states=None

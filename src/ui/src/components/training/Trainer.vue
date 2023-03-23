@@ -32,10 +32,6 @@
                     </div>
                 </div>
             </div>
-            <div class="row">
-                <h3> Checkpoints </h3>
-
-            </div>
         </div>
         <div class="col-5">
             <div class="row">

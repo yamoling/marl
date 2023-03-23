@@ -36,6 +36,4 @@ onMounted(() => {
     modal = new Modal("#episodeViewer");
 })
 
-
-
 </script>

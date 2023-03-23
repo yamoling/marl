@@ -1,10 +1,7 @@
 import { ReplayEpisodeSummary } from "./Episode"
-import { EnvInfo } from "./Infos"
+import { ExperimentInfo } from "./Infos"
 
-export interface Experiment {
+export interface Experiment extends ExperimentInfo {
     train: ReplayEpisodeSummary[]
     test: ReplayEpisodeSummary[]
-    envInfo: EnvInfo
-    algoInfo: {}
-    timestamp: number
 }

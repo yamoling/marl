@@ -12,7 +12,7 @@ import { onMounted, ref, watch } from 'vue';
 import { Metrics } from '../../models/Metric';
 
 let chart: Chart;
-const emits = defineEmits(["testEpisodeSelected"]);
+const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
 const props = defineProps<{
     metrics: Metrics[],
@@ -63,7 +63,7 @@ onMounted(() => {
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {
-                    emits('testEpisodeSelected', "test", datasetElement[0].index)
+                    emits("episode-selected", datasetElement[0].index)
                 }
             }
         }

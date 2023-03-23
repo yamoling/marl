@@ -4,7 +4,7 @@ export interface ExperimentInfo {
     env: EnvInfo
     algorithm: AlgoInfo
     seed: number | null
-    timestamp: number
+    timestamp_ms: number
 }
 
 export interface EnvInfo {
@@ -15,6 +15,7 @@ export interface EnvInfo {
     state_shape: number[]
     extras_shape: number[]
     map_file_content: string
+    wrappers: string[]
     DynamicLaserEnv: DynamicLaserEnv | null
     StaticLaserEnv: StaticLaserEnv | null
 }
@@ -48,6 +49,20 @@ export interface AlgoInfo {
         extra_shape: number[],
     }
     recurrent: boolean
-    train_policy: any
-    test_policy: any
+    train_policy: PolicyInfo
+    test_policy: PolicyInfo
+}
+
+export interface PolicyInfo {
+    name: string
+}
+
+export interface DecreasingEpsilonGreedyPolicy extends PolicyInfo {
+    epsilon: number
+    epsilon_decay: number
+    epsilon_min: number
+}
+
+export interface SoftmaxPolicy extends PolicyInfo {
+    tau: number
 }

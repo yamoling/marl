@@ -1,5 +1,6 @@
 import os
 import shutil
+import threading
 import rlenv
 import laser_env
 from dataclasses import dataclass
@@ -11,11 +12,14 @@ from .messages import TrainConfig, StartTrain
 
 @dataclass
 class ServerState:
-    runners: dict[str, Runner]
+    logdir: str
+    loggers: dict[str, marl.logging.WSLogger]
+    experiments: dict[str, Experiment]
 
     def __init__(self, logdir="logs") -> None:
+        self.experiments = {}
         self.logdir = logdir
-        self.runners = {}
+        self.loggers = {}
 
     def list_experiments(self):
         experiments: dict[str, Experiment] = {}
@@ -28,33 +32,57 @@ class ServerState:
                 pass
         return experiments
     
+    def load_experiment(self, logdir: str) -> Experiment:
+        if logdir in self.experiments:
+            return self.experiments[logdir]
+        experiment = Experiment.load(logdir)
+        self.experiments[logdir] = experiment
+        return experiment
+
     def stop_experiment(self, logdir: str):
-        raise NotImplementedError()
+        if logdir in self.experiments:
+            self.experiments.pop(logdir)
+        if logdir in self.loggers:
+            self.loggers.pop(logdir)
     
     def delete_experiment(self, logdir: str):
         try:
+            self.stop_experiment(logdir)
             shutil.rmtree(logdir)
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
-
-    def start_exeperiment(self, config: TrainConfig):
-        logger = marl.logging.WSLogger(config.logdir)
-        env, test_env = self._create_env(config)
+        
+    def create_experiment(self, config: TrainConfig) -> Experiment:
+        env = self._create_env(config)
         memory = self._create_memory(config)
         qbuilder = marl.DeepQBuilder()
         if config.vdn:
             qbuilder.vdn()
         qbuilder.qnetwork_default(env)
         qbuilder.memory(memory)
-        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), logger.logdir)
-        runner = marl.Runner(env, test_env=test_env, algo=algo, logger=logger)
-        self.runners[runner.logdir] = runner
-        return logger.port
+        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), config.logdir)
+        experiment = Experiment(
+            logdir=config.logdir,
+            algo=algo,
+            env=env,
+        )
+        self.experiments[config.logdir] = experiment
+        return experiment
     
-    def train(self, params: StartTrain):
-        self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
-        self.runner._logger._disconnect_clients = True
-
+    def get_runner(self, logdir: str, checkpoint_dir: str=None) -> Runner:
+        experiment = self.experiments[logdir]
+        if experiment.runner is None:
+            logger = marl.logging.WSLogger(logdir)
+            self.loggers[logdir] = logger
+            return experiment.get_runner(checkpoint_dir, logger)
+        return experiment.get_runner(checkpoint_dir, logger)
+    
+    def train(self, logdir: str, config: StartTrain):
+        runner = self.get_runner(logdir)
+        thread_function = lambda: runner.train(config.num_steps, n_tests=config.num_tests, test_interval=config.test_interval)
+        threading.Thread(target=thread_function).start()
+        return self.loggers[logdir].port
+    
     @staticmethod
     def _create_env(config: TrainConfig):
         obs_type = laser_env.ObservationType.from_str(config.obs_type)
@@ -77,7 +105,7 @@ class ServerState:
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": builder.agent_id()
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
-        return builder.build_all()
+        return builder.build()
     
     @staticmethod
     def _create_memory(config: TrainConfig) -> marl.models.ReplayMemory:

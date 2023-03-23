@@ -22,14 +22,9 @@ class RLAlgo(ABC):
         with open(to_path, "w") as f:
             json.dump(self.summary(), f)
 
-    @classmethod
-    def load(cls, from_path: str):
-        """
-        Load the algorithm state from the specified file.
-        By default, loads the algorithm from its summary."""
-        with open(from_path, "r") as f:
-            summary = json.load(f)
-            return cls.from_summary(summary)
+    def load(self, from_path: str):
+        """Load the algorithm state from the specified file."""
+        raise NotImplementedError("Not implemented for this algorithm")
 
     @classmethod
     def from_summary(cls, summary: dict) -> Self:

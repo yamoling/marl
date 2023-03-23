@@ -46,14 +46,14 @@ class DQN(IDeepQLearning):
         self._gamma = gamma
         self._tau = tau
         self._batch_size = batch_size
-        self._device = defaults_to(device, get_device())
+        self._device = defaults_to(device, get_device)
         self._qnetwork = qnetwork.to(self._device)
         self._qtarget = deepcopy(self._qnetwork).to(self._device)
         self._loss_function = torch.nn.MSELoss()
-        self._memory = defaults_to(memory, TransitionMemory(50_000))
-        self._optimizer = defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr))
-        self._train_policy = defaults_to(train_policy, EpsilonGreedy(0.1))
-        self._test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
+        self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
+        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy(0.1))
+        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
         self._policy = self._train_policy
 
     @property
@@ -181,7 +181,7 @@ class DQN(IDeepQLearning):
         train_policy = policy.from_summary(summary["train_policy"])
         test_policy = policy.from_summary(summary["test_policy"])
         from marl import nn
-        qnetwork = nn.from_summary(summary["qnetwork"])
+        qnetwork = nn.from_summary(summary["qnetwork"]).to(get_device("auto"))
         return cls(
             qnetwork=qnetwork,
             gamma=summary["gamma"],

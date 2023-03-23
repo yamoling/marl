@@ -1,45 +1,43 @@
 import os
 import json
-from time import time
 from copy import deepcopy
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Observation
 from tqdm import tqdm
-from . import logging
-from .marl_algo import RLAlgo
-from .utils import defaults_to
-from marl.models import Experiment
+from marl.logging import Logger
+from marl.utils import defaults_to
+
+from .algo import RLAlgo
+
 
 class Runner:
     def __init__(
         self,
         env: RLEnv,
         algo: RLAlgo,
-        logger: logging.Logger=None,
+        logger: Logger,
         test_env: RLEnv=None,
         start_step=0
     ):
         self._env = env
-        self._test_env = defaults_to(test_env, deepcopy(env))
+        self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
-        if logger is None:
-            self._logger = logging.default()
-        else:
-            self._logger = logger
+        self._logger = logger
         self._seed = None
-        self._creation_timestamp = int(time())
         self._best_score = -float("inf")
         self._checkpoint = os.path.join(self.logdir, "checkpoint")
         self._current_step = start_step
         self._episode_builder = None
         self._episode_num = 0
         self._obs: Observation|None = None
-        self._experiment = Experiment(self.logdir, self.summary())
 
     def _before_train_episode(self):
         self._episode_builder = EpisodeBuilder()
         self._obs = self._env.reset()
         self._algo.before_train_episode(self._episode_num)
-        self._experiment.save_train_env(self._episode_num, self._env.summary())
+        directory = os.path.join(self.logdir, "train", f"{self._episode_num}")
+        os.makedirs(directory, exist_ok=True)
+        with open(os.path.join(directory, "env.json"), "w") as f:
+            json.dump(self._env.summary(), f)
 
     def train(self, n_steps: int, test_interval: int=200, n_tests: int=10, quiet=False) -> str:
         """Start the training loop"""
@@ -53,7 +51,7 @@ class Runner:
             if self._episode_builder.is_done:
                 episode = self._episode_builder.build()
                 self._algo.after_train_episode(self._episode_num, episode)
-                self._logger.log("Train", episode.metrics, self._current_step)
+                self._logger.log("train", episode.metrics, self._current_step - len(episode))
                 self._episode_num += 1
                 self._before_train_episode()
             action = self._algo.choose_action(self._obs)
@@ -80,11 +78,14 @@ class Runner:
                 obs = new_obs
             episode = episode.build()
             self._algo.after_test_episode(self._current_step, i, episode)
-            self._experiment.save_test_env(self._current_step, i, self._test_env.summary())
+            directory = os.path.join(self.logdir, "test", f"{self._current_step}", f"{i}")
+            os.makedirs(directory, exist_ok=True)
+            with open(os.path.join(directory, "env.json"), "w") as f:
+                json.dump(self._test_env.summary(), f)
             episodes.append(episode)
         # Log test metrics
         metrics = Episode.agregate_metrics(episodes)
-        self._logger.log_print("Test", metrics, self._current_step)
+        self._logger.log_print("test", metrics, self._current_step)
         if metrics.score > self._best_score:
             self._best_score = metrics.score
             self._algo.save(f"{self._checkpoint}-{self._current_step}-score-{self._best_score:.3f}")
@@ -102,27 +103,6 @@ class Runner:
         random.seed(seed_value)
         self._env.seed(seed_value)
         self._test_env.seed(seed_value)
-
-    def summary(self) -> dict:
-        return {
-            "env": self._env.summary(),
-            "algorithm": self._algo.summary(),
-            "seed": self._seed,
-            "timestamp": self._creation_timestamp
-        }
-    
-    @staticmethod
-    def from_checkpoint(checkpoint_dir: str) -> "Runner":
-        import marl
-        experiment_dir = checkpoint_dir
-        while not (os.path.exists(os.path.join(experiment_dir, "experiment.json"))):
-            experiment_dir = os.path.dirname(experiment_dir)
-        with open(os.path.join(experiment_dir, "experiment.json"), "r") as f:
-            experiment_summary: dict[str, str] = json.load(f)
-        env = Experiment.restore_env(checkpoint_dir)
-        algo = marl.from_summary(experiment_summary["algorithm"])
-        algo.load(checkpoint_dir)
-        return Runner(env, algo)
 
     @property
     def logdir(self) -> str:

@@ -1,5 +1,5 @@
 <template>
-    <div ref="modal" class="modal fade" tabindex="-1">
+    <div ref="modal" id="oerfhdskj" class="modal fade" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -31,8 +31,7 @@
                             </div>
                         </div>
                     </div>
-                    <Rendering class="col-auto mx-auto" :current-image="currentFrame" :previous-image="previousFrame"
-                        :reward="reward" />
+                    <Rendering class="col-auto mx-auto" :current-image="currentFrame" :previous-image="previousFrame" />
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
@@ -44,45 +43,32 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ReplayEpisode } from '../../models/Episode';
 import Rainbow from "rainbowvis.js";
 import AgentInfo from '../visualisation/AgentInfo.vue';
 import Rendering from '../visualisation/Rendering.vue';
+import { useReplayStore } from '../../stores/ReplayStore';
+import { Modal } from 'bootstrap';
 
 
+const replayStore = useReplayStore();
+const loading = ref(false);
+const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
 const modal = ref({} as HTMLElement);
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 
-const reward = computed(() => props.episode?.episode?.rewards?.[currentStep.value] || 0);
-const nAgents = computed(() => (props?.episode?.qvalues == null) ? 0 : props.episode.qvalues[0].length);
-const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
-const currentFrame = computed(() => props.episode?.frames?.at(currentStep.value) || '');
+const nAgents = computed(() => (episode.value?.qvalues == null) ? 0 : episode.value.qvalues[0].length);
+const episodeLength = computed(() => episode.value?.metrics.episode_length || 0);
+const currentFrame = computed(() => episode.value?.frames?.at(currentStep.value) || '');
 const previousFrame = computed(() => {
     if (currentStep.value <= 0) {
         return ""
     }
-    return props.episode?.frames?.at(currentStep.value - 1) || '';
+    return episode.value?.frames?.at(currentStep.value - 1) || '';
 })
-const props = defineProps<{
-    frames: string[]
-    episode: ReplayEpisode | null
-}>();
-
-
-watch(props, (newProps) => {
-    // Get the min and the max of the qvalues
-    currentStep.value = 0;
-    const episode = newProps.episode;
-    if (episode == null) {
-        return;
-    }
-    const minQValue = Math.min(...episode?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
-    const maxQValue = Math.max(...episode?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
-    rainbow.setNumberRange(minQValue, maxQValue);
-});
 
 
 onMounted(() => {
@@ -101,7 +87,6 @@ onMounted(() => {
     });
 });
 
-
 function step(amount: number) {
     currentStep.value = Math.max(0, Math.min(episodeLength.value, currentStep.value + amount));
 }
@@ -117,4 +102,17 @@ function changeStep(event: KeyboardEvent) {
         }
     }
 }
+
+async function viewEpisode(episodeDirectory: string) {
+    loading.value = true;
+    (new Modal("#" + modal.value.id)).show()
+    episode.value = await replayStore.getEpisode(episodeDirectory);
+    currentStep.value = 0;
+    const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
+    const maxQValue = Math.max(...episode.value?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
+    rainbow.setNumberRange(minQValue, maxQValue);
+    loading.value = false;
+}
+
+defineExpose({ viewEpisode });
 </script>

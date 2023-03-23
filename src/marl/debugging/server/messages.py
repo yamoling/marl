@@ -30,7 +30,6 @@ class TrainConfig:
 
 @dataclass
 class StartTrain:
-    logdir: str
     """The logdir is the key from which to know what experiment to train"""
     num_steps: int
     test_interval: int | None 

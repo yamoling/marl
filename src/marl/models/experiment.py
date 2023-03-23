@@ -2,21 +2,16 @@ from dataclasses import dataclass
 from rlenv.models import Episode, EpisodeBuilder, Transition, Metrics
 import os
 import json
-import tempfile
-from laser_env import LaserEnv, StaticLaserEnv, DynamicLaserEnv
+from laser_env import StaticLaserEnv, DynamicLaserEnv
 import laser_env
 import rlenv
-from marl import RLAlgo
 from marl.utils.others import encode_b64_image, alpha_num_order
 
 
 @dataclass
-class ReplayEpisode:
+class ReplayEpisodeSummary:
     directory: str
     metrics: Metrics
-    episode: Episode | None = None
-    qvalues: list[list[list[float]]] | None = None
-    frames: list[str] | None = None
 
     @property
     def name(self) -> str:
@@ -26,8 +21,23 @@ class ReplayEpisode:
         return {
             "name": self.name,
             "directory": self.directory,
-            "episode": None if self.episode is None else self.episode.to_json(),
             "metrics": self.metrics.to_json(),
+        }
+
+@dataclass
+class ReplayEpisode(ReplayEpisodeSummary):
+    episode: Episode
+    qvalues: list[list[list[float]]]
+    frames: list[str]
+
+    @property
+    def name(self) -> str:
+        return os.path.basename(self.directory)
+
+    def to_json(self) -> dict:
+        return {
+            **super().to_json(),
+            "episode": self.episode.to_json(),
             "qvalues": self.qvalues,
             "frames": self.frames,
         }
@@ -36,10 +46,14 @@ class ReplayEpisode:
 class Experiment:
     logdir: str
     summary: dict
+    train_episodes: list[ReplayEpisodeSummary]
+    test_episodes: list[ReplayEpisodeSummary]
 
     def __init__(self, logdir: str, summary: dict, save=True) -> None:
         self.logdir = logdir
         self.summary = summary
+        self.train_episodes = []
+        self.test_episodes = []
         if save:
             self.save()
         
@@ -52,6 +66,14 @@ class Experiment:
     def save(self):
         with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
             json.dump(self.summary, f)
+
+    def add_train_episode(self, episode_num: int, episode: Episode):
+        directory = os.path.join(self.train_dir, f"{episode_num}")
+        self.train_episodes.append(ReplayEpisodeSummary(directory, episode.metrics))
+
+    def add_tests(self, time_step: int, metrics: Metrics):
+        directory = os.path.join(self.test_dir, f"{time_step}")
+        self.test_episodes.append(ReplayEpisodeSummary(directory, metrics))
 
     def save_train_env(self, train_num: int, env_summary: dict):
         directory = os.path.join(self.train_dir, f"{train_num}")
@@ -88,7 +110,7 @@ class Experiment:
             episode_dir = os.path.join(base_dir, directory)
             try:
                 with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
-                    summary.append(ReplayEpisode(episode_dir, Metrics(**json.load(f))))
+                    summary.append(ReplayEpisodeSummary(episode_dir, Metrics(**json.load(f))))
             except FileNotFoundError:
                 # The episode is not yet finished
                 pass
@@ -100,7 +122,7 @@ class Experiment:
         for directory in self.list_tests():
             episode_dir = os.path.join(base_dir, directory)
             with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
-                summary.append(ReplayEpisode(episode_dir, Metrics(**json.load(f))))
+                summary.append(ReplayEpisodeSummary(episode_dir, Metrics(**json.load(f))))
         return summary
     
     def test_episode_summary(self, test_directory: str) -> list[ReplayEpisode]:
@@ -110,7 +132,7 @@ class Experiment:
             # Only consider episode directories.
             if os.path.isdir(episode_dir):
                 with open(os.path.join(episode_dir, "metrics.json"), "r") as f:
-                    summary.append(ReplayEpisode(episode_dir, Metrics(**json.load(f))))
+                    summary.append(ReplayEpisodeSummary(episode_dir, Metrics(**json.load(f))))
         return summary
     
     def list_trainings(self) -> list[str]:

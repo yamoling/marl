@@ -1,41 +1,52 @@
 <template>
   <main>
-    <Header @create-experiment="createExperiment" @experiment-selected="onExperimentSelected" />
-    <Home></Home>
-    <Tabs ref="tabs" :tabs="tabNames" />
-    <MainTraining v-show="tabs.currentTab == 'Train'" />
-    <MainReplay v-show="tabs.currentTab == 'Replay'" />
+    <ExperimentConfig id="trainModal" @experiment-created="onExperimentSelected" />
+    <Header @create-experiment="createExperiment" />
+    <Tabs ref="tabs" @tab-delete="onTabDeleted" />
+    <Home v-show="tabs.currentTab == 'Home'" @experiment-selected="onExperimentSelected"
+      @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()" />
+    <ExperimentMain v-for="logdir in openedLogdirs" v-show="logdir == tabs.currentTab" :logdir="logdir" />
   </main>
 </template>
 
 
 <script setup lang="ts">
-import MainTraining from './components/training/MainTraining.vue';
+import { onMounted, ref } from 'vue';
 import Header from './components/Header.vue';
 import Tabs from './components/Tabs.vue';
 import type { ITabs } from './components/Tabs.vue';
-import { ref } from 'vue';
-import MainReplay from './components/replay/MainReplay.vue';
-import { useGlobalState } from './stores/GlobalState';
 import Home from './components/Home.vue';
+import ExperimentMain from './components/ExperimentMain.vue';
+import { useExperimentStore } from './stores/ExperimentStore';
+import ExperimentConfig from './components/ExperimentConfig.vue';
+import { Modal } from 'bootstrap';
 
-const tabNames = [
-  "Train",
-  "Replay"
-] as const;
 
-const tabs = ref({} as ITabs<typeof tabNames>);
-const globalState = useGlobalState();
+const tabs = ref({} as ITabs);
+const openedLogdirs = ref([] as string[]);
+const experimentStore = useExperimentStore();
+let modal = {} as Modal;
 
 function createExperiment() {
-  globalState.logdir = null;
   tabs.value.changeTab("Train");
 }
 
-function onExperimentSelected() {
-  console.log("Experiment selected")
-  tabs.value.changeTab("Replay");
+function onExperimentSelected(logdir: string) {
+  modal.hide();
+  console.log("Adding tab: " + logdir)
+  openedLogdirs.value.push(logdir);
+  tabs.value.addTab(logdir);
+  tabs.value.changeTab(logdir);
 }
+
+function onTabDeleted(logdir: string) {
+  openedLogdirs.value.splice(openedLogdirs.value.indexOf(logdir), 1);
+  experimentStore.unloadExperiment(logdir);
+}
+
+onMounted(() => {
+  modal = new Modal("#trainModal");
+});
 </script>
 
 <style>

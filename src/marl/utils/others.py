@@ -1,7 +1,7 @@
 import base64
 import cv2
 import numpy as np
-from typing import TypeVar, Literal
+from typing import Callable, TypeVar, Literal
 import re
 import socket
 from contextlib import closing
@@ -29,7 +29,7 @@ def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
     return torch.device(device)
 
 
-def defaults_to(value: T | None, default: T)  -> T:
+def defaults_to(value: T | None, default: Callable[[], T])  -> T:
     """
     Shortcut to retrieve a default value.
     
@@ -38,7 +38,7 @@ def defaults_to(value: T | None, default: T)  -> T:
     """
     if value is not None:
         return value
-    return default
+    return default()
     
 
 def alpha_num_order(string):

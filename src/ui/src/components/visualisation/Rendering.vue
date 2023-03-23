@@ -1,6 +1,5 @@
 <template>
     <div class="text-center">
-        Reward: {{ reward?.toFixed(4) }}
         <div class="row">
             <div class="col-6">
                 <h4> Previous </h4>
@@ -19,7 +18,6 @@
 interface Props {
     previousImage: string,
     currentImage: string,
-    reward: number | null
 }
 
 defineProps<Props>()
