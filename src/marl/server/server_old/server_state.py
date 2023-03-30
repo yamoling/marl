@@ -9,7 +9,7 @@ from marl.utils import EmptyForcedActionsException
 from marl import Runner
 import marl
 
-from .messages import TrainConfig, StartTrain
+from .messages import ExperimentConfig, TrainConfig
 
 @dataclass
 class ServerState:
@@ -60,7 +60,7 @@ class ServerState:
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
         
-    def create_experiment(self, config: TrainConfig) -> Experiment:
+    def create_experiment(self, config: ExperimentConfig) -> Experiment:
         env = self._create_env(config)
         memory = self._create_memory(config)
         qbuilder = marl.DeepQBuilder()
@@ -68,7 +68,13 @@ class ServerState:
             qbuilder.vdn()
         qbuilder.qnetwork_default(env)
         qbuilder.memory(memory)
-        algo = marl.wrappers.ReplayWrapper(qbuilder.build(), config.logdir)
+        algo = qbuilder.build()
+        if config.forced_actions is not None:
+            if len(config.forced_actions) == 0:
+                raise EmptyForcedActionsException()
+            else:
+                algo = marl.wrappers.ForceActionWrapper(algo, config.forced_actions)
+        algo = marl.wrappers.ReplayWrapper(algo, config.logdir)
         experiment = Experiment(
             logdir=config.logdir,
             algo=algo,
@@ -93,14 +99,14 @@ class ServerState:
     def get_logger(self, logdir: str):
         return self.loggers[logdir]
     
-    def train(self, logdir: str, config: StartTrain):
+    def train(self, logdir: str, config: TrainConfig):
         runner = self.get_runner(logdir)
         thread_function = lambda: runner.train(config.num_steps, n_tests=config.num_tests, test_interval=config.test_interval, quiet=True)
         threading.Thread(target=thread_function).start()
         return self.loggers[logdir].port
 
     @staticmethod
-    def _create_env(config: TrainConfig):
+    def _create_env(config: ExperimentConfig):
         obs_type = laser_env.ObservationType.from_str(config.obs_type)
         if config.static_map:
             env = laser_env.StaticLaserEnv(config.level, obs_type)
@@ -121,15 +127,11 @@ class ServerState:
                 case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
                 case "AgentId": builder.agent_id()
                 case "TimePenalty": builder.time_penalty(config.time_penalty)
-                case "ForceAction": 
-                    if len(config.forced_actions) == 0:
-                        raise EmptyForcedActionsException()
-                    builder.force_actions(config.forced_actions)
                 case other: raise ValueError(f"Unknown wrapper: {wrapper}")
         return builder.build()
     
     @staticmethod
-    def _create_memory(config: TrainConfig) -> marl.models.ReplayMemory:
+    def _create_memory(config: ExperimentConfig) -> marl.models.ReplayMemory:
         memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
         if config.memory.prioritized:
             memory_builder.prioritized()

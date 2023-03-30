@@ -1,10 +1,20 @@
-export const OBS_TYPES = ["RGB_IMAGE", "FLATTENED", "LAYERED", "RELATIVE_POSITIONS"] as const;
+import { OBS_TYPES, POLICIES } from "../constants";
 
 export interface ExperimentInfo {
     env: EnvInfo
     algorithm: AlgoInfo
     seed: number | null
     timestamp_ms: number
+    runs: RunInfo[]
+    logdir: string
+}
+
+export interface RunInfo {
+    rundir: string
+    port: number | null
+    current_step: number
+    stop_step: number
+    pid: number | null
 }
 
 export interface EnvInfo {
@@ -54,7 +64,7 @@ export interface AlgoInfo {
 }
 
 export interface PolicyInfo {
-    name: string
+    name: typeof POLICIES[number]
 }
 
 export interface DecreasingEpsilonGreedyPolicy extends PolicyInfo {

@@ -28,35 +28,31 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { useGlobalState } from "../../../stores/GlobalState";
+import { EnvInfo } from "../../../models/Infos";
 
-const envInfo = useGlobalState().experiment?.envInfo;
-const layerSize = computed(() => {
-    if (envInfo == null) return 0;
-    return props.obs.length / (2 * envInfo.n_agents + 3);
-});
+
+const layerSize = computed(() => props.obs.length / (2 * props.envInfo.n_agents + 3));
 const props = defineProps<{
-    obs: number[],
+    obs: number[]
     extras: number[]
+    envInfo: EnvInfo
 }>();
 
 const layers = computed(() => {
-    if (envInfo == null) return [];
     const layers = [];
-    for (let i = 0; i < envInfo.obs_shape[0]; i += layerSize.value) {
+    for (let i = 0; i < props.envInfo.obs_shape[0]; i += layerSize.value) {
         layers.push(props.obs.slice(i, i + layerSize.value));
     }
     return layers;
 });
 
 const layerNames = computed(() => {
-    if (envInfo == null) return [];
     const names = [];
-    for (let i = 0; i < envInfo.n_agents; i++) {
+    for (let i = 0; i < props.envInfo.n_agents; i++) {
         names.push(`Agent ${i}`);
     }
     names.push("Walls");
-    for (let i = 0; i < envInfo.n_agents; i++) {
+    for (let i = 0; i < props.envInfo.n_agents; i++) {
         names.push(`Laser ${i}`);
     }
     names.push("Gems");

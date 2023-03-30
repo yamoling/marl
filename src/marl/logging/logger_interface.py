@@ -10,7 +10,7 @@ from rlenv.models import Metrics
 
 class Logger(ABC):
     """Logging interface"""
-    def __init__(self, logdir: str) -> None:
+    def __init__(self, logdir: str, quiet=False) -> None:
         super().__init__()
         if logdir is None:
             logdir = f"{time.time()}"
@@ -24,6 +24,7 @@ class Logger(ABC):
         file_handler = logging.FileHandler(filename=os.path.join(self.logdir, "training.log"))
         stdout_handler = logging.StreamHandler(sys.stderr)
         logging.basicConfig(format="%(message)s", level=logging.INFO, handlers=[file_handler, stdout_handler])
+        self.quiet = quiet
 
     @abstractmethod
     def log(self, tag: str, data: Metrics, time_step: int):
@@ -32,10 +33,8 @@ class Logger(ABC):
     def log_print(self, tag: str, data: Metrics, time_step: int):
         """Log to TensorBoard and add the data to the printing queue."""
         self.log(tag, data, time_step)
-        self.print(tag, data)
-
-    def close(self):
-        """Close the logger."""
+        if not self.quiet:
+            self.print(tag, data)
 
     @abstractmethod
     def print(self, tag: str, data: Metrics):

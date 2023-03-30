@@ -1,5 +1,5 @@
 import sys 
-from marl.debugging.server import run
+from marl.server import run
 
 
 def debugger_is_active() -> bool:

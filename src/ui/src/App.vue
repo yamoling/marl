@@ -1,7 +1,9 @@
 <template>
   <main>
     <ExperimentConfig id="trainModal" @experiment-created="onExperimentSelected" />
-    <Header @create-experiment="createExperiment" />
+    <header class="row mb-1">
+      <h1 class="col"> Experiment manager</h1>
+    </header>
     <Tabs ref="tabs" @tab-delete="onTabDeleted" />
     <Home v-show="tabs.currentTab == 'Home'" @experiment-selected="onExperimentSelected"
       @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()" />
@@ -13,13 +15,12 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import Header from './components/Header.vue';
 import Tabs from './components/Tabs.vue';
 import type { ITabs } from './components/Tabs.vue';
 import Home from './components/Home.vue';
 import ExperimentMain from './components/ExperimentMain.vue';
 import { useExperimentStore } from './stores/ExperimentStore';
-import ExperimentConfig from './components/ExperimentConfig.vue';
+import ExperimentConfig from './components/modals/ExperimentConfig.vue';
 import { Modal } from 'bootstrap';
 
 
@@ -28,9 +29,6 @@ const openedLogdirs = ref([] as string[]);
 const experimentStore = useExperimentStore();
 let modal = {} as Modal;
 
-function createExperiment() {
-  tabs.value.changeTab("Train");
-}
 
 function onExperimentSelected(logdir: string) {
   modal.hide();

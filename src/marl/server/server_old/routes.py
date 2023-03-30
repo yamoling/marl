@@ -2,8 +2,8 @@ from http import HTTPStatus
 import os
 from flask import request
 from marl.utils import alpha_num_order
-from .messages import MemoryConfig, TrainConfig, StartTrain, GeneratorConfig
-from marl.debugging.server import app, replay_state, train_state, state
+from .messages import MemoryConfig, ExperimentConfig, TrainConfig, GeneratorConfig
+from marl.server.server_old import app, replay_state, train_state, state
 from marl.utils import CorruptExperimentException
 from . import replay
 
@@ -26,7 +26,7 @@ def load_checkpoint():
 @app.route("/runner/train/start/<path:logdir>", methods=["POST"])
 def start_train(logdir: str):
     data: dict = request.get_json()
-    return { "port" : state.train(logdir, StartTrain(**data)) }
+    return { "port" : state.train(logdir, TrainConfig(**data)) }
 
 @app.route("/runner/create/<path:logdir>", methods=["POST"])
 def create_runner(logdir: str):
@@ -41,8 +41,9 @@ def create_experiment():
     data["level"] = data["level"]
     data["memory"] = MemoryConfig(**data["memory"])
     data["generator"] = GeneratorConfig(**data["generator"])
-    data["forced_actions"] = {int(key): value for key, value in data["forced_actions"].items()}
-    train_config = TrainConfig(**data)
+    if data["forced_actions"] is not None:
+        data["forced_actions"] = {int(key): value for key, value in data["forced_actions"].items()}
+    train_config = ExperimentConfig(**data)
     try:
         exp = state.create_experiment(train_config)
         return exp.summary
@@ -64,6 +65,7 @@ def load_experiment(logdir: str):
             "test": [t.to_json() for t in experiment.test_summary()],
         }
     except CorruptExperimentException as e:
+        print(e)
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @app.route("/experiment/load/<path:logdir>", methods=["DELETE"])

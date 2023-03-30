@@ -1,12 +1,12 @@
 __version__ = "0.1.0"
 
-from . import logging
 from . import models
+from . import logging
 from .models import RLAlgo, Runner, Experiment, Batch
 from . import nn
 
 from . import qlearning
-from . import debugging
+from . import server
 from . import policy
 from . import wrappers
 

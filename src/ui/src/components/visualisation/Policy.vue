@@ -1,35 +1,23 @@
 <template>
-    <table class="table table-sm table-hover table-striped">
-        <thead>
-            <tr>
-                <th colspan="5">Action probabilities</th>
-            </tr>
-            <tr>
-                <td v-for="action in ACTION_MEANINGS"> {{ action }}</td>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td v-for="(_, i) in ACTION_MEANINGS"> {{ policy[i] }} </td>
-            </tr>
-        </tbody>
-    </table>
+    <tr>
+        <th> Probas </th>
+        <td v-for="(_, i) in ACTION_MEANINGS"> {{ probs[i].toFixed(3) }} </td>
+    </tr>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { ACTION_MEANINGS, POLICIES } from "../../constants";
 
 
-const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
-const POLICIES = ["Softmax", "EpsilonGreedy"] as const;
 
 const props = defineProps<{
     qvalues: number[],
     policy: typeof POLICIES[number],
 }>();
 
-const policy = computed(() => {
-    if (props.policy == "Softmax") {
+const probs = computed(() => {
+    if (props.policy == "SoftmaxPolicy") {
         return softmax(props.qvalues);
     } else if (props.policy == "EpsilonGreedy") {
         return epsilonGreedy(props.qvalues);

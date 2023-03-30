@@ -15,7 +15,6 @@ class SoftmaxPolicy(Policy):
         qvalues[available_actions == 0.] = -np.inf
         exp = np.exp(qvalues / self._tau)
         probs = exp / np.sum(exp, axis=-1, keepdims=True)
-        print(exp, probs)
         chosen_actions = [np.random.choice(self._actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)
 

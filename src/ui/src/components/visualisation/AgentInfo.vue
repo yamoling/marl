@@ -3,7 +3,7 @@
         <h3> Agent {{ agentNum }}</h3>
         <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obsRelativePos" />
         <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
-        <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" />
+        <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
         <p v-else> No preview available for obs type {{ obsType }}</p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
@@ -19,11 +19,11 @@
             <tbody>
                 <tr>
                     <th scope="row"> Qvalues </th>
-                    <td v-if="qvalues" v-for="(q, action) in qvalues"
-                        :style='{ "background-color": "#" + backgroundColours[action] }'>
+                    <td v-for="(q, action) in qvalues" :style='{ "background-color": "#" + backgroundColours[action] }'>
                         {{ q.toFixed(4) }}
                     </td>
                 </tr>
+                <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
             </tbody>
         </table>
     </div>
@@ -37,21 +37,23 @@ import { ReplayEpisode } from "../../models/Episode";
 import RelativePositions from "./observation/RelativePositions.vue";
 import Layered from "./observation/Layered.vue";
 import Flattened from "./observation/Flattened.vue";
-import { useGlobalState } from "../../stores/GlobalState";
+import { ExperimentInfo } from "../../models/Infos";
+import Policy from "./Policy.vue";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
-const globalState = useGlobalState();
-const obsType = computed(() => globalState.experiment?.envInfo.DynamicLaserEnv?.obs_type);
 
 
 const props = defineProps<{
-    episode: ReplayEpisode | null,
-    agentNum: number,
-    currentStep: number,
+    episode: ReplayEpisode | null
+    agentNum: number
+    currentStep: number
     rainbow: Rainbow
+    experiment: ExperimentInfo
 }>();
 
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
+
+const obsType = computed(() => props.experiment.env.DynamicLaserEnv?.obs_type || props.experiment.env.StaticLaserEnv?.obs_type);
 
 const obs = computed(() => {
     if (props.episode == null) return [];

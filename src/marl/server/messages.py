@@ -16,7 +16,7 @@ class GeneratorConfig:
     height: int
 
 @dataclass
-class TrainConfig:
+class ExperimentConfig:
     recurrent: bool
     logdir: str
     vdn: bool
@@ -31,7 +31,17 @@ class TrainConfig:
     generator: GeneratorConfig
 
 @dataclass
-class StartTrain:
+class RunConfig:
+    logdir: str
+    checkpoint: str | None
+    num_steps: int
+    test_interval: int
+    num_tests: int
+    num_runs: int
+    use_seed: bool
+
+@dataclass
+class TrainConfig:
     """The logdir is the key from which to know what experiment to train"""
     num_steps: int
     test_interval: int | None 

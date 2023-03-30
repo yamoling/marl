@@ -1,7 +1,6 @@
-import { ReplayEpisodeSummary } from "./Episode"
 import { ExperimentInfo } from "./Infos"
+import { Metrics } from "./Metric"
 
 export interface Experiment extends ExperimentInfo {
-    train: ReplayEpisodeSummary[]
-    test: ReplayEpisodeSummary[]
+    test_metrics: Map<string, Metrics>
 }

@@ -1,8 +1,11 @@
 <template>
-    <div>
+    <div class="row">
         <h3> Layers </h3>
-        <div v-for="layer in obs">
-            {{ layer }}
+        <div class="col-auto m-2" v-for="layer in obs">
+            <div class="row" v-for="row in layer">
+                <div v-for="col in row" style="border: solid 1px; width: 20px;"> {{ col }}</div>
+            </div>
+            <br>
         </div>
 
         <h3> Extras </h3>
@@ -18,6 +21,20 @@
 </template>
 
 <script setup lang="ts">
+
+const layerNames = computed(() => {
+    const names = [];
+    for (let i = 0; i < props.envInfo.n_agents; i++) {
+        names.push(`Agent ${i}`);
+    }
+    names.push("Walls");
+    for (let i = 0; i < props.envInfo.n_agents; i++) {
+        names.push(`Laser ${i}`);
+    }
+    names.push("Gems");
+    names.push("Elevator");
+    return names;
+});
 
 defineProps<{
     obs: number[][][],

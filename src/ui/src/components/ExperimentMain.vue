@@ -3,26 +3,16 @@
         <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
     </div>
     <div v-else class="row">
-        <EpisodeViewer ref="viewer" />
+        <EpisodeViewer ref="viewer" :experiment="experiment" />
         <ExperimentSummary class="mb-2" :experiment="experiment" />
-        <div class="col-4 text-center">
-            <MetricsPlotter :metrics="metrics" :reverse-labels="false" :title="plotTitle" :max-steps="50" />
-            <div class="input-group input-group-sm mb-3">
-                <label class="input-group-text"> What to show </label>
-                <select class="form-select" v-model="toPlot">
-                    <option selected>Open this select menu</option>
-                    <option value="test" selected> Tests </option>
-                    <option value="train"> Trainings </option>
-                </select>
-            </div>
-            <div class="shadow p-2">
-                <ExperimentRunner :logdir="logdir" @new-train="onTrainEpisode" @new-test="onTestEpisode"
-                    @train-start="isTraining = true" @train-stop="isTraining = false" />
-            </div>
+        <div class="col-4">
+            <MetricsPlotter class="text-center" :metrics="metrics" :reverse-labels="false" title="Average test metrics"
+                :max-steps="50" />
+            <hr>
+            <ExperimentRuns :experiment="experiment" @new-test="onTestEpisode" @reload-requested="reloadExperiment" />
         </div>
         <div class="col">
-            <ExperimentTable :experiment="experiment" :to-show="toPlot" @view-episode="viewer.viewEpisode"
-                :is-training="isTraining" />
+            <ExperimentTable :experiment="experiment" @view-episode="viewer.viewEpisode" :is-training="isTraining" />
         </div>
     </div>
 </template>
@@ -33,10 +23,10 @@ import { ReplayEpisodeSummary } from '../models/Episode';
 import { Experiment } from '../models/Experiment';
 import { useExperimentStore } from '../stores/ExperimentStore';
 import MetricsPlotter from './charts/MetricsPlotter.vue';
-import ExperimentRunner from './ExperimentRunner.vue';
+import ExperimentRuns from './ExperimentRuns.vue';
 import ExperimentSummary from './ExperimentSummary.vue';
 import ExperimentTable from './ExperimentTable.vue';
-import EpisodeViewer from './replay/EpisodeViewer.vue';
+import EpisodeViewer from './visualisation/EpisodeViewer.vue';
 
 
 const props = defineProps<{
@@ -47,49 +37,38 @@ const isTraining = ref(false);
 const store = useExperimentStore();
 const experiment = ref(null as Experiment | null);
 const viewer = ref({} as typeof EpisodeViewer);
-const toPlot = ref("test" as "test" | "train");
-const plotTitle = computed(() => {
-    if (toPlot.value == "test") {
-        return "Test Metrics";
-    }
-    return "Train Metrics";
-});
 const metrics = computed(() => {
     if (experiment.value == null) {
         return [];
     }
-    if (toPlot.value == "test") {
-        return experiment.value.test.map(t => t.metrics);
-    }
-    return experiment.value.train.map(t => t.metrics);
+    // Convert the map to an array ordered by the key
+    return Array.from(experiment.value.test_metrics.entries())
+        .sort((a, b) => a[0] < b[0] ? -1 : 1)
+        .map((e) => e[1]);
 });
 
 
-function onTrainEpisode(data: ReplayEpisodeSummary) {
+function onTestEpisode(rundir: string, episode: ReplayEpisodeSummary) {
     if (experiment.value == null) {
         return;
     }
-    experiment.value.train.push(data);
+    experiment.value.test_metrics.set(episode.name, episode.metrics);
 }
 
-function onTestEpisode(episode: ReplayEpisodeSummary) {
-    if (experiment.value == null) {
-        return;
-    }
-    experiment.value.test.push(episode);
-}
+onMounted(reloadExperiment);
 
-onMounted(async () => {
+const emits = defineEmits(["close-experiment"]);
+
+async function reloadExperiment() {
+    console.log("Reloading experiment", props.logdir);
     try {
         experiment.value = await store.loadExperiment(props.logdir);
     } catch (e) {
         if (confirm("Error loading experiment: " + e + ".\nDo you want to delete the experiment?")) {
             store.deleteExperiment(props.logdir);
-            emits("close-experiment", props.logdir);
         }
+        emits("close-experiment", props.logdir);
     }
-});
-
-const emits = defineEmits(["close-experiment"]);
+}
 
 </script>

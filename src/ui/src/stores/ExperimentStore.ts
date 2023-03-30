@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
 import { ExperimentInfo } from "../models/Infos";
 import { Experiment } from "../models/Experiment";
+import { ReplayEpisodeSummary } from "../models/Episode";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
 
@@ -49,7 +50,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             loading.value = false;
             throw new Error(await resp.text());
         }
-        const experiment = await resp.json() as Experiment;
+        const experiment = await resp.json();
+        // Convert the object "test_metrics" to a Map<string, Metrics>
+        experiment.test_metrics = new Map(Object.entries(experiment.test_metrics));
         loading.value = false;
         return experiment;
     }
@@ -74,6 +77,11 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return logdir;
     }
 
+    async function getTestEpisodes(logdir: string, time_step: number): Promise<ReplayEpisodeSummary[]> {
+        const resp = await fetch(`${HTTP_URL}/experiment/test/list/${time_step}/${logdir}`);
+        return await resp.json();
+    }
+
     return {
         experimentInfos,
         loading,
@@ -82,5 +90,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         deleteExperiment,
         loadExperiment,
         unloadExperiment,
+        getTestEpisodes
     };
 });

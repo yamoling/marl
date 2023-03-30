@@ -12,10 +12,10 @@
                         style="height:100px; width: 100px;" />
                     <div class="row mb-1 mx-auto">
                         <AgentInfo v-for="agent in nAgents" class="col-6" :episode="episode" :agent-num="agent - 1"
-                            :current-step="currentStep" :rainbow="rainbow">
+                            :current-step="currentStep" :rainbow="rainbow" :experiment="experiment">
                         </AgentInfo>
                     </div>
-                    <div class="row">
+                    <div class="row mb-2">
                         <div class="mx-auto col-auto">
                             <div class="input-group">
                                 <button type="button" class="btn btn-success" @click="() => step(-1)">
@@ -31,7 +31,11 @@
                             </div>
                         </div>
                     </div>
-                    <Rendering class="col-auto mx-auto" :current-image="currentFrame" :previous-image="previousFrame" />
+                    <div class="row">
+                        <div class="col-auto mx-auto">
+                            <img :src="'data:image/jpg;base64, ' + currentFrame" />
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
@@ -46,10 +50,10 @@
 import { computed, onMounted, ref } from 'vue';
 import { ReplayEpisode } from '../../models/Episode';
 import Rainbow from "rainbowvis.js";
-import AgentInfo from '../visualisation/AgentInfo.vue';
-import Rendering from '../visualisation/Rendering.vue';
+import AgentInfo from './AgentInfo.vue';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Modal } from 'bootstrap';
+import { ExperimentInfo } from '../../models/Infos';
 
 
 const replayStore = useReplayStore();
@@ -59,6 +63,9 @@ const currentStep = ref(0);
 const modal = ref({} as HTMLElement);
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
+defineProps<{
+    experiment: ExperimentInfo
+}>();
 
 const nAgents = computed(() => (episode.value?.qvalues == null) ? 0 : episode.value.qvalues[0].length);
 const episodeLength = computed(() => episode.value?.metrics.episode_length || 0);

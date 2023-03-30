@@ -20,7 +20,7 @@ def train(params: tuple[int, bool, bool, bool, str]) -> str:
         memory = marl.models.PrioritizedMemory(memory, alpha=0.7, beta=0.4)
     algo = marl.qlearning.vdn.VDN(marl.qlearning.DQN(qnetwork, memory=memory))
     if run_num == 0:
-        algo = marl.debugging.FileWrapper(algo, logdir)
+        algo = marl.server.FileWrapper(algo, logdir)
     runner = marl.Runner(env, algo=algo, test_env=test_env, logdir=logdir)
     runner.seed(run_num)
     return runner.train(n_steps=50_000, test_interval=2500, n_tests=5, quiet=False)

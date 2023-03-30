@@ -3,8 +3,8 @@ from .logger_interface import Logger
 
 
 class MultiLogger(Logger):
-    def __init__(self, logdir: str, *loggers: Logger) -> None:
-        super().__init__(logdir)
+    def __init__(self, logdir: str, *loggers: Logger, quiet=False) -> None:
+        super().__init__(logdir, quiet)
         self.loggers = loggers
 
     def log(self, tag: str, metrics: Metrics, time_step: int) -> None:
@@ -19,6 +19,6 @@ class MultiLogger(Logger):
         for logger in self.loggers:
             logger.flush(prefix)
 
-    def close(self) -> None:
+    def __del__(self):
         for logger in self.loggers:
-            logger.close()
+            logger.__del__()

@@ -95,7 +95,6 @@ class AtariCNN(LinearNN):
         filters = [32, 64, 64]
         kernels = [8, 4, 3]
         strides = [4, 2, 1]
-        linears = [512, output_shape[0]]
         self.cnn, n_features = make_cnn(input_shape, filters, kernels, strides)
         self.linear = torch.nn.Sequential(
             torch.nn.Linear(n_features, 512),
@@ -152,11 +151,19 @@ class CNN(LinearNN):
 def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: list[int]):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
     channels, height, width = input_shape
-    output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides)
+    paddings = [0 for _ in filters]
+    n_padded = 0
+    output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides, paddings)
+    while output_w < 0 or output_h < 0:
+        # Add paddings if the output size is negative
+        paddings[n_padded % len(paddings)] += 1
+        n_padded += 1
+        output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides, paddings)
+    print("Padding added: ", paddings)
     assert output_h > 0 and output_w > 0, f"Input size = {input_shape}, output witdh = {output_w}, output height = {output_h}"
     modules = []
-    for f, k, s in zip(filters, kernel_sizes, strides):
-        modules.append(torch.nn.Conv2d(in_channels=channels, out_channels=f, kernel_size=k, stride=s))
+    for f, k, s, p in zip(filters, kernel_sizes, strides, paddings):
+        modules.append(torch.nn.Conv2d(in_channels=channels, out_channels=f, kernel_size=k, stride=s, padding=p))
         modules.append(torch.nn.ReLU())
         channels = f
     modules.append(torch.nn.Flatten())
@@ -164,11 +171,14 @@ def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: 
     return torch.nn.Sequential(*modules), output_size
 
 
-def conv2d_size_out(input_width, input_height, kernel_sizes, strides):
-    """Compute the output width and height of a sequence of 2D convolutions"""
+def conv2d_size_out(input_width, input_height, kernel_sizes, strides, paddings):
+    """
+    Compute the output width and height of a sequence of 2D convolutions.
+    See shape section on https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
+    """
     width = input_width
     height = input_height
-    for kernel_size, stride in zip(kernel_sizes, strides):
-        width = (width - (kernel_size - 1) - 1) // stride + 1
-        height = (height - (kernel_size - 1) - 1) // stride + 1
+    for kernel_size, stride, pad  in zip(kernel_sizes, strides, paddings):
+        width = (width + 2*pad - (kernel_size - 1) - 1) // stride + 1
+        height = (height + 2*pad - (kernel_size - 1) - 1) // stride + 1
     return width, height

@@ -39,6 +39,62 @@
                                         VDN
                                     </label>
                                 </div>
+                                <div class="form-check form-switch">
+                                    <label class="form-check-label">
+                                        <input class="form-check-input" type="checkbox" role="switch"
+                                            v-model="forceActions" />
+                                        Force actions
+                                        <ul>
+                                            <li v-for="[agent, action] in forcedActions">
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                    @click.stop="() => forcedActions.delete(agent)">
+                                                    <font-awesome-icon icon="fa fa-minus" />
+                                                </button>
+                                                Agent {{ agent }}: {{ ACTION_MEANINGS[action] }}
+                                            </li>
+                                            <li class="input-group">
+                                                <label class="input-group-text"> Agent </label>
+                                                <select class="form-select" style="width: 80px;"
+                                                    v-model.number="forcedAgent">
+                                                    <option v-for="agent in 4" :value="agent - 1"> {{ agent - 1 }} </option>
+                                                </select>
+                                                <label class="input-group-text"> Action </label>
+                                                <select class="form-select" style="width: 100px;"
+                                                    v-model.number="forcedAction">
+                                                    <option v-for="(action, value) in ACTION_MEANINGS" :value="value"> {{
+                                                        action
+                                                    }} </option>
+                                                </select>
+                                                <button class="btn btn-sm btn-outline-success" @click="addForcedAgent">
+                                                    <font-awesome-icon icon="fa fa-plus" />
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </label>
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-group-text"> Train Policy </label>
+                                    <select class="form-select" v-model="trainPolicy">
+                                        <option v-for="policy in POLICIES" :value="policy"> {{ policy }} </option>
+                                    </select>
+                                </div>
+                                <div v-if="trainPolicy == 'DecreasingEpsilonGreedyPolicy'" class="ms-5 my-1">
+                                    <div class="input-group">
+                                        <label class="input-group-text"> Epsilon </label>
+                                        <input type="text" class="form-control" size="2" />
+                                    </div>
+                                    <div class="input-group">
+                                        <label class="input-group-text"> Anneal on </label>
+                                        <input type="text" class="form-control" size="2" />
+                                        <span class="input-group-text"> steps </span>
+                                    </div>
+                                </div>
+                                <div class="input-group">
+                                    <label class="input-group-text"> Train Policy </label>
+                                    <select class="form-select" v-model="testPolicy">
+                                        <option v-for="policy in POLICIES" :value="policy"> {{ policy }} </option>
+                                    </select>
+                                </div>
                             </fieldset>
                         </div>
                         <fieldset class="row mb-2">
@@ -71,38 +127,6 @@
                                         <input class="form-check-input" type="checkbox" role="switch" name="Penalty" />
                                         Time penalty
                                         <input type="number" size="8" v-model.number="timePenalty" />
-                                    </label>
-                                </div>
-                                <div class="form-check form-switch">
-                                    <label class="form-check-label">
-                                        <input class="form-check-input" type="checkbox" role="switch" name="ForceAction" />
-                                        Force actions
-                                        <ul>
-                                            <li v-for="[agent, action] in forcedActions">
-                                                <button class="btn btn-sm btn-outline-danger"
-                                                    @click.stop="() => forcedActions.delete(agent)">
-                                                    <font-awesome-icon icon="fa fa-minus" />
-                                                </button>
-                                                Agent {{ agent }}: {{ ACTION_MEANINGS[action] }}
-                                            </li>
-                                            <li class="input-group">
-                                                <label class="input-group-text"> Agent </label>
-                                                <select class="form-select" style="width: 80px;"
-                                                    v-model.number="forcedAgent">
-                                                    <option v-for="agent in 4" :value="agent - 1"> {{ agent - 1 }} </option>
-                                                </select>
-                                                <label class="input-group-text"> Action </label>
-                                                <select class="form-select" style="width: 100px;"
-                                                    v-model.number="forcedAction">
-                                                    <option v-for="(action, value) in ACTION_MEANINGS" :value="value"> {{
-                                                        action
-                                                    }} </option>
-                                                </select>
-                                                <button class="btn btn-sm btn-outline-success" @click="addForcedAgent">
-                                                    <font-awesome-icon icon="fa fa-plus" />
-                                                </button>
-                                            </li>
-                                        </ul>
                                     </label>
                                 </div>
                             </div>
@@ -146,8 +170,6 @@
                                     <option v-for="obs in OBS_TYPES" :value="obs"> {{ obs }}</option>
                                 </select>
                             </div>
-
-
 
                             <div v-if="staticMap">
                                 <div v-for="col in 2" class="row">
@@ -217,9 +239,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { OBS_TYPES } from "../models/Infos";
-import { useExperimentStore } from '../stores/ExperimentStore';
-import { ACTION_MEANINGS } from "../constants";
+import { OBS_TYPES, ACTION_MEANINGS, POLICIES } from "../../constants";
+import { useExperimentStore } from '../../stores/ExperimentStore';
 
 const experimentStore = useExperimentStore();
 const loading = ref(false);
@@ -229,6 +250,12 @@ const customExperimentName = ref("");
 const autoName = ref(true);
 const isRecurrent = ref(false);
 const vdn = ref(true);
+const forceActions = ref(false);
+const forcedActions = ref(new Map<number, number>());
+const forcedAgent = ref(0);
+const forcedAction = ref(0);
+const trainPolicy = ref('DecreasingEpsilonGreedyPolicy' as typeof POLICIES[number]);
+const testPolicy = ref('ArgMax' as typeof POLICIES[number]);
 
 // Map config
 const obsType = ref("FLATTENED" as typeof OBS_TYPES[number]);
@@ -248,9 +275,7 @@ const memorySize = ref(10000);
 const prioritizedMemory = ref(false);
 const envWrappers = ref({} as HTMLElement);
 const timePenalty = ref(-0.1);
-const forcedActions = ref(new Map<number, number>());
-const forcedAgent = ref(0);
-const forcedAction = ref(0);
+
 const emits = defineEmits(["experiment-created"]);
 
 const experimentName = computed({
@@ -279,7 +304,7 @@ async function send() {
             time_limit: timeLimitValue.value,
             static_map: staticMap.value,
             level: `lvl${selectedLevel.value}`,
-            forced_actions: Object.fromEntries(forcedActions.value),
+            forced_actions: forceActions.value ? Object.fromEntries(forcedActions.value) : null,
             obs_type: obsType.value,
             time_penalty: timePenalty.value,
             generator: {

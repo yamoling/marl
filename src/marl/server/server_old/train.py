@@ -8,7 +8,7 @@ from marl.models import PrioritizedMemory
 from marl.utils.others import encode_b64_image
 from marl import Runner
 
-from .messages import TrainConfig, StartTrain
+from .messages import ExperimentConfig, TrainConfig
 
 
 @dataclass
@@ -19,7 +19,7 @@ class TrainServerState:
     def __init__(self) -> None:
         self.runner = None
 
-    def create_runner(self, config: TrainConfig):
+    def create_runner(self, config: ExperimentConfig):
         """Creates the algorithm and returns its logging directory"""
         logger = marl.logging.WSLogger(config.logdir)
         env, test_env = self._create_env(config)
@@ -37,7 +37,7 @@ class TrainServerState:
         self.runner = Runner.from_checkpoint(checkpoint_dir)
 
     @staticmethod
-    def _create_env(config: TrainConfig):
+    def _create_env(config: ExperimentConfig):
         obs_type = laser_env.ObservationType.from_str(config.obs_type)
         if config.static_map:
             env = laser_env.StaticLaserEnv(config.level, obs_type)
@@ -61,7 +61,7 @@ class TrainServerState:
         return builder.build_all()
     
     @staticmethod
-    def _create_memory(config: TrainConfig) -> marl.models.ReplayMemory:
+    def _create_memory(config: ExperimentConfig) -> marl.models.ReplayMemory:
         memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
         if config.memory.prioritized:
             memory_builder.prioritized()
@@ -69,7 +69,7 @@ class TrainServerState:
             memory_builder.nstep(config.memory.nstep, 0.99)
         return memory_builder.build()
 
-    def train(self, params: StartTrain):
+    def train(self, params: TrainConfig):
         self.runner.train(test_interval=params.test_interval, n_tests=params.num_tests, n_steps=params.num_steps, quiet=True)
         self.runner._logger._disconnect_clients = True
 

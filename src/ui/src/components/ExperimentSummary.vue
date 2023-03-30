@@ -4,12 +4,17 @@
         <span class="badge rounded-pill text-bg-secondary col-auto me-1" v-for="wrapper in experiment.env.wrappers"> {{
             wrapper }}</span>
         <span class="badge rounded-pill text-bg-warning col-auto me-1" v-for="algo in algoBadges"> {{ algo }}</span>
+        <span class="badge rounded-pill text-bg-info col-auto" style="cursor: pointer;" @click="showParameters"> See all
+        </span>
+        <ExperimentParameters id="paramsModal" :experiment="experiment" />
     </div>
 </template>
 
 <script setup lang="ts">
+import { Modal } from 'bootstrap';
 import { computed } from 'vue';
 import { ExperimentInfo } from '../models/Infos';
+import ExperimentParameters from './modals/ExperimentParameters.vue';
 
 
 const props = defineProps<{
@@ -33,5 +38,10 @@ const algoBadges = computed(() => {
         res.push("Seed: " + props.experiment.seed);
     return res;
 });
+
+function showParameters() {
+    const modal = new Modal("#paramsModal");
+    modal.show();
+}
 
 </script>
