@@ -12,6 +12,7 @@ import laser_env
 from marl import logging
 from marl.wrappers import ReplayWrapper
 from marl.utils import encode_b64_image, ExperimentAlreadyExistsException
+from marl.qlearning import IQLearning
 
 from .runner import Runner
 from .algo import RLAlgo
@@ -51,6 +52,13 @@ class Experiment:
     @staticmethod
     def create(logdir: str, algo: RLAlgo, env: RLEnv) -> "Experiment":
         """Create a new experiment."""
+        if not logdir.startswith("logs/"):
+            logdir = os.path.join("logs", logdir)
+        try:
+            # Remove the test and debug logs
+            if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+                shutil.rmtree(logdir)
+        except FileNotFoundError: pass
         try:
             os.makedirs(logdir, exist_ok=False)
         except FileExistsError:
@@ -93,9 +101,11 @@ class Experiment:
                     logging.TensorBoardLogger(rundir),
                     quiet=quiet
                 )
+        if issubclass(algo.__class__, IQLearning):
+            algo=ReplayWrapper(algo, rundir)
         runner = Runner(
             env=env,
-            algo=ReplayWrapper(algo, rundir),
+            algo=algo,
             logger=logger
         )
         if seed is not None:

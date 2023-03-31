@@ -22,19 +22,6 @@
 
 <script setup lang="ts">
 
-const layerNames = computed(() => {
-    const names = [];
-    for (let i = 0; i < props.envInfo.n_agents; i++) {
-        names.push(`Agent ${i}`);
-    }
-    names.push("Walls");
-    for (let i = 0; i < props.envInfo.n_agents; i++) {
-        names.push(`Laser ${i}`);
-    }
-    names.push("Gems");
-    names.push("Elevator");
-    return names;
-});
 
 defineProps<{
     obs: number[][][],

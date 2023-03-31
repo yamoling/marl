@@ -33,6 +33,15 @@ class Batch:
         one_hot = one_hot.squeeze(-2)
         return one_hot
 
+    
+    def compute_returns(self, gamma: float) -> torch.Tensor:
+        """Compute the returns for each timestep in the batch"""
+        returns = torch.zeros_like(self.rewards).to(self.device, non_blocking=True)
+        returns[-1] = self.rewards[-1]
+        for t in range(len(self.rewards) - 2, -1, -1):
+            returns[t] = self.rewards[t] + gamma * returns[t + 1]
+        return returns
+
     @staticmethod
     def from_episodes(episodes: list[Episode]) -> "Batch":
         """Create a batch from a list of episodes with shape (episode_len, batch_size, n_agents, ...)"""

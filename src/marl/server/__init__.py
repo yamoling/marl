@@ -1,16 +1,15 @@
 from flask import Flask
 from flask_cors import CORS
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="../dist/", static_url_path='')
 CORS(app)
 
 from .server_state import ServerState
 
 state = ServerState()
 
-def run(port=5000, static_path: str=None, debug=False):
+def run(port=5000, debug=False):
     from . import routes
-    app.static_folder = static_path
     try:
         import os
         print(os.getpid())

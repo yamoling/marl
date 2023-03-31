@@ -22,7 +22,7 @@
                             <td> {{ metrics.avg_score?.toFixed(3) }} </td>
                             <td> {{ metrics.avg_gems_collected?.toFixed(3) }}</td>
                             <td> {{ metrics.avg_in_elevator?.toFixed(3) }}</td>
-                            <td @click.stop="() => loadModel(test)" style="cursor: pointer; padding-right: 10px;"
+                            <td @click.stop="loadModel" style="cursor: pointer; padding-right: 10px;"
                                 title="Load this model">
                                 <font-awesome-icon class="text-warning" icon="bolt" />
                             </td>
@@ -103,7 +103,7 @@ async function onTestClicked(time_step: string) {
     }
 }
 
-async function loadModel(episode: ReplayEpisodeSummary) {
+async function loadModel() {
     alert("TODO: Load model")
 }
 
