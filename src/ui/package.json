@@ -1,0 +1,31 @@
+{
+  "name": "marl-debugging",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^6.2.1",
+    "@fortawesome/free-brands-svg-icons": "^6.2.1",
+    "@fortawesome/free-regular-svg-icons": "^6.2.1",
+    "@fortawesome/free-solid-svg-icons": "^6.2.1",
+    "@fortawesome/vue-fontawesome": "^3.0.3",
+    "@picocss/pico": "^1.5.6",
+    "bootstrap": "^5.3.0-alpha1",
+    "chart.js": "^4.2.0",
+    "pinia": "^2.0.29",
+    "rainbowvis.js": "^1.1.1",
+    "vue": "^3.2.45"
+  },
+  "devDependencies": {
+    "@types/bootstrap": "^5.2.6",
+    "@vitejs/plugin-vue": "^4.0.0",
+    "typescript": "^4.9.3",
+    "vite": "^4.2.1",
+    "vue-tsc": "^1.0.11"
+  }
+}

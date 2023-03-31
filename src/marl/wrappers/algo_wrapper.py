@@ -1,6 +1,6 @@
 import numpy as np
 from rlenv import Observation, Transition, Episode
-from marl import RLAlgo
+from marl.models import RLAlgo
 
 
 class AlgoWrapper(RLAlgo):

@@ -16,8 +16,8 @@ class VanillaQLearning(QLearning):
         lr=0.1,
         gamma=0.99,
     ):
-        train_policy = defaults_to(train_policy, DecreasingEpsilonGreedy(decrease_amount=5e-4))
-        test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        train_policy = defaults_to(train_policy, lambda: DecreasingEpsilonGreedy(decrease_amount=5e-4))
+        test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
         super().__init__(train_policy, test_policy, gamma)
         self.lr = lr
         self.qtable: dict[int, np.ndarray[np.float32]] = {}
@@ -96,7 +96,7 @@ class ReplayTableQLearning(VanillaQLearning):
         batch_size=64
     ):
         super().__init__(train_policy, test_policy, lr, gamma)
-        self.memory = defaults_to(replay_memory, TransitionMemory(50_000))
+        self.memory = defaults_to(replay_memory, lambda: TransitionMemory(50_000))
         self.batch_size = batch_size
 
     def batch_get(self, obs_data: np.ndarray, n_actions: int) -> np.ndarray[np.float32]:

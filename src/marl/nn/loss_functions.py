@@ -17,7 +17,7 @@ def mse(predicted: torch.Tensor, targets: torch.Tensor, batch: Batch):
     loss = (predicted - targets)**2
     if batch.is_weights is not None:
         if loss.shape != batch.is_weights.shape:
-            batch.is_weights= batch.is_weights.reshape_as(loss)
+            batch.is_weights= batch.is_weights.view_as(loss)
         loss = loss * batch.is_weights
     return torch.mean(loss)
 

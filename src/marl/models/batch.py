@@ -50,7 +50,7 @@ class Batch:
         masks = torch.tensor(np.array([e.mask for e in episodes])).transpose(1, 0)
         states = torch.tensor(np.array([e.states[:-1] for e in episodes])).transpose(1, 0)
         states_ = torch.tensor(np.array([e.states[1:] for e in episodes])).transpose(1, 0)
-        _, _, n_agents, n_actions = available_actions_.shape[-1]
+        *_, n_agents, n_actions = available_actions_.shape
         return Batch(
             size=size,
             max_episode_len=max_episode_len,
@@ -154,9 +154,9 @@ class Batch:
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones and masks such that each agent has its own (identical) signal."""
-        self.rewards = self.rewards.repeat_interleave(self.n_agents).reshape(*self.rewards.shape, self.n_agents)
-        self.dones = self.dones.repeat_interleave(self.n_agents).reshape(*self.dones.shape, self.n_agents)
-        self.masks = self.masks.repeat_interleave(self.n_agents).reshape(*self.masks.shape, self.n_agents)
+        self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
+        self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
+        self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
     def for_rnn(self) -> "Batch":
