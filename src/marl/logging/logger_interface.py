@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Union, overload
+from typing import Literal
 import os
 import shutil
 import time
@@ -27,22 +27,17 @@ class Logger(ABC):
         self.quiet = quiet
 
     @abstractmethod
-    def log(self, tag: str, data: Metrics, time_step: int):
+    def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
         """Log the data."""
 
-    def log_print(self, tag: str, data: Metrics, time_step: int):
+    def log_print(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
         """Log to TensorBoard and add the data to the printing queue."""
         self.log(tag, data, time_step)
         if not self.quiet:
             self.print(tag, data)
 
-    @abstractmethod
-    def print(self, tag: str, data: Metrics):
+    def print(self, tag: Literal["train", "test"], data: Metrics):
         """Add the data to the printing queue."""
+        if not self.quiet:
+            print(f"{tag}: {data}")
 
-    @abstractmethod
-    def flush(self, prefix: str|None = None):
-        """
-        Flush the printing queue.
-        If any, prepends the given prefix to the printing queue.
-        """
