@@ -167,6 +167,17 @@ class PolicyNetworkMLP(LinearNN):
         return self.nn.forward(obs)
 
 
+class LinearCombination(LinearNN):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...] | None, output_shape: tuple[int, ...]):
+        assert len(extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.nn = torch.nn.Linear(input_shape[0] + extras_shape[0], output_shape[0])
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
+        if extras is not None:
+            obs = torch.cat((obs, extras), dim=-1)
+        return self.nn.forward(obs)
+
 def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: list[int]):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
     channels, height, width = input_shape

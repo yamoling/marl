@@ -2,6 +2,7 @@ import os
 import json
 import time
 import shutil
+import polars as pl
 from dataclasses import dataclass
 from copy import deepcopy
 from typing import Literal
@@ -10,9 +11,8 @@ from rlenv.models import RLEnv, Metrics, EpisodeBuilder, Transition
 from rlenv import wrappers
 import laser_env
 from marl import logging
-from marl.wrappers import ReplayWrapper
-from marl.utils import encode_b64_image, ExperimentAlreadyExistsException
-from marl.qlearning import IQLearning
+from marl.qlearning import IDeepQLearning
+from marl.utils import encode_b64_image, defaults_to, exceptions
 
 from .runner import Runner
 from .algo import RLAlgo
@@ -21,36 +21,60 @@ from .run import Run
 
 
 @dataclass
+class Dataset:
+    label: str
+    mean: list[float]
+    std: list[float]
+
+    def to_json(self) -> dict:
+        return {
+            "label": self.label,
+            "mean": self.mean,
+            "std": self.std,
+        }
+
+
+@dataclass
 class Experiment:
     logdir: str
-    _runs: list[Run]
-    _summary: dict[str, ]
-    _algo: RLAlgo | None = None
-    _env: RLEnv | None = None
+    runs: list[Run]
+    algo: RLAlgo
+    env: RLEnv
+    test_env: RLEnv
+    n_steps: int
+    test_interval: int
 
-    def __init__(self, logdir: str, summary: dict[str, ]=None, algo: RLAlgo=None, env: RLEnv=None):
+    def __init__(
+        self,
+        logdir: str,
+        algo: RLAlgo,
+        env: RLEnv,
+        test_env: RLEnv,
+        n_steps: int,
+        test_interval: int,
+    ):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
-        if summary is None:
-            assert algo is not None and env is not None
-            summary = {
-                "algorithm": algo.summary(),
-                "env": env.summary(),
-                "logdir": logdir,
-                "timestamp_ms": int(time.time())
-            }
-        # Update the logdir in the summary in case the experiment has been manually moved.
-        summary["logdir"] = logdir
-        self._runs = [Run(os.path.join(logdir, run)) for run in os.listdir(logdir) if run.startswith("run_")]
-        # Update the runs in the summary
-        summary["runs"] = [run.to_json() for run in self._runs]
+        self.runs = [
+            Run.load(os.path.join(logdir, run))
+            for run in os.listdir(logdir)
+            if run.startswith("run_")
+        ]
         self.logdir = logdir
-        self._algo = algo
-        self._env = env
-        self._summary = summary
-        
+        self.algo = algo
+        self.env = env
+        self.test_env = test_env
+        self.n_steps = n_steps
+        self.test_interval = test_interval
 
     @staticmethod
-    def create(logdir: str, algo: RLAlgo, env: RLEnv) -> "Experiment":
+    def create(
+        logdir: str,
+        algo: RLAlgo,
+        env: RLEnv,
+        n_steps: int,
+        test_interval: int = None,
+        test_env: RLEnv = None,
+    ) -> "Experiment":
         """Create a new experiment."""
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
@@ -58,32 +82,102 @@ class Experiment:
             # Remove the test and debug logs
             if logdir in ["logs/test", "logs/debug", "logs/tests"]:
                 shutil.rmtree(logdir)
-        except FileNotFoundError: pass
+        except FileNotFoundError:
+            pass
         try:
             os.makedirs(logdir, exist_ok=False)
+            test_interval = defaults_to(test_interval, lambda: n_steps // 100)
+            test_env = defaults_to(test_env, lambda: deepcopy(env))
+            experiment = Experiment(
+                logdir,
+                algo=algo,
+                env=env,
+                test_env=test_env,
+                n_steps=n_steps,
+                test_interval=test_interval,
+            )
+            experiment.save()
+            return experiment
         except FileExistsError:
-            raise ExperimentAlreadyExistsException(logdir)
-        experiment =  Experiment(logdir, None, algo=algo, env=env)
-        experiment.save()
-        return experiment
+            raise exceptions.ExperimentAlreadyExistsException(logdir)
+        except Exception as e:
+            # In case the experiment could not be created for another reason, remove its directory
+            shutil.rmtree(logdir, ignore_errors=True)
+            raise e
 
     @staticmethod
     def load(logdir: str) -> "Experiment":
         """Load an existing experiment."""
-        with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
-            summary = json.load(f)
-        return Experiment(logdir, summary)
-    
+        try:
+            with open(
+                os.path.join(logdir, "experiment.json"), "r", encoding="utf-8"
+            ) as f:
+                summary = json.load(f)
+            from marl import qlearning
+
+            algo = qlearning.from_summary(summary["algorithm"])
+            env = restore_env(summary["env"])
+            test_env = restore_env(summary["test_env"])
+            n_steps = summary["n_steps"]
+            test_interval = summary["test_interval"]
+            return Experiment(
+                logdir,
+                algo=algo,
+                env=env,
+                test_env=test_env,
+                n_steps=n_steps,
+                test_interval=test_interval,
+            )
+        except KeyError as e:
+            raise exceptions.ExperimentVersionMismatch(e.args[0])
+
+    def summary(self) -> dict[str,]:
+        return {
+            "algorithm": self.algo.summary(),
+            "env": self.env.summary(),
+            "test_env": self.test_env.summary(),
+            "logdir": self.logdir,
+            "timestamp_ms": int(time.time() * 1000),
+            "n_steps": self.n_steps,
+            "test_interval": self.test_interval,
+            "runs": [run.to_json() for run in self.runs],
+        }
+
     def save(self):
         os.makedirs(self.logdir, exist_ok=True)
         with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
-            json.dump(self._summary, f)
+            json.dump(self.summary(), f)
 
-    def create_runner(self, logger: Literal["web", "tensorboard", "both"]="both", checkpoint: str=None, seed: int=None, forced_rundir: str=None, quiet=True) -> Runner:
+    def create_runner(
+        self,
+        *loggers: Literal["web", "tensorboard", "csv"],
+        checkpoint: str = None,
+        seed: int = None,
+        forced_rundir: str = None,
+        quiet=True,
+    ) -> Runner:
         if forced_rundir is not None:
             rundir = forced_rundir
         else:
             rundir = os.path.join(self.logdir, f"run_{time.time()}")
+        os.makedirs(rundir, exist_ok=False)
+        if len(loggers) == 0:
+            loggers = ["web", "tensorboard", "csv"]
+        logger_list = []
+        for logger in loggers:
+            match logger:
+                case "web":
+                    logger_list.append(logging.WSLogger(rundir))
+                case "tensorboard":
+                    logger_list.append(logging.TensorBoardLogger(rundir, quiet=quiet))
+                case "csv":
+                    logger_list.append(
+                        logging.CSVLogger(rundir, quiet, flush_interval=30)
+                    )
+                case other:
+                    raise ValueError(f"Unknown logger: {other}")
+        logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
+
         algo = deepcopy(self.algo)
         env = deepcopy(self.env)
         if checkpoint is not None:
@@ -92,32 +186,25 @@ class Experiment:
                 shutil.copytree(checkpoint, rundir)
             except FileExistsError:
                 pass
-        match logger:
-            case "web": logger = logging.WSLogger(rundir, quiet)
-            case "tensorboard": logger = logging.TensorBoardLogger(rundir, quiet)
-            case "both": logger = logging.MultiLogger(
-                    rundir,
-                    logging.WSLogger(rundir),
-                    logging.TensorBoardLogger(rundir),
-                    quiet=quiet
-                )
-        if issubclass(algo.__class__, IQLearning):
-            algo=ReplayWrapper(algo, rundir)
+
         runner = Runner(
             env=env,
             algo=algo,
-            logger=logger
+            logger=logger,
+            n_steps=self.n_steps,
+            start_step=0,
+            test_interval=self.test_interval,
         )
         if seed is not None:
             runner.seed(seed)
-        self._runs.append(Run(rundir))
+        self.runs.append(Run.create(rundir))
         return runner
 
     def stop_runner(self, rundir: str):
         """Stops the runner at the given rundir."""
-        for i, run in enumerate(self._runs):
+        for i, run in enumerate(self.runs):
             if run.rundir == rundir:
-                run = self._runs.pop(i)
+                run = self.runs.pop(i)
                 run.stop()
                 return
         # If the run was not found, raise an error
@@ -125,90 +212,122 @@ class Experiment:
 
     def restore_runner(self, rundir: str):
         """Retrieve the runner state and restart it if it is not running"""
-        run = Run(rundir)
+        run = Run.load(rundir)
         if run.is_running:
             raise ValueError("This run is already running.")
-        runner = self.create_runner(checkpoint=run.latest_checkpoint, logger="both", forced_rundir=rundir)
+        runner = self.create_runner(
+            "csv",
+            "web",
+            "tensorboard",
+            checkpoint=run.latest_checkpoint,
+            forced_rundir=rundir,
+        )
         runner._current_step = run.current_step
         return runner
 
     def delete_run(self, rundir: str):
-        for i, run in enumerate(self._runs):
+        for i, run in enumerate(self.runs):
             if run.rundir == rundir:
-                run = self._runs.pop(i)
+                run = self.runs.pop(i)
                 run.delete()
-        # If the run was not found, raise an error        
+        # If the run was not found, raise an error
         raise ValueError("This rundir does not exist.")
-    
+
     @property
     def train_dir(self) -> str:
         return os.path.join(self.logdir, "train")
-    
+
     @property
     def test_dir(self) -> str:
         return os.path.join(self.logdir, "test")
-    
-    def test_metrics(self) -> dict[str, Metrics]:
-        metrics: dict[str, list[Metrics]] = {}
-        for run in self._runs:
-            for time_step, m in run.test_metrics().items():
-                # Add the metric to the others of the same time step
-                if time_step not in metrics:
-                    metrics[time_step] = [m]
-                else:
-                    metrics[time_step].append(m)
-        return {episode: Metrics.agregate(m, only_avg=True) for episode, m in metrics.items()}
-    
+
+    @staticmethod
+    def _metrics(df: pl.DataFrame) -> tuple[list[int], list[Dataset]]:
+        df = df.drop("timestamp_sec")
+        df_mean = (
+            df.groupby("time_step")
+            .agg(
+                [
+                    pl.mean(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
+            .sort("time_step")
+        )
+        df_std = (
+            df.groupby("time_step")
+            .agg(
+                [
+                    pl.std(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
+            .sort("time_step")
+        )
+        res = []
+        for col in df_mean.columns:
+            if col == "time_step":
+                continue
+            res.append(
+                Dataset(
+                    label=col, mean=df_mean[col].to_list(), std=df_std[col].to_list()
+                )
+            )
+        return df_mean["time_step"].to_list(), res
+
+    def test_metrics(self):
+        df = pl.concat(run.test_metrics for run in self.runs)
+        return self._metrics(df)
+
+    def train_metrics(self):
+        # TODO: train time steps will be different from one run to the other
+        # We should group them by time step ranges (10? 30? batch size?)
+        # To do so, divide the time step by the group size and round it.
+        # Then, group by the rounded value and multiply by the group size.
+        df = pl.concat(run.train_metrics for run in self.runs)
+        return self._metrics(df)
+
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         summary = []
-        for run in self._runs:
+        for run in self.runs:
             summary += run.get_test_episodes(time_step)
         return summary
 
-    @staticmethod
-    def replay_episode(episode_folder: str) -> ReplayEpisode:
-        with (open(os.path.join(episode_folder, "qvalues.json"), "r") as q, 
-              open(os.path.join(episode_folder, "metrics.json"), "r") as m,
-              open(os.path.join(episode_folder, "actions.json"), "r") as a,
-              open(os.path.join(episode_folder, "env.json"), "r") as e
+    def replay_episode(self, episode_folder: str) -> ReplayEpisode:
+        # Actions must be loaded because of the stochasticity of the policy
+        with (
+            open(os.path.join(episode_folder, "actions.json"), "r") as a,
+            open(os.path.join(episode_folder, "env.json"), "r") as e,
         ):
-            qvalues = json.load(q)
-            metrics = json.load(m)
             actions = json.load(a)
             env_summary = json.load(e)
+
+        self.algo.load(os.path.dirname(episode_folder))
         env = restore_env(env_summary, force_static=True)
         obs = env.reset()
-        frames = [encode_b64_image(env.render('rgb_array'))]
+        frames = [encode_b64_image(env.render("rgb_array"))]
         episode = EpisodeBuilder()
+        qvalues = []
         for action in actions:
+            if isinstance(self.algo, IDeepQLearning):
+                qvalues.append(self.algo.compute_qvalues(obs).tolist())
             obs_, reward, done, info = env.step(action)
             episode.add(Transition(obs, action, reward, done, info, obs_))
-            frames.append(encode_b64_image(env.render('rgb_array')))
+            frames.append(encode_b64_image(env.render("rgb_array")))
             obs = obs_
+        episode = episode.build()
         return ReplayEpisode(
-            directory=episode_folder, 
-            episode=episode.build(), 
-            qvalues=qvalues, 
-            frames=frames, 
-            metrics=Metrics(**metrics)
+            directory=episode_folder,
+            episode=episode,
+            qvalues=qvalues,
+            frames=frames,
+            metrics=episode.metrics,
         )
 
 
-    ###  Lazy loaded properties ###
-    @property
-    def algo(self):
-        if self._algo is None:
-            from marl import qlearning
-            self._algo = qlearning.from_summary(self._summary["algorithm"])
-        return self._algo
-    
-    @property
-    def env(self):
-        if self._env is None:
-            self._env = restore_env(self._summary["env"])
-        return self._env
-
-def restore_env(env_summary: dict[str, ], force_static=False) -> RLEnv:
+def restore_env(env_summary: dict[str,], force_static=False) -> RLEnv:
     if force_static:
         env = laser_env.StaticLaserEnv.from_summary(env_summary)
     else:
@@ -217,5 +336,6 @@ def restore_env(env_summary: dict[str, ], force_static=False) -> RLEnv:
                 env = laser_env.DynamicLaserEnv.from_summary(env_summary)
             case laser_env.StaticLaserEnv.__name__:
                 env = laser_env.StaticLaserEnv.from_summary(env_summary)
-            case other: raise NotImplementedError(f"Cannot restore env {other}")
+            case other:
+                raise NotImplementedError(f"Cannot restore env {other}")
     return wrappers.from_summary(env, env_summary)

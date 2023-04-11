@@ -15,8 +15,10 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         logger: Logger,
+        n_steps: int,
+        test_interval: int,
         test_env: RLEnv=None,
-        start_step=0
+        start_step=0,
     ):
         self._env = env
         self._test_env = defaults_to(test_env, lambda: deepcopy(env))
@@ -29,25 +31,24 @@ class Runner:
         self._episode_builder = None
         self._episode_num = 0
         self._obs: Observation | None = None
+        self._n_steps = n_steps
+        self._test_interval = test_interval
 
     def _before_train_episode(self):
         self._episode_builder = EpisodeBuilder()
         self._obs = self._env.reset()
         self._algo.before_train_episode(self._episode_num)
-        directory = os.path.join(self.rundir, "train", f"{self._episode_num}")
-        os.makedirs(directory, exist_ok=True)
-        with open(os.path.join(directory, "env.json"), "w") as f:
-            json.dump(self._env.summary(), f)
 
-    def train(self, n_steps: int, test_interval: int=200, n_tests: int=10, quiet=False) -> str:
+    def train(self, n_tests: int, quiet=False) -> str:
         """Start the training loop"""
-        stop = self._current_step + n_steps
-        self.write_summary(stop)
+        with open(os.path.join(self.rundir, "pid"), "w") as f:
+            f.write(str(os.getpid()))
+        stop = self._current_step + self._n_steps
         if self._episode_num == 0:
             self._before_train_episode()
         for i in tqdm(range(self._current_step, stop), desc="Training", unit="Step", leave=True, disable=quiet):
             self._current_step = i
-            if self._current_step % test_interval == 0:
+            if self._current_step % self._test_interval == 0:
                 self.test(n_tests, quiet=quiet)
             if self._episode_builder.is_done:
                 episode = self._episode_builder.build()
@@ -62,10 +63,14 @@ class Runner:
             self._episode_builder.add(transition)
             self._obs = obs_
             self._current_step += 1
+        if self._current_step % self._test_interval == 0:
+            self.test(n_tests, quiet=quiet)
 
     def test(self, ntests: int, quiet=False):
         """Test the agent"""
         self._algo.before_tests(self._current_step)
+        test_dir = os.path.join(self.rundir, "test", f"{self._current_step}")
+        self._algo.save(test_dir)
         episodes: list[Episode] = []
         for i in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             self._algo.before_test_episode(self._current_step, i)
@@ -79,29 +84,18 @@ class Runner:
                 obs = new_obs
             episode = episode.build()
             self._algo.after_test_episode(self._current_step, i, episode)
-            directory = os.path.join(self.rundir, "test", f"{self._current_step}", f"{i}")
-            os.makedirs(directory, exist_ok=True)
-            with open(os.path.join(directory, "env.json"), "w") as f:
-                json.dump(self._test_env.summary(), f)
+            self._save_test_episode(os.path.join(test_dir, f"{i}"), episode)
+            self._logger.log("test", episode.metrics, self._current_step)
             episodes.append(episode)
-        # Log test metrics
-        metrics = Episode.agregate_metrics(episodes)
-        self._logger.log_print("test", metrics, self._current_step)
-        if metrics.score > self._best_score:
-            self._best_score = metrics.score
-            self._algo.save(f"{self._checkpoint}-{self._current_step}-score-{self._best_score:.3f}")
         self._algo.after_tests(episodes, self._current_step)
 
-    def write_summary(self, stop: int):
-        with open(os.path.join(self.rundir, "run.json"), "w") as f:
-            json.dump({
-                "current_step": self._current_step,
-                "stop_step": stop,
-            }, f)
-        with open(os.path.join(self.rundir, "pid"), "w") as f:
-            f.write(str(os.getpid()))
+    def _save_test_episode(self, directory: str, episode: Episode):
+        os.makedirs(directory, exist_ok=True)
+        with (open(os.path.join(directory, "env.json"), "w") as e,
+              open(os.path.join(directory, "actions.json"), "w") as a):
+            json.dump(self._test_env.summary(), e)
+            json.dump(episode.actions.tolist(), a)
 
-    
 
     def seed(self, seed_value: int):
         self._seed = seed_value
@@ -123,9 +117,7 @@ class Runner:
 
     def __del__(self):
         self._logger.__del__()
-        with open(os.path.join(self.rundir, "run.json"), "r") as f:
-            data = json.load(f)
-        data["current_step"] = self._current_step
-        with open(os.path.join(self.rundir, "run.json"), "w") as f:
-            json.dump(data, f)
-        os.remove(os.path.join(self.rundir, "pid"))
+        try:
+            os.remove(os.path.join(self.rundir, "pid"))
+        except FileNotFoundError:
+            pass

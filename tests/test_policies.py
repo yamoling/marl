@@ -3,7 +3,7 @@ import marl
 
 
 def test_softmax():
-    p = marl.policy.SoftmaxPolicy([0, 1, 2], 1.)
+    p = marl.policy.SoftmaxPolicy(3, 1.)
     available_actions = np.array([
         [1, 1, 0],
         [0, 0, 1]

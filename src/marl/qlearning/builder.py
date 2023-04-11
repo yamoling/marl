@@ -53,6 +53,7 @@ class DeepQBuilder:
         return self
         
     def qnetwork_default(self, env: RLEnv):
+        assert self._qnetwork is None, "QNetwork is already set"
         if self._is_recurrent:
             if len(env.observation_shape) == 1:
                 self._qnetwork = model_bank.RNNQMix.from_env(env)

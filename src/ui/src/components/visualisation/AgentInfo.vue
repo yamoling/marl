@@ -4,6 +4,7 @@
         <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obsRelativePos" />
         <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
         <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
+        <Features v-else-if="obsType == 'FEATURES'" :obs="obsRelativePos" :extras="extras" />
         <p v-else> No preview available for obs type {{ obsType }}</p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
@@ -38,7 +39,7 @@ import RelativePositions from "./observation/RelativePositions.vue";
 import Layered from "./observation/Layered.vue";
 import Flattened from "./observation/Flattened.vue";
 import { ExperimentInfo } from "../../models/Infos";
-import Policy from "./Policy.vue";
+import Features from "./observation/Features.vue";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
 

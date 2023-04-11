@@ -3,13 +3,12 @@ from flask import request
 from .messages import MemoryConfig, ExperimentConfig, GeneratorConfig, RunConfig, TrainConfig
 from marl.server import app, state
 from marl.utils import CorruptExperimentException
-from . import replay
+from marl.utils import exceptions
 
 
-@app.route("/replay/episode/<path:path>")
+@app.route("/experiment/replay/<path:path>")
 def get_episode(path: str):
-    # Security issue here !
-    return replay.get_episode(path).to_json()
+    return state.replay_episode(path).to_json()
 
 @app.route("/experiment/test/list/<time_step>/<path:directory>", methods=["GET"])
 def list_test_episodes(time_step: str, directory: str):
@@ -57,23 +56,34 @@ def create_experiment():
     train_config = ExperimentConfig(**data)
     try:
         exp = state.create_experiment(train_config)
-        return exp._summary
+        return exp.summary()
     except Exception as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
     
 
 @app.route("/experiment/list")
 def list_experiments():
-    return {logdir: e._summary for logdir, e in state.list_experiments().items()}
+    try:
+        return [e.summary() for e in state.list_experiments().values()]
+    except exceptions.ExperimentVersionMismatch as e:
+        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
 @app.route("/experiment/load/<path:logdir>", methods=["GET"])
 def load_experiment(logdir: str):
     try:
         experiment = state.load_experiment(logdir)
-        return {
-            **experiment._summary,
-            "test_metrics": experiment.test_metrics(),
+        res = experiment.summary()
+        time_steps, datasets = experiment.test_metrics()
+        res["test_metrics"] = {
+            "time_steps": time_steps,
+            "datasets": [d.to_json() for d in datasets],
         }
+        time_steps, datasets = experiment.train_metrics()
+        res["train_metrics"] = {
+            "time_steps": time_steps,
+            "datasets": [d.to_json() for d in datasets],
+        }
+        return res
     except CorruptExperimentException as e:
         print(e)
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR

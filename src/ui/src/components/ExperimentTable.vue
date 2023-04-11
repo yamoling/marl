@@ -7,29 +7,16 @@
                     <thead>
                         <tr>
                             <th class="px-1"> # Step </th>
-                            <th class="px-1"> Length</th>
-                            <th class="px-1"> Score </th>
-                            <th class="px-1"> Gems </th>
-                            <th class="px-1"> Elevator</th>
-                            <th> </th>
+                            <th v-for="col in columns" class="text-capitalize"> {{ col.replaceAll('_', ' ') }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="[time_step, metrics] in experiment.test_metrics" @click="() => onTestClicked(time_step)"
+                        <tr v-for="(time_step, i) in experiment.test_metrics.time_steps"
+                            @click="() => onTestClicked(time_step)"
                             :class="(time_step == selectedTimeStep) ? 'selected' : ''">
                             <td> {{ time_step }} </td>
-                            <td> {{ metrics.avg_episode_length?.toFixed(3) }}</td>
-                            <td> {{ metrics.avg_score?.toFixed(3) }} </td>
-                            <td> {{ metrics.avg_gems_collected?.toFixed(3) }}</td>
-                            <td> {{ metrics.avg_in_elevator?.toFixed(3) }}</td>
-                            <td @click.stop="loadModel" style="cursor: pointer; padding-right: 10px;"
-                                title="Load this model">
-                                <font-awesome-icon class="text-warning" icon="bolt" />
-                            </td>
-                        </tr>
-                        <tr v-if="isTraining">
-                            <td colspan="6">
-                                <font-awesome-icon icon="spinner" spin />
+                            <td v-for="(col, j) in columns">
+                                {{ experiment.test_metrics.datasets[j].mean[i]?.toFixed(3) }}
                             </td>
                         </tr>
                     </tbody>
@@ -50,7 +37,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="testsAtStep.length == 0">
+                        <tr v-if="testsAtStep == null">
                             <td colspan="5">
                                 <font-awesome-icon icon="spinner" spin />
                             </td>
@@ -73,16 +60,18 @@ import { ref } from 'vue';
 import type { ReplayEpisodeSummary } from "../models/Episode";
 import { Experiment } from '../models/Experiment';
 import { useExperimentStore } from '../stores/ExperimentStore';
+import { computed } from '@vue/reactivity';
 
 
 const props = defineProps<{
     experiment: Experiment
-    isTraining: boolean
 }>();
 
 const store = useExperimentStore();
-const selectedTimeStep = ref(null as string | null);
-const testsAtStep = ref([] as ReplayEpisodeSummary[]);
+const selectedTimeStep = ref(null as number | null);
+const testsAtStep = ref(null as ReplayEpisodeSummary[] | null);
+const columns = computed(() => props.experiment.test_metrics.datasets.map(d => d.label));
+
 // const trainList = computed(() => {
 //     // Only take the first 100 items
 //     return props.experiment.train.slice(trainOffset.value, 100 + trainOffset.value);
@@ -90,12 +79,12 @@ const testsAtStep = ref([] as ReplayEpisodeSummary[]);
 
 
 
-async function onTestClicked(time_step: string) {
+async function onTestClicked(time_step: number) {
     selectedTimeStep.value = time_step;
-    testsAtStep.value = [];
+    testsAtStep.value = null;
     try {
-        const tests = await store.getTestEpisodes(props.experiment.logdir, Number.parseInt(time_step));
-        console.log(tests)
+        const tests = await store.getTestEpisodes(props.experiment.logdir, time_step);
+        console.log(tests);
         testsAtStep.value = tests;
     } catch (e) {
         selectedTimeStep.value = null;

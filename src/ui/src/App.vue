@@ -4,11 +4,13 @@
     <header class="row mb-1">
       <h1 class="col"> Experiment manager</h1>
     </header>
-    <Tabs ref="tabs" @tab-delete="onTabDeleted" />
+    <Tabs ref="tabs" @tab-delete="onTabDeleted" @tab-change="onTabChanged" />
     <Home v-show="tabs.currentTab == 'Home'" @experiment-selected="onExperimentSelected"
-      @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()" />
+      @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()"
+      @compare-experiments="compareExperiments" />
     <ExperimentMain v-for="logdir in openedLogdirs" v-show="logdir == tabs.currentTab" :logdir="logdir"
       @close-experiment="tabs.deleteTab" />
+    <ExperimentComparison ref="comparison" v-show="tabs.currentTab == 'Compare'" />
   </main>
 </template>
 
@@ -22,9 +24,12 @@ import ExperimentMain from './components/ExperimentMain.vue';
 import { useExperimentStore } from './stores/ExperimentStore';
 import ExperimentConfig from './components/modals/ExperimentConfig.vue';
 import { Modal } from 'bootstrap';
+import ExperimentComparison from './components/charts/ExperimentComparison.vue';
+import type { IExperimentComparison } from './components/charts/ExperimentComparison.vue';
 
 
 const tabs = ref({} as ITabs);
+const comparison = ref({} as IExperimentComparison);
 const openedLogdirs = ref([] as string[]);
 const experimentStore = useExperimentStore();
 let modal = {} as Modal;
@@ -38,8 +43,20 @@ function onExperimentSelected(logdir: string) {
 }
 
 function onTabDeleted(logdir: string) {
+  if (logdir == "Compare") return
   openedLogdirs.value.splice(openedLogdirs.value.indexOf(logdir), 1);
   experimentStore.unloadExperiment(logdir);
+}
+
+function onTabChanged(tabName: string) {
+  if (tabName == "Home") {
+    experimentStore.refresh();
+  }
+}
+
+function compareExperiments() {
+  comparison.value.update(experimentStore.experimentInfos);
+  tabs.value.changeTab("Compare");
 }
 
 onMounted(() => {

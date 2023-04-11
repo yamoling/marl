@@ -3,7 +3,7 @@ import os
 import laser_env
 import rlenv
 import shutil
-from marl.models import Experiment, ReplayEpisodeSummary, Run
+from marl.models import Experiment, ReplayEpisodeSummary, Run, ReplayEpisode
 from marl.utils import EmptyForcedActionsException
 import marl
 
@@ -39,7 +39,7 @@ class ServerState:
             experiment = self.unload_experiment(logdir)
             if experiment is None:
                 experiment = Experiment.load(logdir)
-            for run in experiment._runs:
+            for run in experiment.runs:
                 run.stop()
             shutil.rmtree(logdir)
         except FileNotFoundError:
@@ -79,7 +79,7 @@ class ServerState:
             print("Started process")
             # p.join()
             # print("Joined process")
-    
+
     def stop_runner(self, rundir: str):
         logdir = os.path.dirname(rundir)
         if logdir not in self.experiments:
@@ -102,11 +102,23 @@ class ServerState:
     def get_test_episodes_at(self, logdir: str, time_step: int) -> list[ReplayEpisodeSummary]:
         if logdir not in self.experiments:
             raise ValueError(f"Experiment {logdir} not found")
-        return self.experiments[logdir].get_test_episodes(time_step)
+        res = self.experiments[logdir].get_test_episodes(time_step)
+        return res
     
     def get_runner_port(self, rundir: str) -> int:
-        run = Run(rundir)
+        run = Run.load(rundir)
         return run.get_port()
+
+    def replay_episode(self, episode_dir: str) -> ReplayEpisode:
+        longest_match = ""
+        matching_experiment = None
+        for logdir, experiment in self.experiments.items():
+            if episode_dir.startswith(logdir) and len(logdir) > len(longest_match):
+                longest_match = logdir
+                matching_experiment = experiment
+        if matching_experiment is None:
+            raise ValueError(f"Could not find experiment for episode {episode_dir}")
+        return matching_experiment.replay_episode(episode_dir)
 
     @staticmethod
     def _create_env(config: ExperimentConfig):

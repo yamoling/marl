@@ -30,9 +30,16 @@ export interface ITabs {
 
 const tabs = ref(["Home"]);
 const currentTab = ref(tabs.value[0]);
-const emit = defineEmits(["tabChange", "tabDelete"]);
+const emit = defineEmits<{
+    (event: "tabChange", newTab: string): void,
+    (event: "tabDelete", tabName: string): void
+}>();
+// (["tabChange", "tabDelete"]);
 
 function changeTab(newTab: string) {
+    if (!tabs.value.includes(newTab)) {
+        tabs.value.push(newTab);
+    }
     currentTab.value = newTab;
     emit("tabChange", newTab);
 }

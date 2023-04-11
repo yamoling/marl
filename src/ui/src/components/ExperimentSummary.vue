@@ -3,7 +3,7 @@
         <span class="badge rounded-pill text-bg-success col-auto me-1" v-for="env in envBadges"> {{ env }}</span>
         <span class="badge rounded-pill text-bg-secondary col-auto me-1" v-for="wrapper in experiment.env.wrappers"> {{
             wrapper }}</span>
-        <span class="badge rounded-pill text-bg-warning col-auto me-1" v-for="algo in algoBadges"> {{ algo }}</span>
+        <span class="badge rounded-pill text-bg-warning col-auto me-1" v-for="algo in algoBadges"> {{ algo }} </span>
         <span class="badge rounded-pill text-bg-info col-auto" style="cursor: pointer;" @click="showParameters"> See all
         </span>
         <ExperimentParameters id="paramsModal" :experiment="experiment" />
@@ -30,7 +30,7 @@ const envBadges = computed(() => {
 });
 const algoBadges = computed(() => {
     const res = [
-        props.experiment.algorithm.name,
+        `${props.experiment.algorithm.name}(${props.experiment.algorithm.qnetwork.name})`,
         "Train: " + props.experiment.algorithm.train_policy.name,
         "Test: " + props.experiment.algorithm.test_policy.name,
     ]

@@ -4,7 +4,7 @@
             <table class="table table-striped table-hover">
                 <thead>
                     <tr>
-                        <th> Status </th>
+                        <th class="text-center"> Status </th>
                         <th class="sortable" @click="() => sortBy('logdir')">
                             Log directory
                             <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
@@ -26,53 +26,54 @@
                     </tr>
                 </thead>
                 <tbody style="cursor: pointer;">
-                    <tr v-for="[logdir, info] in experimentInfos" @click="() => selectExperiment(logdir)">
-                        <th>
+                    <tr v-for="info in experimentInfos" @click="() => loadExperiment(info.logdir)">
+                        <td class="text-center">
                             <font-awesome-icon v-if="info.runs.every((r => r.pid == null))" :icon="['fas', 'check']" />
                             <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
-                        </th>
-                        <td> {{ logdir }} </td>
+                        </td>
+                        <td> {{ info.logdir }} </td>
                         <td> {{ info.env.name }} </td>
                         <td> {{ info.algorithm.name }} </td>
                         <td> {{ info.algorithm.train_policy.name }} / {{ info.algorithm.test_policy.name }} </td>
-                        <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms * 1000).toLocaleString() : '' }} </td>
+                        <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms).toLocaleString() : '' }} </td>
                         <td>
-                            <button class="btn btn-sm btn-danger" :disabled="deleting.includes(logdir)"
-                                @click.stop="() => deleteExperiment(logdir)" title="Delete experiment">
-                                <font-awesome-icon v-if="deleting.includes(logdir)" :icon="['fas', 'spinner']" spin />
+                            <button class="btn btn-sm btn-danger" :disabled="deleting.includes(info.logdir)"
+                                @click.stop="() => deleteExperiment(info.logdir)" title="Delete experiment">
+                                <font-awesome-icon v-if="deleting.includes(info.logdir)" :icon="['fas', 'spinner']" spin />
                                 <font-awesome-icon v-else="" :icon="['fas', 'trash']" />
-                            </button>
-                        </td>
-                    </tr>
-                    <tr class="text-center">
-                        <td colspan="7">
-                            <!-- Add button -->
-                            <button style="width: 25%;" class="btn btn-success me-2"
-                                @click="() => emits('create-experiment')">
-                                Create a new experiment
-                                <font-awesome-icon class="ps-2" :icon="['fas', 'plus']" />
-                            </button>
-                            <button style="width: 25%" class="btn btn-outline-success ms-2"
-                                @click.stop="() => store.refresh()">
-                                Refresh
-                                <font-awesome-icon icon="fa-solid fa-sync" :spin="store.loading" />
                             </button>
                         </td>
                     </tr>
                 </tbody>
             </table>
         </div>
+        <div class="col-12 mt-2">
+            <div class="row text-center mx-5 px-5">
+                <button class="col mx-2 btn btn-info" @click="() => emits('compare-experiments')">
+                    Compare experiments
+                    <font-awesome-icon class="ps-2" :icon="['fas', 'chart-line']" />
+                </button>
+                <button class="col mx-2 btn btn-success" @click="() => emits('create-experiment')">
+                    Create a new experiment
+                    <font-awesome-icon class="ps-2" :icon="['fas', 'plus']" />
+                </button>
+                <button class="col mx-2 btn btn-outline-info" @click.stop="() => store.refresh()">
+                    Refresh
+                    <font-awesome-icon icon="fa-solid fa-sync" :spin="store.loading" />
+                </button>
+            </div>
+        </div>
     </div>
 </template>
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { ExperimentInfo } from '../models/Infos';
 import { useExperimentStore } from '../stores/ExperimentStore';
 
 const store = useExperimentStore();
 const deleting = ref([] as string[]);
 const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
+
 
 function deleteExperiment(logdir: string) {
     if (confirm(`Are you sure you want to delete experiment ${logdir}?`)) {
@@ -82,27 +83,31 @@ function deleteExperiment(logdir: string) {
     }
 }
 
-function selectExperiment(logdir: string) {
+function loadExperiment(logdir: string) {
     emits("experiment-selected", logdir);
 }
 
-const emits = defineEmits(["experiment-selected", "experiment-deleted", "create-experiment"]);
+const emits = defineEmits<{
+    (event: "experiment-selected", logdir: string): void
+    (event: "experiment-deleted", logdir: string): void
+    (event: "create-experiment"): void
+    (event: "compare-experiments"): void
+}>();
 
 const experimentInfos = computed(() => {
-    const entries = [] as [string, ExperimentInfo][];
-    store.experimentInfos.forEach((value, key) => entries.push([key, value]));
+    const entries = [...store.experimentInfos];
     switch (sortKey.value) {
         case "logdir":
-            entries.sort((a, b) => a[0].localeCompare(b[0]));
+            entries.sort((a, b) => a.logdir.localeCompare(b.logdir));
             break;
         case "env":
-            entries.sort((a, b) => a[1].env.name.localeCompare(b[1].env.name));
+            entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
             break;
         case "algo":
-            entries.sort((a, b) => a[1].algorithm.name.localeCompare(b[1].algorithm.name));
+            entries.sort((a, b) => a.algorithm.name.localeCompare(b.algorithm.name));
             break;
         case "date":
-            entries.sort((a, b) => a[1].timestamp_ms - b[1].timestamp_ms);
+            entries.sort((a, b) => a.timestamp_ms - b.timestamp_ms);
             break;
     }
     if (sortOrder.value === "DESCENDING") {

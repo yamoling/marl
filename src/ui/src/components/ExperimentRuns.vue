@@ -1,7 +1,5 @@
 <template>
     <div>
-        <RunConfig :id="runConfigModalID" :experiment="experiment" @run-started="onRunStart" />
-        <RunRestart :id="restartRunModalID" :run="runToRestart" @run-restarted="onRunRestart" />
         <h3 class="text-center">
             Runs
             <button class="btn btn-sm btn-success ms-4 px-3" @click="() => runConfigModal.show()">
@@ -58,6 +56,13 @@
                             </td>
                         </tr>
                     </template>
+                    <tr>
+                        <td colspan="3" class="text-center">
+                            <button class="btn btn-sm btn-outline-success ms-4 px-3" @click="createNewRunner">
+                                <font-awesome-icon :icon="['fas', 'plus']" />
+                            </button>
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -70,8 +75,6 @@ import { ReplayEpisodeSummary } from '../models/Episode';
 import { Experiment } from '../models/Experiment';
 import { RunInfo } from '../models/Infos';
 import { useRunnerStore } from '../stores/RunnerStore';
-import RunConfig from './modals/RunConfig.vue';
-import RunRestart from './modals/RunRestart.vue';
 
 let runConfigModal = {} as Modal;
 let restartRunModal = {} as Modal;
@@ -79,7 +82,6 @@ const runToRestart = ref(null as null | RunInfo);
 const store = useRunnerStore();
 // Map rundir to progress (from 0 to 100%).
 const progresses = ref(new Map<string, number>());
-const numSteps = new Map<string, number>();
 const runStatus = computed(() => {
     // Status is either paused, running or completed.
     return props.experiment.runs.map(r => {
@@ -97,19 +99,16 @@ const props = defineProps<{
 }>();
 const deleting = ref(props.experiment.runs.map(_ => false));
 const pausing = ref(props.experiment.runs.map(_ => false));
-const runConfigModalID = `${props.experiment.logdir}-runConfigModal`;
-const restartRunModalID = `${props.experiment.logdir}-restartRunModal`;
 
 
 onMounted(() => {
-    runConfigModal = new Modal("#" + runConfigModalID);
-    restartRunModal = new Modal("#" + restartRunModalID);
     updateListeners(props.experiment.runs);
 })
 
 function updateListeners(runs: RunInfo[]) {
+    const experimentSteps = props.experiment.n_steps;
     runs.forEach(run => {
-        progresses.value.set(run.rundir, run.current_step * 100 / run.stop_step);
+        progresses.value.set(run.rundir, run.current_step * 100 / experimentSteps);
         if (run.pid != null && run.port != null) {
             store.startListening(
                 run.rundir,
@@ -119,7 +118,6 @@ function updateListeners(runs: RunInfo[]) {
                 () => onClose(run.rundir)
             );
         }
-        numSteps.set(run.rundir, run.stop_step);
     });
 }
 
@@ -156,10 +154,7 @@ async function onRunRestart() {
 
 function onTrainUpdate(rundir: string, data: ReplayEpisodeSummary) {
     const step = Number.parseInt(data.name);
-    const numStep = numSteps.get(rundir);
-    if (numStep != null) {
-        progresses.value.set(rundir, 100 * step / numStep);
-    }
+    progresses.value.set(rundir, 100 * step / props.experiment.n_steps);
 }
 
 async function pauseRun(runNum: number, rundir: string) {
@@ -171,6 +166,21 @@ async function pauseRun(runNum: number, rundir: string) {
     }
 }
 
+
+async function createNewRunner() {
+    alert("TODO !");
+    return
+    // const runConfig = {
+    //     checkpoint: null,
+    //     logdir: props.experiment.logdir,
+    //     num_runs: nRuns.value,
+    //     num_tests: nTests.value,
+    //     test_interval: testInterval.value,
+    //     num_steps: nSteps.value,
+    //     use_seed: useSeed.value,
+    // } as RunConfig;
+    // store.createRunner(runConfig)
+}
 
 function onTestUpdate(rundir: string, data: ReplayEpisodeSummary) {
     emits("new-test", rundir, data);

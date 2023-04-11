@@ -1,19 +1,20 @@
 import { OBS_TYPES, POLICIES } from "../constants";
 
 export interface ExperimentInfo {
-    env: EnvInfo
     algorithm: AlgoInfo
-    seed: number | null
-    timestamp_ms: number
-    runs: RunInfo[]
+    env: EnvInfo
+    test_env: EnvInfo
     logdir: string
+    timestamp_ms: number
+    n_steps: number
+    test_interval: number
+    runs: RunInfo[]
 }
 
 export interface RunInfo {
     rundir: string
     port: number | null
     current_step: number
-    stop_step: number
     pid: number | null
 }
 

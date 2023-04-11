@@ -7,6 +7,7 @@ VDN optimises the sum of rewards instead of the individual rewards of each agent
 import torch
 from rlenv import Observation
 from marl.models import Batch
+from marl.nn import loss_functions
 from .rdqn import RDQN
 from .dqn import DQN
 
@@ -15,6 +16,9 @@ class RecurrentVDN(RDQN):
     def process_batch(self, batch: Batch) -> Batch:
         return batch.for_rnn()
     
+    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+        return loss_functions.masked_mse(qvalues, qtargets, batch)
+
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         next_qvalues, _ = self._qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
@@ -41,6 +45,9 @@ class RecurrentVDN(RDQN):
 class LinearVDN(DQN):
     def process_batch(self, batch: Batch) -> Batch:
         return batch
+    
+    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+        return loss_functions.masked_mse(qvalues, qtargets, batch)
 
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)

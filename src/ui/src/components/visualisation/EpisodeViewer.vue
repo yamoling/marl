@@ -111,6 +111,7 @@ function changeStep(event: KeyboardEvent) {
 }
 
 async function viewEpisode(episodeDirectory: string) {
+    episode.value = null;
     loading.value = true;
     (new Modal("#" + modal.value.id)).show()
     episode.value = await replayStore.getEpisode(episodeDirectory);

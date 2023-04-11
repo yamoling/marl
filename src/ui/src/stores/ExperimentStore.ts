@@ -7,22 +7,25 @@ import { ReplayEpisodeSummary } from "../models/Episode";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
 
-    const experimentInfos = ref(new Map() as Map<string, ExperimentInfo>);
+    const experimentInfos = ref([] as ExperimentInfo[]);
     const loading = ref(false);
 
-    function refresh() {
+    async function refresh() {
         loading.value = true;
-        fetch(`${HTTP_URL}/experiment/list`)
-            .then(resp => resp.json())
-            .then((infos: object) => {
-                for (const [key, value] of Object.entries(infos)) {
-                    const experiment = value;
-                    experiment.train = ref(value.train);
-                    experiment.test = ref(value.test);
-                    experimentInfos.value.set(key, experiment);
-                }
-                loading.value = false;
-            });
+        const resp = await fetch(`${HTTP_URL}/experiment/list`);
+        const infos = await resp.json();
+        experimentInfos.value = infos;
+        loading.value = false;
+        // .then(resp => resp.json())
+        // .then((infos: object) => {
+        //     for (const [key, value] of Object.entries(infos)) {
+        //         const experiment = value;
+        //         experiment.train = ref(value.train);
+        //         experiment.test = ref(value.test);
+        //         experimentInfos.value.set(key, experiment);
+        //     }
+        //     loading.value = false;
+        // });
     }
     refresh();
 
@@ -35,7 +38,8 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         await Promise.all(logdirs.map(async logdir => {
             try {
                 await fetch(`${HTTP_URL}/experiment/delete/${logdir}`, { method: "DELETE" });
-                experimentInfos.value.delete(logdir);
+                // Remove the experiment from the list
+                experimentInfos.value = experimentInfos.value.filter(info => info.logdir !== logdir);
             } catch (e: any) {
                 alert(e.message);
             }
@@ -50,9 +54,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             loading.value = false;
             throw new Error(await resp.text());
         }
-        const experiment = await resp.json();
-        // Convert the object "test_metrics" to a Map<string, Metrics>
-        experiment.test_metrics = new Map(Object.entries(experiment.test_metrics));
+        const experiment = await resp.json() as Experiment;
         loading.value = false;
         return experiment;
     }
@@ -64,14 +66,14 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     async function createExperiment(logdir: string, params: any) {
         const data = JSON.stringify(params);
         const url = `${HTTP_URL}/experiment/create`;
-        // 1 crete the experiment
+        // 1 create the experiment
         const resp = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: data
         });
         // 2 Add the experimentInfo to the store
-        experimentInfos.value.set(logdir, await resp.json());
+        experimentInfos.value.push(await resp.json());
         // 3 refhresh the experiment info table
         refresh();
         return logdir;

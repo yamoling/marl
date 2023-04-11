@@ -2,11 +2,9 @@ import { defineStore } from "pinia";
 import { HTTP_URL, wsURL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { RunConfig } from "../models/Runs";
-import { useExperimentStore } from "./ExperimentStore";
 
 export const useRunnerStore = defineStore("RunnerStore", () => {
     const webSockets = new Map<string, WebSocket>();
-    const experimentStore = useExperimentStore();
 
     async function createRunner(runConfig: RunConfig) {
         const resp = await fetch(`${HTTP_URL}/runner/create/${runConfig.logdir}`, {

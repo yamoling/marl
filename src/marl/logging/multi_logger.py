@@ -4,6 +4,7 @@ from .logger_interface import Logger
 
 class MultiLogger(Logger):
     def __init__(self, logdir: str, *loggers: Logger, quiet=False) -> None:
+        assert len(loggers) > 0, "At least one logger must be provided."
         super().__init__(logdir, quiet)
         self.loggers = loggers
 
