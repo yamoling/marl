@@ -40,4 +40,8 @@ class Logger(ABC):
         """Add the data to the printing queue."""
         if not self.quiet:
             print(f"{tag}: {data}")
+    
+    @abstractmethod
+    def close(self):
+        """Close the logger"""
 

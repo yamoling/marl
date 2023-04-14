@@ -168,7 +168,11 @@ async function pauseRun(runNum: number, rundir: string) {
 
 
 async function createNewRunner() {
-    alert("TODO !");
+    store.createRunner({
+        logdir: props.experiment.logdir,
+        num_tests: 5,
+        seed: null
+    });
     return
     // const runConfig = {
     //     checkpoint: null,

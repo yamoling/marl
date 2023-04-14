@@ -28,8 +28,14 @@ class Run:
 
     @staticmethod
     def load(rundir):
-        train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
-        test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
+        try:
+            train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
+        except pl.NoDataError:
+            train_metrics = pl.DataFrame()
+        try:
+            test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
+        except pl.NoDataError:
+            test_metrics = pl.DataFrame()
         return Run(rundir, train_metrics, test_metrics)
 
     @property

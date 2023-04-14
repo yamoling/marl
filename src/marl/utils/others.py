@@ -31,10 +31,7 @@ def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
 
 def defaults_to(value: T | None, default: Callable[[], T])  -> T:
     """
-    Shortcut to retrieve a default value.
-    
-    NB: by using this method, the default object is created in every case! Do not use this method
-    if the instanciation is expensive.
+    Shortcut to retrieve a default value if the given one is None.
     """
     if value is not None:
         return value

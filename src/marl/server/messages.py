@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 
+
 @dataclass
 class MemoryConfig:
     prioritized: bool
     size: int
     nstep: int
+
 
 @dataclass
 class GeneratorConfig:
@@ -14,6 +16,7 @@ class GeneratorConfig:
     wall_density: float
     width: int
     height: int
+
 
 @dataclass
 class ExperimentConfig:
@@ -30,19 +33,18 @@ class ExperimentConfig:
     memory: MemoryConfig
     generator: GeneratorConfig
 
+
 @dataclass
 class RunConfig:
     logdir: str
-    checkpoint: str | None
-    num_steps: int
-    test_interval: int
     num_tests: int
-    num_runs: int
-    use_seed: bool
+    seed: int
+
 
 @dataclass
 class TrainConfig:
     """The logdir is the key from which to know what experiment to train"""
+
     num_steps: int
-    test_interval: int | None 
+    test_interval: int | None
     num_tests: int | None

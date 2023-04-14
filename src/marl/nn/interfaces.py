@@ -1,11 +1,13 @@
 from typing_extensions import Self
+from typing import Generic, TypeVar
 from abc import ABC, abstractmethod
 import torch
 
 from rlenv.models import RLEnv
 
+O = TypeVar("O")
 
-class NN(torch.nn.Module, ABC):
+class NN(torch.nn.Module, ABC, Generic[O]):
     """Parent class of all neural networks"""
     is_recurrent: bool
 
@@ -15,6 +17,15 @@ class NN(torch.nn.Module, ABC):
         self.extras_shape = extras_shape
         self.output_shape = output_shape
 
+    @abstractmethod
+    def forward(self, x: torch.Tensor) -> O:
+        """Forward pass"""
+
+    @property
+    def is_recurrent(self) -> bool:
+        """Returns whether the model is recurrent or not"""
+        return False
+    
     @classmethod
     def from_env(cls, env: RLEnv):
         """Construct a NN from environment specifications"""
@@ -24,11 +35,6 @@ class NN(torch.nn.Module, ABC):
             output_shape=(env.n_actions, )
         )
 
-    @property
-    def is_recurrent(self) -> bool:
-        """Returns whether the model is recurrent or not"""
-        return False
-    
     def summary(self) -> dict[str, ]:
         return {
             "name": self.__class__.__name__,
@@ -46,13 +52,13 @@ class NN(torch.nn.Module, ABC):
             output_shape=summary["output_shape"],
         )
 
-class LinearNN(NN, ABC):
+class LinearNN(NN[O], ABC):
     """Abstract class defining a linear neural network"""
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> O:
         """Forward pass"""
 
-class RecurrentNN(NN, ABC):
+class RecurrentNN(NN[O], ABC):
     """Abstract class representing a recurrent neural network"""
     @abstractmethod
     def forward(
@@ -60,7 +66,7 @@ class RecurrentNN(NN, ABC):
         obs: torch.Tensor,
         extras: torch.Tensor|None = None,
         hidden_states: torch.Tensor|None = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[O, torch.Tensor]:
         """
         Forward pass.
         All the inputs must have the shape [Episode length, Number of agents, *data_shape]
@@ -80,3 +86,19 @@ class RecurrentNN(NN, ABC):
     @property
     def is_recurrent(self) -> bool:
         return True
+
+
+class ActorCriticNN(LinearNN[tuple[torch.Tensor, torch.Tensor]], ABC):
+    """Actor critic neural network"""
+
+    @abstractmethod
+    def policy(self, obs: torch.Tensor) -> torch.Tensor:
+        """Returns the logits of the policy distribution"""
+
+    @abstractmethod
+    def value(self, obs: torch.Tensor) -> torch.Tensor:
+        """Returns the value function of an observation"""
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns the logits of the policy distribution and the value function given an observation"""
+        return self.policy(obs), self.value(obs)

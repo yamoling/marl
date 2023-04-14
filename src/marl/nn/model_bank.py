@@ -4,7 +4,7 @@ import torch
 from .interfaces import LinearNN, RecurrentNN
 
 
-class MLP(LinearNN):
+class MLP(LinearNN[torch.Tensor]):
     """
     Multi layer perceptron
     """
@@ -30,7 +30,7 @@ class MLP(LinearNN):
         return self.nn(obs)
 
 
-class RNNQMix(RecurrentNN):
+class RNNQMix(RecurrentNN[torch.Tensor]):
     """RNN used in the QMix paper"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
@@ -63,7 +63,7 @@ class RNNQMix(RecurrentNN):
         return x, hidden_state
 
 
-class XtractMLP(LinearNN):
+class XtractMLP(LinearNN[torch.Tensor]):
     """Self supervised (frozen) CNN feature extractor followed by an MLP"""
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
         super().__init__(input_shape, extras_shape, output_shape)
@@ -85,7 +85,7 @@ class XtractMLP(LinearNN):
         return self.mlp.forward(features, extras)
 
 
-class AtariCNN(LinearNN):
+class AtariCNN(LinearNN[torch.Tensor]):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]|None, output_shape: tuple[int, ...]) -> None:
@@ -110,7 +110,7 @@ class AtariCNN(LinearNN):
 
 
 
-class CNN(LinearNN):
+class CNN(LinearNN[torch.Tensor]):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
@@ -148,7 +148,7 @@ class CNN(LinearNN):
         return res.view(*dims, *self.output_shape)
 
 
-class PolicyNetworkMLP(LinearNN):
+class PolicyNetworkMLP(LinearNN[torch.Tensor]):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...] | None, output_shape: tuple[int, ...]):
         assert len(extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1
         super().__init__(input_shape, extras_shape, output_shape)
@@ -167,7 +167,7 @@ class PolicyNetworkMLP(LinearNN):
         return self.nn.forward(obs)
 
 
-class LinearCombination(LinearNN):
+class LinearCombination(LinearNN[torch.Tensor]):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...] | None, output_shape: tuple[int, ...]):
         assert len(extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1
         super().__init__(input_shape, extras_shape, output_shape)

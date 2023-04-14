@@ -40,7 +40,15 @@ class Batch:
         returns[-1] = self.rewards[-1]
         for t in range(len(self.rewards) - 2, -1, -1):
             returns[t] = self.rewards[t] + gamma * returns[t + 1]
-        return returns
+        return returns.to(self.device, non_blocking=True)
+        
+    def compute_normalized_returns(self, gamma: float) -> torch.Tensor:
+        """Compute the returns for each timestep in the batch"""
+        returns = self.compute_returns(gamma)
+        # Normalize the returns such that the algorithm is more stable across environments
+        # Add 1e-8 to the std to avoid dividing by 0 in case all the returns are equal to 0
+        normalized_returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        return normalized_returns
 
     @staticmethod
     def from_episodes(episodes: list[Episode]) -> "Batch":

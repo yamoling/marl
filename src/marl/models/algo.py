@@ -1,4 +1,3 @@
-import json
 from typing_extensions import Self
 from abc import ABC, abstractmethod
 import numpy as np
@@ -17,10 +16,8 @@ class RLAlgo(ABC):
         }
 
     def save(self, to_path: str):
-        """Save the algorithm state to the specified file.
-        Saves the algorithm summary by default."""
-        with open(to_path, "w") as f:
-            json.dump(self.summary(), f)
+        """Save the algorithm state to the specified file."""
+        raise NotImplementedError("Not implemented for this algorithm")
 
     def load(self, from_path: str):
         """Load the algorithm state from the specified file."""

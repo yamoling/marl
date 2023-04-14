@@ -29,13 +29,13 @@ function updateChart() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach((ds, i) => {
         const maxStd = Math.max(...ds.std);
-        const stdColour = shadeColor(ds?.colour || "#000000", +50);
+        const stdColour = rgbToAlpha(ds?.colour || "#000000", 0.3);
         if (maxStd > 0) {
             const minusStd = ds.mean.map((v, i) => v - ds.std[i]);
             datasets.push({
                 data: minusStd,
                 backgroundColor: stdColour,
-                borderColor: ds.colour,
+                // borderColor: ds.colour,
                 fill: "+1"
             });
         }
@@ -50,8 +50,8 @@ function updateChart() {
             datasets.push({
                 data: plusStd,
                 backgroundColor: stdColour,
-                borderColor: ds.colour,
-                fill: "-1"
+                // borderColor: ds.colour,
+                fill: "-1",
             });
         }
     });
@@ -87,6 +87,13 @@ onMounted(() => {
     });
     updateChart();
 })
+
+function rgbToAlpha(rgb: string, alpha: number) {
+    let R = parseInt(rgb.substring(1, 3), 16);
+    let G = parseInt(rgb.substring(3, 5), 16);
+    let B = parseInt(rgb.substring(5, 7), 16);
+    return `rgba(${R}, ${G}, ${B}, ${alpha})`
+}
 
 function shadeColor(color: string, percent: number) {
     let R = parseInt(color.substring(1, 3), 16);

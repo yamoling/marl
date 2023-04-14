@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 from rlenv import Episode, Observation
@@ -10,7 +11,7 @@ class Reinforce(RLAlgo):
     def __init__(
             self, 
             gamma: float, 
-            policy_network: LinearNN,
+            policy_network: LinearNN[torch.Tensor],
             lr=5e-4,
             device: torch.device=None,
         ):
@@ -48,3 +49,19 @@ class Reinforce(RLAlgo):
         gradient = -torch.mean(log_probs * normalized_returns)
         gradient.backward()
         self.optimizer.step()
+
+    def save(self, to_path: str):
+        os.makedirs(os.path.dirname(to_path), exist_ok=True)
+        torch.save(self.policy_network.state_dict(), to_path)
+        return
+    
+    def load(self, from_path: str):
+        state_dict = torch.load(from_path)
+        self.policy_network.load_state_dict(state_dict)
+
+    def summary(self) -> dict:
+        return {
+            **super().summary(),
+            "gamma": self.gamma,
+            "alpha": self.optimizer.param_groups[0]["lr"],
+        }

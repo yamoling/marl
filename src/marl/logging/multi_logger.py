@@ -23,3 +23,7 @@ class MultiLogger(Logger):
     def __del__(self):
         for logger in self.loggers:
             logger.__del__()
+
+    def close(self):
+        for logger in self.loggers:
+            logger.close()

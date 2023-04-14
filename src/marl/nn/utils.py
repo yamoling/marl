@@ -13,7 +13,7 @@ def from_summary(summary: dict[str, ]) -> NN:
     return ALL_MODELS[summary["name"]].from_summary(summary)
 
 def register(model: Type[NN]):
-    """Register a wrapper class"""
+    """Register a neural network model"""
     ALL_MODELS[model.__name__] = model
 
 ALL_MODELS: dict[str, Type[NN]] = _get_all_models()

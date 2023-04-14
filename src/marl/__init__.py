@@ -14,4 +14,5 @@ from . import wrappers
 from .qlearning import DQN, RDQN, LinearVDN, RecurrentVDN, VanillaQLearning, ReplayTableQLearning
 from .qlearning import DeepQBuilder 
 
+from .utils.registry import from_summary, register
 

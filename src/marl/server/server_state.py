@@ -9,6 +9,7 @@ import marl
 
 from .messages import ExperimentConfig, RunConfig, TrainConfig
 
+
 class ServerState:
     def __init__(self, logdir="logs", pool_size=4) -> None:
         self.experiments: dict[str, Experiment] = {}
@@ -24,7 +25,7 @@ class ServerState:
                 # Not an experiment directory, ignore
                 pass
         return experiments
-    
+
     def load_experiment(self, logdir: str) -> Experiment:
         # Reload the experiment even if it is already in memory
         experiment = Experiment.load(logdir)
@@ -33,7 +34,7 @@ class ServerState:
 
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self.experiments.pop(logdir, None)
-    
+
     def delete_experiment(self, logdir: str):
         try:
             experiment = self.unload_experiment(logdir)
@@ -44,7 +45,7 @@ class ServerState:
             shutil.rmtree(logdir)
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
-        
+
     def create_experiment(self, config: ExperimentConfig) -> Experiment:
         env = self._create_env(config)
         memory = self._create_memory(config)
@@ -60,25 +61,22 @@ class ServerState:
             else:
                 algo = marl.wrappers.ForceActionWrapper(algo, config.forced_actions)
         algo = marl.wrappers.ReplayWrapper(algo, config.logdir)
-        experiment = Experiment.create(config.logdir, env, algo)
+        experiment = Experiment.create(config.logdir, env, algo, 300_000)
         self.experiments[config.logdir] = experiment
         return experiment
-    
-    def create_runners(self, logdir: str, run_config: RunConfig):
-        """Creates the runners for the given experiment and returns their loggers"""
+
+    def create_runner(self, logdir: str, run_config: RunConfig):
+        """Creates a runner for the given experiment and returns their loggers"""
         if logdir not in self.experiments:
             raise ValueError(f"Experiment {logdir} not found")
         experiment = self.experiments[logdir]
-        for i in range(run_config.num_runs):
-            if run_config.use_seed:
-                seed = i
-            else:
-                seed = None
-            p = mp.Process(target=_start_process_function, args=(experiment, seed, run_config))
-            p.start()
-            print("Started process")
-            # p.join()
-            # print("Joined process")
+        p = mp.Process(
+            target=_start_process_function, args=(experiment, run_config), daemon=False
+        )
+        p.start()
+        print("Started process")
+        # p.join()
+        # print("Joined process")
 
     def stop_runner(self, rundir: str):
         logdir = os.path.dirname(rundir)
@@ -90,7 +88,10 @@ class ServerState:
         logdir = os.path.dirname(rundir)
         if logdir not in self.experiments:
             self.experiments[logdir] = Experiment.load(logdir)
-        p = mp.Process(target=_restart_process_function, args=(self.experiments[logdir], rundir, train_config))
+        p = mp.Process(
+            target=_restart_process_function,
+            args=(self.experiments[logdir], rundir, train_config),
+        )
         p.start()
         print("Started process")
         # p.join()
@@ -99,12 +100,14 @@ class ServerState:
     def delete_runner(self, rundir: str):
         shutil.rmtree(rundir)
 
-    def get_test_episodes_at(self, logdir: str, time_step: int) -> list[ReplayEpisodeSummary]:
+    def get_test_episodes_at(
+        self, logdir: str, time_step: int
+    ) -> list[ReplayEpisodeSummary]:
         if logdir not in self.experiments:
             raise ValueError(f"Experiment {logdir} not found")
         res = self.experiments[logdir].get_test_episodes(time_step)
         return res
-    
+
     def get_runner_port(self, rundir: str) -> int:
         run = Run.load(rundir)
         return run.get_port()
@@ -127,8 +130,8 @@ class ServerState:
             env = laser_env.StaticLaserEnv(config.level, obs_type)
         else:
             env = laser_env.DynamicLaserEnv(
-                width=config.generator.width, 
-                height=config.generator.height, 
+                width=config.generator.width,
+                height=config.generator.height,
                 num_agents=config.generator.n_agents,
                 num_gems=config.generator.n_gems,
                 num_lasers=config.generator.n_lasers,
@@ -138,32 +141,46 @@ class ServerState:
         builder = rlenv.Builder(env)
         for wrapper in config.env_wrappers:
             match wrapper:
-                case "TimeLimit": builder.time_limit(config.time_limit)
-                case "IntrinsicReward": builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
-                case "AgentId": builder.agent_id()
-                case "TimePenalty": builder.time_penalty(config.time_penalty)
-                case other: raise ValueError(f"Unknown wrapper: {wrapper}")
+                case "TimeLimit":
+                    builder.time_limit(config.time_limit)
+                case "IntrinsicReward":
+                    builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
+                case "AgentId":
+                    builder.agent_id()
+                case "TimePenalty":
+                    builder.time_penalty(config.time_penalty)
+                case other:
+                    raise ValueError(f"Unknown wrapper: {wrapper}")
         return builder.build()
-    
+
     @staticmethod
     def _create_memory(config: ExperimentConfig) -> marl.models.ReplayMemory:
-        memory_builder = marl.models.MemoryBuilder(config.memory.size, "episode" if config.recurrent else "transition")
+        memory_builder = marl.models.MemoryBuilder(
+            config.memory.size, "episode" if config.recurrent else "transition"
+        )
         if config.memory.prioritized:
             memory_builder.prioritized()
         if config.memory.nstep > 1:
             memory_builder.nstep(config.memory.nstep, 0.99)
         return memory_builder.build()
-    
-def _start_process_function(experiment: Experiment, seed: int, run_config: RunConfig):
+
+
+def _start_process_function(experiment: Experiment, run_config: RunConfig):
     # os.setpgrp is used to prevent CTRL+C from killing the child process (but still terminate the server)
     os.setpgrp()
-    runner = experiment.create_runner("both", seed=seed)
-    runner.train(n_steps=run_config.num_steps, n_tests=run_config.num_tests, test_interval=run_config.test_interval, quiet=True)
+    runner = experiment.create_runner(seed=run_config.seed)
+    runner.train(n_tests=run_config.num_tests, quiet=True)
 
 
-def _restart_process_function(experiment: Experiment, rundir: str, train_config: TrainConfig):
+def _restart_process_function(
+    experiment: Experiment, rundir: str, train_config: TrainConfig
+):
     # os.setpgrp is used to prevent CTRL+C from killing the child process (but still terminate the server)
     os.setpgrp()
     runner = experiment.restore_runner(rundir)
-    runner.train(n_steps=train_config.num_steps, n_tests=train_config.num_tests, test_interval=train_config.test_interval, quiet=True)
-    
+    runner.train(
+        n_steps=train_config.num_steps,
+        n_tests=train_config.num_tests,
+        test_interval=train_config.test_interval,
+        quiet=True,
+    )

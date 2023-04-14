@@ -8,6 +8,41 @@ from rlenv.models import Metrics
 from .logger_interface import Logger
 
 class CSVLogger(Logger):
+    def __init__(self, logdir: str, quiet: bool=False):
+        Logger.__init__(self, logdir, quiet)
+        self._train_file = open(os.path.join(self.logdir, "train.csv"), "w")
+        self._test_file = open(os.path.join(self.logdir, "test.csv"), "w")
+        self._closed = False
+        self._first = True
+        self._headers = None
+
+    def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
+        if self._closed:
+            raise ValueError("Logger is closed")
+        data["time_step"] = time_step
+        data["timestamp_sec"] = time.time()
+        if self._first:
+            self._first = False
+            self._headers = ",".join(sorted(data.keys())) + "\n"
+            self._train_file.write(self._headers)
+            self._test_file.write(self._headers)
+        line = ",".join(str(data.get(head)) for head in self._headers) + "\n"
+        match tag:
+            case "train": self._train_file.write(line)
+            case "test": self._test_file.write(line)
+            case other: raise ValueError(f"Unknown tag: {other}")
+
+    def close(self):
+        if not self._closed:
+            self._closed = True
+            self._train_file.close()
+            self._test_file.close()
+
+    def __del__(self):
+        self.close()
+
+
+class CSVLogger_THREADED(Logger):
     def __init__(self, logdir: str, quiet: bool=False, flush_interval: float=120):
         Logger.__init__(self, logdir, quiet)
         self._train_queue = Queue()
@@ -39,7 +74,9 @@ class CSVLogger(Logger):
             self._test_file.close()
 
     def __del__(self):
+        print("Closing CSVLogger")
         self.close()
+        print("Done closing CSVLogger")
 
 
 class CSVWriterThread(threading.Thread):

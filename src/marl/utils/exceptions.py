@@ -7,7 +7,7 @@ class CorruptExperimentException(Exception):
 class ExperimentVersionMismatch(Exception):
     """Raised when the experiment is corrupted and cannot be loaded."""
     def __init__(self, faulty_key: str) -> None:
-        super().__init__(f"You experiment version is outdated: {faulty_key} is not found in summary !")
+        super().__init__(f"You experiment version is outdated: key '{faulty_key}' is not found in summary !")
 
 class EmptyForcedActionsException(Exception):
     """Raised when the experiment is corrupted and cannot be loaded."""

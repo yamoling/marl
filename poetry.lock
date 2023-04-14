@@ -924,7 +924,7 @@ rlenv = {git = "https://github.com/yamoling/rlenv.git"}
 type = "git"
 url = "https://github.com/raphaelavalos/laser-env.git"
 reference = "HEAD"
-resolved_reference = "537b32546cb8dae901adfd351274f36d048b9958"
+resolved_reference = "0cb9d65bef4d85ed69f0e715e06ec0a52a919a1b"
 
 [[package]]
 name = "markdown"
@@ -2033,7 +2033,7 @@ rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
 name = "rlenv"
-version = "0.2.7"
+version = "0.2.8"
 description = "A strongly typed Reinforcement Learning framework"
 category = "main"
 optional = false
@@ -2047,13 +2047,12 @@ numpy = "^1.23.4"
 opencv-python = "^4.6.0.66"
 pettingzoo = "^1.22.3"
 smac = {git = "https://github.com/oxwhirl/smac.git"}
-tqdm = "^4.64.1"
 
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "38608b58121327f81c85cb44d60ea260cda4cc87"
+resolved_reference = "a4123b3b42271d3b06bba97c561f3eb4a1046ac9"
 
 [[package]]
 name = "rsa"
@@ -2524,4 +2523,4 @@ test = ["pytest (>=6.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.11"
-content-hash = "9cdbb72b9d2911b268afab097c7fbde8f9ef36510890780900796acc7cd77cac"
+content-hash = "b7a205b4c74433ef11a699997dbfcbb9a2b6932c13ca7cf5c49dbee57f26523e"

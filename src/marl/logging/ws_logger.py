@@ -93,3 +93,6 @@ class WSLogger(Logger):
 
     def __del__(self):
         self.stop()
+
+    def close(self):
+        self.stop()

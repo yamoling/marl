@@ -65,6 +65,7 @@ class Runner:
             self._current_step += 1
         if self._current_step % self._test_interval == 0:
             self.test(n_tests, quiet=quiet)
+        self._logger.close()
 
     def test(self, ntests: int, quiet=False):
         """Test the agent"""
@@ -116,7 +117,7 @@ class Runner:
     
 
     def __del__(self):
-        self._logger.__del__()
+        self._logger.close()
         try:
             os.remove(os.path.join(self.rundir, "pid"))
         except FileNotFoundError:

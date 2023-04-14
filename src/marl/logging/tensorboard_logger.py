@@ -38,3 +38,7 @@ class TensorBoardLogger(Logger):
     def __del__(self):
         self.flush()
         self.sw.close()
+
+    def close(self):
+        self.flush()
+        self.sw.close()

@@ -6,6 +6,12 @@ import numpy as np
 import time
 import shutil
 
+
+def test_algo_from_summary():
+    # TODO
+    assert False
+
+
 def test_save_replay_episode():
     logdir = f"logs/test-{time.time()}"
     try:
@@ -20,9 +26,9 @@ def test_save_replay_episode():
             .optimizer("adam", lr=0.1)
             .build())
         
-        experiment = marl.Experiment.create(logdir, vdn, env)
+        experiment = marl.Experiment.create(logdir, vdn, env, 200, 5)
         runner = experiment.create_runner("csv")
-        runner.train(n_steps=200, test_interval=50, n_tests=1)
+        runner.train(n_tests=1)
 
         def check(time_step: int):
             episode_dir = f"{runner.rundir}/test/{time_step}/0"

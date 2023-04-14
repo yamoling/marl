@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from copy import deepcopy
 from typing import Literal
 
-from rlenv.models import RLEnv, Metrics, EpisodeBuilder, Transition
+import rlenv
+from rlenv.models import RLEnv, EpisodeBuilder, Transition
 from rlenv import wrappers
 import laser_env
 from marl import logging
@@ -109,15 +110,12 @@ class Experiment:
     def load(logdir: str) -> "Experiment":
         """Load an existing experiment."""
         try:
-            with open(
-                os.path.join(logdir, "experiment.json"), "r", encoding="utf-8"
-            ) as f:
+            with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
-            from marl import qlearning
-
-            algo = qlearning.from_summary(summary["algorithm"])
-            env = restore_env(summary["env"])
-            test_env = restore_env(summary["test_env"])
+            import marl
+            algo = marl.from_summary(summary["algorithm"])
+            env = rlenv.from_summary(summary["env"])
+            test_env = rlenv.from_summary(summary["test_env"])
             n_steps = summary["n_steps"]
             test_interval = summary["test_interval"]
             return Experiment(
@@ -146,7 +144,8 @@ class Experiment:
     def save(self):
         os.makedirs(self.logdir, exist_ok=True)
         with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
-            json.dump(self.summary(), f)
+            s = self.summary()
+            json.dump(s, f)
 
     def create_runner(
         self,
@@ -171,9 +170,7 @@ class Experiment:
                 case "tensorboard":
                     logger_list.append(logging.TensorBoardLogger(rundir, quiet=quiet))
                 case "csv":
-                    logger_list.append(
-                        logging.CSVLogger(rundir, quiet, flush_interval=30)
-                    )
+                    logger_list.append(logging.CSVLogger(rundir, quiet))
                 case other:
                     raise ValueError(f"Unknown logger: {other}")
         logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
