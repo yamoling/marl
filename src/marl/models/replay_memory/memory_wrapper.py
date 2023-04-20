@@ -23,8 +23,8 @@ class MemoryWrapper(ReplayMemory[T]):
     def max_size(self):
         return self.wrapped.max_size
     
-    def _get_batch(self, indices: list[int]) -> Batch:
-        return self.wrapped._get_batch(indices)
+    def get_batch(self, indices: list[int]) -> Batch:
+        return self.wrapped.get_batch(indices)
     
     def __len__(self) -> int:
         return len(self.wrapped)

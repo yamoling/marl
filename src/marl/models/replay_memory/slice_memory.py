@@ -12,7 +12,7 @@ class TransitionSliceMemory(ReplayMemory[Transition]):
     def __len__(self) -> int:
         return max(0, super().__len__() - self._slice_size)
 
-    def _get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(self, indices: list[int]) -> Batch:
         samples = []
         for index in indices:
             transitions = [self._memory[index + s] for s in range(self._slice_size)]

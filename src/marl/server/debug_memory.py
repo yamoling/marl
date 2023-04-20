@@ -25,8 +25,8 @@ class DebugMemory(ReplayMemory):
     def update(self, indices, qvalues, qtargets):
         self.wrapped.update(indices, qvalues, qtargets)
 
-    def _get_batch(self, indices):
-        return self.wrapped._get_batch(indices)
+    def get_batch(self, indices):
+        return self.wrapped.get_batch(indices)
     
     def __len__(self):
         return len(self.wrapped)

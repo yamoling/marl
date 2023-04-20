@@ -50,6 +50,45 @@ typing-extensions = {version = "*", markers = "python_version < \"3.11\""}
 test = ["gym (>=0.23,<1.0)", "pytest (>=7.0)"]
 
 [[package]]
+name = "autorom"
+version = "0.4.2"
+description = "Automated installation of Atari ROMs for Gym/ALE-Py"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "AutoROM-0.4.2-py3-none-any.whl", hash = "sha256:719c9d363ef08391fdb7003d70df235b68f36de628d289a946c4a59a3adefa13"},
+    {file = "AutoROM-0.4.2.tar.gz", hash = "sha256:b426a39bc0ee3781c7791f28963a9b2e4385b6421eeaf2f368edc00c761d428a"},
+]
+
+[package.dependencies]
+"AutoROM.accept-rom-license" = {version = "*", optional = true, markers = "extra == \"accept-rom-license\""}
+click = "*"
+requests = "*"
+tqdm = "*"
+
+[package.extras]
+accept-rom-license = ["AutoROM.accept-rom-license"]
+
+[[package]]
+name = "autorom-accept-rom-license"
+version = "0.6.1"
+description = "Automated installation of Atari ROMs for Gym/ALE-Py"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "AutoROM.accept-rom-license-0.6.1.tar.gz", hash = "sha256:0c905a708d634a076f686802f672817d3585259ce3be0bde8713a4fb59e3159e"},
+]
+
+[package.dependencies]
+click = "*"
+requests = "*"
+
+[package.extras]
+tests = ["ale_py", "multi_agent_ale_py"]
+
+[[package]]
 name = "bottle"
 version = "0.12.25"
 description = "Fast and simple WSGI-framework for small web-applications."
@@ -251,7 +290,7 @@ files = [
 name = "click"
 version = "8.1.3"
 description = "Composable command line interface toolkit"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -718,6 +757,7 @@ files = [
 ]
 
 [package.dependencies]
+autorom = {version = ">=0.4.2,<0.5.0", extras = ["accept-rom-license"], optional = true, markers = "extra == \"accept-rom-license\""}
 cloudpickle = ">=1.2.0"
 farama-notifications = ">=0.0.1"
 jax-jumpy = ">=1.0.0"
@@ -2042,7 +2082,7 @@ files = []
 develop = false
 
 [package.dependencies]
-gymnasium = {version = "^0.28.1", extras = ["atari"]}
+gymnasium = {version = "^0.28.1", extras = ["accept-rom-license", "atari"]}
 numpy = "^1.23.4"
 opencv-python = "^4.6.0.66"
 pettingzoo = "^1.22.3"
@@ -2052,7 +2092,7 @@ smac = {git = "https://github.com/oxwhirl/smac.git"}
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "a4123b3b42271d3b06bba97c561f3eb4a1046ac9"
+resolved_reference = "dd4f8b63f14e046231e083a0e44a509b43d9bb3b"
 
 [[package]]
 name = "rsa"

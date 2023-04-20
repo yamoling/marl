@@ -10,6 +10,7 @@ from . import policy_gradient
 from . import server
 from . import policy
 from . import wrappers
+from . import utils
 
 from .qlearning import DQN, RDQN, LinearVDN, RecurrentVDN, VanillaQLearning, ReplayTableQLearning
 from .qlearning import DeepQBuilder 

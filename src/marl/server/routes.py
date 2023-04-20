@@ -5,7 +5,7 @@ from .messages import (
     ExperimentConfig,
     GeneratorConfig,
     RunConfig,
-    TrainConfig,
+    TrainConfig
 )
 from marl.server import app, state
 from marl.utils import CorruptExperimentException
@@ -79,6 +79,7 @@ def list_experiments():
     try:
         return [e.summary() for e in state.list_experiments().values()]
     except exceptions.ExperimentVersionMismatch as e:
+        print(e)
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
 

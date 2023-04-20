@@ -44,7 +44,7 @@ class RDQN(DQN):
         self._hidden_states=None
         
 
-    def after_step(self, _time_step: int, _transition):
+    def after_train_step(self, _time_step: int, _transition):
         # Override DQN behaviour: nothing to do after step in RDQN
         pass
 

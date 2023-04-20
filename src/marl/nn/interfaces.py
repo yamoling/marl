@@ -91,6 +91,16 @@ class RecurrentNN(NN[O], ABC):
 class ActorCriticNN(LinearNN[tuple[torch.Tensor, torch.Tensor]], ABC):
     """Actor critic neural network"""
 
+    @property
+    @abstractmethod
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        pass
+
+    @property
+    @abstractmethod
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        pass
+
     @abstractmethod
     def policy(self, obs: torch.Tensor) -> torch.Tensor:
         """Returns the logits of the policy distribution"""

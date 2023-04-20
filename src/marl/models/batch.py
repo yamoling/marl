@@ -22,9 +22,7 @@ class Batch:
     masks: torch.Tensor
     states: torch.Tensor
     states_: torch.Tensor
-    is_weights: torch.Tensor|None = None
-    """Importance Sampling weights"""
-    sample_index: list[int]|None = None
+    actions_probs: torch.Tensor
 
     @property
     def one_hot_actions(self) -> torch.Tensor:
@@ -34,17 +32,29 @@ class Batch:
         return one_hot
 
     
-    def compute_returns(self, gamma: float) -> torch.Tensor:
-        """Compute the returns for each timestep in the batch"""
-        returns = torch.zeros_like(self.rewards).to(self.device, non_blocking=True)
-        returns[-1] = self.rewards[-1]
-        for t in range(len(self.rewards) - 2, -1, -1):
-            returns[t] = self.rewards[t] + gamma * returns[t + 1]
+    def compute_returns(self, gamma: float, last_obs_value: float=None) -> torch.Tensor:
+        """
+        Compute the returns for each timestep in the batch.
+        If the last time step is not a terminal state, the `last_return` should be set.
+        """
+        if last_obs_value is None:
+            assert self.dones[-1] == 1, "The last time step is not a terminal state, but no last_obs_value was provided"
+            last_obs_value = 0.
+        returns = torch.zeros_like(self.rewards, dtype=torch.float32)
+        next_return = last_obs_value
+        i = self.size - 1
+        for reward, done in zip(reversed(self.rewards), reversed(self.dones)):
+            if done:
+                next_return = 0
+            return_i = reward + gamma * next_return
+            returns[i] = return_i
+            next_return = return_i
+            i -= 1
         return returns.to(self.device, non_blocking=True)
         
-    def compute_normalized_returns(self, gamma: float) -> torch.Tensor:
+    def compute_normalized_returns(self, gamma: float, last_obs_value: float=None) -> torch.Tensor:
         """Compute the returns for each timestep in the batch"""
-        returns = self.compute_returns(gamma)
+        returns = self.compute_returns(gamma, last_obs_value)
         # Normalize the returns such that the algorithm is more stable across environments
         # Add 1e-8 to the std to avoid dividing by 0 in case all the returns are equal to 0
         normalized_returns = (returns - returns.mean()) / (returns.std() + 1e-8)
@@ -67,6 +77,10 @@ class Batch:
         masks = torch.tensor(np.array([e.mask for e in episodes])).transpose(1, 0)
         states = torch.tensor(np.array([e.states[:-1] for e in episodes])).transpose(1, 0)
         states_ = torch.tensor(np.array([e.states[1:] for e in episodes])).transpose(1, 0)
+        if episodes[0].actions_probs is not None and episodes[0].actions_probs.dtype == np.float32 and len(episodes[0].actions_probs) > 0:
+            actions_probs = torch.tensor(np.array([e.actions_probs for e in episodes])).transpose(1, 0)
+        else:
+            actions_probs = None
         *_, n_agents, n_actions = available_actions_.shape
         return Batch(
             size=size,
@@ -83,13 +97,14 @@ class Batch:
             rewards=rewards,
             masks=masks,
             states=states,
-            states_=states_
+            states_=states_,
+            actions_probs=actions_probs
         )
 
     @staticmethod
     def from_transitions(transitions: list[Transition]) ->"Batch":
         """Create a batch from a list of transitions"""
-        obs, obs_, extras, extras_, dones, actions, available_actions_, rewards, states, states_ = [], [], [], [], [], [], [], [], [], []
+        obs, obs_, extras, extras_, dones, actions, available_actions_, rewards, states, states_, actions_probs = [], [], [], [], [], [], [], [], [], [], []
         for t in transitions:
             obs.append(t.obs.data)
             extras.append(t.obs.extras)
@@ -101,6 +116,7 @@ class Batch:
             rewards.append(t.reward)
             states.append(t.obs.state)
             states_.append(t.obs_.state)
+            actions_probs.append(t.action_probs)
         batch_size = len(transitions)
         n_agents = transitions[0].n_agents
         n_actions = transitions[0].obs.available_actions.shape[-1]
@@ -119,7 +135,8 @@ class Batch:
             rewards=torch.from_numpy(np.array(rewards, dtype=np.float32)),
             masks=torch.ones(batch_size, dtype=torch.float32),
             states=torch.from_numpy(np.array(states, dtype=np.float32)),
-            states_=torch.from_numpy(np.array(states_, dtype=np.float32))
+            states_=torch.from_numpy(np.array(states_, dtype=np.float32)),
+            actions_probs=torch.from_numpy(np.array(actions_probs, dtype=np.float32))
         )
 
     @staticmethod
@@ -128,7 +145,7 @@ class Batch:
         n_actions = transitions[0][0].obs.available_actions.shape[-1]
         size = len(transitions)
         slice_length = len(transitions[0])
-        obs, extras, actions, rewards, dones, obs_, extras_, available_actions_, states, states_, masks = [], [], [], [], [], [], [], [], [], [], []
+        obs, extras, actions, rewards, dones, obs_, extras_, available_actions_, states, states_, masks, actions_probs = [], [], [], [], [], [], [], [], [], [], [], []
         for slices in transitions:
             obs.append([t.obs.data for t in slices])
             extras.append([t.obs.extras for t in slices])
@@ -140,6 +157,7 @@ class Batch:
             available_actions_.append([t.obs_.available_actions for t in slices])
             states.append([t.obs.state for t in slices])
             states_.append([t.obs_.state for t in slices])
+            actions_probs.append([t.action_probs for t in slices])
             # Mask transitions that are not from the same episode as **the first one**
             # - transitions of the same episode get 1.0
             # - transitions of an other episode get 0.0
@@ -166,7 +184,8 @@ class Batch:
             states=torch.from_numpy(np.array(states)),
             states_=torch.from_numpy(np.array(states_)),
             dones=torch.from_numpy(np.array(dones)),
-            masks=torch.from_numpy(np.array(masks, dtype=np.float32))
+            masks=torch.from_numpy(np.array(masks, dtype=np.float32)),
+            actions_probs=torch.from_numpy(np.array(actions_probs, dtype=np.float32))
         )
 
     def for_individual_learners(self) -> "Batch":

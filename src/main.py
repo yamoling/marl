@@ -1,47 +1,100 @@
-from laser_env import LaserEnv
 import rlenv
 import marl
+import torch
+import laser_env
+from marl import nn
+from marl.models import Experiment
 
 
-def train(params: tuple[int, bool, bool, bool, str]) -> str:
-    run_num, n_step, intrinsic, per, logdir = params
-    builder = rlenv.Builder(LaserEnv("maps/lvl3")).agent_id().time_limit(20)
-    if run_num == 0:
-        builder = builder.record(logdir)
-    if intrinsic:
-        builder = builder.extrinsic_reward("linear", initial_reward=0.5, anneal=10)
-    env, test_env = builder.build_all()
-    qnetwork = marl.nn.model_bank.MLP.from_env(env)
-    if n_step:
-        memory = marl.models.slice_memory.NStepReturnMemory(10_000, 5)
-    else:
-        memory = marl.models.TransitionMemory(10_000)
-    if per:
-        memory = marl.models.PrioritizedMemory(memory, alpha=0.7, beta=0.4)
-    algo = marl.qlearning.vdn.VDN(marl.qlearning.DQN(qnetwork, memory=memory))
-    if run_num == 0:
-        algo = marl.server.FileWrapper(algo, logdir)
-    runner = marl.Runner(env, algo=algo, test_env=test_env, logdir=logdir)
-    runner.seed(run_num)
-    return runner.train(n_steps=50_000, test_interval=2500, n_tests=5, quiet=False)
+class ACNetwork(nn.ActorCriticNN):
+    def __init__(self, input_shape: tuple, extras_shape: tuple | None, output_shape: tuple):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.common = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.ReLU(),
+        )
+        self.policy_network = torch.nn.Linear(128, *output_shape)
+        self.value_network = torch.nn.Linear(128, 1)
+
+    def policy(self, obs: torch.Tensor):
+        obs = self.common(obs)
+        return self.policy_network(obs)
+
+    def value(self, obs: torch.Tensor):
+        obs = self.common(obs)
+        return self.value_network(obs)
+
+    def forward(self, x):
+        x = self.common(x)
+        return self.policy_network(x), self.value_network(x)
+
+    @property
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        return list(self.common.parameters()) + list(self.value_network.parameters())
+
+    @property
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        return list(self.common.parameters()) + list(self.policy_network.parameters())
 
 
-def run_experiment(n_runs: int, pool_size: int):
-    from multiprocessing import Pool
-    with Pool(pool_size) as p:
-        dqn_params = [(i, False, False, False, f"logs/vdn-{i}") for i in range(0)]
-        nstep_params =[(i, True, False, False, f"logs/vdn-n_step-{i}") for i in range(n_runs)]
-        nstep_per_params =[(i, True, False, True, f"logs/vdn-n_step-{i}") for i in range(n_runs)]
-        intrinsic_params = [(i, True, True, False, f"logs/vdn-intrinsic-nstep-{i}") for i in range(n_runs)]
-        # dqn_logs = p.map_async(train, dqn_params)
-        # nstep_logs = p.map_async(train, nstep_params)
-        logdir = p.map_async(train, intrinsic_params)
-        print("intrinsic", logdir.get())
-        # logdirs = {"dqn": dqn_logs.get(), "nstep": nstep_logs.get()}
-    # print(logdirs)
+class ACNetwork2(nn.ActorCriticNN):
+    def __init__(self, input_shape: tuple, extras_shape: tuple | None, output_shape: tuple):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.value_network = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128), torch.nn.ReLU(), torch.nn.Linear(128, 128), torch.nn.ReLU(), torch.nn.Linear(128, 1)
+        )
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, *output_shape),
+        )
+
+    def policy(self, obs: torch.Tensor):
+        return self.policy_network(obs)
+
+    def value(self, obs: torch.Tensor):
+        return self.value_network(obs)
+
+    def forward(self, x):
+        return self.policy_network(x), self.value_network(x)
+
+    @property
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        return self.value_network.parameters()
+
+    @property
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        return self.policy_network.parameters()
+
+
+nn.register(ACNetwork)
+nn.register(ACNetwork2)
+
+
+def load(logdir: str):
+    experiment = Experiment.load(logdir)
+    runner = experiment.create_runner()
+    runner.train(n_tests=5)
+    runner.train(n_tests=5)
 
 
 if __name__ == "__main__":
-    print(marl.__version__)
-    # train((0, True, False, True, "debug"))
-    run_experiment(n_runs=5, pool_size=10)
+    logdir = "logs/ppo"
+    logdir="test-seed-3"
+    env = rlenv.make("CartPole-v1")
+    
+    algo = marl.policy_gradient.PPO(
+        lr_actor=3e-4, 
+        lr_critic=1e-3 / 4, 
+        gamma=0.99, 
+        ac_network=ACNetwork2.from_env(env),
+        c1=0.5 * 4
+    )
+    experiment = Experiment.create(logdir, algo=algo, env=env, n_steps=10_000, test_interval=1000)
+    for i in range(2):
+        runner = experiment.create_runner(seed=1)
+        runner.train(n_tests=5)

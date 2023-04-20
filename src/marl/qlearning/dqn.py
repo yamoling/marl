@@ -74,7 +74,7 @@ class DQN(IDeepQLearning):
             qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
     
-    def after_step(self, transition: Transition, _time_step: int):
+    def after_train_step(self, transition: Transition, _time_step: int):
         self._memory.add(transition)
         self.update()
     

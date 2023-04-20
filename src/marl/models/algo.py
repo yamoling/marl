@@ -26,7 +26,7 @@ class RLAlgo(ABC):
     @classmethod
     def from_summary(cls, summary: dict) -> Self:
         """Instantiate the algorithm from its summary"""
-        raise NotImplementedError()
+        raise NotImplementedError(f"From summary not implemented for {cls.__name__}")
 
     def before_tests(self, time_step: int):
         """Hook before tests, for instance to swap from training to testing policy."""
@@ -36,7 +36,7 @@ class RLAlgo(ABC):
         Hook after tests.
         Subclasses should swap from testing back to training policy.
         """
-    def after_step(self, transition: Transition, time_step: int):
+    def after_train_step(self, transition: Transition, time_step: int):
         """Hook after every training step."""
 
     def before_train_episode(self, episode_num: int):

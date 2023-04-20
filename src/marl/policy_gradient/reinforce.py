@@ -65,3 +65,8 @@ class Reinforce(RLAlgo):
             "gamma": self.gamma,
             "alpha": self.optimizer.param_groups[0]["lr"],
         }
+    
+    @classmethod
+    def from_summary(cls, summary: dict) -> "Reinforce":
+        policy_network = LinearNN.from_summary(summary.pop("policy_network"))
+        return Reinforce(policy_network=policy_network, **summary)

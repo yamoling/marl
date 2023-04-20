@@ -60,13 +60,13 @@ class PrioritizedMemory(ReplayMemory[T]):
         # within a reasonable range, avoiding the possibility of extremely large updates. (Appendix B.2.1, Proportional prioritization)
         weights = weights / weights.max()
 
-        batch = self._get_batch(sample_idxs)
+        batch = self.get_batch(sample_idxs)
         batch.is_weights = weights
         batch.sample_index = sample_idxs
         return batch
 
-    def _get_batch(self, indices: list[int]) -> Batch:
-        return self._memory._get_batch(indices)
+    def get_batch(self, indices: list[int]) -> Batch:
+        return self._memory.get_batch(indices)
 
     def __len__(self) -> int:
         return len(self._memory)

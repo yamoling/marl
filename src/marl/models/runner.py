@@ -59,7 +59,7 @@ class Runner:
             action = self._algo.choose_action(self._obs)
             obs_, reward, done, info = self._env.step(action)
             transition = Transition(self._obs, action, reward, done, info, obs_)
-            self._algo.after_step(transition, self._current_step)
+            self._algo.after_train_step(transition, self._current_step)
             self._episode_builder.add(transition)
             self._obs = obs_
             self._current_step += 1

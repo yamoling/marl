@@ -26,8 +26,8 @@ class AlgoWrapper(RLAlgo):
     def after_train_episode(self, episode_num: int, episode: Episode):
         return self.algo.after_train_episode(episode_num, episode)
 
-    def after_step(self, transition: Transition, time_step: int):
-        return self.algo.after_step(transition, time_step)
+    def after_train_step(self, transition: Transition, time_step: int):
+        return self.algo.after_train_step(transition, time_step)
 
     def after_tests(self, episodes: list[Episode], time_step: int):
         return self.algo.after_tests(episodes, time_step)
