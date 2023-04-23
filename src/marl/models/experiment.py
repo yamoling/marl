@@ -240,38 +240,32 @@ class Experiment:
 
     @staticmethod
     def _metrics(df: pl.DataFrame) -> tuple[list[int], list[Dataset]]:
+        if len(df) == 0:
+            return [], []
         df = df.drop("timestamp_sec")
         df_mean = (
             df.groupby("time_step")
-            .agg(
-                [
+            .agg([
                     pl.mean(col)
                     for col in df.columns
                     if col not in ["time_step", "timestamp_sec"]
-                ]
-            )
+                ])
             .sort("time_step")
         )
         df_std = (
             df.groupby("time_step")
-            .agg(
-                [
+            .agg([
                     pl.std(col)
                     for col in df.columns
                     if col not in ["time_step", "timestamp_sec"]
-                ]
-            )
+                ])
             .sort("time_step")
         )
         res = []
         for col in df_mean.columns:
             if col == "time_step":
                 continue
-            res.append(
-                Dataset(
-                    label=col, mean=df_mean[col].to_list(), std=df_std[col].to_list()
-                )
-            )
+            res.append(Dataset(label=col, mean=df_mean[col].to_list(), std=df_std[col].to_list()))
         return df_mean["time_step"].to_list(), res
 
     def test_metrics(self):
@@ -279,10 +273,6 @@ class Experiment:
         return self._metrics(df)
 
     def train_metrics(self):
-        # TODO: train time steps will be different from one run to the other
-        # We should group them by time step ranges (10? 30? batch size?)
-        # To do so, divide the time step by the group size and round it.
-        # Then, group by the rounded value and multiply by the group size.
         df = pl.concat(run.train_metrics for run in self.runs)
         return self._metrics(df)
 

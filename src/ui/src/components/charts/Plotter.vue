@@ -27,7 +27,7 @@ function updateChart() {
         return;
     }
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach((ds, i) => {
+    props.datasets.forEach(ds => {
         const maxStd = Math.max(...ds.std);
         const stdColour = rgbToAlpha(ds?.colour || "#000000", 0.3);
         if (maxStd > 0) {
@@ -36,7 +36,7 @@ function updateChart() {
                 data: minusStd,
                 backgroundColor: stdColour,
                 // borderColor: ds.colour,
-                fill: "+1"
+                fill: "+1",
             });
         }
         datasets.push({
@@ -79,7 +79,7 @@ onMounted(() => {
             },
             plugins: {
                 legend: {
-                    display: true,
+                    display: false,
                 }
             }
         },

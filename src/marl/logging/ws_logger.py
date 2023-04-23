@@ -45,7 +45,7 @@ class WSLogger(Logger):
     async def connection_handler(self, ws: WebSocketServerProtocol, path):
         print(f"New connection at {path}")
         self.clients.add(ws)
-        # The client gets dsicconnected when this method returns
+        # The client gets disconnected when this method returns
         while not self._stop:
             await asyncio.sleep(0.25)
 

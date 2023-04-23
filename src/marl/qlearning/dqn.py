@@ -98,7 +98,8 @@ class DQN(IDeepQLearning):
         return target_qvalues
 
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        self._memory.update(batch.sample_index, qvalues, qtargets)
+        # TODO: re-implement prioritized experience replay
+        # self._memory.update(batch.sample_index, qvalues, qtargets)
         return self._loss_function(qvalues, qtargets)
 
     def process_batch(self, batch: Batch) -> Batch:

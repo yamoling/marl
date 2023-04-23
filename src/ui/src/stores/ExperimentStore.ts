@@ -12,20 +12,19 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
 
     async function refresh() {
         loading.value = true;
+        try {
         const resp = await fetch(`${HTTP_URL}/experiment/list`);
+            if (!resp.ok) {
+                alert(await resp.text());
+                return;
+            }
         const infos = await resp.json();
         experimentInfos.value = infos;
-        loading.value = false;
-        // .then(resp => resp.json())
-        // .then((infos: object) => {
-        //     for (const [key, value] of Object.entries(infos)) {
-        //         const experiment = value;
-        //         experiment.train = ref(value.train);
-        //         experiment.test = ref(value.test);
-        //         experimentInfos.value.set(key, experiment);
-        //     }
-        //     loading.value = false;
-        // });
+        } catch (e: any) {
+            alert(e.message);
+        } finally {
+            loading.value = false;
+        }
     }
     refresh();
 

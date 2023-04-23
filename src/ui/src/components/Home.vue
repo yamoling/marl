@@ -34,7 +34,7 @@
                         <td> {{ info.logdir }} </td>
                         <td> {{ info.env.name }} </td>
                         <td> {{ info.algorithm.name }} </td>
-                        <td> {{ info.algorithm.train_policy.name }} / {{ info.algorithm.test_policy.name }} </td>
+                            <td> {{ info.algorithm?.train_policy?.name }} / {{ info.algorithm?.test_policy?.name }} </td>
                         <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms).toLocaleString() : '' }} </td>
                         <td>
                             <button class="btn btn-sm btn-danger" :disabled="deleting.includes(info.logdir)"

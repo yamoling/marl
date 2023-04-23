@@ -47,7 +47,8 @@ class LinearVDN(DQN):
         return batch
     
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        return loss_functions.masked_mse(qvalues, qtargets, batch)
+        return torch.mean((qvalues - qtargets)**2)
+        # return loss_functions.masked_mse(qvalues, qtargets, batch)
 
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)

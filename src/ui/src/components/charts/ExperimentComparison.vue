@@ -1,24 +1,33 @@
 <template>
     <div class="row">
-        <fieldset class="col-auto me-3">
-            <h3>Metrics</h3>
-            <ul>
-                <li v-for="metricName in metrics">
-                    <label>
-                        <input type="checkbox" class="form-check-input" :checked="selectedMetrics.has(metricName)"
-                            @click="() => toggleSelectedMetric(metricName)">
-                        {{ metricName }}
-                    </label>
-                </li>
-            </ul>
+        <fieldset class="col-2">
+            <div class="row">
+                <h3>Metrics</h3>
+                <ul>
+                    <li v-for="metricName in metrics">
+                        <label>
+                            <input type="checkbox" class="form-check-input" :checked="selectedMetrics.has(metricName)"
+                                @click="() => toggleSelectedMetric(metricName)">
+                            {{ metricName }}
+                        </label>
+                    </li>
+                </ul>
+
+            </div>
+            <div class="row">
+                <h4>Smoothing</h4>
+                <div class="col-8">
+                    <input type="range" class="form-range" min="0" max="1" step="0.01" v-model="smoothValue">
+                </div>
+                <div class="col-4">
+                    <input type="number" class="form-control" v-model.number="smoothValue">
+                </div>
+            </div>
         </fieldset>
-        <Plotter class="col-6 text-center" :datasets="datasets" :xTicks="xTicks" title="Comparison" />
+
+        <Plotter class="col-6 text-center" :datasets="datasets" :xTicks="xTicks" title="" />
         <div class="col-auto">
-            <h3> Experiments
-                <button class="btn btn-sm btn-outline-warning">
-                    <font-awesome-icon :icon="['fas', 'rotate-left']" />
-                </button>
-            </h3>
+            <h3> Experiments </h3>
             <ul>
                 <li v-for="(e, i) in store.experimentInfos">
                     <label>
@@ -58,6 +67,7 @@ const COLOURS = [
 
 
 const store = useExperimentStore();
+const smoothValue = ref(0.2);
 const experiments = ref([] as Experiment[]);
 const loadedLogdirs = computed(() => new Set(experiments.value.map(e => e.logdir)));
 const xTicks = ref([] as number[]);
@@ -79,7 +89,15 @@ const datasets = computed(() => {
 async function update(selectedExperiments: ExperimentInfo[]) {
     xTicks.value = [];
     const loaded = await Promise.all(selectedExperiments.map(e => store.loadExperiment(e.logdir)));
-    xTicks.value = loaded[0].test_metrics.time_steps;
+    // Find the experiment with the test metrics with the most steps
+    let ticks = loaded[0].test_metrics.time_steps;
+    loaded.forEach(e => {
+        if (e.test_metrics.time_steps.length > ticks.length) {
+            ticks = e.test_metrics.time_steps;
+        }
+    });
+    xTicks.value = ticks;
+
     loaded.forEach(e => {
         e.test_metrics.datasets.forEach(ds => metrics.value.add(ds.label));
     });

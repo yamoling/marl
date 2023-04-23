@@ -4,3 +4,4 @@ from .exceptions import (
     EmptyForcedActionsException, 
     ExperimentAlreadyExistsException
 )
+from .random_algo import RandomAgent

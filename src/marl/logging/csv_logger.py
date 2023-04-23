@@ -8,13 +8,14 @@ from rlenv.models import Metrics
 from .logger_interface import Logger
 
 class CSVLogger(Logger):
-    def __init__(self, logdir: str, quiet: bool=False):
+    def __init__(self, logdir: str, quiet: bool=False, flush_interval_sec: float=30):
         Logger.__init__(self, logdir, quiet)
         self._train_file = open(os.path.join(self.logdir, "train.csv"), "w")
         self._test_file = open(os.path.join(self.logdir, "test.csv"), "w")
         self._closed = False
         self._first = True
         self._headers = None
+        self._next_flush = time.time() + flush_interval_sec
 
     def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
         if self._closed:
@@ -23,14 +24,20 @@ class CSVLogger(Logger):
         data["timestamp_sec"] = time.time()
         if self._first:
             self._first = False
-            self._headers = ",".join(sorted(data.keys())) + "\n"
-            self._train_file.write(self._headers)
-            self._test_file.write(self._headers)
+            self._headers = list(data.keys())
+            str_headers = ",".join(self._headers) + "\n"
+            self._train_file.write(str_headers)
+            self._test_file.write(str_headers)
         line = ",".join(str(data.get(head)) for head in self._headers) + "\n"
         match tag:
             case "train": self._train_file.write(line)
             case "test": self._test_file.write(line)
             case other: raise ValueError(f"Unknown tag: {other}")
+        now = time.time()
+        if now >= self._next_flush:
+            self._train_file.flush()
+            self._test_file.flush()
+            self._next_flush = now + 30
 
     def close(self):
         if not self._closed:

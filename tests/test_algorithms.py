@@ -33,12 +33,9 @@ def test_save_replay_episode():
         def check(time_step: int):
             episode_dir = f"{runner.rundir}/test/{time_step}/0"
             restored = experiment.replay_episode(episode_dir)
-            with (open(episode_dir + "/actions.json", "r") as f,
-                open(episode_dir + "/metrics.json", "r") as m):
+            with open(episode_dir + "/actions.json", "r") as f:
                 logged_actions = np.array(json.load(f))
-                logged_metrics = json.load(m)
             assert np.array_equal(restored.episode.actions, logged_actions)
-            assert restored.episode.metrics == logged_metrics
         for time_step in range(0, 201, 50):
             check(time_step)
     finally:

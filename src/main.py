@@ -2,6 +2,8 @@ import rlenv
 import marl
 import torch
 import laser_env
+import os
+from marl.utils.env_pool import EnvPool
 from marl import nn
 from marl.models import Experiment
 
@@ -82,19 +84,40 @@ def load(logdir: str):
     runner.train(n_tests=5)
 
 
+def get_env_pools():
+    train_envs, test_envs = [], []
+    for file_path in os.listdir("maps/train_maps"):
+        file_path = os.path.join("maps/train_maps", file_path)
+        train_envs.append(laser_env.StaticLaserEnv(file_path, laser_env.ObservationType.FLATTENED))
+    for file_path in os.listdir("maps/test_maps"):
+        file_path = os.path.join("maps/test_maps", file_path)
+        test_envs.append(laser_env.StaticLaserEnv(file_path, laser_env.ObservationType.FLATTENED))
+    return EnvPool(train_envs), EnvPool(test_envs)
+
 if __name__ == "__main__":
-    logdir = "logs/ppo"
-    logdir="test-seed-3"
-    env = rlenv.make("CartPole-v1")
+    logdir = "logs/random-pool"
+    #logdir = "test"
+    env, test_env = get_env_pools()
+    env = rlenv.Builder(env).agent_id().time_limit(30).build()
+    test_env = rlenv.Builder(test_env).agent_id().time_limit(30).build()
     
-    algo = marl.policy_gradient.PPO(
-        lr_actor=3e-4, 
-        lr_critic=1e-3 / 4, 
-        gamma=0.99, 
-        ac_network=ACNetwork2.from_env(env),
-        c1=0.5 * 4
+    # E-greedy decreasing from 1 to 0.1 over 200000 steps
+    min_eps = 0.1
+    decrease_amount = (1 - min_eps) / 200000
+    train_policy = marl.policy.DecreasingEpsilonGreedy(1, decrease_amount, min_eps)
+    test_policy = marl.policy.ArgMax()
+    qnetwork = marl.nn.model_bank.MLP.from_env(env)
+    algo = marl.qlearning.LinearVDN(
+        qnetwork=qnetwork,
+        gamma=0.95,
+        train_policy=train_policy,
+        test_policy=test_policy
     )
-    experiment = Experiment.create(logdir, algo=algo, env=env, n_steps=10_000, test_interval=1000)
-    for i in range(2):
-        runner = experiment.create_runner(seed=1)
+
+    from marl.utils.random_algo import RandomAgent
+    algo = RandomAgent(env.n_actions, env.n_agents)
+    experiment = Experiment.create(logdir, algo=algo, env=env, n_steps=300_000, test_interval=5000, test_env=test_env)
+    for i in range(3):
+        runner = experiment.create_runner(seed=i)
         runner.train(n_tests=5)
+    

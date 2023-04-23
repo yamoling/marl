@@ -5,6 +5,9 @@ from rlenv.models import Episode, Transition, Observation
 
 
 class RLAlgo(ABC):
+    def __init__(self):
+        super().__init__()
+
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         """Get the action to perform given the input observation"""

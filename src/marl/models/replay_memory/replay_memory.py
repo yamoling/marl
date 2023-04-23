@@ -5,6 +5,7 @@ from rlenv import Episode, Transition
 import numpy as np
 
 from marl.models.batch import Batch
+from marl.models.batch import TransitionsBatch, EpisodeBatch
 
 
 T = TypeVar("T")
@@ -58,8 +59,8 @@ class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
     def get_batch(self, indices: list[int]) -> Batch:
-        samples = [self._memory[i] for i in indices]
-        return Batch.from_transitions(samples)
+        transitions = [self._memory[i] for i in indices]
+        return TransitionsBatch(transitions)
 
     def summary(self):
         return {
@@ -72,7 +73,7 @@ class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
     def get_batch(self, indices: list[int]) -> Batch:
         episodes = [self._memory[i] for i in indices]
-        return Batch.from_episodes(episodes)
+        return EpisodeBatch(episodes)
 
     def summary(self):
         return {
