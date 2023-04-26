@@ -5,3 +5,4 @@ from .exceptions import (
     ExperimentAlreadyExistsException
 )
 from .random_algo import RandomAgent
+from .env_pool import EnvPool

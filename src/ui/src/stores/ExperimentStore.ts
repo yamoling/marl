@@ -13,13 +13,13 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     async function refresh() {
         loading.value = true;
         try {
-        const resp = await fetch(`${HTTP_URL}/experiment/list`);
+            const resp = await fetch(`${HTTP_URL}/experiment/list`);
             if (!resp.ok) {
                 alert(await resp.text());
                 return;
             }
-        const infos = await resp.json();
-        experimentInfos.value = infos;
+            const infos = await resp.json();
+            experimentInfos.value = infos;
         } catch (e: any) {
             alert(e.message);
         } finally {

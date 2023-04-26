@@ -67,16 +67,9 @@ defineProps<{
     experiment: ExperimentInfo
 }>();
 
-const nAgents = computed(() => (episode.value?.qvalues == null) ? 0 : episode.value.qvalues[0].length);
+const nAgents = computed(() => (episode.value?.episode.actions[0].length) || 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_length || 0);
 const currentFrame = computed(() => episode.value?.frames?.at(currentStep.value) || '');
-const previousFrame = computed(() => {
-    if (currentStep.value <= 0) {
-        return ""
-    }
-    return episode.value?.frames?.at(currentStep.value - 1) || '';
-})
-
 
 onMounted(() => {
     modal.value.addEventListener("keydown", (event) => {
@@ -116,9 +109,11 @@ async function viewEpisode(episodeDirectory: string) {
     (new Modal("#" + modal.value.id)).show()
     episode.value = await replayStore.getEpisode(episodeDirectory);
     currentStep.value = 0;
-    const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
-    const maxQValue = Math.max(...episode.value?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
-    rainbow.setNumberRange(minQValue, maxQValue);
+    if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
+        const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
+        const maxQValue = Math.max(...episode.value?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
+        rainbow.setNumberRange(minQValue, maxQValue);
+    }
     loading.value = false;
 }
 

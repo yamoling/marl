@@ -55,7 +55,7 @@ function onTabChanged(tabName: string) {
 }
 
 function compareExperiments() {
-  comparison.value.update(experimentStore.experimentInfos);
+  comparison.value.update([]);
   tabs.value.changeTab("Compare");
 }
 

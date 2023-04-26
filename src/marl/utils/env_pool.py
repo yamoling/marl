@@ -26,3 +26,5 @@ class EnvPool(RLEnvWrapper):
         kwargs = summary.pop(cls.__name__)
         envs = [rlenv.from_summary(summary) for summary in kwargs["envs"]]
         return cls(envs)
+
+rlenv.register_wrapper(EnvPool)

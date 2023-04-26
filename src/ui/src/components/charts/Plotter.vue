@@ -1,7 +1,7 @@
 <template>
     <div>
         <h3 v-if="title.length > 0"> {{ title }}</h3>
-        <ul id="legend-container"></ul>
+        <div ref="legendContainer" class="row"></div>
         <canvas v-show="datasets.length > 0" ref="canvas"></canvas>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
@@ -15,11 +15,42 @@ import { Dataset } from '../../models/Experiment';
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
+const legendContainer = ref({} as HTMLElement);
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
     title: string
+    showLegend: boolean
 }>();
+
+const DEFAULT_COLOURS = [
+    "#EE5060",
+    "#36a2eb",
+    "#cc65fe",
+    "#ffce56",
+    "#4bc0c0",
+    "#9966ff",
+    "#ff9f40",
+];
+
+function clippedStd(mean: number[], std: number[], min: number[], max: number[]) {
+    const lowerStd = std.map((s, i) => {
+        const value = mean[i] - s;
+        if (value < min[i]) {
+            return min[i];
+        }
+        return value;
+    });
+    const upperStd = std.map((s, i) => {
+        const value = mean[i] + s;
+        if (value > max[i]) {
+            return max[i];
+        }
+        return value;
+    });
+    return { lower: lowerStd, upper: upperStd };
+}
+
 
 
 function updateChart() {
@@ -27,33 +58,30 @@ function updateChart() {
         return;
     }
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach(ds => {
-        const maxStd = Math.max(...ds.std);
-        const stdColour = rgbToAlpha(ds?.colour || "#000000", 0.3);
-        if (maxStd > 0) {
-            const minusStd = ds.mean.map((v, i) => v - ds.std[i]);
-            datasets.push({
-                data: minusStd,
-                backgroundColor: stdColour,
-                // borderColor: ds.colour,
-                fill: "+1",
-            });
+    props.datasets.forEach((ds, i) => {
+        if (ds.colour == null) {
+            ds.colour = DEFAULT_COLOURS[i % DEFAULT_COLOURS.length];
         }
+        const stdColour = rgbToAlpha(ds.colour, 0.3);
+        const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
+        datasets.push({
+            data: std.lower,
+            backgroundColor: stdColour,
+            fill: "+1",
+            label: "-std"
+        });
         datasets.push({
             label: ds.label,
             data: ds.mean,
             borderColor: ds.colour,
             backgroundColor: ds.colour,
         });
-        if (maxStd > 0) {
-            const plusStd = ds.mean.map((v, i) => v + ds.std[i]);
-            datasets.push({
-                data: plusStd,
-                backgroundColor: stdColour,
-                // borderColor: ds.colour,
-                fill: "-1",
-            });
-        }
+        datasets.push({
+            data: std.upper,
+            backgroundColor: stdColour,
+            fill: "-1",
+            label: "+std"
+        });
     });
     chart.data = { labels: props.xTicks, datasets };
     chart.update();
@@ -83,7 +111,7 @@ onMounted(() => {
                 }
             }
         },
-        // plugins: [htmlLegendPlugin]
+        plugins: [htmlLegendPlugin]
     });
     updateChart();
 })
@@ -95,106 +123,80 @@ function rgbToAlpha(rgb: string, alpha: number) {
     return `rgba(${R}, ${G}, ${B}, ${alpha})`
 }
 
-function shadeColor(color: string, percent: number) {
-    let R = parseInt(color.substring(1, 3), 16);
-    let G = parseInt(color.substring(3, 5), 16);
-    let B = parseInt(color.substring(5, 7), 16);
-
-    R = R * (100 + percent) / 100;
-    G = G * (100 + percent) / 100;
-    B = B * (100 + percent) / 100;
-
-    R = Math.round((R < 255) ? R : 255);
-    G = Math.round((G < 255) ? G : 255);
-    B = Math.round((B < 255) ? B : 255);
-
-    let RR = ((R.toString(16).length == 1) ? "0" + R.toString(16) : R.toString(16));
-    let GG = ((G.toString(16).length == 1) ? "0" + G.toString(16) : G.toString(16));
-    let BB = ((B.toString(16).length == 1) ? "0" + B.toString(16) : B.toString(16));
-
-    return "#" + RR + GG + BB;
-}
-
-
-const getOrCreateLegendList = (chart: Chart, id: string) => {
-    const legendContainer = document.getElementById(id) as HTMLElement;
-    let listContainer = legendContainer.querySelector('ul');
-
-    if (!listContainer) {
-        listContainer = document.createElement('ul');
-        listContainer.style.display = 'flex';
-        listContainer.style.flexDirection = 'row';
-        listContainer.style.margin = "0";
-        listContainer.style.padding = "0";
-
-        legendContainer.appendChild(listContainer);
-    }
-
-    return listContainer;
-};
-
 const htmlLegendPlugin = {
     id: 'htmlLegend',
     afterUpdate(chart: Chart, args: any, options: any) {
-        const ul = getOrCreateLegendList(chart, "legend-container");
-
+        const legend = legendContainer.value;
         // Remove old legend items
-        while (ul.firstChild) {
-            ul.firstChild.remove();
+        while (legend.firstChild) {
+            legend.firstChild.remove();
         }
 
         if (chart.options.plugins?.legend?.labels?.generateLabels == null) {
             return;
         }
-        // Reuse the built-in legendItems generator
-        const items = chart.options.plugins?.legend?.labels.generateLabels(chart);
+        // Reuse the built-in legendItems generator and remove datasets without labels
+        const items = chart.options.plugins?.legend?.labels.generateLabels(chart)
+            .filter(item => item.text != "+std" && item.text != "-std");
 
 
         items.forEach(item => {
-            const li = document.createElement('li');
-            li.style.alignItems = 'center';
-            li.style.cursor = 'pointer';
-            li.style.display = 'flex';
-            li.style.flexDirection = 'row';
-            li.style.marginLeft = '10px';
+            const div = document.createElement('div');
+            div.classList.add("col-auto");
+            div.classList.add("legend-item");
 
-            li.onclick = () => {
-                const { type } = chart.config;
-                if (type === 'pie' || type === 'doughnut') {
-                    // Pie and doughnut charts only have a single dataset and visibility is per item
-                    chart.toggleDataVisibility(item.index || 0);
-                } else {
-                    chart.setDatasetVisibility(item.datasetIndex || 0, !chart.isDatasetVisible(item.datasetIndex || 0));
+            div.onclick = () => {
+                // Hide the dataset on click (with the one before and after if there is a std)
+                const index = item.datasetIndex || 0;
+                const newVisibility = !chart.isDatasetVisible(index);
+                chart.setDatasetVisibility(index, newVisibility);
+                if (chart.data.datasets[index - 1].label == "-std") {
+                    chart.setDatasetVisibility(index - 1, newVisibility);
+                    chart.setDatasetVisibility(index + 1, newVisibility);
                 }
                 chart.update();
             };
 
             // Color box
             const boxSpan = document.createElement('span');
+            boxSpan.classList.add("legend-box")
             boxSpan.style.background = item.fillStyle?.toString() || "";
             boxSpan.style.borderColor = item.strokeStyle?.toString() || "";
             boxSpan.style.borderWidth = item.lineWidth + 'px';
-            boxSpan.style.display = 'inline-block';
-            boxSpan.style.height = '20px';
-            boxSpan.style.marginRight = '10px';
-            boxSpan.style.width = '20px';
 
             // Text
-            const textContainer = document.createElement('p');
+            const textContainer = document.createElement('span');
             textContainer.style.color = item.fontColor?.toString() || "";
-            textContainer.style.margin = "0";
-            textContainer.style.padding = "0";
             textContainer.style.textDecoration = item.hidden ? 'line-through' : '';
 
             const text = document.createTextNode(item.text);
             textContainer.appendChild(text);
 
-            li.appendChild(boxSpan);
-            li.appendChild(textContainer);
-            ul.appendChild(li);
+            div.appendChild(boxSpan);
+            div.appendChild(textContainer);
+            legend.appendChild(div);
         });
     }
 };
 </script>
 
-<style></style>
+<style>
+.legend-item {
+    cursor: pointer;
+}
+
+div.legend-item:hover {
+    font-weight: bold;
+}
+
+div.legend-item>span {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+div.legend-item>span.legend-box {
+    height: 20px;
+    width: 20px;
+    margin-right: 10px;
+}
+</style>

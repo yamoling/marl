@@ -76,10 +76,16 @@ class Run:
     @property
     def current_step(self) -> int:
         try:
-            with open(os.path.join(self.rundir, "run.json"), "r") as f:
-                return json.load(f)["current_step"]
-        except FileNotFoundError:
-            return 0
+            self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
+            max_train = self.train_metrics["time_step"].max()
+        except pl.NoDataError:
+            max_train = 0
+        try:
+            self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
+            max_test = self.test_metrics["time_step"].max()
+        except pl.NoDataError:
+            max_test = 0
+        return max(max_train, max_test)
 
     def stop(self):
         """Stop the run by sending a SIGINT to the process. This method waits for the process to terminate before returning."""
@@ -110,6 +116,12 @@ class Run:
             return None
         except ProcessLookupError:
             os.remove(pid_file)
+            return None
 
     def to_json(self) -> dict[str, str | int | None]:
-        return {"rundir": self.rundir, "port": self.get_port(), "pid": self.get_pid()}
+        return {
+            "rundir": self.rundir, 
+            "port": self.get_port(), 
+            "pid": self.get_pid(),
+            "current_step": self.current_step,
+        }

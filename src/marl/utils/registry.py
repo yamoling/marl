@@ -3,7 +3,7 @@ import inspect
 from marl.models import RLAlgo
 from marl import qlearning, policy_gradient
 
-
+ALGO_REGISTRY: dict[str, Type[RLAlgo]] = {}
 
 def _is_algo_predicate(cls: Type[RLAlgo]) -> bool:
     return inspect.isclass(cls) and issubclass(cls, RLAlgo) and not inspect.isabstract(cls)
@@ -26,4 +26,4 @@ def register(algo: Type[RLAlgo]):
     """Register a RLAlgo"""
     ALGO_REGISTRY[algo.__name__] = algo
 
-ALGO_REGISTRY: dict[str, Type[RLAlgo]] = _get_all_algos()
+ALGO_REGISTRY.update(_get_all_algos())

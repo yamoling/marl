@@ -16,5 +16,7 @@ export interface Dataset {
     label: string
     mean: number[]
     std: number[]
+    min: number[]
+    max: number[]
     colour?: string
 }

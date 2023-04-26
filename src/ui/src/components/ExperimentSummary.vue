@@ -14,6 +14,7 @@
 import { Modal } from 'bootstrap';
 import { computed } from 'vue';
 import { ExperimentInfo } from '../models/Infos';
+import { DQNInfo } from "../models/Algos";
 import ExperimentParameters from './modals/ExperimentParameters.vue';
 
 
@@ -29,13 +30,15 @@ const envBadges = computed(() => {
     ]
 });
 const algoBadges = computed(() => {
-    const res = [
-        `${props.experiment.algorithm.name}(${props.experiment.algorithm.qnetwork.name})`,
-        "Train: " + props.experiment.algorithm.train_policy.name,
-        "Test: " + props.experiment.algorithm.test_policy.name,
-    ]
-    if (props.experiment.seed)
-        res.push("Seed: " + props.experiment.seed);
+    const res = [] as string[];
+    if (props.experiment.algorithm.qnetwork != null) {
+        const algo = props.experiment.algorithm as DQNInfo;
+        res.concat([
+            `${algo.name}(${algo.qnetwork.name})`,
+            "Train: " + algo.train_policy.name,
+            "Test: " + algo.test_policy.name,
+        ])
+    }
     return res;
 });
 

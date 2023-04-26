@@ -1,10 +1,11 @@
 <template>
     <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
-        <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obsRelativePos" />
+        <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obs1D" />
         <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
         <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
-        <Features v-else-if="obsType == 'FEATURES'" :obs="obsRelativePos" :extras="extras" />
+        <Features v-else-if="obsType == 'FEATURES'" :obs="obs1D" :extras="extras" />
+        <Features2 v-else-if="obsType == 'FEATURES2'" :obs="obs1D" :extras="extras" />
         <p v-else> No preview available for obs type {{ obsType }}</p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
@@ -17,7 +18,7 @@
                     </th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody v-if="episode?.qvalues?.length && episode.qvalues.length > 0">
                 <tr>
                     <th scope="row"> Qvalues </th>
                     <td v-for="(q, action) in qvalues" :style='{ "background-color": "#" + backgroundColours[action] }'>
@@ -40,6 +41,7 @@ import Layered from "./observation/Layered.vue";
 import Flattened from "./observation/Flattened.vue";
 import { ExperimentInfo } from "../../models/Infos";
 import Features from "./observation/Features.vue";
+import Features2 from "./observation/Features2.vue";
 
 const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
 
@@ -72,7 +74,9 @@ const availableActions = computed(() => {
 });
 
 const qvalues = computed(() => {
+    console.log(props.episode?.qvalues)
     if (props.episode == null) return [];
+    if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
     if (props.currentStep >= episodeLength.value) return [];
     return props.episode.qvalues[props.currentStep][props.agentNum];
 });
@@ -84,8 +88,8 @@ const backgroundColours = computed(() => {
     return qvalues.value.map(q => props.rainbow.colourAt(q));
 });
 
-const obsRelativePos = computed(() => obs.value as number[]);
-const obsFlattened = obsRelativePos;
+const obs1D = computed(() => obs.value as number[]);
+const obsFlattened = obs1D;
 const obsLayered = computed(() => obs.value as number[][][]);
 
 </script>

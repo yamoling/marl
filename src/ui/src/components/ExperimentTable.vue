@@ -84,7 +84,6 @@ async function onTestClicked(time_step: number) {
     testsAtStep.value = null;
     try {
         const tests = await store.getTestEpisodes(props.experiment.logdir, time_step);
-        console.log(tests);
         testsAtStep.value = tests;
     } catch (e) {
         selectedTimeStep.value = null;

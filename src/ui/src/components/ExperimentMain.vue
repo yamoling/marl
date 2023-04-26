@@ -6,10 +6,11 @@
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <ExperimentSummary class="mb-2" :experiment="experiment" />
         <div class="col-4">
-            <Plotter :datasets="experiment.test_metrics.datasets" class="text-center" title="Average test metrics"
-                :x-ticks="experiment.test_metrics.time_steps" />
+            <Plotter :datasets="experiment.test_metrics.datasets" class="row text-center" title="Average test metrics"
+                :x-ticks="experiment.test_metrics.time_steps" :show-legend="true" />
             <hr>
-            <ExperimentRuns :experiment="experiment" @new-test="onTestEpisode" @reload-requested="reloadExperiment" />
+            <ExperimentRuns class="row" :experiment="experiment" @new-test="onTestEpisode"
+                @reload-requested="reloadExperiment" />
         </div>
         <div class="col">
             <ExperimentTable :experiment="experiment" @view-episode="viewer.viewEpisode" />

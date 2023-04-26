@@ -25,6 +25,8 @@ from .run import Run
 class Dataset:
     label: str
     mean: list[float]
+    min: list[float]
+    max: list[float]
     std: list[float]
 
     def to_json(self) -> dict:
@@ -32,6 +34,8 @@ class Dataset:
             "label": self.label,
             "mean": self.mean,
             "std": self.std,
+            "min": self.min,
+            "max": self.max,
         }
 
 
@@ -109,10 +113,10 @@ class Experiment:
     @staticmethod
     def load(logdir: str) -> "Experiment":
         """Load an existing experiment."""
+        import marl
         try:
             with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
-            import marl
             algo = marl.from_summary(summary["algorithm"])
             env = rlenv.from_summary(summary["env"])
             test_env = rlenv.from_summary(summary["test_env"])
@@ -159,7 +163,7 @@ class Experiment:
             rundir = forced_rundir
         else:
             rundir = os.path.join(self.logdir, f"run_{time.time()}")
-        os.makedirs(rundir, exist_ok=False)
+        os.makedirs(rundir, exist_ok=(checkpoint is not None))
         if len(loggers) == 0:
             loggers = ["web", "tensorboard", "csv"]
         logger_list = []
@@ -245,27 +249,35 @@ class Experiment:
         df = df.drop("timestamp_sec")
         df_mean = (
             df.groupby("time_step")
-            .agg([
-                    pl.mean(col)
-                    for col in df.columns
-                    if col not in ["time_step", "timestamp_sec"]
-                ])
+            .agg([pl.mean(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
             .sort("time_step")
         )
         df_std = (
             df.groupby("time_step")
-            .agg([
-                    pl.std(col)
-                    for col in df.columns
-                    if col not in ["time_step", "timestamp_sec"]
-                ])
+            .agg([pl.std(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .sort("time_step")
+        )
+        df_min = (
+            df.groupby("time_step")
+            .agg([pl.min(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .sort("time_step")
+        )
+        df_max = (
+            df.groupby("time_step")
+            .agg([pl.max(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
             .sort("time_step")
         )
         res = []
         for col in df_mean.columns:
             if col == "time_step":
                 continue
-            res.append(Dataset(label=col, mean=df_mean[col].to_list(), std=df_std[col].to_list()))
+            res.append(Dataset(
+                label=col, 
+                mean=df_mean[col].to_list(), 
+                std=df_std[col].to_list(),
+                min=df_min[col].to_list(),
+                max=df_max[col].to_list(),
+            ))
         return df_mean["time_step"].to_list(), res
 
     def test_metrics(self):
@@ -317,12 +329,12 @@ class Experiment:
 def restore_env(env_summary: dict[str,], force_static=False) -> RLEnv:
     if force_static:
         env = laser_env.StaticLaserEnv.from_summary(env_summary)
+        try:
+            # Do not restore envPool if force_static
+            env_summary["wrappers"].remove("EnvPool")
+            env_summary.pop("EnvPool")
+        except (KeyError, ValueError):
+            pass
     else:
-        match env_summary["name"]:
-            case laser_env.DynamicLaserEnv.__name__:
-                env = laser_env.DynamicLaserEnv.from_summary(env_summary)
-            case laser_env.StaticLaserEnv.__name__:
-                env = laser_env.StaticLaserEnv.from_summary(env_summary)
-            case other:
-                raise NotImplementedError(f"Cannot restore env {other}")
+        env = rlenv.from_summary(env_summary)
     return wrappers.from_summary(env, env_summary)

@@ -14,9 +14,5 @@ export function EMA(data: number[], weight: number) {
         result[i] = newValue;
     }
     return result;
-    // return data.map((value) => {
-    //     let newValue = (last * weight + value * (1 - weight));
-    //     last = newValue;
-    //     return newValue;
-    // });
 }
+

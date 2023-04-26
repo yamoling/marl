@@ -1,4 +1,5 @@
-import { OBS_TYPES, POLICIES } from "../constants";
+import { OBS_TYPES } from "../constants";
+import { AlgoInfo } from "./Algos";
 
 export interface ExperimentInfo {
     algorithm: AlgoInfo
@@ -48,32 +49,3 @@ export interface StaticLaserEnv {
     obs_type: typeof OBS_TYPES[number]
 }
 
-export interface AlgoInfo {
-    name: string
-    gamma: number
-    batch_size: number
-    tau: number
-    qnetwork: {
-        name: string,
-        input_shape: number[],
-        output_shape: number[],
-        extra_shape: number[],
-    }
-    recurrent: boolean
-    train_policy: PolicyInfo
-    test_policy: PolicyInfo
-}
-
-export interface PolicyInfo {
-    name: typeof POLICIES[number]
-}
-
-export interface DecreasingEpsilonGreedyPolicy extends PolicyInfo {
-    epsilon: number
-    epsilon_decay: number
-    epsilon_min: number
-}
-
-export interface SoftmaxPolicy extends PolicyInfo {
-    tau: number
-}

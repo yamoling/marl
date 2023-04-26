@@ -1,20 +1,8 @@
 <template>
     <div>
-        <h3 class="text-center">
-            Runs
-            <button class="btn btn-sm btn-success ms-4 px-3" @click="() => runConfigModal.show()">
-                <font-awesome-icon :icon="['fas', 'plus']" />
-            </button>
-        </h3>
+        <h3 class="text-center"> Runs </h3>
         <div class="table-scrollable">
             <table class="table table-sm-table-striped table-borderless">
-                <thead>
-                    <tr>
-                        <th> Rundir </th>
-                        <th class="text-center"> Status </th>
-                        <th> </th>
-                    </tr>
-                </thead>
                 <tbody>
                     <template v-for="(run, i) in experiment.runs">
                         <tr style="border-top: 1px solid black;">
@@ -48,10 +36,12 @@
                                 <div class="progress position-relative" role="progressbar">
                                     <div class="progress-bar bg-info progress-bar-striped text-dark"
                                         :class="(run.port != null ? 'progress-bar-animated' : '')" role="progressbar"
-                                        :style="{ width: `${progresses.get(run.rundir)}%` }">
+                                        :style="{ width: `${100 * (progresses.get(run.rundir) || 0) / experiment.n_steps}%` }">
                                     </div>
-                                    <div class="justify-content-center d-flex position-absolute w-100"> {{
-                                        progresses.get(run.rundir)?.toFixed(2) }}% </div>
+                                    <div class="justify-content-center d-flex position-absolute w-100">
+                                        {{ progresses.get(run.rundir) }} / {{ experiment.n_steps }}
+                                        ({{ (100 * (progresses.get(run.rundir) || 0) / experiment.n_steps).toFixed(2) }}%)
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -80,12 +70,12 @@ let runConfigModal = {} as Modal;
 let restartRunModal = {} as Modal;
 const runToRestart = ref(null as null | RunInfo);
 const store = useRunnerStore();
-// Map rundir to progress (from 0 to 100%).
+// Map rundir to run.time_step.
 const progresses = ref(new Map<string, number>());
 const runStatus = computed(() => {
     // Status is either paused, running or completed.
     return props.experiment.runs.map(r => {
-        if (progresses.value.get(r.rundir) == 100) {
+        if (progresses.value.get(r.rundir) == props.experiment.n_steps) {
             return 'completed';
         }
         if (r.port != null) {
@@ -106,9 +96,8 @@ onMounted(() => {
 })
 
 function updateListeners(runs: RunInfo[]) {
-    const experimentSteps = props.experiment.n_steps;
     runs.forEach(run => {
-        progresses.value.set(run.rundir, run.current_step * 100 / experimentSteps);
+        progresses.value.set(run.rundir, run.current_step);
         if (run.pid != null && run.port != null) {
             store.startListening(
                 run.rundir,
@@ -154,7 +143,7 @@ async function onRunRestart() {
 
 function onTrainUpdate(rundir: string, data: ReplayEpisodeSummary) {
     const step = Number.parseInt(data.name);
-    progresses.value.set(rundir, 100 * step / props.experiment.n_steps);
+    progresses.value.set(rundir, step);
 }
 
 async function pauseRun(runNum: number, rundir: string) {

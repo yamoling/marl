@@ -11,7 +11,7 @@ export interface ReplayEpisode {
     directory: string,
     episode: Episode,
     metrics: Metrics,
-    qvalues: number[][][],
+    qvalues?: number[][][],
     frames: string[]
 }
 
