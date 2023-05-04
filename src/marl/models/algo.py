@@ -1,5 +1,6 @@
 from typing_extensions import Self
 from abc import ABC, abstractmethod
+import torch
 import numpy as np
 from rlenv.models import Episode, Transition, Observation
 
@@ -12,11 +13,20 @@ class RLAlgo(ABC):
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         """Get the action to perform given the input observation"""
 
+    @property
+    def name(self) -> str:
+        """The name of the algorithm"""
+        return self.__class__.__name__
+    
     def summary(self) -> dict:
         """Dictionary of the relevant algorithm parameters for experiment logging purposes"""
         return {
-            "name": self.__class__.__name__
+            "name": self.name
         }
+    
+    def to(self, device: torch.device):
+        """Move the algorithm to the specified device"""
+        raise NotImplementedError("Not implemented for this algorithm")
 
     def save(self, to_path: str):
         """Save the algorithm state to the specified file."""

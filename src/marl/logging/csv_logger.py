@@ -10,12 +10,15 @@ from .logger_interface import Logger
 class CSVLogger(Logger):
     def __init__(self, logdir: str, quiet: bool=False, flush_interval_sec: float=30):
         Logger.__init__(self, logdir, quiet)
-        self._train_file = open(os.path.join(self.logdir, "train.csv"), "w")
-        self._test_file = open(os.path.join(self.logdir, "test.csv"), "w")
         self._closed = False
         self._first = True
         self._headers = None
         self._next_flush = time.time() + flush_interval_sec
+        
+        if os.path.exists(self.test_path):
+            self._resume_logging()
+        self._train_file = open(self.train_path, "a")
+        self._test_file = open(self.test_path, "a")
 
     def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
         if self._closed:
@@ -44,6 +47,21 @@ class CSVLogger(Logger):
             self._closed = True
             self._train_file.close()
             self._test_file.close()
+
+    def _resume_logging(self):
+        with open(self.test_path, "r") as f:
+            header = f.readline()
+            if len(header) > 0:
+                self._headers = header.strip().split(",")
+                self._first = False
+
+    @property
+    def test_path(self):
+        return os.path.join(self.logdir, "test.csv")
+    
+    @property
+    def train_path(self):
+        return os.path.join(self.logdir, "train.csv")
 
     def __del__(self):
         self.close()

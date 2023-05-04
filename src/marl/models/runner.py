@@ -1,5 +1,6 @@
 import os
 import json
+import torch
 from copy import deepcopy
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Observation
 from tqdm import tqdm
@@ -15,7 +16,7 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         logger: Logger,
-        n_steps: int,
+        end_step: int,
         test_interval: int,
         test_env: RLEnv=None,
         start_step=0,
@@ -27,11 +28,11 @@ class Runner:
         self._seed = None
         self._best_score = -float("inf")
         self._checkpoint = os.path.join(self.rundir, "checkpoint")
-        self._current_step = start_step
+        self._start_step = start_step
         self._episode_builder = None
         self._episode_num = 0
         self._obs: Observation | None = None
-        self._n_steps = n_steps
+        self._end_step = end_step
         self._test_interval = test_interval
 
     def _before_train_episode(self):
@@ -43,38 +44,35 @@ class Runner:
         """Start the training loop"""
         with open(os.path.join(self.rundir, "pid"), "w") as f:
             f.write(str(os.getpid()))
-        stop = self._current_step + self._n_steps
         if self._episode_num == 0:
             self._before_train_episode()
-        for i in tqdm(range(self._current_step, stop), desc="Training", unit="Step", leave=True, disable=quiet):
-            self._current_step = i
-            if self._current_step % self._test_interval == 0:
-                self.test(n_tests, quiet=quiet)
+        for step in tqdm(range(self._start_step, self._end_step), initial=self._start_step, total=self._end_step, desc="Training", unit="Step", leave=True, disable=quiet):
+            if step % self._test_interval == 0:
+                self.test(n_tests, step, quiet=quiet)
             if self._episode_builder.is_done:
                 episode = self._episode_builder.build()
                 self._algo.after_train_episode(self._episode_num, episode)
-                self._logger.log("train", episode.metrics, self._current_step - len(episode))
+                self._logger.log("train", episode.metrics, step - len(episode))
                 self._episode_num += 1
                 self._before_train_episode()
             action = self._algo.choose_action(self._obs)
             obs_, reward, done, info = self._env.step(action)
             transition = Transition(self._obs, action, reward, done, info, obs_)
-            self._algo.after_train_step(transition, self._current_step)
+            self._algo.after_train_step(transition, step)
             self._episode_builder.add(transition)
             self._obs = obs_
-            self._current_step += 1
-        if self._current_step % self._test_interval == 0:
-            self.test(n_tests, quiet=quiet)
+        
+        self.test(n_tests, step, quiet=quiet)
         self._logger.close()
 
-    def test(self, ntests: int, quiet=False):
+    def test(self, ntests: int, time_step: int, quiet=False):
         """Test the agent"""
-        self._algo.before_tests(self._current_step)
-        test_dir = os.path.join(self.rundir, "test", f"{self._current_step}")
+        self._algo.before_tests(time_step)
+        test_dir = os.path.join(self.rundir, "test", f"{time_step}")
         self._algo.save(test_dir)
         episodes: list[Episode] = []
         for i in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-            self._algo.before_test_episode(self._current_step, i)
+            self._algo.before_test_episode(time_step, i)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
             while not episode.is_done:
@@ -84,11 +82,11 @@ class Runner:
                 episode.add(transition)
                 obs = new_obs
             episode = episode.build()
-            self._algo.after_test_episode(self._current_step, i, episode)
+            self._algo.after_test_episode(time_step, i, episode)
             self._save_test_episode(os.path.join(test_dir, f"{i}"), episode)
-            self._logger.log("test", episode.metrics, self._current_step)
+            self._logger.log("test", episode.metrics, time_step)
             episodes.append(episode)
-        self._algo.after_tests(episodes, self._current_step)
+        self._algo.after_tests(episodes, time_step)
 
     def _save_test_episode(self, directory: str, episode: Episode):
         os.makedirs(directory, exist_ok=True)
@@ -110,6 +108,14 @@ class Runner:
         random.seed(seed_value)
         self._env.seed(seed_value)
         self._test_env.seed(seed_value)
+        with open(os.path.join(self.rundir, "seed"), "w") as f:
+            f.write(str(seed_value))
+
+    def to(self, device: str|torch.device):
+        if isinstance(device, str):
+            from marl.utils import get_device
+            device = get_device(device)
+        self._algo.to(device)
 
     @property
     def rundir(self) -> str:

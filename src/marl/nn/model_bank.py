@@ -1,7 +1,6 @@
-import os
 import torch
 
-from .interfaces import LinearNN, RecurrentNN
+from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
 
 
 class MLP(LinearNN[torch.Tensor]):
@@ -61,28 +60,6 @@ class RNNQMix(RecurrentNN[torch.Tensor]):
         x, hidden_state = self.gru.forward(x, hidden_states)
         x = self.fc2(x)
         return x, hidden_state
-
-
-class XtractMLP(LinearNN[torch.Tensor]):
-    """Self supervised (frozen) CNN feature extractor followed by an MLP"""
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.embedding_shape = (1024, )
-        file_directory = os.path.dirname(__file__)
-        saved_model = os.path.join(file_directory, "saved_models/cnn_ssl_feature_extractor.model")
-        self.cnn = CNN(input_shape, None, self.embedding_shape)
-        with open(saved_model, "rb") as f:
-            state_dict = torch.load(f)
-            self.cnn.load_state_dict(state_dict)
-        self.mlp = MLP(self.embedding_shape, extras_shape, output_shape)
-
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
-        obs = obs / 255.
-        batch_size, n_agents, channels, height, width = obs.shape
-        obs = obs.view(batch_size * n_agents, channels, height, width)
-        features = self.cnn.forward(obs).detach()
-        features = features.view(batch_size, n_agents, *self.embedding_shape)
-        return self.mlp.forward(features, extras)
 
 
 class AtariCNN(LinearNN[torch.Tensor]):
@@ -212,3 +189,68 @@ def conv2d_size_out(input_width, input_height, kernel_sizes, strides, paddings):
         width = (width + 2*pad - (kernel_size - 1) - 1) // stride + 1
         height = (height + 2*pad - (kernel_size - 1) - 1) // stride + 1
     return width, height
+
+class ACNetwork(ActorCriticNN):
+    def __init__(self, input_shape: tuple, extras_shape: tuple | None, output_shape: tuple):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.common = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.ReLU(),
+        )
+        self.policy_network = torch.nn.Linear(128, *output_shape)
+        self.value_network = torch.nn.Linear(128, 1)
+
+    def policy(self, obs: torch.Tensor):
+        obs = self.common(obs)
+        return self.policy_network(obs)
+
+    def value(self, obs: torch.Tensor):
+        obs = self.common(obs)
+        return self.value_network(obs)
+
+    def forward(self, x):
+        x = self.common(x)
+        return self.policy_network(x), self.value_network(x)
+
+    @property
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        return list(self.common.parameters()) + list(self.value_network.parameters())
+
+    @property
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        return list(self.common.parameters()) + list(self.policy_network.parameters())
+
+
+class ACNetwork2(ActorCriticNN):
+    def __init__(self, input_shape: tuple, extras_shape: tuple | None, output_shape: tuple):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.value_network = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128), torch.nn.ReLU(), torch.nn.Linear(128, 128), torch.nn.ReLU(), torch.nn.Linear(128, 1)
+        )
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, *output_shape),
+        )
+
+    def policy(self, obs: torch.Tensor):
+        return self.policy_network(obs)
+
+    def value(self, obs: torch.Tensor):
+        return self.value_network(obs)
+
+    def forward(self, x):
+        return self.policy_network(x), self.value_network(x)
+
+    @property
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        return self.value_network.parameters()
+
+    @property
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        return self.policy_network.parameters()
+

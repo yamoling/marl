@@ -3,8 +3,6 @@ from typing import Literal
 import os
 import shutil
 import time
-import logging
-import sys
 from rlenv.models import Metrics
 
 
@@ -21,9 +19,9 @@ class Logger(ABC):
             if os.path.basename(logdir).lower() in ["test", "debug"]:
                 shutil.rmtree(logdir)
         os.makedirs(logdir, exist_ok=True)
-        file_handler = logging.FileHandler(filename=os.path.join(self.logdir, "training.log"))
-        stdout_handler = logging.StreamHandler(sys.stderr)
-        logging.basicConfig(format="%(message)s", level=logging.INFO, handlers=[file_handler, stdout_handler])
+        # file_handler = logging.FileHandler(filename=os.path.join(self.logdir, "training.log"))
+        # stdout_handler = logging.StreamHandler(sys.stderr)
+        # logging.basicConfig(format="%(message)s", level=logging.INFO, handlers=[file_handler, stdout_handler])
         self.quiet = quiet
 
     @abstractmethod

@@ -47,8 +47,8 @@ class DQN(IDeepQLearning):
         self._tau = tau
         self._batch_size = batch_size
         self._device = defaults_to(device, get_device)
-        self._qnetwork = qnetwork.to(self._device)
-        self._qtarget = deepcopy(self._qnetwork).to(self._device)
+        self._qnetwork = qnetwork.to(self._device, non_blocking=True)
+        self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
         self._loss_function = torch.nn.MSELoss()
         self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
         self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
@@ -158,6 +158,11 @@ class DQN(IDeepQLearning):
         self._train_policy = self._train_policy.__class__.load(train_policy_path)
         self._test_policy = self._test_policy.__class__.load(test_policy_path)
         self._policy = self._train_policy
+
+    def to(self, device: torch.device):
+        self._qnetwork.to(device)
+        self._qtarget.to(device)
+        self._device = device
 
     def summary(self) -> dict[str,]:
         return {

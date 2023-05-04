@@ -187,12 +187,12 @@ class Experiment:
                 shutil.copytree(checkpoint, rundir)
             except FileExistsError:
                 pass
-
+        
         runner = Runner(
             env=env,
             algo=algo,
             logger=logger,
-            n_steps=self.n_steps,
+            end_step=self.n_steps,
             start_step=0,
             test_interval=self.test_interval,
         )
@@ -200,6 +200,8 @@ class Experiment:
             runner.seed(seed)
         self.runs.append(Run.create(rundir))
         return runner
+
+
 
     def stop_runner(self, rundir: str):
         """Stops the runner at the given rundir."""
@@ -223,7 +225,7 @@ class Experiment:
             checkpoint=run.latest_checkpoint,
             forced_rundir=rundir,
         )
-        runner._current_step = run.current_step
+        runner._start_step = run.current_step
         return runner
 
     def delete_run(self, rundir: str):
@@ -281,7 +283,7 @@ class Experiment:
         return df_mean["time_step"].to_list(), res
 
     def test_metrics(self):
-        df = pl.concat(run.test_metrics for run in self.runs)
+        df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
         return self._metrics(df)
 
     def train_metrics(self):

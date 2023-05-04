@@ -184,10 +184,11 @@ poetry.toml
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,python
 
-logs/*
+logs/
 old/
 config/
 .devcontainer
+.vscode
 nohup*
 files/
 saved/

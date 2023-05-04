@@ -95,3 +95,4 @@ class RDQN(DQN):
         summary["name"] = "RDQN"
         summary["recurrent"] = True
         return summary
+    
