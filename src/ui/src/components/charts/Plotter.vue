@@ -107,11 +107,11 @@ onMounted(() => {
             },
             plugins: {
                 legend: {
-                    display: false,
+                    display: props.showLegend,
                 }
             }
         },
-        plugins: [htmlLegendPlugin]
+        // plugins: [htmlLegendPlugin]
     });
     updateChart();
 })

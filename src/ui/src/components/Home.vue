@@ -8,6 +8,8 @@
                         <th class="sortable" @click="() => sortBy('logdir')">
                             Log directory
                             <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
+                            Search:
+                            <input @click.stop type="text" v-model="searchString" />
                         </th>
                         <th class="sortable" @click="() => sortBy('env')">
                             Environment
@@ -26,24 +28,27 @@
                     </tr>
                 </thead>
                 <tbody style="cursor: pointer;">
-                    <tr v-for="info in experimentInfos" @click="() => loadExperiment(info.logdir)">
-                        <td class="text-center">
-                            <font-awesome-icon v-if="info.runs.every((r => r.pid == null))" :icon="['fas', 'check']" />
-                            <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
-                        </td>
-                        <td> {{ info.logdir }} </td>
-                        <td> {{ info.env.name }} </td>
-                        <td> {{ info.algorithm.name }} </td>
-                        <td> {{ info.algorithm?.train_policy?.name }} / {{ info.algorithm?.test_policy?.name }} </td>
-                        <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms).toLocaleString() : '' }} </td>
-                        <td>
-                            <button class="btn btn-sm btn-danger" :disabled="deleting.includes(info.logdir)"
-                                @click.stop="() => deleteExperiment(info.logdir)" title="Delete experiment">
-                                <font-awesome-icon v-if="deleting.includes(info.logdir)" :icon="['fas', 'spinner']" spin />
-                                <font-awesome-icon v-else="" :icon="['fas', 'trash']" />
-                            </button>
-                        </td>
-                    </tr>
+                    <template v-for="info in experimentInfos">
+                        <tr v-if="searchMatch(searchString, info.logdir)" @click="() => loadExperiment(info.logdir)">
+                            <td class="text-center">
+                                <font-awesome-icon v-if="info.runs.every((r => r.pid == null))" :icon="['fas', 'check']" />
+                                <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
+                            </td>
+                            <td> {{ info.logdir }} </td>
+                            <td> {{ info.env.name }} </td>
+                            <td> {{ info.algorithm.name }} </td>
+                            <td> {{ info.algorithm?.train_policy?.name }} / {{ info.algorithm?.test_policy?.name }} </td>
+                            <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms).toLocaleString() : '' }} </td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" :disabled="deleting.includes(info.logdir)"
+                                    @click.stop="() => deleteExperiment(info.logdir)" title="Delete experiment">
+                                    <font-awesome-icon v-if="deleting.includes(info.logdir)" :icon="['fas', 'spinner']"
+                                        spin />
+                                    <font-awesome-icon v-else="" :icon="['fas', 'trash']" />
+                                </button>
+                            </td>
+                        </tr>
+                    </template>
                 </tbody>
             </table>
         </div>
@@ -68,11 +73,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useExperimentStore } from '../stores/ExperimentStore';
+import { searchMatch } from '../utils';
 
 const store = useExperimentStore();
 const deleting = ref([] as string[]);
 const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
+const searchString = ref("");
 
 
 function deleteExperiment(logdir: string) {
@@ -127,7 +134,7 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
 
 </script>
 <style scoped>
-th.sortable:hover {
+.sortable:hover {
     cursor: pointer;
     text-decoration: underline;
 }

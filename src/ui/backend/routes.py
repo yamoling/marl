@@ -11,6 +11,10 @@ from . import app, state
 from marl.utils.exceptions import CorruptExperimentException, ExperimentVersionMismatch
 
 
+@app.route("/")
+def index():
+    return app.send_static_file("index.html")
+
 
 @app.route("/experiment/replay/<path:path>")
 def get_episode(path: str):
@@ -117,3 +121,15 @@ def delete_experiment(logdir: str):
         return ""
     except ValueError as e:
         return str(e), HTTPStatus.BAD_REQUEST
+
+
+@app.route("/system/usage")
+def cpu_usage():
+    import psutil
+    from marl.utils.others import list_gpus
+    gpus = list_gpus()
+    return {
+        "cpus": psutil.cpu_percent(percpu=True),
+        "ram": psutil.virtual_memory().percent,
+        "gpus": [gpu.to_json() for gpu in gpus]
+    }

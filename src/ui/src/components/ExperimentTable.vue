@@ -72,11 +72,6 @@ const selectedTimeStep = ref(null as number | null);
 const testsAtStep = ref(null as ReplayEpisodeSummary[] | null);
 const columns = computed(() => props.experiment.test_metrics.datasets.map(d => d.label));
 
-// const trainList = computed(() => {
-//     // Only take the first 100 items
-//     return props.experiment.train.slice(trainOffset.value, 100 + trainOffset.value);
-// });
-
 
 
 async function onTestClicked(time_step: number) {

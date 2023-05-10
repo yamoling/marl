@@ -31,13 +31,11 @@ const envBadges = computed(() => {
 });
 const algoBadges = computed(() => {
     const res = [] as string[];
-    if (props.experiment.algorithm.qnetwork != null) {
+    if (Object.hasOwn(props.experiment.algorithm, "qnetwork")) {
         const algo = props.experiment.algorithm as DQNInfo;
-        res.concat([
-            `${algo.name}(${algo.qnetwork.name})`,
-            "Train: " + algo.train_policy.name,
-            "Test: " + algo.test_policy.name,
-        ])
+        res.push(`${algo.name}(${algo.qnetwork.name})`);
+        res.push("Train: " + algo.train_policy.name);
+        res.push("Test: " + algo.test_policy.name);
     }
     return res;
 });

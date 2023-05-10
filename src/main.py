@@ -1,6 +1,7 @@
 import marl
 import os
 from argparse import ArgumentParser, Namespace
+import argcomplete
 
 def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("--logdir", type=str, help="The experiment directory", required=True)
@@ -39,6 +40,7 @@ def parse_args():
     set_resume_arguments(resume_parser)
     serve_parser = subparsers.add_parser("serve", help="Serve the web interface")
     set_serve_arguments(serve_parser)
+    argcomplete.autocomplete(parser)
     return parser.parse_args()
 
 def new(args: Namespace):

@@ -39,11 +39,24 @@ class GPU:
 
     @property
     def memory_usage(self) -> float:
+        """Memory usage between 0 and 1"""
         return self.used_memory / self.total_memory
     
     @property
     def utilization(self) -> float:
         return torch.cuda.utilization(self.index)
+    
+    def to_json(self) -> dict[str, float]:
+        return {
+            "index": self.index,
+            "name": self.name,
+            "memory_usage": self.memory_usage,
+            "utilization": self.utilization
+        }
+
+def list_gpus() -> list[GPU]:
+    """List all available GPU devices"""
+    return [GPU(i) for i in range(torch.cuda.device_count())]
 
 
 def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
@@ -51,7 +64,7 @@ def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
     if device == "auto" or device == "" or device is None:
         if not torch.cuda.is_available():
             return torch.device("cpu")
-        devices = [GPU(i) for i in range(torch.cuda.device_count())]
+        devices = list_gpus()
         # Order the GPUs by utilisation
         devices.sort(key=lambda g: g.utilization)
         for gpu in devices:

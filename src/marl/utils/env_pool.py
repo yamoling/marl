@@ -10,10 +10,9 @@ class EnvPool(RLEnvWrapper):
     def __init__(self, envs: list[RLEnv]):
         super().__init__(envs[0])
         self._pool = envs
-        self._current_env = envs[0]
 
     def reset(self):
-        self._current_env = random.choice(self._pool)
+        self.wrapped = random.choice(self._pool)
         return super().reset()
 
     def kwargs(self) -> dict[str, str]:

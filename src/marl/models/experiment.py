@@ -133,6 +133,24 @@ class Experiment:
         except KeyError as e:
             raise exceptions.ExperimentVersionMismatch(e.args[0])
 
+    @staticmethod
+    def is_experiment_directory(logdir: str) -> bool:
+        """Check if a directory is an experiment directory."""
+        try:
+            return os.path.exists(os.path.join(logdir, "experiment.json"))
+        except:
+            return False
+        
+    @staticmethod
+    def find_experiment_directory(subdir: str) -> str | None:
+        """Find the experiment directory containing a given subdirectory."""
+        if Experiment.is_experiment_directory(subdir):
+            return subdir
+        parent = os.path.dirname(subdir)
+        if parent == subdir:
+            return None
+        return Experiment.find_experiment_directory(parent)
+
     def summary(self) -> dict[str,]:
         return {
             "algorithm": self.algo.summary(),
@@ -217,7 +235,7 @@ class Experiment:
         """Retrieve the runner state and restart it if it is not running"""
         run = Run.load(rundir)
         if run.is_running:
-            raise ValueError("This run is already running.")
+            raise ValueError(f"{rundir} is already running.")
         runner = self.create_runner(
             "csv",
             "web",
@@ -283,12 +301,24 @@ class Experiment:
         return df_mean["time_step"].to_list(), res
 
     def test_metrics(self):
-        df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
-        return self._metrics(df)
+        try:
+            df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
+            return self._metrics(df)
+        except ValueError:
+            return [], []
 
     def train_metrics(self):
-        df = pl.concat(run.train_metrics for run in self.runs)
-        return self._metrics(df)
+        try:
+            df = pl.concat(run.train_metrics for run in self.runs if not run.test_metrics.is_empty())
+            # Round the time step to be grouped by the test interval
+            time_steps = df["time_step"] / self.test_interval
+            time_steps = time_steps.apply(round)
+            time_steps = time_steps * self.test_interval
+            time_steps = time_steps.cast(pl.Int64)
+            df = df.with_columns(time_steps.alias("time_step"))
+            return self._metrics(df)
+        except ValueError:
+            return [], []
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         summary = []

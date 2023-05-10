@@ -1,42 +1,37 @@
 <template>
   <main>
-    <ExperimentConfig id="trainModal" @experiment-created="onExperimentSelected" />
     <header class="row mb-1">
       <h1 class="col"> Experiment manager</h1>
     </header>
     <Tabs ref="tabs" @tab-delete="onTabDeleted" @tab-change="onTabChanged" />
     <Home v-show="tabs.currentTab == 'Home'" @experiment-selected="onExperimentSelected"
-      @experiment-deleted="tabs.deleteTab" @create-experiment="() => modal.show()"
-      @compare-experiments="compareExperiments" />
+      @experiment-deleted="tabs.deleteTab" @compare-experiments="compareExperiments" />
     <ExperimentMain v-for="logdir in openedLogdirs" v-show="logdir == tabs.currentTab" :logdir="logdir"
       @close-experiment="tabs.deleteTab" />
-    <ExperimentComparison ref="comparison" v-show="tabs.currentTab == 'Compare'" />
+    <ExperimentComparison v-show="tabs.currentTab == 'Compare'" @load-experiment="onExperimentSelected" />
+    <footer class="row">
+      <SystemInfo />
+    </footer>
   </main>
 </template>
 
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import Tabs from './components/Tabs.vue';
 import type { ITabs } from './components/Tabs.vue';
 import Home from './components/Home.vue';
 import ExperimentMain from './components/ExperimentMain.vue';
 import { useExperimentStore } from './stores/ExperimentStore';
-import ExperimentConfig from './components/modals/ExperimentConfig.vue';
-import { Modal } from 'bootstrap';
 import ExperimentComparison from './components/charts/ExperimentComparison.vue';
-import type { IExperimentComparison } from './components/charts/ExperimentComparison.vue';
-
+import SystemInfo from './components/SystemInfo.vue';
 
 const tabs = ref({} as ITabs);
-const comparison = ref({} as IExperimentComparison);
 const openedLogdirs = ref([] as string[]);
 const experimentStore = useExperimentStore();
-let modal = {} as Modal;
 
 
 function onExperimentSelected(logdir: string) {
-  modal.hide();
   openedLogdirs.value.push(logdir);
   tabs.value.addTab(logdir);
   tabs.value.changeTab(logdir);
@@ -55,13 +50,9 @@ function onTabChanged(tabName: string) {
 }
 
 function compareExperiments() {
-  comparison.value.update([]);
   tabs.value.changeTab("Compare");
 }
 
-onMounted(() => {
-  modal = new Modal("#trainModal");
-});
 </script>
 
 <style>
@@ -93,5 +84,12 @@ main {
   height: 100%;
   padding-left: 0.5%;
   /* overflow: hidden; */
+}
+
+footer {
+  position: fixed;
+  bottom: 0;
+  font-size: smaller;
+  width: 100%;
 }
 </style>

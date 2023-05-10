@@ -4,6 +4,8 @@ import { POLICIES } from "../constants";
 export interface AlgoInfo {
     name: string
     gamma: number
+    train_policy: PolicyInfo
+    test_policy: PolicyInfo
 }
 
 
@@ -17,8 +19,6 @@ export interface DQNInfo extends AlgoInfo {
         extra_shape: number[],
     }
     recurrent: boolean
-    train_policy: PolicyInfo
-    test_policy: PolicyInfo
 }
 
 

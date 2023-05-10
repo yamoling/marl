@@ -1,4 +1,3 @@
-import multiprocessing as mp
 import os
 import laser_env
 import rlenv
@@ -11,7 +10,7 @@ from .messages import ExperimentConfig, RunConfig, TrainConfig
 
 
 class ServerState:
-    def __init__(self, logdir="logs", pool_size=4) -> None:
+    def __init__(self, logdir="logs") -> None:
         self.experiments: dict[str, Experiment] = {}
         self.logdir = logdir
 
@@ -70,13 +69,7 @@ class ServerState:
         if logdir not in self.experiments:
             raise ValueError(f"Experiment {logdir} not found")
         experiment = self.experiments[logdir]
-        p = mp.Process(
-            target=_start_process_function, args=(experiment, run_config), daemon=False
-        )
-        p.start()
-        print("Started process")
-        # p.join()
-        # print("Joined process")
+        raise NotImplementedError()
 
     def stop_runner(self, rundir: str):
         logdir = os.path.dirname(rundir)
@@ -88,14 +81,7 @@ class ServerState:
         logdir = os.path.dirname(rundir)
         if logdir not in self.experiments:
             self.experiments[logdir] = Experiment.load(logdir)
-        p = mp.Process(
-            target=_restart_process_function,
-            args=(self.experiments[logdir], rundir, train_config),
-        )
-        p.start()
-        print("Started process")
-        # p.join()
-        # print("Joined process")
+        raise NotImplementedError()
 
     def delete_runner(self, rundir: str):
         shutil.rmtree(rundir)
@@ -104,7 +90,8 @@ class ServerState:
         self, logdir: str, time_step: int
     ) -> list[ReplayEpisodeSummary]:
         if logdir not in self.experiments:
-            raise ValueError(f"Experiment {logdir} not found")
+            experiment_dir = Experiment.find_experiment_directory(logdir)
+            self.load_experiment(experiment_dir)
         res = self.experiments[logdir].get_test_episodes(time_step)
         return res
 

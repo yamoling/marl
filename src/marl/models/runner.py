@@ -62,7 +62,7 @@ class Runner:
             self._episode_builder.add(transition)
             self._obs = obs_
         
-        self.test(n_tests, step, quiet=quiet)
+        self.test(n_tests, self._end_step, quiet=quiet)
         self._logger.close()
 
     def test(self, ntests: int, time_step: int, quiet=False):

@@ -6,8 +6,11 @@
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <ExperimentSummary class="mb-2" :experiment="experiment" />
         <div class="col-4">
-            <Plotter :datasets="experiment.test_metrics.datasets" class="row text-center" title="Average test metrics"
-                :x-ticks="experiment.test_metrics.time_steps" :show-legend="true" />
+            Show <select v-model="toShow">
+                <option value="Tests">Tests</option>
+                <option value="Train">Train</option>
+            </select>
+            <Plotter :datasets="datasets" class="row text-center" :title="title" :x-ticks="xTicks" :show-legend="true" />
             <hr>
             <ExperimentRuns class="row" :experiment="experiment" @new-test="onTestEpisode"
                 @reload-requested="reloadExperiment" />
@@ -19,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { ReplayEpisodeSummary } from '../models/Episode';
 import { Experiment } from '../models/Experiment';
 import { useExperimentStore } from '../stores/ExperimentStore';
@@ -36,6 +39,18 @@ const props = defineProps<{
 
 const store = useExperimentStore();
 const experiment = ref(null as Experiment | null);
+const toShow = ref("Tests" as "Tests" | "Train");
+const title = computed(() => (toShow.value == "Tests") ? "Averaged test metrics" : "Averaged and aggregated train metrics");
+const datasets = computed(() => {
+    if (experiment.value == null) return [];
+    if (toShow.value == "Tests") return experiment.value.test_metrics.datasets;
+    return experiment.value.train_metrics.datasets;
+});
+const xTicks = computed(() => {
+    if (experiment.value == null) return [];
+    if (toShow.value == "Tests") return experiment.value.test_metrics.time_steps;
+    return experiment.value.train_metrics.time_steps;
+});
 const viewer = ref({} as typeof EpisodeViewer);
 
 

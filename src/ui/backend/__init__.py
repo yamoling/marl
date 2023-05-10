@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder="../dist/", static_url_path='')
+app = Flask(__name__, static_folder="/workspaces/marl/src/ui/dist/", static_url_path='')
 CORS(app)
 
 from .server_state import ServerState

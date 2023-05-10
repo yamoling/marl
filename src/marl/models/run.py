@@ -61,17 +61,20 @@ class Run:
             )
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
-        test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort(
-            "timestamp_sec"
-        )
-        test_dir = os.path.join(self.rundir, "test", f"{time_step}")
-        episodes = []
-        for i, row in enumerate(test_metrics.rows()):
-            episode_dir = os.path.join(test_dir, f"{i}")
-            metrics = Metrics(zip(test_metrics.columns, row))
-            episode = ReplayEpisodeSummary(episode_dir, metrics)
-            episodes.append(episode)
-        return episodes
+        try:
+            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort(
+                "timestamp_sec"
+            )
+            test_dir = os.path.join(self.rundir, "test", f"{time_step}")
+            episodes = []
+            for i, row in enumerate(test_metrics.rows()):
+                episode_dir = os.path.join(test_dir, f"{i}")
+                metrics = Metrics(zip(test_metrics.columns, row))
+                episode = ReplayEpisodeSummary(episode_dir, metrics)
+                episodes.append(episode)
+            return episodes
+        except pl.ColumnNotFoundError:
+            return []
 
     @property
     def current_step(self) -> int:
