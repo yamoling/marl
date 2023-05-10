@@ -7,35 +7,63 @@ VDN optimises the sum of rewards instead of the individual rewards of each agent
 import torch
 from rlenv import Observation
 from marl.models import Batch
+from marl.nn import loss_functions
 from .rdqn import RDQN
 from .dqn import DQN
 
-from ..wrappers import DeepQWrapper
 
+class RecurrentVDN(RDQN):
+    def process_batch(self, batch: Batch) -> Batch:
+        return batch.for_rnn()
+    
+    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+        return loss_functions.masked_mse(qvalues, qtargets, batch)
 
-class VDN(DeepQWrapper):
-    def __init__(self, wrapped: DQN|RDQN) -> None:
-        super().__init__(wrapped)
-        # Type hinting
-        self.algo: DQN | RDQN = self.algo 
+    def compute_targets(self, batch: Batch) -> torch.Tensor:
+        next_qvalues, _ = self._qtarget.forward(batch.obs_, batch.extras_)
+        next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+        next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
+        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
+        next_qvalues = next_qvalues.sum(dim=-1)
+        targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
+        return targets
+
+    def _sample(self) -> Batch:
+        return self.memory.sample(self._batch_size).for_rnn()
 
     def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
         qvalues = super().compute_qvalues(data)
         if isinstance(data, Batch):
             qvalues = qvalues.sum(dim=-1)
         return qvalues
+    
+    def summary(self) -> dict:
+        summary = super().summary()
+        summary["name"] = f"RecurrentVDN({summary['name']})"
+        return summary
+
+class LinearVDN(DQN):
+    def process_batch(self, batch: Batch) -> Batch:
+        return batch
+    
+    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+        return torch.mean((qvalues - qtargets)**2)
+        # return loss_functions.masked_mse(qvalues, qtargets, batch)
 
     def compute_targets(self, batch: Batch) -> torch.Tensor:
-        next_qvalues = self.algo._qtarget.forward(batch.obs_, batch.extras_)
-        if self.algo._qtarget.is_recurrent:
-            next_qvalues = next_qvalues[0]
+        next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
         next_qvalues = next_qvalues.sum(dim=-1)
-        targets = batch.rewards + self.algo._gamma * next_qvalues * (1 - batch.dones)
+        targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
 
-    def summary(self) -> dict:
-        summary = super().summary()
-        summary["name"] = f"VDN({summary['name']})"
-        return summary
+    def _sample(self) -> Batch:
+        return self.memory.sample(self._batch_size)
+
+    def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
+        qvalues = super().compute_qvalues(data)
+        if isinstance(data, Batch):
+            qvalues = qvalues.sum(dim=-1)
+        return qvalues
+    

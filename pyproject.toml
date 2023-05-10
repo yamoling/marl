@@ -14,6 +14,10 @@ tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
 laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
 sumtree = "^0.2.2"
+polars = "^0.16.18"
+tqdm = "^4.65.0"
+codecarbon = "^2.1.4"
+argcomplete = "^3.0.8"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"

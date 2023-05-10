@@ -46,14 +46,14 @@ class DQN(IDeepQLearning):
         self._gamma = gamma
         self._tau = tau
         self._batch_size = batch_size
-        self._device = defaults_to(device, get_device())
-        self._qnetwork = qnetwork.to(self._device)
-        self._qtarget = deepcopy(self._qnetwork).to(self._device)
+        self._device = defaults_to(device, get_device)
+        self._qnetwork = qnetwork.to(self._device, non_blocking=True)
+        self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
         self._loss_function = torch.nn.MSELoss()
-        self._memory = defaults_to(memory, TransitionMemory(50_000))
-        self._optimizer = defaults_to(optimizer, torch.optim.Adam(qnetwork.parameters(), lr=lr))
-        self._train_policy = defaults_to(train_policy, EpsilonGreedy(0.1))
-        self._test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
+        self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
+        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy(0.1))
+        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
         self._policy = self._train_policy
 
     @property
@@ -74,7 +74,7 @@ class DQN(IDeepQLearning):
             qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
     
-    def after_step(self, transition: Transition, _time_step: int):
+    def after_train_step(self, transition: Transition, _time_step: int):
         self._memory.add(transition)
         self.update()
     
@@ -98,7 +98,8 @@ class DQN(IDeepQLearning):
         return target_qvalues
 
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        self._memory.update(batch.sample_index, qvalues, qtargets)
+        # TODO: re-implement prioritized experience replay
+        # self._memory.update(batch.sample_index, qvalues, qtargets)
         return self._loss_function(qvalues, qtargets)
 
     def process_batch(self, batch: Batch) -> Batch:
@@ -135,27 +136,33 @@ class DQN(IDeepQLearning):
         self._policy = self._train_policy
         return super().after_tests(time_step, episodes)
 
-    def save(self, to_path: str):
-        os.makedirs(to_path, exist_ok=True)
-        qnetwork_path = os.path.join(to_path, "qnetwork.weights")
-        qtarget_path = os.path.join(to_path, "qtarget.weights")
-        train_policy_path = os.path.join(to_path, "train_policy")
-        test_policy_path = os.path.join(to_path, "test_policy")
+    def save(self, to_directory: str):
+        os.makedirs(to_directory, exist_ok=True)
+        qnetwork_path = os.path.join(to_directory, "qnetwork.weights")
+        qtarget_path = os.path.join(to_directory, "qtarget.weights")
+        train_policy_path = os.path.join(to_directory, "train_policy")
+        test_policy_path = os.path.join(to_directory, "test_policy")
         torch.save(self._qnetwork.state_dict(), qnetwork_path)
         torch.save(self._qtarget.state_dict(), qtarget_path)
         self._train_policy.save(train_policy_path)
         self._test_policy.save(test_policy_path)
         
 
-    def load(self, from_path: str):
-        qnetwork_path = os.path.join(from_path, "qnetwork.weights")
-        qtarget_path = os.path.join(from_path, "qtarget.weights")
-        train_policy_path = os.path.join(from_path, "train_policy")
-        test_policy_path = os.path.join(from_path, "test_policy")
+    def load(self, from_directory: str):
+        qnetwork_path = os.path.join(from_directory, "qnetwork.weights")
+        qtarget_path = os.path.join(from_directory, "qtarget.weights")
+        train_policy_path = os.path.join(from_directory, "train_policy")
+        test_policy_path = os.path.join(from_directory, "test_policy")
         self._qnetwork.load_state_dict(torch.load(qnetwork_path))
         self._qtarget.load_state_dict(torch.load(qtarget_path))
-        self._train_policy.load(train_policy_path)
-        self._test_policy.load(test_policy_path)
+        self._train_policy = self._train_policy.__class__.load(train_policy_path)
+        self._test_policy = self._test_policy.__class__.load(test_policy_path)
+        self._policy = self._train_policy
+
+    def to(self, device: torch.device):
+        self._qnetwork.to(device)
+        self._qtarget.to(device)
+        self._device = device
 
     def summary(self) -> dict[str,]:
         return {
@@ -163,22 +170,31 @@ class DQN(IDeepQLearning):
             "gamma": self._gamma,
             "batch_size": self._batch_size,
             "tau": self._tau,
+            "recurrent": False,
             "optimizer": {
                 "name": self._optimizer.__class__.__name__,
                 "learning rate": self._optimizer.param_groups[0]["lr"]
             },
-            "memory": {
-                "type": self._memory.__class__.__name__,
-                "size": len(self._memory)
-            },
-            "qnetwork": str(self._qnetwork),
-            "train_policy": {
-                "name": self._train_policy.__class__.__name__,
-                **self._train_policy.__dict__
-            },
-            "test_policy" : {
-                "name": self._test_policy.__class__.__name__,
-                **self._test_policy.__dict__
-            }
+            "memory": self.memory.summary(),
+            "qnetwork": self._qnetwork.summary(),
+            "train_policy": self._train_policy.summary(),
+            "test_policy" : self._test_policy.summary()
         }
+    
+    @classmethod
+    def from_summary(cls, summary: dict[str,]):
+        from marl import policy
+        train_policy = policy.from_summary(summary["train_policy"])
+        test_policy = policy.from_summary(summary["test_policy"])
+        from marl import nn
+        qnetwork = nn.from_summary(summary["qnetwork"]).to(get_device("auto"))
+        return cls(
+            qnetwork=qnetwork,
+            gamma=summary["gamma"],
+            tau=summary["tau"],
+            batch_size=summary["batch_size"],
+            lr=summary["optimizer"]["learning rate"],
+            train_policy=train_policy,
+            test_policy=test_policy,
+        )
     

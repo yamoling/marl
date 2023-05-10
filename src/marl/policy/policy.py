@@ -1,5 +1,9 @@
 from abc import ABC, abstractmethod
+from typing_extensions import Self
+import os
+import json
 import numpy as np
+
 
 class Policy(ABC):
     """
@@ -13,13 +17,27 @@ class Policy(ABC):
         Returns the chosen action.
         """
 
+    def summary(self) -> dict[str, ]:
+        """Build a summary of the policy that suffices to restore it"""
+        return { "name": self.__class__.__name__}
+    
     def update(self):
         """Update the policy"""
 
-    def save(self, to_directory: str):
+    def save(self, to_file: str):
         """Save the policy to a directory"""
-        raise NotImplementedError()
+        os.makedirs(os.path.dirname(to_file), exist_ok=True)
+        with open(to_file, "w", encoding="utf-8") as f:
+            json.dump(self.summary(), f)
 
-    def load(self, from_directory: str):
+    @classmethod
+    def load(cls, from_file: str):
         """Load the policy from a directory"""
+        with open(from_file, "r", encoding="utf-8") as f:
+            summary = json.load(f)
+            return cls.from_summary(summary)
+    
+    @classmethod
+    def from_summary(cls, summary: dict[str, ]) -> Self:
+        """Build a policy from a summary"""
         raise NotImplementedError()

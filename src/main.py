@@ -1,47 +1,100 @@
-from laser_env import LaserEnv
-import rlenv
 import marl
+import os
+from argparse import ArgumentParser, Namespace
+import argcomplete
+
+def set_run_arguments(parser: ArgumentParser):
+    parser.add_argument("--logdir", type=str, help="The experiment directory", required=True)
+    parser.add_argument("--n_runs", type=int, default=1, help="Number of runs to create")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed (torch, numpy, random)")
+    parser.add_argument("--n_tests", type=int, default=5)
+    parser.add_argument("--quiet", action="store_true", default=False)
+    parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv", "web"], nargs="*")
+    parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1", "cuda:2"], default="auto")
 
 
-def train(params: tuple[int, bool, bool, bool, str]) -> str:
-    run_num, n_step, intrinsic, per, logdir = params
-    builder = rlenv.Builder(LaserEnv("maps/lvl3")).agent_id().time_limit(20)
-    if run_num == 0:
-        builder = builder.record(logdir)
-    if intrinsic:
-        builder = builder.extrinsic_reward("linear", initial_reward=0.5, anneal=10)
-    env, test_env = builder.build_all()
-    qnetwork = marl.nn.model_bank.MLP.from_env(env)
-    if n_step:
-        memory = marl.models.slice_memory.NStepReturnMemory(10_000, 5)
-    else:
-        memory = marl.models.TransitionMemory(10_000)
-    if per:
-        memory = marl.models.PrioritizedMemory(memory, alpha=0.7, beta=0.4)
-    algo = marl.qlearning.vdn.VDN(marl.qlearning.DQN(qnetwork, memory=memory))
-    if run_num == 0:
-        algo = marl.debugging.FileWrapper(algo, logdir)
-    runner = marl.Runner(env, algo=algo, test_env=test_env, logdir=logdir)
-    runner.seed(run_num)
-    return runner.train(n_steps=50_000, test_interval=2500, n_tests=5, quiet=False)
+def set_experiment_arguments(parser: ArgumentParser):
+    pass
 
+def set_new_arguments(parser: ArgumentParser):
+    p = parser.add_subparsers(title="New", required=True, dest="created_object")
+    new_run_parser = p.add_parser("run", help="Create a new run")
+    set_run_arguments(new_run_parser)
+    new_experiment_parser = p.add_parser("experiment", help="Create a new experiment")
+    set_experiment_arguments(new_experiment_parser)
 
-def run_experiment(n_runs: int, pool_size: int):
-    from multiprocessing import Pool
-    with Pool(pool_size) as p:
-        dqn_params = [(i, False, False, False, f"logs/vdn-{i}") for i in range(0)]
-        nstep_params =[(i, True, False, False, f"logs/vdn-n_step-{i}") for i in range(n_runs)]
-        nstep_per_params =[(i, True, False, True, f"logs/vdn-n_step-{i}") for i in range(n_runs)]
-        intrinsic_params = [(i, True, True, False, f"logs/vdn-intrinsic-nstep-{i}") for i in range(n_runs)]
-        # dqn_logs = p.map_async(train, dqn_params)
-        # nstep_logs = p.map_async(train, nstep_params)
-        logdir = p.map_async(train, intrinsic_params)
-        print("intrinsic", logdir.get())
-        # logdirs = {"dqn": dqn_logs.get(), "nstep": nstep_logs.get()}
-    # print(logdirs)
+def set_resume_arguments(parser: ArgumentParser):
+    parser.add_argument("rundirs", nargs='+', type=str, help="The run directories to resume")
+    parser.add_argument("--n_tests", type=int, default=5)
 
+def set_serve_arguments(parser: ArgumentParser):
+    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument("--debug", action="store_true", default=False)
+
+def parse_args():
+    parser = ArgumentParser()
+    subparsers = parser.add_subparsers(title="RLEnv main entry point", required=True, dest="command")
+    new_parser = subparsers.add_parser("new", help="Create a new run or experiment")
+    set_new_arguments(new_parser)
+    resume_parser = subparsers.add_parser("resume", help="Resume an existing run")
+    set_resume_arguments(resume_parser)
+    serve_parser = subparsers.add_parser("serve", help="Serve the web interface")
+    set_serve_arguments(serve_parser)
+    argcomplete.autocomplete(parser)
+    return parser.parse_args()
+
+def new(args: Namespace):
+    match args.created_object:
+        case "run":
+            seed = args.seed
+            for i in range(args.n_runs - 1):
+                seed = args.seed + i
+                if os.fork() == 0:
+                    # Force child processes to be quiet
+                    args.quiet = True
+                    create_run(args, seed)
+                    exit(0)
+            create_run(args, seed)
+        case "experiment":
+            raise NotImplementedError("Not implemented yet")
+        
+def serve(args: Namespace):
+    from ui.backend import run
+    from marl.utils.env_pool import EnvPool
+    import rlenv
+    rlenv.register_wrapper(EnvPool)
+    run(port=args.port, debug=args.debug)
+
+def create_run(args: Namespace, seed):
+    experiment = marl.Experiment.load(args.logdir)
+    runner = experiment.create_runner(*args.loggers, seed=seed, quiet=args.quiet)
+    runner.to(args.device)
+    runner.train(n_tests=args.n_tests)
+
+def resume(args: Namespace):
+    def _resume_run(rundir: str, args: Namespace, quiet=True):
+        if rundir.endswith("/"):
+            rundir = rundir[:-1]
+        logdir = os.path.dirname(rundir)
+        experiment = marl.Experiment.load(logdir)
+        runner = experiment.restore_runner(rundir)
+        runner.train(n_tests=args.n_tests, quiet=quiet)
+    
+    for rundir in args.rundirs[:-1]:
+        pid = os.fork()
+        # Child process: resume the run
+        if pid == 0:
+            _resume_run(rundir, args)
+            exit(0)
+    rundir = args.rundirs[-1]
+    _resume_run(rundir, args, quiet=False)
 
 if __name__ == "__main__":
-    print(marl.__version__)
-    # train((0, True, False, True, "debug"))
-    run_experiment(n_runs=5, pool_size=10)
+    args = parse_args()
+    
+    match args.command:
+        case "new": new(args)
+        case "resume": resume(args)
+        case "load": print("TODO")
+        case "serve": serve(args)
+        case other: raise NotImplementedError("Command not implemented: " + other)

@@ -1,7 +1,7 @@
 from typing import Callable
 import torch
 
-from marl.models import Batch
+from marl.models import Batch, EpisodeBatch
 
 LossFunction = Callable[[torch.Tensor, torch.Tensor, Batch], torch.Tensor]
 """
@@ -17,11 +17,11 @@ def mse(predicted: torch.Tensor, targets: torch.Tensor, batch: Batch):
     loss = (predicted - targets)**2
     if batch.is_weights is not None:
         if loss.shape != batch.is_weights.shape:
-            batch.is_weights= batch.is_weights.reshape_as(loss)
+            batch.is_weights= batch.is_weights.view_as(loss)
         loss = loss * batch.is_weights
     return torch.mean(loss)
 
-def masked_mse(predicted: torch.Tensor, targets: torch.Tensor, batch: Batch):
+def masked_mse(predicted: torch.Tensor, targets: torch.Tensor, batch: EpisodeBatch):
     """Mask the TD-error based on the actual length of individual episodes."""
     error = targets - predicted
     masked_error = error * batch.masks

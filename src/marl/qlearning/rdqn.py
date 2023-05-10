@@ -38,13 +38,13 @@ class RDQN(DQN):
             train_policy=train_policy, 
             test_policy=test_policy,
             device=device,
-            memory=defaults_to(memory, EpisodeMemory(50_000)), 
+            memory=defaults_to(memory, lambda: EpisodeMemory(50_000)), 
             qnetwork=qnetwork
         )
         self._hidden_states=None
         
 
-    def after_step(self, _time_step: int, _transition):
+    def after_train_step(self, _time_step: int, _transition):
         # Override DQN behaviour: nothing to do after step in RDQN
         pass
 
@@ -64,7 +64,7 @@ class RDQN(DQN):
         match data:
             case Batch() as batch:
                 qvalues = self._qnetwork.forward(batch.obs, batch.extras)[0]
-                qvalues = qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents, batch.n_actions)
+                qvalues = qvalues.view(batch.max_episode_len, batch.size, batch.n_agents, batch.n_actions)
                 qvalues = qvalues.gather(index=batch.actions, dim=-1).squeeze(-1)
                 return qvalues
             case Observation() as obs:
@@ -86,11 +86,13 @@ class RDQN(DQN):
         next_qvalues, _ = self._qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = next_qvalues.reshape(batch.max_episode_len, batch.size, batch.n_agents)
+        next_qvalues = next_qvalues.view(batch.max_episode_len, batch.size, batch.n_agents)
         targets = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return targets
 
     def summary(self) -> dict[str,]:
         summary = super().summary()
-        summary["name"] = "Recurrent DQN"
+        summary["name"] = "RDQN"
+        summary["recurrent"] = True
         return summary
+    

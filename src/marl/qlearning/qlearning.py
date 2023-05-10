@@ -1,6 +1,6 @@
 from abc import abstractmethod
 import torch
-from marl import RLAlgo
+from marl.models import RLAlgo
 from marl.policy import Policy
 from marl.models import ReplayMemory, Batch
 from marl.utils import defaults_to, get_device
@@ -95,7 +95,7 @@ class DeepQLearning(QLearning, IDeepQLearning):
         IDeepQLearning.__init__(self)
         self.memory = memory
         self.batch_size = batch_size
-        self.device = defaults_to(device, get_device())
+        self.device = defaults_to(device, get_device)
         self.optimizer = optimizer
         self.train_policy = train_policy
         self.test_policy = test_policy

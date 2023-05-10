@@ -7,13 +7,12 @@ from marl.utils import get_device
 from marl.models import ReplayMemory, TransitionMemory, EpisodeMemory
 from .qlearning import IDeepQLearning
 from .dqn import DQN
-from .vdn import VDN
+from .vdn import LinearVDN, RecurrentVDN
 from .rdqn import RDQN
 
 
 class DeepQBuilder:
-    def __init__(self, is_recurrent=False, env: RLEnv=None):
-        self._env = env
+    def __init__(self):
         self._gamma = 0.99
         self._batch_size = 64
         self._tau = 1e-2
@@ -23,12 +22,8 @@ class DeepQBuilder:
         self._train_policy = None
         self._test_policy = None
         self._memory = None
-
-        self._is_recurrent = is_recurrent
-        self._wrappers: list[Literal["vdn"]] = []
-        if env is not None:
-            self.qnetwork_default(env)
-        
+        self._vdn = False
+        self._is_recurrent = False
 
     def _fill_with_defaults(self):
         # Infer qnetwork if not provided
@@ -44,9 +39,13 @@ class DeepQBuilder:
             self._test_policy = ArgMax()
         if self._memory is None:
             if self._is_recurrent:
-                self._memory = TransitionMemory(50_000)
-            else:
                 self._memory = EpisodeMemory(50_000)
+            else:
+                self._memory = TransitionMemory(50_000)
+
+    def recurrent(self, recurrent=True):
+        self._is_recurrent = recurrent
+        return self
 
     def device(self, device):
         """Device to use for training (default: auto)"""
@@ -54,10 +53,19 @@ class DeepQBuilder:
         return self
         
     def qnetwork_default(self, env: RLEnv):
+        assert self._qnetwork is None, "QNetwork is already set"
         if self._is_recurrent:
-            self._qnetwork = model_bank.RNNQMix.from_env(env)
+            if len(env.observation_shape) == 1:
+                self._qnetwork = model_bank.RNNQMix.from_env(env)
+            else:
+                raise ValueError(f"Unsupported observation shape for recurrent networks: {env.observation_shape}")
         else:
-            self._qnetwork = model_bank.MLP.from_env(env)
+            if len(env.observation_shape) == 1:
+                self._qnetwork = model_bank.MLP.from_env(env)
+            elif len(env.observation_shape) == 3:
+                self._qnetwork = model_bank.CNN.from_env(env)
+            else:
+                raise ValueError(f"Unsupported observation shape for linear networks: {env.observation_shape}")
         return self
 
     def qnetwork(self, qnetwork: LinearNN | RecurrentNN):
@@ -106,37 +114,26 @@ class DeepQBuilder:
         return self
     
     def vdn(self):
-        self._wrappers.append("vdn")
+        self._vdn = True
         return self
-
+    
     def build(self) -> IDeepQLearning:
         self._fill_with_defaults()
+        args = dict(
+            qnetwork=self._qnetwork,
+            gamma=self._gamma,
+            tau=self._tau,
+            memory=self._memory,
+            batch_size=self._batch_size,
+            device=self._device,
+            optimizer=self._optimizer,
+            test_policy=self._test_policy,
+            train_policy=self._train_policy
+        )
         if self._is_recurrent:
-            algo = RDQN(
-                qnetwork=self._qnetwork,
-                gamma=self._gamma,
-                tau=self._tau,
-                memory=self._memory,
-                batch_size=self._batch_size,
-                device=self._device,
-                optimizer=self._optimizer,
-                test_policy=self._test_policy,
-                train_policy=self._train_policy
-            )
+            if self._vdn: algo = RecurrentVDN(**args)
+            else: algo = RDQN(**args)
         else:
-            algo = DQN(
-                qnetwork=self._qnetwork,
-                gamma=self._gamma,
-                tau=self._tau,
-                memory=self._memory,
-                batch_size=self._batch_size,
-                device=self._device,
-                optimizer=self._optimizer,
-                test_policy=self._test_policy,
-                train_policy=self._train_policy
-            )
-        for wrapper in self._wrappers:
-            match wrapper:
-                case "vdn": algo = VDN(algo)
-                case other: raise ValueError(f"Wrapper {other} not supported")
+            if self._vdn: algo = LinearVDN(**args)
+            else: algo = DQN(**args)
         return algo

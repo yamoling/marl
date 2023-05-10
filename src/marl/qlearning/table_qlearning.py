@@ -16,8 +16,8 @@ class VanillaQLearning(QLearning):
         lr=0.1,
         gamma=0.99,
     ):
-        train_policy = defaults_to(train_policy, DecreasingEpsilonGreedy(decrease_amount=5e-4))
-        test_policy = defaults_to(test_policy, EpsilonGreedy(0.01))
+        train_policy = defaults_to(train_policy, lambda: DecreasingEpsilonGreedy(decrease_amount=5e-4))
+        test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
         super().__init__(train_policy, test_policy, gamma)
         self.lr = lr
         self.qtable: dict[int, np.ndarray[np.float32]] = {}
@@ -33,7 +33,7 @@ class VanillaQLearning(QLearning):
             qvalues.append(agent_qvalues)
         return torch.from_numpy(np.array(qvalues))
 
-    def after_step(self, transition: Transition, time_step: int):
+    def after_train_step(self, transition: Transition, time_step: int):
         qvalues = self.compute_qvalues(transition.obs).numpy()
         actions = transition.action[:, np.newaxis]
         qvalues = np.take_along_axis(qvalues, actions, axis=-1)
@@ -48,7 +48,7 @@ class VanillaQLearning(QLearning):
         for o, a, q in zip(obs_data, transition.action, new_qvalues):
             h = self.hash_ndarray(o)
             self.qtable[h][a] = q
-        return super().after_step(transition, time_step)
+        return super().after_train_step(transition, time_step)
 
     @staticmethod
     def hash_ndarray(data: np.ndarray) -> int:
@@ -96,7 +96,7 @@ class ReplayTableQLearning(VanillaQLearning):
         batch_size=64
     ):
         super().__init__(train_policy, test_policy, lr, gamma)
-        self.memory = defaults_to(replay_memory, TransitionMemory(50_000))
+        self.memory = defaults_to(replay_memory, lambda: TransitionMemory(50_000))
         self.batch_size = batch_size
 
     def batch_get(self, obs_data: np.ndarray, n_actions: int) -> np.ndarray[np.float32]:
@@ -112,7 +112,7 @@ class ReplayTableQLearning(VanillaQLearning):
         return np.array(qvalues)
 
 
-    def after_step(self, transition: Transition, time_step: int):
+    def after_train_step(self, transition: Transition, time_step: int):
         self.memory.add(transition)
         if len(self.memory) < self.batch_size:
             return

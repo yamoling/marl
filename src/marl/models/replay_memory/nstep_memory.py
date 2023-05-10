@@ -13,7 +13,7 @@ class NStepReturnMemory(MemoryWrapper[Transition]):
     def __len__(self) -> int:
         return max(0, len(self.wrapped) - self._n)
     
-    def _get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(self, indices: list[int]) -> Batch:
         """The following operations are performed on the batch
         - replace the rewards by the discounted sum of the n-step returns
         - set the dones flags properly if any of the n transitions was done
