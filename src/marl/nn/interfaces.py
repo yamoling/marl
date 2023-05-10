@@ -26,6 +26,10 @@ class NN(torch.nn.Module, ABC, Generic[O]):
         """Returns whether the model is recurrent or not"""
         return False
     
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+    
     @classmethod
     def from_env(cls, env: RLEnv):
         """Construct a NN from environment specifications"""

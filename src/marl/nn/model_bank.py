@@ -99,19 +99,20 @@ class CNN(LinearNN[torch.Tensor]):
         assert len(output_shape) == 1, f"CNN can only handle 1D input shapes ({len(output_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
         
-        num_extras = extras_shape[0] if extras_shape is not None else 0
+        # num_extras = extras_shape[0] if extras_shape is not None else 0
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        self.linear = torch.nn.Sequential(
-            torch.nn.Linear(n_features + num_extras, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, output_shape[0])
-        )
+        self.linear = MLP((n_features, ), extras_shape, output_shape)
+        # torch.nn.Sequential(
+        #     torch.nn.Linear(n_features + num_extras, 512),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(512, 256),
+        #     torch.nn.ReLU(),
+        #     torch.nn.Linear(256, output_shape[0])
+        # )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor = None) -> torch.Tensor:
         # Check that the input has the correct shape (at most 4 dimensions)
@@ -119,9 +120,10 @@ class CNN(LinearNN[torch.Tensor]):
         obs = obs.view(-1, channels, height, width)
         extras = extras.view(-1, *self.extras_shape)
         features = self.cnn.forward(obs)
-        if extras is not None:
-            features = torch.concat((features, extras), dim=-1)
-        res: torch.Tensor = self.linear(features)
+        res = self.linear.forward(features, extras)
+        # if extras is not None:
+        #     features = torch.concat((features, extras), dim=-1)
+        # res: torch.Tensor = self.linear(features)
         return res.view(*dims, *self.output_shape)
 
 
@@ -166,7 +168,6 @@ def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: 
         paddings[n_padded % len(paddings)] += 1
         n_padded += 1
         output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides, paddings)
-    print("Padding added: ", paddings)
     assert output_h > 0 and output_w > 0, f"Input size = {input_shape}, output witdh = {output_w}, output height = {output_h}"
     modules = []
     for f, k, s, p in zip(filters, kernel_sizes, strides, paddings):
@@ -178,7 +179,7 @@ def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: 
     return torch.nn.Sequential(*modules), output_size
 
 
-def conv2d_size_out(input_width, input_height, kernel_sizes, strides, paddings):
+def conv2d_size_out(input_width: int, input_height: int, kernel_sizes: list[int], strides: list[int], paddings: list[int]):
     """
     Compute the output width and height of a sequence of 2D convolutions.
     See shape section on https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
