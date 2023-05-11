@@ -1,6 +1,6 @@
 <template>
-    <div v-show="store.experiments.length > 0">
-        <h4> Legend </h4>
+    <div v-show="store.experiments.length > 0" class="mb-3">
+        <h3 class="text-center"> Legend </h3>
         <table>
             <tbody>
                 <template v-for="exp, in  store.experiments ">

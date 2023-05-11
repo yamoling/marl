@@ -83,25 +83,15 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "DELETE" });
     }
 
-    async function createExperiment(logdir: string, params: any) {
-        const data = JSON.stringify(params);
-        const url = `${HTTP_URL}/experiment/create`;
-        // 1 create the experiment
-        const resp = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: data
-        });
-        // 2 Add the experimentInfo to the store
-        experimentInfos.value.push(await resp.json());
-        // 3 refhresh the experiment info table
-        refresh();
-        return logdir;
-    }
+
 
     async function getTestEpisodes(logdir: string, time_step: number): Promise<ReplayEpisodeSummary[]> {
         const resp = await fetch(`${HTTP_URL}/experiment/test/list/${time_step}/${logdir}`);
         return await resp.json();
+    }
+
+    function isLoaded(logdir: string): boolean {
+        return experiments.value.some(e => e.logdir === logdir);
     }
 
     return {
@@ -110,10 +100,10 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         loading,
         anyLoading,
         refresh,
-        createExperiment,
         deleteExperiment,
         loadExperiment,
         unloadExperiment,
-        getTestEpisodes
+        getTestEpisodes,
+        isLoaded
     };
 });

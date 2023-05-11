@@ -74,7 +74,6 @@ const availableActions = computed(() => {
 });
 
 const qvalues = computed(() => {
-    console.log(props.episode?.qvalues)
     if (props.episode == null) return [];
     if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
     if (props.currentStep >= episodeLength.value) return [];

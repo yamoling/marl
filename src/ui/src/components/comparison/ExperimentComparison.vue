@@ -10,15 +10,16 @@
                         style="color: rgba(211, 211, 211, 0.5);" />
                 </div>
             </template>
-            <template v-else>
-                <SettingsPanel @change-smooting="(v) => smoothValue = v" @change-selected-metrics="(m) => metrics = m"
-                    @change-type="(t) => testOrTrain = t" />
-                <Plotter v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks" :title="label"
-                    :showLegend="false" />
-            </template>
+            <Plotter v-else v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks" :title="label"
+                :showLegend="false" />
         </div>
-        <RightExperimentTable class="col-3" @show-experiment="showExperiment" @hide-experiment="hideExperiment"
-            @inspect-experiment="(e) => emits('loadExperiment', e.logdir)" />
+        <div class="col-3">
+            <RightExperimentTable class="row" @show-experiment="showExperiment" @hide-experiment="hideExperiment"
+                @inspect-experiment="(e) => emits('loadExperiment', e.logdir)" />
+            <SettingsPanel class="row" @change-smooting="(v) => smoothValue = v"
+                @change-selected-metrics="(m) => metrics = m" @change-type="(t) => testOrTrain = t" />
+        </div>
+
     </div>
 </template>
 

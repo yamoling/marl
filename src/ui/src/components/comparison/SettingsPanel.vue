@@ -1,47 +1,38 @@
 <template>
     <div>
+        <h3 class="text-center">Settings</h3>
         <div class="row">
-            <h3 class="text-center">Plots</h3>
-            <div class="col-auto mx-auto">
-                <div class="row">
-                    <div class="col-auto">
-                        <b>Dataset</b>
-                    </div>
-                    <div class="col-auto">
-                        <label>
-                            <input type="radio" name="testOrTrain" value="Test" class="form-check-input" checked
-                                v-model="testOrTrain">
-                            Test data
-                        </label>
-                        <br>
-                        <label>
-                            <input type="radio" name="testOrTrain" value="Train" class="form-check-input"
-                                v-model="testOrTrain">
-                            Train data
-                        </label>
-                    </div>
-                </div>
+            <div class="col-auto">
+                <b>Dataset</b>
             </div>
-            <div class="col-auto mx-auto">
-                <div class="row">
-                    <label class="col-auto"> <b>Smoothing</b> </label>
-                    <input type="range" class="col" min="0" max="1" step="0.01" v-model="smoothing">
-                    <span class="col-auto"> {{ smoothing }} </span>
-                </div>
-            </div>
-            <div class="col-auto mx-auto">
-                <b>Metrics</b>
-                <ul>
-                    <li v-for="metricName in metrics">
-                        <label>
-                            <input type="checkbox" class="form-check-input" :checked="selectedMetrics.includes(metricName)"
-                                @change="() => toggleMetric(metricName)">
-                            {{ metricName }}
-                        </label>
-                    </li>
-                </ul>
+            <div class="col-auto">
+                <label>
+                    <input type="radio" name="testOrTrain" value="Test" class="form-check-input" checked
+                        v-model="testOrTrain">
+                    Test data
+                </label>
+                <br>
+                <label>
+                    <input type="radio" name="testOrTrain" value="Train" class="form-check-input" v-model="testOrTrain">
+                    Train data
+                </label>
             </div>
         </div>
+        <div class="row">
+            <label class="col-auto"> <b>Smoothing</b> </label>
+            <input type="range" class="col" min="0" max="1" step="0.01" v-model="smoothing">
+            <span class="col-auto"> {{ smoothing }} </span>
+        </div>
+        <b>Metrics</b>
+        <ul>
+            <li v-for="metricName in metrics">
+                <label>
+                    <input type="checkbox" class="form-check-input" :checked="selectedMetrics.includes(metricName)"
+                        @change="() => toggleMetric(metricName)">
+                    {{ metricName }}
+                </label>
+            </li>
+        </ul>
     </div>
 </template>
 
