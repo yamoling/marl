@@ -68,7 +68,7 @@ def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
         # Order the GPUs by utilisation
         devices.sort(key=lambda g: g.utilization)
         for gpu in devices:
-            if gpu.memory_usage < 0.9:
+            if gpu.memory_usage < 0.85:
                 return gpu.device
         raise RuntimeError("All GPU are full")
     return torch.device(device)

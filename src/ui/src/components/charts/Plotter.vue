@@ -1,6 +1,6 @@
 <template>
     <div>
-        <h3 v-if="title.length > 0"> {{ title }}</h3>
+        <h3 class="text-center text-capitalize" v-if="title.length > 0"> {{ title }}</h3>
         <div ref="legendContainer" class="row"></div>
         <canvas v-show="datasets.length > 0" ref="canvas"></canvas>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
@@ -23,15 +23,15 @@ const props = defineProps<{
     showLegend: boolean
 }>();
 
-const DEFAULT_COLOURS = [
-    "#EE5060",
-    "#36a2eb",
-    "#cc65fe",
-    "#ffce56",
-    "#4bc0c0",
-    "#9966ff",
-    "#ff9f40",
-];
+// const DEFAULT_COLOURS = [
+//     "#EE5060",
+//     "#36a2eb",
+//     "#cc65fe",
+//     "#ffce56",
+//     "#4bc0c0",
+//     "#9966ff",
+//     "#ff9f40",
+// ];
 
 function clippedStd(mean: number[], std: number[], min: number[], max: number[]) {
     const lowerStd = std.map((s, i) => {
@@ -59,10 +59,10 @@ function updateChart() {
     }
     const datasets = [] as ChartDataset[];
     props.datasets.forEach((ds, i) => {
-        if (ds.colour == null) {
-            ds.colour = DEFAULT_COLOURS[i % DEFAULT_COLOURS.length];
-        }
-        const stdColour = rgbToAlpha(ds.colour, 0.3);
+        // if (ds.colour == null) {
+        //     ds.colour = DEFAULT_COLOURS[i % DEFAULT_COLOURS.length];
+        // }
+        const stdColour = rgbToAlpha(ds.colour || "#000000", 0.3);
         const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
         datasets.push({
             data: std.lower,
@@ -101,7 +101,6 @@ onMounted(() => {
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {
-                    console.log("clicked item ", datasetElement[0].index, "of the charts")
                     emits("episode-selected", datasetElement[0].index)
                 }
             },

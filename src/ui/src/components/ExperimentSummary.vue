@@ -6,6 +6,7 @@
         <span class="badge rounded-pill text-bg-warning col-auto me-1" v-for="algo in algoBadges"> {{ algo }} </span>
         <span class="badge rounded-pill text-bg-info col-auto" style="cursor: pointer;" @click="showParameters"> See all
         </span>
+
         <ExperimentParameters id="paramsModal" :experiment="experiment" />
     </div>
 </template>

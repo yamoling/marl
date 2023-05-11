@@ -15,7 +15,7 @@ export const useSystemStore = defineStore("SystemStore", () => {
             systemInfo.value = null;
         }
     }
-
+    updateSystemInfo();
     setInterval(updateSystemInfo, 2000);
 
     return { systemInfo };

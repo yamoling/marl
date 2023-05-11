@@ -1,17 +1,20 @@
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
 import { ExperimentInfo } from "../models/Infos";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
+import { stringToRGB } from "../utils";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
 
     const experimentInfos = ref([] as ExperimentInfo[]);
-    const loading = ref(false);
+    const experiments = ref([] as Experiment[]);
+    const loading = ref([] as boolean[]);
+    const anyLoading = computed(() => loading.value.some(l => l));
 
     async function refresh() {
-        loading.value = true;
+        loading.value = [true];
         try {
             const resp = await fetch(`${HTTP_URL}/experiment/list`);
             if (!resp.ok) {
@@ -23,7 +26,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         } catch (e: any) {
             alert(e.message);
         } finally {
-            loading.value = false;
+            loading.value = experimentInfos.value.map(() => false);
         }
     }
     refresh();
@@ -33,8 +36,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function deleteExperiments(logdirs: string[]) {
-        loading.value = true;
         await Promise.all(logdirs.map(async logdir => {
+            const index = experimentInfos.value.findIndex(info => info.logdir === logdir);
+            loading.value[index] = true;
             try {
                 await fetch(`${HTTP_URL}/experiment/delete/${logdir}`, { method: "DELETE" });
                 // Remove the experiment from the list
@@ -42,23 +46,40 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             } catch (e: any) {
                 alert(e.message);
             }
+            loading.value[index] = false;
         }));
-        loading.value = false;
     }
 
     async function loadExperiment(logdir: string): Promise<Experiment> {
-        loading.value = true;
+        const index = experimentInfos.value.findIndex(info => info.logdir === logdir);
+        loading.value[index] = true;
         const resp = await fetch(`${HTTP_URL}/experiment/load/${logdir}`);
         if (!resp.ok) {
-            loading.value = false;
+            loading.value[index] = false;
             throw new Error(await resp.text());
         }
         const experiment = await resp.json() as Experiment;
-        loading.value = false;
+        const experimentColour = stringToRGB(experiment.logdir);
+        experiment.test_metrics.datasets.forEach(dataset => {
+            dataset.colour = experimentColour;
+        });
+        experiment.train_metrics.datasets.forEach(dataset => {
+            dataset.colour = experimentColour;
+        });
+        // Get experiment index based on the logdir
+        const experimentIndex = experiments.value.findIndex(e => e.logdir === logdir);
+        if (experimentIndex >= 0) {
+            experiments.value[experimentIndex] = experiment;
+        } else {
+            experiments.value = [experiment, ...experiments.value];
+        }
+        loading.value[index] = false;
         return experiment;
     }
 
     async function unloadExperiment(logdir: string) {
+        // Remove the experiment from "experiments"
+        experiments.value = experiments.value.filter(e => e.logdir !== logdir);
         await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "DELETE" });
     }
 
@@ -85,7 +106,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
 
     return {
         experimentInfos,
+        experiments,
         loading,
+        anyLoading,
         refresh,
         createExperiment,
         deleteExperiment,

@@ -37,3 +37,24 @@ export function searchMatch(search: string, matchWith: string): boolean {
     }
     return false;
 }
+
+function hashString(s: string) {
+    let hash = 17;
+    for (let i = 0; i < s.length; i++) {
+        const chr = s.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+};
+
+
+export function stringToRGB(s: string) {
+    const hash = hashString(s);
+    let colour = '#';
+    for (let i = 0; i < 3; i++) {
+        let value = (hash >> (i * 8)) & 0xFF;
+        colour += value.toString(16).padStart(2, '0');
+    }
+    return colour;
+}

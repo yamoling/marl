@@ -18,5 +18,5 @@ export interface Dataset {
     std: number[]
     min: number[]
     max: number[]
-    colour?: string
+    colour: string
 }

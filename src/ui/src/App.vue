@@ -23,12 +23,13 @@ import type { ITabs } from './components/Tabs.vue';
 import Home from './components/Home.vue';
 import ExperimentMain from './components/ExperimentMain.vue';
 import { useExperimentStore } from './stores/ExperimentStore';
-import ExperimentComparison from './components/charts/ExperimentComparison.vue';
+import ExperimentComparison from './components/comparison/ExperimentComparison.vue';
 import SystemInfo from './components/SystemInfo.vue';
 
 const tabs = ref({} as ITabs);
 const openedLogdirs = ref([] as string[]);
 const experimentStore = useExperimentStore();
+const dialog = ref({} as HTMLDialogElement);
 
 
 function onExperimentSelected(logdir: string) {
@@ -91,5 +92,12 @@ footer {
   bottom: 0;
   font-size: smaller;
   width: 100%;
+}
+
+dialog {
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  border-radius: 3%;
 }
 </style>

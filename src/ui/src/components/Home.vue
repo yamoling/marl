@@ -64,7 +64,7 @@
                 </button>
                 <button class="col mx-2 btn btn-outline-info" @click.stop="() => store.refresh()">
                     Refresh
-                    <font-awesome-icon icon="fa-solid fa-sync" :spin="store.loading" />
+                    <font-awesome-icon icon="fa-solid fa-sync" :spin="store.anyLoading" />
                 </button>
             </div>
         </div>
