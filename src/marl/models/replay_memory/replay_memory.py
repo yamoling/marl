@@ -3,15 +3,17 @@ from collections import deque
 from typing import Generic, TypeVar, Deque
 from rlenv import Episode, Transition
 import numpy as np
+import torch
 
 from marl.models.batch import Batch
 from marl.models.batch import TransitionsBatch, EpisodeBatch
+from marl.utils.summarizable import Summarizable
 
 
 T = TypeVar("T")
 
 
-class ReplayMemory(Generic[T], ABC):
+class ReplayMemory(Summarizable, Generic[T], ABC):
     """Parent class of any ReplayMemory"""
 
     def __init__(self, max_size: int) -> None:
@@ -22,7 +24,7 @@ class ReplayMemory(Generic[T], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def update(self, indices: list[int], qvalues, qtargets):
+    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
         """Update the data in the memory"""
 
     def sample(self, batch_size: int) -> Batch:
@@ -49,34 +51,24 @@ class ReplayMemory(Generic[T], ABC):
 
     def summary(self):
         return {
-            "name": self.__class__.__name__,
+            **super().summary(),
             "max_size": self._max_size
         }
-
-
+    
 
 class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
-    def get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(
+            self, 
+            indices: list[int]
+        ) -> Batch:
         transitions = [self._memory[i] for i in indices]
-        return TransitionsBatch(transitions)
-
-    def summary(self):
-        return {
-            **super().summary(),
-            "type": "Transition"
-        }
+        return TransitionsBatch(transitions, indices)
 
 
 class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
     def get_batch(self, indices: list[int]) -> Batch:
         episodes = [self._memory[i] for i in indices]
-        return EpisodeBatch(episodes)
-
-    def summary(self):
-        return {
-            **super().summary(),
-            "type": "Episode"
-        }
+        return EpisodeBatch(episodes, indices)

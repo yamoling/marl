@@ -1,29 +1,39 @@
-from typing import Type
+from typing import Type, TypeVar, Callable
+from types import ModuleType
 import inspect
-from marl.models import RLAlgo
-from marl import qlearning, policy_gradient
+from .summarizable import Summarizable
 
-ALGO_REGISTRY: dict[str, Type[RLAlgo]] = {}
 
-def _is_algo_predicate(cls: Type[RLAlgo]) -> bool:
-    return inspect.isclass(cls) and issubclass(cls, RLAlgo) and not inspect.isabstract(cls)
+T = TypeVar("T", bound=Summarizable)
 
-def _get_all_algos() -> dict[str, Type[RLAlgo]]:
-    classes = {}
-    for name, cls in inspect.getmembers(qlearning, _is_algo_predicate):
-        classes[name] = cls
-    for name, cls in inspect.getmembers(policy_gradient, _is_algo_predicate):
-        classes[name] = cls
-    from marl.utils.random_algo import RandomAgent
-    classes[RandomAgent.__name__] = RandomAgent
-    return classes
 
-def from_summary(summary: dict[str, ]) -> RLAlgo:
-    clss = ALGO_REGISTRY[summary["name"]]
-    return clss.from_summary(summary)
+class NoSuchClass(Exception):
+    pass
 
-def register(algo: Type[RLAlgo]):
-    """Register a RLAlgo"""
-    ALGO_REGISTRY[algo.__name__] = algo
 
-ALGO_REGISTRY.update(_get_all_algos())
+class Registry(dict[str, Type[T]]):
+    def register(self, cls: Type[T]):
+        self[cls.__name__] = cls
+
+    def from_summary(self, summary: dict[str, ]) -> T:
+        try:
+            clss = self[summary.pop("name")]
+            return clss.from_summary(summary)
+        except KeyError:
+            raise NoSuchClass(f"Could not find any class with name '{summary['name']}' in {T.__class__.__name__} registry.\nUse register({clss.__name__}) to register your class.")
+        except TypeError as e:
+            raise TypeError(str(e) + "\nDid you forget to save the appropriate fields in the summary?")
+
+
+RegisterFunction = Callable[[Type[T]], None]
+FromSummaryFunction = Callable[[dict[str, ]], T]
+
+def make_registry(super_type: Type[T], modules_to_inspect: list[ModuleType]):
+    def is_target_type(cls: Type[T]) -> bool:
+        return inspect.isclass(cls) and issubclass(cls, super_type) and not inspect.isabstract(cls)
+    registry = Registry[T]()
+    for module in modules_to_inspect:
+        for _name, clss in inspect.getmembers(module, is_target_type):
+            registry.register(clss)
+    return registry.register, registry.from_summary
+

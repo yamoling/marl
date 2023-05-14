@@ -113,8 +113,8 @@ class Experiment:
     @staticmethod
     def load(logdir: str) -> "Experiment":
         """Load an existing experiment."""
-        import marl
         try:
+            import marl
             with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
             algo = marl.from_summary(summary["algorithm"])
@@ -130,8 +130,8 @@ class Experiment:
                 n_steps=n_steps,
                 test_interval=test_interval,
             )
-        except KeyError as e:
-            raise exceptions.ExperimentVersionMismatch(e.args[0])
+        except exceptions.MissingParameterException as e:
+            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:

@@ -65,21 +65,6 @@ files = [
 test = ["coverage", "mypy", "pexpect", "ruff", "wheel"]
 
 [[package]]
-name = "arrow"
-version = "1.2.3"
-description = "Better dates & times for Python"
-category = "main"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "arrow-1.2.3-py3-none-any.whl", hash = "sha256:5a49ab92e3b7b71d96cd6bfcc4df14efefc9dfa96ea19045815914a6ab6b1fe2"},
-    {file = "arrow-1.2.3.tar.gz", hash = "sha256:3934b30ca1b9f292376d9db15b19446088d12ec58629bc3f0da28fd55fb633a1"},
-]
-
-[package.dependencies]
-python-dateutil = ">=2.7.0"
-
-[[package]]
 name = "autorom"
 version = "0.4.2"
 description = "Automated installation of Atari ROMs for Gym/ALE-Py"
@@ -371,31 +356,6 @@ files = [
 cffi = ">=1.13"
 
 [[package]]
-name = "codecarbon"
-version = "2.1.4"
-description = ""
-category = "main"
-optional = false
-python-versions = ">3.6"
-files = [
-    {file = "codecarbon-2.1.4-py3-none-any.whl", hash = "sha256:575f08af4fad4fa043fda4599cc6dee93d725b095d01a190d31e240983f7e2cd"},
-    {file = "codecarbon-2.1.4.tar.gz", hash = "sha256:5df3d98db6aa64a687a234772e844de7818e86ddb5ea36d7a5e19208c6843811"},
-]
-
-[package.dependencies]
-arrow = "*"
-click = "*"
-fuzzywuzzy = "*"
-pandas = "*"
-psutil = "*"
-py-cpuinfo = "*"
-pynvml = "*"
-requests = "*"
-
-[package.extras]
-viz = ["dash", "dash-bootstrap-components (<1.0.0)", "fire"]
-
-[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
@@ -616,6 +576,21 @@ files = [
 ]
 
 [[package]]
+name = "exceptiongroup"
+version = "1.1.1"
+description = "Backport of PEP 654 (exception groups)"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "exceptiongroup-1.1.1-py3-none-any.whl", hash = "sha256:232c37c63e4f682982c8b6459f33a8981039e5fb8756b2074364e5055c498c9e"},
+    {file = "exceptiongroup-1.1.1.tar.gz", hash = "sha256:d484c3090ba2889ae2928419117447a14daf3c1231d5e30d0aae34f354f01785"},
+]
+
+[package.extras]
+test = ["pytest (>=6)"]
+
+[[package]]
 name = "farama-notifications"
 version = "0.0.4"
 description = "Notifications for all Farama Foundation maintained libraries."
@@ -691,21 +666,6 @@ type1 = ["xattr"]
 ufo = ["fs (>=2.2.0,<3)"]
 unicode = ["unicodedata2 (>=15.0.0)"]
 woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
-
-[[package]]
-name = "fuzzywuzzy"
-version = "0.18.0"
-description = "Fuzzy string matching in python"
-category = "main"
-optional = false
-python-versions = "*"
-files = [
-    {file = "fuzzywuzzy-0.18.0-py2.py3-none-any.whl", hash = "sha256:928244b28db720d1e0ee7587acf660ea49d7e4c632569cad4f1cd7e68a5f0993"},
-    {file = "fuzzywuzzy-0.18.0.tar.gz", hash = "sha256:45016e92264780e58972dca1b3d939ac864b78437422beecebb3095f8efd00e8"},
-]
-
-[package.extras]
-speedup = ["python-levenshtein (>=0.12)"]
 
 [[package]]
 name = "google-auth"
@@ -902,6 +862,18 @@ docs = ["furo", "jaraco.packaging (>=9)", "jaraco.tidelift (>=1.4)", "rst.linker
 testing = ["flake8 (<5)", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=1.3)", "pytest-flake8", "pytest-mypy (>=0.9.1)"]
 
 [[package]]
+name = "iniconfig"
+version = "2.0.0"
+description = "brain-dead simple config-ini parsing"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374"},
+    {file = "iniconfig-2.0.0.tar.gz", hash = "sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3"},
+]
+
+[[package]]
 name = "itsdangerous"
 version = "2.1.2"
 description = "Safely pass data to untrusted environments and back."
@@ -1048,7 +1020,7 @@ rlenv = {git = "https://github.com/yamoling/rlenv.git"}
 type = "git"
 url = "https://github.com/raphaelavalos/laser-env.git"
 reference = "HEAD"
-resolved_reference = "b3058fad1dab8e862e10c0d71692c46b98173a5e"
+resolved_reference = "8e3825fdb9502de9453470fa79a7935e7bdea026"
 
 [[package]]
 name = "markdown"
@@ -1411,7 +1383,7 @@ files = [
 name = "pandas"
 version = "1.5.3"
 description = "Powerful data structures for data analysis, time series, and statistics"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.8"
 files = [
@@ -1559,6 +1531,22 @@ docs = ["furo", "olefile", "sphinx (>=2.4)", "sphinx-copybutton", "sphinx-inline
 tests = ["check-manifest", "coverage", "defusedxml", "markdown2", "olefile", "packaging", "pyroma", "pytest", "pytest-cov", "pytest-timeout"]
 
 [[package]]
+name = "pluggy"
+version = "1.0.0"
+description = "plugin and hook calling mechanisms for python"
+category = "dev"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "pluggy-1.0.0-py2.py3-none-any.whl", hash = "sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3"},
+    {file = "pluggy-1.0.0.tar.gz", hash = "sha256:4224373bacce55f955a878bf9cfa763c1e360858e330072059e10bad68531159"},
+]
+
+[package.extras]
+dev = ["pre-commit", "tox"]
+testing = ["pytest", "pytest-benchmark"]
+
+[[package]]
 name = "polars"
 version = "0.16.18"
 description = "Blazingly fast DataFrame library"
@@ -1678,18 +1666,6 @@ files = [
 
 [package.extras]
 test = ["enum34", "ipaddress", "mock", "pywin32", "wmi"]
-
-[[package]]
-name = "py-cpuinfo"
-version = "9.0.0"
-description = "Get CPU info with pure Python"
-category = "main"
-optional = false
-python-versions = "*"
-files = [
-    {file = "py-cpuinfo-9.0.0.tar.gz", hash = "sha256:3cdbbf3fac90dc6f118bfd64384f309edeadd902d7c8fb17f02ffa1fc3f49690"},
-    {file = "py_cpuinfo-9.0.0-py3-none-any.whl", hash = "sha256:859625bc251f64e21f077d099d4162689c762b5d6a4c3c97553d56241c9674d5"},
-]
 
 [[package]]
 name = "pyasn1"
@@ -2051,10 +2027,33 @@ typing-extensions = "*"
 websocket-client = "*"
 
 [[package]]
+name = "pytest"
+version = "7.3.1"
+description = "pytest: simple powerful testing with Python"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pytest-7.3.1-py3-none-any.whl", hash = "sha256:3799fa815351fea3a5e96ac7e503a96fa51cc9942c3753cda7651b93c1cfa362"},
+    {file = "pytest-7.3.1.tar.gz", hash = "sha256:434afafd78b1d78ed0addf160ad2b77a30d35d4bdf8af234fe621919d9ed15e3"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "sys_platform == \"win32\""}
+exceptiongroup = {version = ">=1.0.0rc8", markers = "python_version < \"3.11\""}
+iniconfig = "*"
+packaging = "*"
+pluggy = ">=0.12,<2.0"
+tomli = {version = ">=1.0.0", markers = "python_version < \"3.11\""}
+
+[package.extras]
+testing = ["argcomplete", "attrs (>=19.2.0)", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.7.2)", "requests", "xmlschema"]
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
-category = "main"
+category = "dev"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 files = [
@@ -2084,7 +2083,7 @@ clr-loader = ">=0.2.2,<0.3.0"
 name = "pytz"
 version = "2023.3"
 description = "World timezone definitions, modern and historical"
-category = "main"
+category = "dev"
 optional = false
 python-versions = "*"
 files = [
@@ -2390,14 +2389,14 @@ resolved_reference = "32cd6ddbbe4a9ebcd9711894c0043fda0bbfd8aa"
 
 [[package]]
 name = "sumtree"
-version = "0.2.2"
+version = "0.2.3"
 description = "Fast and simple SumTree implementation in Rust"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "sumtree-0.2.2-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:943f22c769b354785672ea5b549ec177e52c4dd158fa70b55f7033378e417053"},
-    {file = "sumtree-0.2.2.tar.gz", hash = "sha256:f8682668fc5241854bf1f1412e792df406fe02285fe7800acd25b6db3eda9612"},
+    {file = "sumtree-0.2.3-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:ea97d65c87a340d3df38811de8909452347fff6d941f1dd190261c37e0818229"},
+    {file = "sumtree-0.2.3.tar.gz", hash = "sha256:10c6c7ad2bc40bf5eff5ecdf822968ce1952623a7c44194f2d94f6b204c7d475"},
 ]
 
 [[package]]
@@ -2448,6 +2447,18 @@ optional = false
 python-versions = "*"
 files = [
     {file = "tensorboard_plugin_wit-1.8.1-py3-none-any.whl", hash = "sha256:ff26bdd583d155aa951ee3b152b3d0cffae8005dc697f72b44a8e8c2a77a8cbe"},
+]
+
+[[package]]
+name = "tomli"
+version = "2.0.1"
+description = "A lil' TOML parser"
+category = "dev"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
+    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
 
 [[package]]
@@ -2673,4 +2684,4 @@ test = ["pytest (>=6.0.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.11"
-content-hash = "a84fb33b1dcdf64f6e18c0a9f2fd51f6b340d1f3eec8743c56ebdce7ecfed37d"
+content-hash = "a20211586b7b062ee65f82a7091beaedaa8424460701ec1f79e324f8ea4ede26"

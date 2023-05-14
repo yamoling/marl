@@ -1,6 +1,12 @@
 <template>
     <div>
-        <h4> All experiments </h4>
+        <h4>
+            All experiments
+            <!-- Reload button -->
+            <button class="btn btn-outline-info" @click="() => store.refresh()">
+                <font-awesome-icon :icon="['fas', 'sync-alt']" :spin="store.anyLoading" />
+            </button>
+        </h4>
         <div class="input-group">
             <span class="input-group-text">
                 <font-awesome-icon :icon="['fas', 'search']" />

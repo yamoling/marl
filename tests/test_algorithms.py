@@ -7,10 +7,6 @@ import time
 import shutil
 
 
-def test_algo_from_summary():
-    # TODO
-    assert False
-
 
 def test_save_replay_episode():
     logdir = f"logs/test-{time.time()}"

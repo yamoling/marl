@@ -1,22 +1,6 @@
-from typing import Type
-import inspect
 import torch 
 
 from .interfaces import NN
-
-def _get_all_models() -> dict[str, Type[NN]]:
-    from marl.nn import model_bank
-    classes = inspect.getmembers(model_bank, inspect.isclass)
-    return {name: cls for name, cls in classes if issubclass(cls, NN)}
-
-def from_summary(summary: dict[str, ]) -> NN:
-    return ALL_MODELS[summary["name"]].from_summary(summary)
-
-def register(model: Type[NN]):
-    """Register a neural network model"""
-    ALL_MODELS[model.__name__] = model
-
-ALL_MODELS: dict[str, Type[NN]] = _get_all_models()
 
 
 def make_cnn(input_shape: tuple[int, int, int], filters: list[int], kernel_sizes: list[int], strides: list[int]):
@@ -43,3 +27,4 @@ def conv2d_size_out(input_width, input_height, kernel_sizes, strides) -> tuple[i
         width = (width - (kernel_size - 1) - 1) // stride + 1
         height = (height - (kernel_size - 1) - 1) // stride + 1
     return width, height
+

@@ -10,8 +10,8 @@
                         style="color: rgba(211, 211, 211, 0.5);" />
                 </div>
             </template>
-            <Plotter v-else v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks" :title="label"
-                :showLegend="false" />
+            <Plotter v-else v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks"
+                :title="label.replaceAll('_', ' ')" :showLegend="false" />
         </div>
         <div class="col-3">
             <RightExperimentTable class="row" @show-experiment="showExperiment" @hide-experiment="hideExperiment"

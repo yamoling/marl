@@ -3,4 +3,5 @@ from .qpolicies import EpsilonGreedy, DecreasingEpsilonGreedy, SoftmaxPolicy, Ar
 from .random_policy import RandomPolicy
 
 
-from .load_save import from_summary, register
+from marl.utils.registry import make_registry
+registry, from_summary = make_registry(Policy, [qpolicies, random_policy])

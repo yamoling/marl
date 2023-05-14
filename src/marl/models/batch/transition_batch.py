@@ -6,8 +6,9 @@ from .batch import Batch
 
 
 class TransitionsBatch(Batch):
-    def __init__(self, transitions: list[Transition]):
-        super().__init__(len(transitions), transitions[0].n_agents)
+    def __init__(
+            self, transitions: list[Transition], sample_indices: list[int]):
+        super().__init__(len(transitions), transitions[0].n_agents, sample_indices)
         self.transitions = transitions
 
     def _get_obs(self) -> torch.Tensor:

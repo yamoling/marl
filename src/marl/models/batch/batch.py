@@ -4,6 +4,12 @@ import torch
 
 @dataclass
 class Batch(ABC):
+    """
+    Lazy loaded batch for training.
+    Every field is set to None by default. When the field is accessed, the specific attribute is 
+    loaded with the `_get_<attribute>()` method that child classes must implement.
+    (exception for importance sampling weights that are set by the memory)
+    """
     _obs: torch.Tensor
     _obs_: torch.Tensor
     _extras: torch.Tensor
@@ -16,11 +22,14 @@ class Batch(ABC):
     _states: torch.Tensor
     _states_: torch.Tensor
     _action_probs: torch.Tensor
+    _sampled_indices: list[int]
+    importance_sampling_weights: torch.Tensor | None
 
-    def __init__(self, size: int, n_agents: int) -> None:
+    def __init__(self, size: int, n_agents: int, sample_indices: list[int]) -> None:
         super().__init__()
         self.size = size
         self.n_agents = n_agents
+        self.sample_indices = sample_indices
         self.device = torch.device("cpu")
         self._obs = None
         self._obs_ = None
@@ -34,6 +43,7 @@ class Batch(ABC):
         self._states = None
         self._states_ = None
         self._action_probs = None
+        self.importance_sampling_weights = None
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones and masks such that each agent has its own (identical) signal."""
@@ -127,7 +137,7 @@ class Batch(ABC):
         if self._action_probs is None:
             self._action_probs = self._get_action_probs().to(self.device, non_blocking=True)
         return self._action_probs
-
+    
     def to(self, device: torch.device) -> "Batch":
         """Send the tensors to the given device"""
         self.device = device
@@ -137,7 +147,6 @@ class Batch(ABC):
                 setattr(self, key, value)
         return self
     
-
     @abstractmethod
     def _get_obs(self) -> torch.Tensor:
         pass

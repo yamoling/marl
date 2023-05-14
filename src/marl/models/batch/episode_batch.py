@@ -5,8 +5,8 @@ from .batch import Batch
 
 
 class EpisodeBatch(Batch):
-    def __init__(self, episodes: list[Episode]):
-        super().__init__(len(episodes), episodes[0].n_agents)
+    def __init__(self, episodes: list[Episode], sample_indices: list[int]):
+        super().__init__(len(episodes), episodes[0].n_agents, sample_indices)
         self._max_episode_len = max(len(e) for e in episodes)
         self._n_actions = episodes[0].n_actions
         self.episodes = [e.padded(self._max_episode_len) for e in episodes]

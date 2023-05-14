@@ -19,7 +19,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     """
 
     def __init__(self, memory: ReplayMemory[T], alpha=0.7, beta=0.4, eps: float = 1e-2):
-        super().__init__(0)
+        super().__init__(memory.max_size)
         self._wrapped_memory = memory
         self._tree = SumTree(memory.max_size)
         self._max_priority = eps  # Initialize the max priority with epsilon
@@ -70,8 +70,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         weights = weights / weights.max()
 
         batch = self.get_batch(sample_idxs)
-        batch.is_weights = weights.unsqueeze(-1)
-        batch.sample_index = sample_idxs
+        batch.importance_sampling_weights = weights
         return batch
 
     def get_batch(self, indices: List[int]) -> Batch:
@@ -83,25 +82,32 @@ class PrioritizedMemory(ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self._wrapped_memory[idx]
 
-    def update(self, indices: List[int], qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
+        # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
+        # where eps is a small positive constant that prevents the edge-case of transitions not being
+        # revisited once their error is zero. (Section 3.3)
         with torch.no_grad():
             priorities = (qtargets - qvalues).abs()
-            priorities = priorities.sum(dim=-1)
+            # priorities = priorities.sum(dim=-1)
             priorities = (priorities + self._eps) ** self._alpha
             self._max_priority = max(self._max_priority, priorities.max().item())
         priorities = priorities.cpu()
-        for idx, priority in zip(indices, priorities):
-            # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
-            # where eps is a small positive constant that prevents the edge-case of transitions not being
-            # revisited once their error is zero. (Section 3.3)
+        for idx, priority in zip(batch.sample_indices, priorities):
             self._tree.update(idx, priority.item())
 
     def summary(self):
+        summary = super().summary()
+        summary.pop("max_size")
         return {
-            **super().summary(),
-            "params": {
-                "alpha": self._alpha,
-                "beta": self._beta,
-                "eps": self._eps
-            }
+            **summary,
+            "alpha": self._alpha,
+            "beta": self._beta,
+            "eps": self._eps,
+            "memory": self._wrapped_memory.summary()
         }
+    
+    @classmethod
+    def from_summary(cls, summary: dict[str, ]):
+        from marl.models import replay_memory
+        summary["memory"] = replay_memory.from_summary(summary.pop("memory"))
+        return super().from_summary(summary)

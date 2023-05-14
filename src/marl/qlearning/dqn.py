@@ -82,7 +82,7 @@ class DQN(IDeepQLearning):
         match data:
             case Batch() as batch:
                 qvalues = self._qnetwork.forward(batch.obs, batch.extras)
-                qvalues = qvalues.gather(index=batch.actions, dim=-1)
+                qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
                 return qvalues.squeeze(dim=-1)
             case Observation() as obs:
                 obs_data = torch.from_numpy(obs.data).to(self._device, non_blocking=True)
@@ -98,9 +98,13 @@ class DQN(IDeepQLearning):
         return target_qvalues
 
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
-        # TODO: re-implement prioritized experience replay
-        # self._memory.update(batch.sample_index, qvalues, qtargets)
-        return self._loss_function(qvalues, qtargets)
+        # Mean squared error
+        mse = (qvalues - qtargets) ** 2
+        # Apply importance sampling weights is necessary
+        if batch.importance_sampling_weights is not None:
+            mse = mse * batch.importance_sampling_weights
+        return torch.mean(mse)
+
 
     def process_batch(self, batch: Batch) -> Batch:
         return batch.for_individual_learners()
@@ -122,6 +126,7 @@ class DQN(IDeepQLearning):
         self._optimizer.step(None)
         self._train_policy.update()
         self._target_soft_update()
+        self._memory.update(batch, qvalues, qtargets)
 
     def _target_soft_update(self):
         for param, target_param in zip(self._qnetwork.parameters(), self._qtarget.parameters()):
@@ -170,12 +175,11 @@ class DQN(IDeepQLearning):
             "gamma": self._gamma,
             "batch_size": self._batch_size,
             "tau": self._tau,
-            "recurrent": False,
             "optimizer": {
                 "name": self._optimizer.__class__.__name__,
                 "learning rate": self._optimizer.param_groups[0]["lr"]
             },
-            "memory": self.memory.summary(),
+            "memory": self._memory.summary(),
             "qnetwork": self._qnetwork.summary(),
             "train_policy": self._train_policy.summary(),
             "test_policy" : self._test_policy.summary()
@@ -184,17 +188,12 @@ class DQN(IDeepQLearning):
     @classmethod
     def from_summary(cls, summary: dict[str,]):
         from marl import policy
-        train_policy = policy.from_summary(summary["train_policy"])
-        test_policy = policy.from_summary(summary["test_policy"])
+        summary["train_policy"] = policy.from_summary(summary.pop("train_policy"))
+        summary["test_policy"] = policy.from_summary(summary.pop("test_policy"))
         from marl import nn
-        qnetwork = nn.from_summary(summary["qnetwork"]).to(get_device("auto"))
-        return cls(
-            qnetwork=qnetwork,
-            gamma=summary["gamma"],
-            tau=summary["tau"],
-            batch_size=summary["batch_size"],
-            lr=summary["optimizer"]["learning rate"],
-            train_policy=train_policy,
-            test_policy=test_policy,
-        )
+        summary["qnetwork"] = nn.from_summary(summary.pop("qnetwork")).to(get_device("auto"))
+        from marl.models import replay_memory
+        summary["memory"] = replay_memory.from_summary(summary.pop("memory"))
+        summary["lr"] = summary.pop("optimizer").pop("learning rate")
+        return cls(**summary)
     

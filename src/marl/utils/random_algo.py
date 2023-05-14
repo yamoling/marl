@@ -1,6 +1,6 @@
 import numpy as np
 from rlenv import Observation
-from marl.models import RLAlgo
+from marl.models.algo import RLAlgo
 
 
 class RandomAgent(RLAlgo):

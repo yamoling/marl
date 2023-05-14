@@ -1,6 +1,6 @@
 <template>
     <div>
-        <h3 class="text-center text-capitalize" v-if="title.length > 0"> {{ title }}</h3>
+        <h3 class="text-center title" v-if="title.length > 0"> {{ title }}</h3>
         <div ref="legendContainer" class="row"></div>
         <canvas v-show="datasets.length > 0" ref="canvas"></canvas>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
@@ -197,5 +197,9 @@ div.legend-item>span.legend-box {
     height: 20px;
     width: 20px;
     margin-right: 10px;
+}
+
+.title:first-letter {
+    text-transform: uppercase;
 }
 </style>

@@ -2,9 +2,28 @@ import marl
 import os
 from argparse import ArgumentParser, Namespace
 import argcomplete
+from laser_env import StaticLaserEnv, ObservationType
+import rlenv
+
+
+class StatefulStaticLaserEnv(StaticLaserEnv):
+
+    def __init__(self, env_file: str, obs_type: str | ObservationType = ObservationType.RELATIVE_POSITIONS):
+        super().__init__(env_file, obs_type)
+        self.state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
+    
+    def get_state(self):
+        return self.state_observer.observe()[0]
+    
+    @property
+    def state_shape(self):
+        return self.state_observer.shape
+
+rlenv.register(StatefulStaticLaserEnv)
+
 
 def set_run_arguments(parser: ArgumentParser):
-    parser.add_argument("--logdir", type=str, help="The experiment directory", required=True)
+    parser.add_argument("logdir", type=str, help="The experiment directory")
     parser.add_argument("--n_runs", type=int, default=1, help="Number of runs to create")
     parser.add_argument("--seed", type=int, default=0, help="Random seed (torch, numpy, random)")
     parser.add_argument("--n_tests", type=int, default=5)

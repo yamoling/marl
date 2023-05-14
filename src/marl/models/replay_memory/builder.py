@@ -2,7 +2,7 @@ from typing import Literal
 
 from .replay_memory import ReplayMemory, TransitionMemory, EpisodeMemory
 from .nstep_memory import NStepReturnMemory
-from .prioritised_memory import PrioritizedMemory
+from .prioritized_memory import PrioritizedMemory
 
 class MemoryBuilder:
     def __init__(self, max_size: int, memory_type: Literal["transition", "episode"]):

@@ -44,7 +44,7 @@ class GPU:
     
     @property
     def utilization(self) -> float:
-        return torch.cuda.utilization(self.index)
+        return torch.cuda.utilization(self.device)
     
     def to_json(self) -> dict[str, float]:
         return {
@@ -65,8 +65,8 @@ def get_device(device: Literal["auto", "cuda", "cpu"]="auto") -> torch.device:
         if not torch.cuda.is_available():
             return torch.device("cpu")
         devices = list_gpus()
-        # Order the GPUs by utilisation
-        devices.sort(key=lambda g: g.utilization)
+        # Order the GPUs by utilisation * memory_usage
+        devices.sort(key=lambda g: g.utilization * g.memory_usage)
         for gpu in devices:
             if gpu.memory_usage < 0.85:
                 return gpu.device

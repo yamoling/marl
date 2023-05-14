@@ -3,9 +3,10 @@ from abc import ABC, abstractmethod
 import torch
 import numpy as np
 from rlenv.models import Episode, Transition, Observation
+from marl.utils.summarizable import Summarizable
 
 
-class RLAlgo(ABC):
+class RLAlgo(Summarizable, ABC):
     def __init__(self):
         super().__init__()
 
@@ -18,12 +19,6 @@ class RLAlgo(ABC):
         """The name of the algorithm"""
         return self.__class__.__name__
     
-    def summary(self) -> dict:
-        """Dictionary of the relevant algorithm parameters for experiment logging purposes"""
-        return {
-            "name": self.name
-        }
-    
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
         raise NotImplementedError("Not implemented for this algorithm")
@@ -35,11 +30,6 @@ class RLAlgo(ABC):
     def load(self, from_path: str):
         """Load the algorithm state from the specified file."""
         raise NotImplementedError("Not implemented for this algorithm")
-
-    @classmethod
-    def from_summary(cls, summary: dict) -> Self:
-        """Instantiate the algorithm from its summary"""
-        raise NotImplementedError(f"From summary not implemented for {cls.__name__}")
 
     def before_tests(self, time_step: int):
         """Hook before tests, for instance to swap from training to testing policy."""

@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from typing_extensions import Self
 import os
 import json
 import numpy as np
+from marl.utils.summarizable import Summarizable
 
 
-class Policy(ABC):
+class Policy(Summarizable, ABC):
     """
     A policy takes decides which action to take given an input.
     """
@@ -17,10 +17,6 @@ class Policy(ABC):
         Returns the chosen action.
         """
 
-    def summary(self) -> dict[str, ]:
-        """Build a summary of the policy that suffices to restore it"""
-        return { "name": self.__class__.__name__}
-    
     def update(self):
         """Update the policy"""
 
@@ -37,7 +33,3 @@ class Policy(ABC):
             summary = json.load(f)
             return cls.from_summary(summary)
     
-    @classmethod
-    def from_summary(cls, summary: dict[str, ]) -> Self:
-        """Build a policy from a summary"""
-        raise NotImplementedError()
