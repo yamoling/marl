@@ -11,7 +11,7 @@ class Reinforce(RLAlgo):
     def __init__(
             self, 
             gamma: float, 
-            policy_network: LinearNN[torch.Tensor],
+            policy_network: LinearNN,
             lr=5e-4,
             device: torch.device=None,
         ):

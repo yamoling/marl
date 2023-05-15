@@ -23,13 +23,12 @@ import type { ITabs } from './components/Tabs.vue';
 import Home from './components/Home.vue';
 import ExperimentMain from './components/ExperimentMain.vue';
 import { useExperimentStore } from './stores/ExperimentStore';
-import ExperimentComparison from './components/comparison/ExperimentComparison.vue';
+import ExperimentComparison from './components/comparison/Main.vue';
 import SystemInfo from './components/SystemInfo.vue';
 
 const tabs = ref({} as ITabs);
 const openedLogdirs = ref([] as string[]);
 const experimentStore = useExperimentStore();
-const dialog = ref({} as HTMLDialogElement);
 
 
 function onExperimentSelected(logdir: string) {

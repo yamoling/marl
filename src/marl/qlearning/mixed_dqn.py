@@ -19,24 +19,23 @@ class MixedDQN(DQN):
             tau=0.01, 
             batch_size=64, 
             lr=0.0001, 
-            optimizer: Optimizer = None, 
             train_policy: Policy = None, 
             test_policy: Policy = None, 
             memory: TransitionMemory = None, 
             device: torch.device = None):
-        if optimizer is None:
-            optimizer = torch.optim.Adam(list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr)
-        super().__init__(qnetwork, gamma, tau, batch_size, lr, optimizer, train_policy, test_policy, memory, device)
+        optimizer = torch.optim.Adam(list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr)
+        super().__init__(qnetwork, gamma, tau, batch_size, optimizer, train_policy, test_policy, memory, device)
         self.mixer = mixer.to(self._device, non_blocking=True)
-        self.target_mixer = deepcopy(mixer).to(self._device, non_blocking=True)
+        self.target_mixer = deepcopy(mixer).randomized().to(self._device, non_blocking=True)
 
     def process_batch(self, batch: TransitionsBatch) -> TransitionsBatch:
         return batch
     
     def compute_targets(self, batch: TransitionsBatch) -> torch.Tensor:
-        next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
-        next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
+        # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
+        # next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+        # next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
+        next_qvalues = self.double_qlearning(batch)
         next_qvalues = self.target_mixer.forward(next_qvalues, batch.states_)
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
@@ -55,6 +54,11 @@ class MixedDQN(DQN):
         if isinstance(data, TransitionsBatch):
             qvalues = self.mixer.forward(qvalues, data.states)
         return qvalues
+    
+    def to(self, device: torch.device):
+        self.mixer.to(device)
+        self.target_mixer.to(device)
+        return super().to(device)
     
     def save(self, to_directory: str):
         super().save(to_directory)

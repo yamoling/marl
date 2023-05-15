@@ -11,12 +11,14 @@ export const useSystemStore = defineStore("SystemStore", () => {
         try {
             const response = await fetch(`${HTTP_URL}/system/usage`);
             systemInfo.value = await response.json();
+            setTimeout(updateSystemInfo, 2000);
         } catch (e) {
             systemInfo.value = null;
+            setTimeout(updateSystemInfo, 10_000);
         }
+
     }
     updateSystemInfo();
-    setInterval(updateSystemInfo, 2000);
 
     return { systemInfo };
 });

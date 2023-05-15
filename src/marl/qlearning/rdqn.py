@@ -89,10 +89,3 @@ class RDQN(DQN):
         next_qvalues = next_qvalues.view(batch.max_episode_len, batch.size, batch.n_agents)
         targets = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return targets
-
-    def summary(self) -> dict[str,]:
-        summary = super().summary()
-        summary["name"] = "RDQN"
-        summary["recurrent"] = True
-        return summary
-    

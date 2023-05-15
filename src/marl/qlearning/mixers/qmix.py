@@ -83,7 +83,7 @@ class QMix(Mixer):
     """QMix mixer"""
 
     def __init__(self, state_size: int, n_agents: int, hidden_dims: int) -> None:
-        super().__init__()
+        super().__init__(n_agents)
         self.hyper_network = HyperNetwork(state_size, n_agents, hidden_dims)
         self._state_size = state_size
         self._n_agents = n_agents

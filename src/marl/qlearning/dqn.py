@@ -48,7 +48,7 @@ class DQN(IDeepQLearning):
         self._batch_size = batch_size
         self._device = defaults_to(device, get_device)
         self._qnetwork = qnetwork.to(self._device, non_blocking=True)
-        self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
+        self._qtarget = deepcopy(self._qnetwork).randomized().to(self._device, non_blocking=True)
         self._loss_function = torch.nn.MSELoss()
         self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
         self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
@@ -90,10 +90,21 @@ class DQN(IDeepQLearning):
                 return self._qnetwork.forward(obs_data, obs_extras)
             case _: raise ValueError("Invalid input data type for 'compute_qvalues'")
 
-    def compute_targets(self, batch: Batch) -> torch.Tensor:
-        next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
+    def double_qlearning(self, batch: Batch) -> torch.Tensor:
+        # 1) Take the max qvalues from the online network
+        next_qvalues = self._qnetwork.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        next_qvalues = torch.max(next_qvalues, dim=-1)[0]
+        indices = torch.unsqueeze(next_qvalues.max(dim=-1)[1], -1)
+        # 2) Take the qvalues from the target network
+        next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
+        next_qvalues = next_qvalues.gather(-1, indices).squeeze(-1)
+        return next_qvalues
+
+    def compute_targets(self, batch: Batch) -> torch.Tensor:
+        # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
+        #next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+        #next_qvalues = torch.max(next_qvalues, dim=-1)[0]
+        next_qvalues = self.double_qlearning(batch)
         target_qvalues = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return target_qvalues
 
@@ -188,12 +199,12 @@ class DQN(IDeepQLearning):
     @classmethod
     def from_summary(cls, summary: dict[str,]):
         from marl import policy
-        summary["train_policy"] = policy.from_summary(summary.pop("train_policy"))
-        summary["test_policy"] = policy.from_summary(summary.pop("test_policy"))
+        summary["train_policy"] = policy.from_summary(summary["train_policy"])
+        summary["test_policy"] = policy.from_summary(summary["test_policy"])
         from marl import nn
-        summary["qnetwork"] = nn.from_summary(summary.pop("qnetwork")).to(get_device("auto"))
+        summary["qnetwork"] = nn.from_summary(summary["qnetwork"]).to(get_device())
         from marl.models import replay_memory
-        summary["memory"] = replay_memory.from_summary(summary.pop("memory"))
-        summary["lr"] = summary.pop("optimizer").pop("learning rate")
+        summary["memory"] = replay_memory.from_summary(summary["memory"])
+        summary["lr"] = summary.pop("optimizer")["learning rate"]
         return cls(**summary)
     

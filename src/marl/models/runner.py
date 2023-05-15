@@ -27,7 +27,6 @@ class Runner:
         self._logger = logger
         self._seed = None
         self._best_score = -float("inf")
-        self._checkpoint = os.path.join(self.rundir, "checkpoint")
         self._start_step = start_step
         self._episode_builder = None
         self._episode_num = 0
@@ -94,22 +93,6 @@ class Runner:
               open(os.path.join(directory, "actions.json"), "w") as a):
             json.dump(self._test_env.summary(), e)
             json.dump(episode.actions.tolist(), a)
-
-
-    def seed(self, seed_value: int):
-        self._seed = seed_value
-        import torch
-        import random
-        import os
-        import numpy as np
-        os.environ["PYTHONHASHSEED"] = str(seed_value)
-        torch.manual_seed(seed_value)
-        np.random.seed(seed_value)
-        random.seed(seed_value)
-        self._env.seed(seed_value)
-        self._test_env.seed(seed_value)
-        with open(os.path.join(self.rundir, "seed"), "w") as f:
-            f.write(str(seed_value))
 
     def to(self, device: str|torch.device):
         if isinstance(device, str):

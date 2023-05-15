@@ -154,7 +154,10 @@ class Experiment:
     def summary(self) -> dict[str,]:
         return {
             "algorithm": self.algo.summary(),
-            "env": self.env.summary(),
+            "env": {
+                **self.env.summary(),
+                "action_meanings": self.env.action_meanings
+            },
             "test_env": self.test_env.summary(),
             "logdir": self.logdir,
             "timestamp_ms": int(time.time() * 1000),
@@ -172,16 +175,12 @@ class Experiment:
     def create_runner(
         self,
         *loggers: Literal["web", "tensorboard", "csv"],
-        checkpoint: str = None,
-        seed: int = None,
-        forced_rundir: str = None,
+        rundir: str = None,
         quiet=True,
     ) -> Runner:
-        if forced_rundir is not None:
-            rundir = forced_rundir
-        else:
+        if rundir is None:
             rundir = os.path.join(self.logdir, f"run_{time.time()}")
-        os.makedirs(rundir, exist_ok=(checkpoint is not None))
+            os.makedirs(rundir, exist_ok=False)
         if len(loggers) == 0:
             loggers = ["web", "tensorboard", "csv"]
         logger_list = []
@@ -199,12 +198,6 @@ class Experiment:
 
         algo = deepcopy(self.algo)
         env = deepcopy(self.env)
-        if checkpoint is not None:
-            algo.load(checkpoint)
-            try:
-                shutil.copytree(checkpoint, rundir)
-            except FileExistsError:
-                pass
         
         runner = Runner(
             env=env,
@@ -214,8 +207,6 @@ class Experiment:
             start_step=0,
             test_interval=self.test_interval,
         )
-        if seed is not None:
-            runner.seed(seed)
         self.runs.append(Run.create(rundir))
         return runner
 
@@ -240,9 +231,13 @@ class Experiment:
             "csv",
             "web",
             "tensorboard",
-            checkpoint=run.latest_checkpoint,
             forced_rundir=rundir,
         )
+        runner._algo.load(run.latest_checkpoint)
+        try:
+            shutil.copytree(run.latest_checkpoint, rundir)
+        except FileExistsError:
+            pass
         runner._start_step = run.current_step
         return runner
 
@@ -336,7 +331,7 @@ class Experiment:
             env_summary = json.load(e)
 
         self.algo.load(os.path.dirname(episode_folder))
-        env = restore_env(env_summary, force_static=True)
+        env = rlenv.from_summary(env_summary)
         obs = env.reset()
         frames = [encode_b64_image(env.render("rgb_array"))]
         episode = EpisodeBuilder()
@@ -360,13 +355,8 @@ class Experiment:
 
 def restore_env(env_summary: dict[str,], force_static=False) -> RLEnv:
     if force_static:
-        env = laser_env.StaticLaserEnv.from_summary(env_summary)
         try:
-            # Do not restore envPool if force_static
-            env_summary["wrappers"].remove("EnvPool")
-            env_summary.pop("EnvPool")
-        except (KeyError, ValueError):
-            pass
-    else:
-        env = rlenv.from_summary(env_summary)
-    return wrappers.from_summary(env, env_summary)
+            return laser_env.StaticLaserEnv.from_summary(env_summary)
+        except KeyError:
+            return rlenv.from_summary(env_summary)
+    return rlenv.from_summary(env_summary)

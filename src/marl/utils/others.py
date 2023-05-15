@@ -4,20 +4,18 @@ import torch
 import numpy as np
 from typing import Callable, TypeVar, Literal
 import re
-import socket
 from dataclasses import dataclass
-from contextlib import closing
    
-def get_available_port(port=8000) -> int:
-    MIN_PORT = 1024
-    MAX_PORT = 65535
-    port = min(max(port, MIN_PORT), MAX_PORT)
-    for port in range(port, MAX_PORT):
-        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
-            if sock.connect_ex(("0.0.0.0", port)) != 0:
-                # Port is available
-                return port
-    raise RuntimeError("No available port found")
+def seed(seed_value: int):
+    import torch
+    import random
+    import os
+    import numpy as np
+    os.environ["PYTHONHASHSEED"] = str(seed_value)
+    torch.manual_seed(seed_value)
+    np.random.seed(seed_value)
+    random.seed(seed_value)
+    
 
 T = TypeVar("T")
 

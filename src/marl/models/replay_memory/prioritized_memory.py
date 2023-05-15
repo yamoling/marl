@@ -32,21 +32,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         self._wrapped_memory.add(item)
 
     def sample(self, batch_size: int) -> Batch:
-        sample_idxs = []
-        priorities = []
-        # To sample a minibatch of size k, the range [0, p_total] is divided equally into k ranges.
-        # Next, a value is uniformly sampled from each range. Finally the transitions that correspond
-        # to each of these sampled values are retrieved from the tree. (Appendix B.2.1, Proportional prioritization)
-        segment_size = self._tree.total / batch_size
-        values = torch.rand(batch_size) * segment_size + torch.arange(0, batch_size) * segment_size
-        max_idx = len(self._wrapped_memory) - 1
-        for cumsum in values:
-            # sample_idx is a sample index in buffer, needed further to sample actual transitions
-            # tree_idx is a index of a sample in the tree, needed further to update priorities
-            idx, priority = self._tree.get(cumsum)
-            idx = min(max_idx, idx)
-            priorities.append(priority)
-            sample_idxs.append(idx)
+        sample_idxs, priorities = self._tree.sample(batch_size)
 
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
         # where p_i > 0 is the priority of transition i. (Section 3.3)
@@ -62,7 +48,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         # instead of δ_i (this is thus weighted IS, not ordinary IS, see e.g. Mahmood et al., 2014).
         # For stability reasons, we always normalize weights by 1/maxi wi so that they only scale the
         # update downwards (Section 3.4, first paragraph)
-        weights = (len(self._wrapped_memory) * probs) ** -self._beta
+        weights = (len(self) * probs) ** -self._beta
 
         # As mentioned in Section 3.4, whenever importance sampling is used, all weights w_i were scaled
         # so that max_i w_i = 1. We found that this worked better in practice as it kept all weights
@@ -87,8 +73,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
         with torch.no_grad():
-            priorities = (qtargets - qvalues).abs()
-            # priorities = priorities.sum(dim=-1)
+            priorities = torch.abs(qtargets - qvalues)
             priorities = (priorities + self._eps) ** self._alpha
             self._max_priority = max(self._max_priority, priorities.max().item())
         priorities = priorities.cpu()

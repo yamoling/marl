@@ -1,8 +1,15 @@
 <template>
     <div>
-        <h3 class="text-center title" v-if="title.length > 0"> {{ title }}</h3>
+        <h3 class="text-center title" v-if="title.length > 0">
+            {{ title }}
+            <a ref="download" @click="downloadPlot" :download="`${title}.jpg`" href="" class="btn btn-primary">
+                <font-awesome-icon :icon="['fa', 'download']" />
+            </a>
+        </h3>
         <div ref="legendContainer" class="row"></div>
-        <canvas v-show="datasets.length > 0" ref="canvas"></canvas>
+        <div v-show="datasets.length > 0">
+            <canvas ref="canvas"></canvas>
+        </div>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
 </template>
@@ -15,6 +22,7 @@ import { Dataset } from '../../models/Experiment';
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
+const download = ref({} as HTMLAnchorElement);
 const legendContainer = ref({} as HTMLElement);
 const props = defineProps<{
     datasets: readonly Dataset[]
@@ -23,15 +31,12 @@ const props = defineProps<{
     showLegend: boolean
 }>();
 
-// const DEFAULT_COLOURS = [
-//     "#EE5060",
-//     "#36a2eb",
-//     "#cc65fe",
-//     "#ffce56",
-//     "#4bc0c0",
-//     "#9966ff",
-//     "#ff9f40",
-// ];
+
+function downloadPlot() {
+    download.value.href = canvas.value.toDataURL("image/jpg");
+    // download.value.click();
+}
+
 
 function clippedStd(mean: number[], std: number[], min: number[], max: number[]) {
     const lowerStd = std.map((s, i) => {

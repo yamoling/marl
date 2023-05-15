@@ -3,12 +3,12 @@ import torch
 from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
 
 
-class MLP(LinearNN[torch.Tensor]):
+class MLP(LinearNN):
     """
     Multi layer perceptron
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...], n_neurons=64) -> None:
         assert len(input_shape) == 1, "MLP can only handle 1D inputs"
         assert len(extras_shape) == 1, "MLP can only handle 1D extras"
         assert len(output_shape) == 1, "MLP can only handle 1D outputs"
@@ -16,20 +16,25 @@ class MLP(LinearNN[torch.Tensor]):
         input_size = input_shape[0] + extras_shape[0]
         output_size = output_shape[0]
         self.nn = torch.nn.Sequential(
-            torch.nn.Linear(input_size, 64),
+            torch.nn.Linear(input_size, n_neurons),
             torch.nn.ReLU(),
-            torch.nn.Linear(64, 64),
+            torch.nn.Linear(n_neurons, n_neurons),
             torch.nn.ReLU(),
-            torch.nn.Linear(64, output_size)
+            torch.nn.Linear(n_neurons, output_size)
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
         if extras is not None:
             obs = torch.concat((obs, extras), dim=-1)
         return self.nn(obs)
+    
 
+class MLP256(MLP):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
+        super().__init__(input_shape, extras_shape, output_shape, n_neurons=256)
+        
 
-class RNNQMix(RecurrentNN[torch.Tensor]):
+class RNNQMix(RecurrentNN):
     """RNN used in the QMix paper"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
@@ -62,7 +67,7 @@ class RNNQMix(RecurrentNN[torch.Tensor]):
         return x, hidden_state
 
 
-class AtariCNN(LinearNN[torch.Tensor]):
+class AtariCNN(LinearNN):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]|None, output_shape: tuple[int, ...]) -> None:
@@ -87,7 +92,7 @@ class AtariCNN(LinearNN[torch.Tensor]):
 
 
 
-class CNN(LinearNN[torch.Tensor]):
+class CNN(LinearNN):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
@@ -127,7 +132,7 @@ class CNN(LinearNN[torch.Tensor]):
         return res.view(*dims, *self.output_shape)
 
 
-class PolicyNetworkMLP(LinearNN[torch.Tensor]):
+class PolicyNetworkMLP(LinearNN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...] | None, output_shape: tuple[int, ...]):
         assert len(extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1
         super().__init__(input_shape, extras_shape, output_shape)
@@ -146,7 +151,7 @@ class PolicyNetworkMLP(LinearNN[torch.Tensor]):
         return self.nn.forward(obs)
 
 
-class LinearCombination(LinearNN[torch.Tensor]):
+class LinearCombination(LinearNN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...] | None, output_shape: tuple[int, ...]):
         assert len(extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1
         super().__init__(input_shape, extras_shape, output_shape)

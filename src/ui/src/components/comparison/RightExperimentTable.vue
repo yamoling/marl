@@ -1,6 +1,11 @@
 <template>
     <div v-show="store.experiments.length > 0" class="mb-3">
-        <h3 class="text-center"> Legend </h3>
+        <h3 class="text-center">
+            Legend
+            <button class="btn btn-outline-info col-auto" :disabled="store.anyLoading" @click="refreshLoaded">
+                <font-awesome-icon :icon="['fas', 'sync']" :spin="store.anyLoading" />
+            </button>
+        </h3>
         <table>
             <tbody>
                 <template v-for="exp, in  store.experiments ">
@@ -58,6 +63,17 @@ function toggleExperiment(exp: Experiment) {
         emits("show-experiment", exp);
     }
     showed.value.set(exp.logdir, !showed.value.get(exp.logdir));
+}
+
+function refreshLoaded() {
+    store.experiments.forEach(async exp => {
+        const refreshed = await store.loadExperiment(exp.logdir);
+        if (refreshed.test_metrics.time_steps.length > exp.test_metrics.time_steps.length
+            || refreshed.train_metrics.time_steps.length > exp.train_metrics.time_steps.length) {
+            emits("hide-experiment", exp);
+            emits("show-experiment", refreshed);
+        }
+    });
 }
 
 

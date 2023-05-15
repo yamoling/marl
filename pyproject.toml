@@ -21,7 +21,6 @@ pynvml = "^11.5.0"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
-pandas = "^1.5.3"
 pywebview = {extras = ["qt"], version = "^4.0.1"}
 pycairo = "^1.23.0"
 pygobject = "^3.42.2"
@@ -37,6 +36,4 @@ build-backend = "poetry.core.masonry.api"
 
 
 [tool.pytest.ini_options]
-pythonpath = [
-  "src"
-]
+pythonpath = ["src"]

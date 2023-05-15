@@ -24,6 +24,7 @@ export interface EnvInfo {
     n_actions: number
     n_agents: number
     obs_shape: number[]
+    action_meanings: string[]
     state_shape: number[]
     extras_shape: number[]
     map_file_content: string

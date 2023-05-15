@@ -4,10 +4,11 @@ from abc import ABC, abstractmethod
 import torch
 
 from rlenv.models import RLEnv
+from marl.utils.summarizable import Summarizable
 
 O = TypeVar("O")
 
-class NN(torch.nn.Module, ABC, Generic[O]):
+class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
     """Parent class of all neural networks"""
     is_recurrent: bool
 
@@ -30,6 +31,14 @@ class NN(torch.nn.Module, ABC, Generic[O]):
     def name(self) -> str:
         return self.__class__.__name__
     
+    def randomized(self) -> Self:
+        for param in self.parameters():
+            if len(param.data.shape) == 1:
+                torch.nn.init.xavier_uniform_(param.data.view(1, -1))
+            else:
+                torch.nn.init.xavier_uniform_(param.data)
+        return self
+    
     @classmethod
     def from_env(cls, env: RLEnv):
         """Construct a NN from environment specifications"""
@@ -41,7 +50,7 @@ class NN(torch.nn.Module, ABC, Generic[O]):
 
     def summary(self) -> dict[str, ]:
         return {
-            "name": self.__class__.__name__,
+            **super().summary(),
             "input_shape": self.input_shape,
             "extras_shape": self.extras_shape,
             "output_shape": self.output_shape,
@@ -50,19 +59,17 @@ class NN(torch.nn.Module, ABC, Generic[O]):
     
     @classmethod
     def from_summary(cls, summary: dict[str, ]) -> Self:
-        return cls(
-            input_shape=summary["input_shape"],
-            extras_shape=summary["extras_shape"],
-            output_shape=summary["output_shape"],
-        )
+        try: summary.pop("layers")
+        except KeyError: pass
+        return super().from_summary(summary)
 
-class LinearNN(NN[O], ABC):
+class LinearNN(NN[torch.Tensor], ABC):
     """Abstract class defining a linear neural network"""
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> O:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
         """Forward pass"""
 
-class RecurrentNN(NN[O], ABC):
+class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
     """Abstract class representing a recurrent neural network"""
     @abstractmethod
     def forward(
@@ -70,7 +77,7 @@ class RecurrentNN(NN[O], ABC):
         obs: torch.Tensor,
         extras: torch.Tensor|None = None,
         hidden_states: torch.Tensor|None = None
-    ) -> tuple[O, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass.
         All the inputs must have the shape [Episode length, Number of agents, *data_shape]
@@ -92,7 +99,7 @@ class RecurrentNN(NN[O], ABC):
         return True
 
 
-class ActorCriticNN(LinearNN[tuple[torch.Tensor, torch.Tensor]], ABC):
+class ActorCriticNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
     """Actor critic neural network"""
 
     @property

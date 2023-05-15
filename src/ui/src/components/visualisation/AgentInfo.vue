@@ -13,7 +13,7 @@
                 <tr>
                     <th scope="row"> Actions <br> available </th>
                     <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5 }"
-                        v-for="(meaning, action) in ACTION_MEANINGS">
+                        v-for="(meaning, action) in experiment.env.action_meanings">
                         {{ meaning }}
                     </th>
                 </tr>
