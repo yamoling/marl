@@ -5,26 +5,27 @@ from laser_env import ObservationType, StaticLaserEnv
 from marl.models import Experiment
 
 
-def create_static_experiments():
+def create_experiments():
     batch_size = 64
     memory_size = 50_000
-    levels = ["lvl3", "lvl4", "lvl5", "lvl6"]
-    training_steps = [600_000, 1_000_000, 2_000_000, 2_000_000]
+    levels = ["lvl3", "lvl6"]
+    training_steps = [500_000, 1_500_000]
     for level, n_steps in zip(levels, training_steps):
-        # level = os.path.join("maps/alternating/", level)
+        level = os.path.join("maps/alternating/", level)
+        # level = os.path.join("maps/normal/", level)
         env = StaticLaserEnv(level, ObservationType.LAYERED)
         time_limit = int(env.width * env.height / 2)
         current_env, test_env = rlenv.Builder(env).agent_id().time_limit(time_limit).build_all()
         
-        # E-greedy decreasing from 1 to 0.05 over 600000 steps
+        # E-greedy decreasing from 1 to 0.05 over 400_000 steps
         min_eps = 0.05
-        decrease_amount = (1 - min_eps) / 600_000
+        decrease_amount = (1 - min_eps) / 400_000
         train_policy = marl.policy.DecreasingEpsilonGreedy(1, decrease_amount, min_eps)
         test_policy = marl.policy.ArgMax()
 
         qnetwork = marl.nn.model_bank.CNN.from_env(current_env)
-        mixer = marl.qlearning.mixers.VDN(env.n_agents)
-        # mixer = marl.qlearning.mixers.QMix(env.state_shape[0], env.n_agents, 64)
+        #mixer = marl.qlearning.mixers.VDN(env.n_agents)
+        mixer = marl.qlearning.mixers.QMix(env.state_shape[0], env.n_agents, 64)
         memory = marl.models.TransitionMemory(memory_size)
         #memory = marl.models.PrioritizedMemory(memory)
 
@@ -37,7 +38,9 @@ def create_static_experiments():
             memory=memory,
             mixer=mixer
         )
-        
+
+        if level.startswith("maps/"):
+            level = level[5:10] + level[-1]
         logdir = f"logs/{level}-{mixer.name}-{memory.__class__.__name__}"
         # logdir = "test"
         exp = Experiment.create(logdir, algo=algo, env=current_env, n_steps=n_steps, test_interval=5000, test_env=test_env)
@@ -47,4 +50,4 @@ def create_static_experiments():
 
 
 if __name__ == "__main__":
-    create_static_experiments()
+    create_experiments()

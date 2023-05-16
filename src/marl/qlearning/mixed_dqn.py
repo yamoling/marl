@@ -1,5 +1,4 @@
 import torch
-from torch.optim import Optimizer
 from rlenv import Observation
 from marl.models import TransitionMemory, TransitionsBatch
 from marl.nn import LinearNN
@@ -24,7 +23,17 @@ class MixedDQN(DQN):
             memory: TransitionMemory = None, 
             device: torch.device = None):
         optimizer = torch.optim.Adam(list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr)
-        super().__init__(qnetwork, gamma, tau, batch_size, optimizer, train_policy, test_policy, memory, device)
+        super().__init__(
+            qnetwork=qnetwork, 
+            gamma=gamma, 
+            tau=tau, 
+            batch_size=batch_size, 
+            optimizer=optimizer, 
+            train_policy=train_policy, 
+            test_policy=test_policy, 
+            memory=memory, 
+            device=device
+        )
         self.mixer = mixer.to(self._device, non_blocking=True)
         self.target_mixer = deepcopy(mixer).randomized().to(self._device, non_blocking=True)
 

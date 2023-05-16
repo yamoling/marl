@@ -14,7 +14,7 @@
                 :title="label.replaceAll('_', ' ')" :showLegend="false" />
         </div>
         <div class="col-3">
-            <RightExperimentTable class="row" @show-experiment="showExperiment" @hide-experiment="hideExperiment"
+            <RightExperimentTable class="row" @show-experiment="addExperiment" @hide-experiment="removeExperiment"
                 @inspect-experiment="(e) => emits('loadExperiment', e.logdir)" />
             <SettingsPanel class="row" @change-smooting="(v) => smoothValue = v"
                 @change-selected-metrics="(m) => metrics = m" @change-type="(t) => testOrTrain = t" />
@@ -53,8 +53,9 @@ const datasets = computed(() => {
         return e.test_metrics.datasets;
     });
     const allDatasets = new Map<string, Dataset[]>();
-    experimentDatasets.forEach(ds => {
+    experimentDatasets.forEach((ds, i) => {
         ds.forEach(d => {
+            d.colour = experiments.value[i].colour;
             if (metrics.value.includes(d.label)) {
                 if (allDatasets.has(d.label)) {
                     allDatasets.get(d.label)!.push(d);
@@ -67,6 +68,9 @@ const datasets = computed(() => {
     const smoothed = new Map<string, Dataset[]>();
     allDatasets.forEach((ds, label) => {
         smoothed.set(label, ds.map(ds => {
+            if (smoothValue.value == 0) {
+                return ds;
+            }
             return { ...ds, mean: EMA(ds.mean, smoothValue.value) }
         }));
     });
@@ -78,12 +82,12 @@ const emits = defineEmits<{
 }>();
 
 
-function showExperiment(experiment: Experiment) {
+function addExperiment(experiment: Experiment) {
     experiments.value.push(experiment);
     refreshTicks();
 }
 
-function hideExperiment(experiment: Experiment) {
+function removeExperiment(experiment: Experiment) {
     const i = experiments.value.indexOf(experiment);
     experiments.value.splice(i, 1);
     refreshTicks();

@@ -1,6 +1,7 @@
 import { ExperimentInfo } from "./Infos"
 
 export interface Experiment extends ExperimentInfo {
+    colour: string
     test_metrics: {
         time_steps: number[]
         datasets: Dataset[]

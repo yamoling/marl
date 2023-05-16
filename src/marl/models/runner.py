@@ -91,7 +91,7 @@ class Runner:
         os.makedirs(directory, exist_ok=True)
         with (open(os.path.join(directory, "env.json"), "w") as e,
               open(os.path.join(directory, "actions.json"), "w") as a):
-            json.dump(self._test_env.summary(), e)
+            json.dump(self._test_env.summary(static=True), e)
             json.dump(episode.actions.tolist(), a)
 
     def to(self, device: str|torch.device):

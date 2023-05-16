@@ -34,7 +34,6 @@ const props = defineProps<{
 
 function downloadPlot() {
     download.value.href = canvas.value.toDataURL("image/jpg");
-    // download.value.click();
 }
 
 
@@ -63,11 +62,8 @@ function updateChart() {
         return;
     }
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach((ds, i) => {
-        // if (ds.colour == null) {
-        //     ds.colour = DEFAULT_COLOURS[i % DEFAULT_COLOURS.length];
-        // }
-        const stdColour = rgbToAlpha(ds.colour || "#000000", 0.3);
+    props.datasets.forEach(ds => {
+        const stdColour = rgbToAlpha(ds.colour, 0.3);
         const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
         datasets.push({
             data: std.lower,

@@ -21,7 +21,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
                 alert(await resp.text());
                 return;
             }
-            const infos = await resp.json();
+            const infos = await resp.json() as ExperimentInfo[];
             experimentInfos.value = infos;
         } catch (e: any) {
             alert(e.message);
@@ -59,13 +59,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             throw new Error(await resp.text());
         }
         const experiment = await resp.json() as Experiment;
-        const experimentColour = stringToRGB(experiment.logdir);
-        experiment.test_metrics.datasets.forEach(dataset => {
-            dataset.colour = experimentColour;
-        });
-        experiment.train_metrics.datasets.forEach(dataset => {
-            dataset.colour = experimentColour;
-        });
+        experiment.colour = stringToRGB(experiment.logdir);
         // Get experiment index based on the logdir
         const experimentIndex = experiments.value.findIndex(e => e.logdir === logdir);
         if (experimentIndex >= 0) {

@@ -11,8 +11,7 @@
                 <template v-for="exp, in  store.experiments ">
                     <tr class="experiment-row">
                         <td>
-                            <input type="color" v-model="exp.test_metrics.datasets[0].colour"
-                                @change="(e) => updateColour(exp.logdir, e)">
+                            <input type="color" v-model="exp.colour" @change="() => updateColour(exp)">
                         </td>
                         <td> {{ exp.logdir }}</td>
                         <td>
@@ -48,12 +47,9 @@ const store = useExperimentStore();
 const showed = ref(new Map<string, boolean>());
 
 
-function updateColour(logdir: string, e: Event) {
-    const colour = (e.target as HTMLInputElement).value;
-    const exp = store.experiments.filter(e => e.logdir == logdir)[0];
-    if (exp == null || colour == null) return;
-    exp.test_metrics.datasets.forEach(ds => ds.colour = colour);
-    exp.train_metrics.datasets.forEach(ds => ds.colour = colour);
+function updateColour(exp: Experiment) {
+    exp.test_metrics.datasets.forEach(ds => ds.colour = exp.colour);
+    exp.train_metrics.datasets.forEach(ds => ds.colour = exp.colour);
 }
 
 function toggleExperiment(exp: Experiment) {
