@@ -35,7 +35,12 @@ class MLP256(MLP):
         
 
 class RNNQMix(RecurrentNN):
-    """RNN used in the QMix paper"""
+    """RNN used in the QMix paper:
+    - linear 64
+    - relu
+    - GRU 64
+    - relu
+    - linear 64"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
         assert len(input_shape) == 1, "RNNQMix can only handle 1D inputs"
@@ -48,24 +53,34 @@ class RNNQMix(RecurrentNN):
             torch.nn.Linear(n_inputs, 64),
             torch.nn.ReLU()
         )
-        self.gru = torch.nn.GRU(input_size=64, hidden_size=64)
+        self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, n_outputs)
 
     def forward(
         self,
         obs: torch.Tensor,
-        extras: torch.Tensor|None = None,
+        extras: torch.Tensor | None = None,
         hidden_states: torch.Tensor|None = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        assert len(obs.shape) >= 3, "The observation should have shape (ep_length, batch_size, n_agents, obs_size)"
-        assert obs.shape[:2] == extras.shape[:2]
-        assert hidden_states is None or hidden_states.shape[:2] == obs.shape[:2]
-        obs = torch.concat((obs, extras), dim=-1)
-        x = self.fc1(obs)
+        self.gru.flatten_parameters()
+        assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
+        # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
+        # This shape is not supported by the GRU layer, so we merge the batch_size and n_agents dimensions 
+        # while keeping the episode_length dimension.
+        episode_length, *batch_agents, obs_size = obs.shape
+        obs = torch.reshape(obs, (episode_length, -1, obs_size))
+        if extras is not None:
+            extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+            obs = torch.concat((obs, extras), dim=-1)
+        x = self.fc1.forward(obs)
         x, hidden_state = self.gru.forward(x, hidden_states)
-        x = self.fc2(x)
+        x = self.fc2.forward(x)
+        # Restore the original shape of the batch
+        x = x.view(episode_length, *batch_agents, *self.output_shape)
         return x, hidden_state
 
+class RNN(RNNQMix):
+    pass
 
 class AtariCNN(LinearNN):
     """The CNN used in the 2015 Mhin et al. DQN paper"""

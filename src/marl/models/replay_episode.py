@@ -23,6 +23,7 @@ class ReplayEpisodeSummary:
 class ReplayEpisode(ReplayEpisodeSummary):
     episode: Episode
     qvalues: list[list[list[float]]]
+    state_values: list[float]
     frames: list[str]
 
     @property
@@ -35,4 +36,5 @@ class ReplayEpisode(ReplayEpisodeSummary):
             "episode": self.episode.to_json(),
             "qvalues": self.qvalues,
             "frames": self.frames,
+            "state_values": self.state_values
         }

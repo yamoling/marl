@@ -9,7 +9,6 @@ from typing import Literal
 
 import rlenv
 from rlenv.models import RLEnv, EpisodeBuilder, Transition
-from rlenv import wrappers
 import laser_env
 from marl import logging
 from marl.qlearning import IDeepQLearning
@@ -46,8 +45,8 @@ class Experiment:
     algo: RLAlgo
     env: RLEnv
     test_env: RLEnv
-    n_steps: int
     test_interval: int
+    s_steps: int
 
     def __init__(
         self,
@@ -55,15 +54,18 @@ class Experiment:
         algo: RLAlgo,
         env: RLEnv,
         test_env: RLEnv,
-        n_steps: int,
         test_interval: int,
+        n_steps: int
     ):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
-        self.runs = [
-            Run.load(os.path.join(logdir, run))
-            for run in os.listdir(logdir)
-            if run.startswith("run_")
-        ]
+        try:
+            self.runs = [
+                Run.load(os.path.join(logdir, run))
+                for run in os.listdir(logdir)
+                if run.startswith("run_")
+            ]
+        except:
+            self.runs = []
         self.logdir = logdir
         self.algo = algo
         self.env = env
@@ -77,7 +79,7 @@ class Experiment:
         algo: RLAlgo,
         env: RLEnv,
         n_steps: int,
-        test_interval: int = None,
+        test_interval: int,
         test_env: RLEnv = None,
     ) -> "Experiment":
         """Create a new experiment."""
@@ -91,14 +93,13 @@ class Experiment:
             pass
         try:
             os.makedirs(logdir, exist_ok=False)
-            test_interval = defaults_to(test_interval, lambda: n_steps // 100)
             test_env = defaults_to(test_env, lambda: deepcopy(env))
             experiment = Experiment(
                 logdir,
                 algo=algo,
                 env=env,
-                test_env=test_env,
                 n_steps=n_steps,
+                test_env=test_env,
                 test_interval=test_interval,
             )
             experiment.save()
@@ -120,15 +121,13 @@ class Experiment:
             algo = marl.from_summary(summary["algorithm"])
             env = rlenv.from_summary(summary["env"])
             test_env = rlenv.from_summary(summary["test_env"])
-            n_steps = summary["n_steps"]
-            test_interval = summary["test_interval"]
             return Experiment(
-                logdir,
+                logdir=logdir,
                 algo=algo,
                 env=env,
                 test_env=test_env,
-                n_steps=n_steps,
-                test_interval=test_interval,
+                test_interval=summary["test_interval"],
+                n_steps=summary["n_steps"]
             )
         except exceptions.MissingParameterException as e:
             raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
@@ -160,8 +159,8 @@ class Experiment:
             },
             "test_env": self.test_env.summary(),
             "logdir": self.logdir,
-            "timestamp_ms": int(time.time() * 1000),
             "n_steps": self.n_steps,
+            "timestamp_ms": int(time.time() * 1000),
             "test_interval": self.test_interval,
             "runs": [run.to_json() for run in self.runs],
         }
@@ -203,14 +202,12 @@ class Experiment:
             env=env,
             algo=algo,
             logger=logger,
-            end_step=self.n_steps,
-            start_step=0,
             test_interval=self.test_interval,
+            n_steps=self.n_steps,
+            test_env=self.test_env
         )
         self.runs.append(Run.create(rundir))
         return runner
-
-
 
     def stop_runner(self, rundir: str):
         """Stops the runner at the given rundir."""
@@ -333,13 +330,15 @@ class Experiment:
         self.algo.load(os.path.dirname(episode_folder))
         env = rlenv.from_summary(env_summary)
         obs = env.reset()
+        values = []
         frames = [encode_b64_image(env.render("rgb_array"))]
         episode = EpisodeBuilder()
         qvalues = []
         for action in actions:
+            values.append(self.algo.value(obs))
             if isinstance(self.algo, IDeepQLearning):
                 qvalues.append(self.algo.compute_qvalues(obs).tolist())
-            obs_, reward, done, info = env.step(action)
+            obs_, reward, done, truncated, info = env.step(action)
             episode.add(Transition(obs, action, reward, done, info, obs_))
             frames.append(encode_b64_image(env.render("rgb_array")))
             obs = obs_
@@ -350,6 +349,7 @@ class Experiment:
             qvalues=qvalues,
             frames=frames,
             metrics=episode.metrics,
+            state_values=values,
         )
 
 

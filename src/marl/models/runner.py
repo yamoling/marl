@@ -16,76 +16,86 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         logger: Logger,
-        end_step: int,
         test_interval: int,
+        n_steps: int,
         test_env: RLEnv=None,
-        start_step=0,
+        quiet=False
     ):
         self._env = env
         self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
         self._logger = logger
-        self._seed = None
         self._best_score = -float("inf")
-        self._start_step = start_step
-        self._episode_builder = None
-        self._episode_num = 0
-        self._obs: Observation | None = None
-        self._end_step = end_step
         self._test_interval = test_interval
+        self._quiet = quiet
+        self._max_step = n_steps
 
-    def _before_train_episode(self):
-        self._episode_builder = EpisodeBuilder()
-        self._obs = self._env.reset()
-        self._algo.before_train_episode(self._episode_num)
 
-    def train(self, n_tests: int, quiet=False) -> str:
+    def _train_episode(self, step_num: int, episode_num: int, n_tests: int) -> Episode:
+        self._algo.before_train_episode(episode_num)
+        episode = EpisodeBuilder()
+        obs = self._env.reset()
+        initial_value = self._algo.value(obs)
+        while not episode.is_finished and step_num < self._max_step:
+            if step_num % self._test_interval == 0:
+                self.test(n_tests, step_num)
+            action = self._algo.choose_action(obs)
+            obs_, reward, done, truncated, info = self._env.step(action)
+            transition = Transition(obs, action, reward, done, info, obs_, truncated)
+            self._algo.after_train_step(transition, step_num)
+            episode.add(transition)
+            obs = obs_
+            step_num += 1
+        if not episode.is_finished:
+            return None
+        episode = episode.build({"initial_value": initial_value})
+        self._algo.after_train_episode(episode_num, episode)
+        return episode
+
+    def train(self, n_tests: int) -> str:
         """Start the training loop"""
         with open(os.path.join(self.rundir, "pid"), "w") as f:
             f.write(str(os.getpid()))
-        if self._episode_num == 0:
-            self._before_train_episode()
-        for step in tqdm(range(self._start_step, self._end_step), initial=self._start_step, total=self._end_step, desc="Training", unit="Step", leave=True, disable=quiet):
-            if step % self._test_interval == 0:
-                self.test(n_tests, step, quiet=quiet)
-            if self._episode_builder.is_done:
-                episode = self._episode_builder.build()
-                self._algo.after_train_episode(self._episode_num, episode)
-                self._logger.log("train", episode.metrics, step - len(episode))
-                self._episode_num += 1
-                self._before_train_episode()
-            action = self._algo.choose_action(self._obs)
-            obs_, reward, done, info = self._env.step(action)
-            transition = Transition(self._obs, action, reward, done, info, obs_)
-            self._algo.after_train_step(transition, step)
-            self._episode_builder.add(transition)
-            self._obs = obs_
-        
-        self.test(n_tests, self._end_step, quiet=quiet)
+        episode_num = 0
+        step = 0
+        with tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar:
+            while step < self._max_step:
+                episode = self._train_episode(step, episode_num,n_tests)
+                episode_num += 1
+                if episode is None:
+                    episode_length = self._max_step - step
+                else:
+                    episode_length = len(episode)
+                    self._logger.log("train", episode.metrics, step)
+                step += episode_length
+                pbar.update(episode_length)
+        self.test(n_tests, self._max_step)
         self._logger.close()
 
-    def test(self, ntests: int, time_step: int, quiet=False):
+    def test(self, ntests: int, time_step: int):
         """Test the agent"""
         self._algo.before_tests(time_step)
         test_dir = os.path.join(self.rundir, "test", f"{time_step}")
         self._algo.save(test_dir)
         episodes: list[Episode] = []
-        for i in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+        for i in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
             self._algo.before_test_episode(time_step, i)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
-            while not episode.is_done:
+            intial_value = self._algo.value(obs)
+            while not episode.is_finished:
                 action = self._algo.choose_action(obs)
-                new_obs, reward, done, info = self._test_env.step(action)
-                transition = Transition(obs, action, reward, done, info, new_obs)
+                new_obs, reward, done, truncated, info = self._test_env.step(action)
+                transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
-            episode = episode.build()
+            episode = episode.build({"initial_value": intial_value})
             self._algo.after_test_episode(time_step, i, episode)
             self._save_test_episode(os.path.join(test_dir, f"{i}"), episode)
             self._logger.log("test", episode.metrics, time_step)
             episodes.append(episode)
         self._algo.after_tests(episodes, time_step)
+        self._logger.print("test", Episode.agregate_metrics(episodes))
 
     def _save_test_episode(self, directory: str, episode: Episode):
         os.makedirs(directory, exist_ok=True)

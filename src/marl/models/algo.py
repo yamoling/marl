@@ -14,6 +14,10 @@ class RLAlgo(Summarizable, ABC):
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         """Get the action to perform given the input observation"""
 
+    @abstractmethod
+    def value(self, observation: Observation) -> float:
+        """Get the value of the input observation"""
+
     @property
     def name(self) -> str:
         """The name of the algorithm"""

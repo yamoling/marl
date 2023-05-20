@@ -1,5 +1,6 @@
 import random
 import numpy as np
+from marl.utils import schedule
 
 from .policy import Policy
 
@@ -33,24 +34,39 @@ class SoftmaxPolicy(Policy):
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
 
-    def __init__(self, epsilon: float) -> None:
+    def __init__(self, epsilon: schedule.Schedule) -> None:
         self._epsilon = epsilon
+
+    @classmethod
+    def linear(cls, start_eps: float, min_eps: float, n_steps: int):
+        return cls(schedule.LinearSchedule(start_eps, min_eps, n_steps))
+    
+    @classmethod
+    def exponential(cls, start_eps: float, min_eps: float, decay: float):
+        return cls(schedule.ExpSchedule(start_eps, min_eps, decay))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
         qvalues[available_actions == 0.] = -np.inf
         chosen_actions = qvalues.argmax(axis=-1)
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
         r = np.random.random(len(qvalues))
-        mask = r < self._epsilon
+        mask = r < self._epsilon.value
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
     
+    def update(self):
+        return self._epsilon.update()
+
     def summary(self) -> dict[str,]:
-        return { **super().summary(), "epsilon": self._epsilon }
+        return { 
+            **super().summary(),
+            "epsilon": self._epsilon.value,
+            "schedule": self._epsilon.summary()
+        }
 
     @classmethod
     def from_summary(cls, summary: dict[str,]):
-        return EpsilonGreedy(summary["epsilon"])
+        return EpsilonGreedy(schedule.from_summary(summary["schedule"]))
 
 
 class DecreasingEpsilonGreedy(EpsilonGreedy):

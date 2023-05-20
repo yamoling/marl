@@ -1,12 +1,12 @@
 <template>
     <div class="row">
         <h3> Layers </h3>
-        <div class="col-auto m-2" v-for="layer in obs">
-            <div class="row" v-for="row in layer">
-                <div v-for="col in row" style="border: solid 1px; width: 20px;"> {{ col }}</div>
-            </div>
-            <br>
-        </div>
+        <table v-for="layer in obs" :style="{ width: `${layer.length * 10}px` }" class="m-1">
+            <tr v-for="row in layer">
+                <td v-for="item in row" class="grid-item" :style="{ backgroundColor: getColour(item) }">
+                </td>
+            </tr>
+        </table>
 
         <h3> Extras </h3>
         <table class="table table-responsive">
@@ -23,9 +23,23 @@
 <script setup lang="ts">
 
 
+function getColour(value: number) {
+    if (value == 1) return "red";
+    if (value == -1) return "blue";
+    if (value == 0) return "white";
+    return "black";
+}
+
 defineProps<{
     obs: number[][][],
     extras: number[]
 }>();
 
 </script>
+<style>
+.grid-item {
+    width: 10px;
+    height: 10px;
+    border: solid 1px;
+}
+</style>

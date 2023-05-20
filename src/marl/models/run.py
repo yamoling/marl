@@ -1,5 +1,4 @@
 import os
-import json
 import shutil
 import polars as pl
 from dataclasses import dataclass
@@ -27,7 +26,7 @@ class Run:
         return Run(rundir, pl.DataFrame(), pl.DataFrame())
 
     @staticmethod
-    def load(rundir):
+    def load(rundir: str):
         try:
             train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
         except pl.NoDataError:

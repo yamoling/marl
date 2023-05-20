@@ -1,6 +1,7 @@
 from typing import Type, TypeVar, Callable
 from types import ModuleType
 import inspect
+import pprint
 from .summarizable import Summarizable
 
 
@@ -18,6 +19,9 @@ class Registry(dict[str, Type[T]]):
     def from_summary(self, summary: dict[str, ]) -> T:
         try:
             clss = self[summary.pop("name")]
+        except KeyError:
+            raise Exception(f"\n{pprint.pformat(summary)}\nThere is no field 'name' in the above summary. Cannot retrieve the name of the class to load.")
+        try:    
             return clss.from_summary(summary)
         except KeyError:
             raise NoSuchClass(f"Could not find any class with name '{summary['name']}' in {T.__class__.__name__} registry.\nUse register({clss.__name__}) to register your class.")

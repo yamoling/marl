@@ -4,5 +4,5 @@ from .vdn import LinearVDN, RecurrentVDN
 from .dqn import DQN
 from .rdqn import RDQN
 from .builder import DeepQBuilder
-from .mixed_dqn import MixedDQN
+from .mixed_dqn import MixedDQN, RecurrentMixedDQN
 from .mixers import QMix, VDN

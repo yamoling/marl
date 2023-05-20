@@ -46,7 +46,7 @@ class Batch(ABC):
         self.importance_sampling_weights = None
 
     def for_individual_learners(self) -> "Batch":
-        """Reshape rewards, dones and masks such that each agent has its own (identical) signal."""
+        """Reshape rewards, dones such that each agent has its own (identical) signal."""
         self._rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
         self._dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
         return self

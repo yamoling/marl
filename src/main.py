@@ -2,33 +2,16 @@ import marl
 import os
 from argparse import ArgumentParser, Namespace
 import argcomplete
-from laser_env import StaticLaserEnv, ObservationType
-import rlenv
-
-
-class StatefulStaticLaserEnv(StaticLaserEnv):
-
-    def __init__(self, env_file: str, obs_type: str | ObservationType = ObservationType.RELATIVE_POSITIONS):
-        super().__init__(env_file, obs_type)
-        self.state_observer = ObservationType.FLATTENED.get_observation_generator(self.world)
-    
-    def get_state(self):
-        return self.state_observer.observe()[0]
-    
-    @property
-    def state_shape(self):
-        return self.state_observer.shape
-
-rlenv.register(StatefulStaticLaserEnv)
 
 
 def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("logdir", type=str, help="The experiment directory")
+    parser.add_argument("--n_steps", type=int, help="The number of steps to train for", required=True)
     parser.add_argument("--n_runs", type=int, default=1, help="Number of runs to create")
     parser.add_argument("--seed", type=int, default=0, help="The seed of the first run. seed + <run_num> will be used for the other runs")
     parser.add_argument("--n_tests", type=int, default=5)
     parser.add_argument("--quiet", action="store_true", default=False)
-    parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv", "web"], nargs="*")
+    parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv", "web", "tensorboard"], nargs="*")
     parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1", "cuda:2"], default="auto")
 
 
@@ -69,10 +52,12 @@ def new(args: Namespace):
             for i in range(args.n_runs - 1):
                 seed = args.seed + i
                 if os.fork() == 0:
+                    marl.seed(seed)
                     # Force child processes to be quiet
                     args.quiet = True
                     create_run(args, seed)
                     exit(0)
+            marl.seed(seed)
             create_run(args, seed + args.n_runs)
         case "experiment":
             raise NotImplementedError("Not implemented yet")
@@ -89,7 +74,7 @@ def create_run(args: Namespace, seed: int):
     experiment = marl.Experiment.load(args.logdir)
     runner = experiment.create_runner(*args.loggers, quiet=args.quiet)
     runner.to(args.device)
-    runner.train(n_tests=args.n_tests)
+    runner.train(n_steps=args.n_steps, n_tests=args.n_tests)
 
 def resume(args: Namespace):
     def _resume_run(rundir: str, args: Namespace, quiet=True):

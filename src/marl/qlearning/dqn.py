@@ -4,7 +4,7 @@ from copy import deepcopy
 import torch
 from rlenv import Transition, Observation
 from marl import nn
-from marl.models import ReplayMemory, TransitionMemory, Batch
+from marl.models import ReplayMemory, TransitionMemory, Batch, TransitionsBatch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to, get_device
 
@@ -48,31 +48,37 @@ class DQN(IDeepQLearning):
         self._batch_size = batch_size
         self._device = defaults_to(device, get_device)
         self._qnetwork = qnetwork.to(self._device, non_blocking=True)
-        self._qtarget = deepcopy(self._qnetwork).randomized().to(self._device, non_blocking=True)
-        self._loss_function = torch.nn.MSELoss()
+        self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
         self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
         self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
         self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy(0.1))
         self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
         self._policy = self._train_policy
+        self._parameters = list(self._qnetwork.parameters())
 
     @property
     def gamma(self) -> float:
         return self._gamma
     
     @property
-    def memory(self) -> ReplayMemory[Transition]:
+    def memory(self) -> ReplayMemory[Transition, TransitionsBatch]:
         return self._memory
     
     @property
     def policy(self) -> Policy:
         return self._policy
 
+    @torch.no_grad()
     def choose_action(self, obs: Observation) -> list[int]:
-        with torch.no_grad():
-            qvalues = self.compute_qvalues(obs)
-            qvalues = qvalues.cpu().numpy()
+        qvalues = self.compute_qvalues(obs)
+        qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
+    
+    @torch.no_grad()
+    def value(self, obs: Observation) -> float:
+        qvalues = self.compute_qvalues(obs)
+        max_qvalues = torch.max(qvalues, dim=-1).values
+        return torch.mean(max_qvalues).item()
     
     def after_train_step(self, transition: Transition, _time_step: int):
         self._memory.add(transition)
@@ -100,6 +106,7 @@ class DQN(IDeepQLearning):
         next_qvalues = next_qvalues.gather(-1, indices).squeeze(-1)
         return next_qvalues
 
+    @torch.no_grad()
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
         #next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
@@ -127,14 +134,14 @@ class DQN(IDeepQLearning):
         batch = self.process_batch(batch)
         # Compute qvalues and qtargets (delegated to child classes)
         qvalues = self.compute_qvalues(batch)
-        with torch.no_grad():
-            qtargets = self.compute_targets(batch)
+        qtargets = self.compute_targets(batch).detach()
         assert qvalues.shape == qtargets.shape, f"Predicted qvalues ({qvalues.shape}) and target qvalues ({qtargets.shape}) do not have the same shape !"
         # Compute the loss and apply gradient descent
         loss = self.compute_loss(qvalues, qtargets, batch)
         self._optimizer.zero_grad()
         loss.backward()
-        self._optimizer.step(None)
+        grad_norm = torch.nn.utils.clip_grad_norm_(self._parameters, 10)
+        self._optimizer.step()
         self._train_policy.update()
         self._target_soft_update()
         self._memory.update(batch, qvalues, qtargets)

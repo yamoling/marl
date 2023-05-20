@@ -7,9 +7,9 @@ from .replay_memory import ReplayMemory
 
 
 T = TypeVar("T")
+B = TypeVar("B", bound=Batch)
 
-
-class PrioritizedMemory(ReplayMemory[T]):
+class PrioritizedMemory(ReplayMemory[T, B]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -18,7 +18,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    def __init__(self, memory: ReplayMemory[T], alpha=0.7, beta=0.4, eps: float = 1e-2):
+    def __init__(self, memory: ReplayMemory[T, B], alpha=0.7, beta=0.4, eps: float = 1e-2, beta_anneal_steps: int=None):
         super().__init__(memory.max_size)
         self._wrapped_memory = memory
         self._tree = SumTree(memory.max_size)
@@ -26,12 +26,17 @@ class PrioritizedMemory(ReplayMemory[T]):
         self._eps = eps
         self._alpha = alpha
         self._beta = beta
+        if beta_anneal_steps is None:
+            self._beta_change = 0
+        else:
+            self._beta_change = (1 - beta) / beta_anneal_steps
+        self._beta_anneal_steps = beta_anneal_steps
 
     def add(self, item: T):
         self._tree.add(self._max_priority)
         self._wrapped_memory.add(item)
 
-    def sample(self, batch_size: int) -> Batch:
+    def sample(self, batch_size: int) -> B:
         sample_idxs, priorities = self._tree.sample(batch_size)
 
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
@@ -59,7 +64,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         batch.importance_sampling_weights = weights
         return batch
 
-    def get_batch(self, indices: List[int]) -> Batch:
+    def get_batch(self, indices: List[int]) -> B:
         return self._wrapped_memory.get_batch(indices)
 
     def __len__(self) -> int:
@@ -68,10 +73,11 @@ class PrioritizedMemory(ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self._wrapped_memory[idx]
 
-    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: B, qvalues: torch.Tensor, qtargets: torch.Tensor):
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
+        self._beta = self._beta + self._beta_change
         with torch.no_grad():
             priorities = torch.abs(qtargets - qvalues)
             priorities = (priorities + self._eps) ** self._alpha
@@ -88,11 +94,12 @@ class PrioritizedMemory(ReplayMemory[T]):
             "alpha": self._alpha,
             "beta": self._beta,
             "eps": self._eps,
+            "beta_anneal_steps": self._beta_anneal_steps,
             "memory": self._wrapped_memory.summary()
         }
     
     @classmethod
     def from_summary(cls, summary: dict[str, ]):
         from marl.models import replay_memory
-        summary["memory"] = replay_memory.from_summary(summary.pop("memory"))
+        summary["memory"] = replay_memory.from_summary(summary["memory"])
         return super().from_summary(summary)

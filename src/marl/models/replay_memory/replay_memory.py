@@ -11,9 +11,10 @@ from marl.utils.summarizable import Summarizable
 
 
 T = TypeVar("T")
+B = TypeVar("B", bound=Batch)
 
 
-class ReplayMemory(Summarizable, Generic[T], ABC):
+class ReplayMemory(Summarizable, Generic[T, B], ABC):
     """Parent class of any ReplayMemory"""
 
     def __init__(self, max_size: int) -> None:
@@ -24,10 +25,10 @@ class ReplayMemory(Summarizable, Generic[T], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: B, qvalues: torch.Tensor, qtargets: torch.Tensor):
         """Update the data in the memory"""
 
-    def sample(self, batch_size: int) -> Batch:
+    def sample(self, batch_size: int) -> B:
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.randint(0, len(self), batch_size)
         return self.get_batch(indices)
@@ -56,19 +57,19 @@ class ReplayMemory(Summarizable, Generic[T], ABC):
         }
     
 
-class TransitionMemory(ReplayMemory[Transition]):
+class TransitionMemory(ReplayMemory[Transition, TransitionsBatch]):
     """Replay Memory that stores Transitions"""
 
     def get_batch(
             self, 
             indices: list[int]
-        ) -> Batch:
+        ) -> TransitionsBatch:
         transitions = [self._memory[i] for i in indices]
         return TransitionsBatch(transitions, indices)
 
 
-class EpisodeMemory(ReplayMemory[Episode]):
+class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
     """Replay Memory that stores and samples full Episodes"""
-    def get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(self, indices: list[int]) -> EpisodeBatch:
         episodes = [self._memory[i] for i in indices]
         return EpisodeBatch(episodes, indices)

@@ -3,6 +3,7 @@ tr.selected {
 }
 
 .table-scrollable {
+    width: 100%;
     overflow-y: auto;
     /* make the table scrollable if height is more than 200 px  */
     max-height: 70vh;
@@ -16,9 +17,4 @@ tr.selected {
     top: 0px;
     /* table head will be placed from the top of the table and sticks to it */
     background: white;
-}
-
-table {
-    /* make the table borders collapse to each other */
-    width: 100%;
 }
