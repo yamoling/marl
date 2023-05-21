@@ -6,7 +6,6 @@ import argcomplete
 
 def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("logdir", type=str, help="The experiment directory")
-    parser.add_argument("--n_steps", type=int, help="The number of steps to train for", required=True)
     parser.add_argument("--n_runs", type=int, default=1, help="Number of runs to create")
     parser.add_argument("--seed", type=int, default=0, help="The seed of the first run. seed + <run_num> will be used for the other runs")
     parser.add_argument("--n_tests", type=int, default=5)
@@ -73,8 +72,10 @@ def create_run(args: Namespace, seed: int):
     marl.seed(seed)
     experiment = marl.Experiment.load(args.logdir)
     runner = experiment.create_runner(*args.loggers, quiet=args.quiet)
+    runner._env.seed(seed)
+    runner._test_env.seed(seed)
     runner.to(args.device)
-    runner.train(n_steps=args.n_steps, n_tests=args.n_tests)
+    runner.train(n_tests=args.n_tests)
 
 def resume(args: Namespace):
     def _resume_run(rundir: str, args: Namespace, quiet=True):

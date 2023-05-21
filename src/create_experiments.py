@@ -48,5 +48,39 @@ def create_experiments():
             print("Created experiment:", exp.logdir)
 
 
+def create_smac_experiments():
+    marl.seed(0)
+    batch_size = 32
+    memory_size = 50_000
+    n_steps = 200_000
+    env, test_env = rlenv.Builder("smac:3m").agent_id().last_action().build_all()
+    
+    # E-greedy decreasing from 1 to 0.05 over 400_000 steps
+    train_policy = marl.policy.EpsilonGreedy.linear(1, 0.05, 50_000)
+    test_policy = marl.policy.ArgMax()
+
+    qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
+    mixer = marl.qlearning.mixers.VDN(env.n_agents)
+    # mixer = marl.qlearning.mixers.QMix(env.state_shape[0], env.n_agents, 64)
+    memory = marl.models.EpisodeMemory(memory_size)
+
+    algo = marl.qlearning.RecurrentMixedDQN(
+        qnetwork=qnetwork,
+        batch_size=batch_size,
+        train_policy=train_policy,
+        test_policy=test_policy,
+        gamma=0.99,
+        memory=memory,
+        mixer=mixer,
+    )
+
+    logdir = f"logs/smac-vdn"
+    # logdir = "test-mixed-vdn-double-qlearning"
+    exp = Experiment.create(logdir, algo=algo, env=env, n_steps=n_steps, test_interval=5000, test_env=test_env)
+    # exp.create_runner().train(1)
+    print("Created experiment:", exp.logdir)
+
+
 if __name__ == "__main__":
-    create_experiments()
+    # create_experiments()
+    create_smac_experiments()

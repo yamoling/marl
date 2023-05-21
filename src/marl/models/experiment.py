@@ -58,14 +58,12 @@ class Experiment:
         n_steps: int
     ):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
-        try:
-            self.runs = [
-                Run.load(os.path.join(logdir, run))
-                for run in os.listdir(logdir)
-                if run.startswith("run_")
-            ]
-        except:
-            self.runs = []
+        self.runs = []
+        for run in os.listdir(logdir):
+            if run.startswith("run_"):
+                self.runs.append(Run.load(os.path.join(logdir, run)))
+                
+        
         self.logdir = logdir
         self.algo = algo
         self.env = env

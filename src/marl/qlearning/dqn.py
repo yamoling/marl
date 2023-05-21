@@ -145,6 +145,7 @@ class DQN(IDeepQLearning):
         self._train_policy.update()
         self._target_soft_update()
         self._memory.update(batch, qvalues, qtargets)
+        return loss.item(), grad_norm.item()
 
     def _target_soft_update(self):
         for param, target_param in zip(self._qnetwork.parameters(), self._qtarget.parameters()):

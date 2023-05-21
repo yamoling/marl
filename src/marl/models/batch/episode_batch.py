@@ -29,17 +29,7 @@ class EpisodeBatch(Batch):
         return super().extras_
 
     def _get_obs(self) -> torch.Tensor:
-        try:
-            obs = np.array([e.obs.data for e in self.episodes], dtype=np.float32)
-        except ValueError as e:
-            shapes = [e.obs.data.shape for e in self.episodes]
-            lengths = [len(e) for e in self.episodes]
-            from pprint import pprint
-            print("Shaped:")
-            pprint(shapes)
-            print("Lengths:")
-            pprint(lengths)
-            raise e
+        obs = np.array([e.obs.data for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(obs).transpose(1, 0)
     
     def _get_obs_(self) -> torch.Tensor:

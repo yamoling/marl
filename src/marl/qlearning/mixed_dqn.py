@@ -3,6 +3,7 @@ import torch
 from rlenv import Observation
 from marl.models import TransitionMemory, TransitionsBatch, EpisodeBatch, EpisodeMemory
 from marl.nn import LinearNN, RecurrentNN
+from marl.logging import Logger
 from marl.policy import Policy
 from marl.utils import defaults_to
 from copy import deepcopy
@@ -91,7 +92,10 @@ class MixedDQN(DQN):
         from marl.qlearning import mixers
         summary["mixer"] = mixers.from_summary(summary['mixer'])
         return super().from_summary(summary)
-    
+
+
+
+
     
 class RecurrentMixedDQN(DQN):
     def __init__(
@@ -107,7 +111,8 @@ class RecurrentMixedDQN(DQN):
             test_policy: Policy = None, 
             memory: EpisodeMemory = None, 
             double_qlearning=True,
-            device: torch.device = None
+            device: torch.device = None,
+            logger: Logger=None
         ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
@@ -128,6 +133,7 @@ class RecurrentMixedDQN(DQN):
         self.target_mixer = deepcopy(mixer).to(self._device, non_blocking=True)
         self._hidden_state = None
         self._saved_hidden_state = None
+        self.logger = logger
 
         # Type hinting
         self._qnetwork: RecurrentNN = self._qnetwork
@@ -137,12 +143,12 @@ class RecurrentMixedDQN(DQN):
         self._double_qlearning = double_qlearning
 
     def value(self, obs: Observation) -> float:
-        return 0.
         hidden_state = self._hidden_state
-        qvalues = self.compute_qvalues(obs)
+        qvalues = torch.max(self.compute_qvalues(obs), dim=-1).values
+        qvalues = torch.unsqueeze(qvalues, dim=0)
         self._hidden_state = hidden_state
         state = torch.from_numpy(obs.state).to(self._device, non_blocking=True)
-        return self.mixer.forward(qvalues, state)[0].item()
+        return self.mixer.forward(qvalues, state).item()
 
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
         error = qtargets - qvalues
