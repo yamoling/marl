@@ -3,8 +3,10 @@ __version__ = "0.1.0"
 from . import utils
 from . import models
 from . import logging
-from .models import RLAlgo, Runner, Experiment, Batch, Run
 from . import nn
+from . import intrinsic_reward
+from .models import RLAlgo, Runner, Experiment, Batch, Run
+
 
 from . import qlearning
 from . import policy_gradient

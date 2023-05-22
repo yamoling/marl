@@ -80,3 +80,22 @@ class ExpSchedule(Schedule):
     def value(self) -> float:
         return self._value
     
+
+
+class ConstantSchedule(Schedule):
+    def __init__(self, value: float):
+        super().__init__(value, value, 1)
+        self._value = value
+
+    def update(self, step=None):
+        pass
+
+    @property
+    def value(self) -> float:
+        return self._value
+
+    def summary(self) -> dict[str, ]:
+        return {
+            **super().summary(),
+            "value": self._value,
+        }

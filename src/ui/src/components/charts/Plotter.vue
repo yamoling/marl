@@ -2,9 +2,11 @@
     <div>
         <h3 class="text-center title" v-if="title.length > 0">
             {{ title }}
-            <a ref="download" @click="downloadPlot" :download="`${title}.jpg`" href="" class="btn btn-primary">
+            <button class="btn btn-outline-info" @click="downloadDatasets">
                 <font-awesome-icon :icon="['fa', 'download']" />
-            </a>
+            </button>
+            <!-- <a ref="download" @click="downloadPlot" :download="`${title}.jpg`" href="" class="btn btn-primary">
+            </a> -->
         </h3>
         <div ref="legendContainer" class="row"></div>
         <div v-show="datasets.length > 0">
@@ -17,7 +19,8 @@
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
-import { Dataset } from '../../models/Experiment';
+import { Dataset, toCSV } from '../../models/Experiment';
+import { downloadStringAsFile } from "../../utils";
 
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
@@ -36,6 +39,11 @@ function downloadPlot() {
     download.value.href = canvas.value.toDataURL("image/jpg");
 }
 
+
+function downloadDatasets() {
+    const csv = toCSV(props.datasets, props.xTicks);
+    downloadStringAsFile(csv, `${props.datasets[0].label}.csv`);
+}
 
 function clippedStd(mean: number[], std: number[], min: number[], max: number[]) {
     const lowerStd = std.map((s, i) => {

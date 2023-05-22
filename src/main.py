@@ -56,7 +56,7 @@ def new(args: Namespace):
                     args.quiet = True
                     create_run(args, seed)
                     exit(0)
-            marl.seed(seed)
+            marl.seed(seed + args.n_runs)
             create_run(args, seed + args.n_runs)
         case "experiment":
             raise NotImplementedError("Not implemented yet")

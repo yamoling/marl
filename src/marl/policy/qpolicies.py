@@ -44,6 +44,10 @@ class EpsilonGreedy(Policy):
     @classmethod
     def exponential(cls, start_eps: float, min_eps: float, decay: float):
         return cls(schedule.ExpSchedule(start_eps, min_eps, decay))
+    
+    @classmethod
+    def constant(cls, eps: float):
+        return cls(schedule.ConstantSchedule(eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
         qvalues[available_actions == 0.] = -np.inf

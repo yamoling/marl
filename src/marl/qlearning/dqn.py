@@ -7,6 +7,7 @@ from marl import nn
 from marl.models import ReplayMemory, TransitionMemory, Batch, TransitionsBatch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to, get_device
+from marl.logging import Logger
 
 from .qlearning import IDeepQLearning
 
@@ -40,6 +41,11 @@ class DQN(IDeepQLearning):
         test_policy: Policy=None,
         memory: TransitionMemory=None,
         device: torch.device=None,
+        update_frequency=200,
+        use_soft_update=True,
+        double_qlearning=True,
+        logger: Logger=None,
+        train_interval=1
     ):
         """Soft update tau value"""
         super().__init__()
@@ -51,10 +57,16 @@ class DQN(IDeepQLearning):
         self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
         self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
         self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
-        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy(0.1))
-        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
+        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy.constant(0.1))
+        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy.constant(0.05))
         self._policy = self._train_policy
         self._parameters = list(self._qnetwork.parameters())
+        self._double_qlearning = double_qlearning
+        self._update_frequency = update_frequency
+        self._use_soft_update = use_soft_update
+        self._train_interval = train_interval
+        self._train_logs = {}
+        self.logger = logger
 
     @property
     def gamma(self) -> float:
@@ -80,9 +92,9 @@ class DQN(IDeepQLearning):
         max_qvalues = torch.max(qvalues, dim=-1).values
         return torch.mean(max_qvalues).item()
     
-    def after_train_step(self, transition: Transition, _time_step: int):
+    def after_train_step(self, transition: Transition, time_step: int):
         self._memory.add(transition)
-        self.update()
+        self.update(time_step)
     
     def compute_qvalues(self, data: Batch|Observation) -> torch.Tensor:
         match data:
@@ -108,10 +120,12 @@ class DQN(IDeepQLearning):
 
     @torch.no_grad()
     def compute_targets(self, batch: Batch) -> torch.Tensor:
-        # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
-        #next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        #next_qvalues = torch.max(next_qvalues, dim=-1)[0]
-        next_qvalues = self.double_qlearning(batch)
+        if self._double_qlearning:
+            next_qvalues = self.double_qlearning(batch)
+        else:
+            next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
+            next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+            next_qvalues = torch.max(next_qvalues, dim=-1)[0]
         target_qvalues = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return target_qvalues
 
@@ -127,8 +141,8 @@ class DQN(IDeepQLearning):
     def process_batch(self, batch: Batch) -> Batch:
         return batch.for_individual_learners()
 
-    def update(self):
-        if len(self._memory) < self._batch_size:
+    def update(self, update_step: int):
+        if len(self._memory) < self._batch_size or update_step % self._train_interval != 0:
             return
         batch = self._memory.sample(self._batch_size).to(self._device)
         batch = self.process_batch(batch)
@@ -142,15 +156,32 @@ class DQN(IDeepQLearning):
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(self._parameters, 10)
         self._optimizer.step()
+        
         self._train_policy.update()
-        self._target_soft_update()
+        if self._use_soft_update:
+            self._target_soft_update()
+        else:
+            self._target_update(update_step)
         self._memory.update(batch, qvalues, qtargets)
-        return loss.item(), grad_norm.item()
+
+        if self.logger is not None:
+            logs = dict(
+                **self._train_logs, 
+                loss=loss.item(), 
+                grad_norm=grad_norm.item(), 
+                epsilon=self._train_policy._epsilon.value
+            )
+            self.logger.log("training_data", logs, update_step)
+        
 
     def _target_soft_update(self):
         for param, target_param in zip(self._qnetwork.parameters(), self._qtarget.parameters()):
             new_value = (1-self._tau) * target_param.data + self._tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
+
+    def _target_update(self, time_step: int):
+        if time_step % self._update_frequency == 0:
+            self._qtarget.load_state_dict(self._qnetwork.state_dict())
 
     def before_tests(self, time_step: int):
         self._policy = self._test_policy
@@ -201,18 +232,24 @@ class DQN(IDeepQLearning):
             "memory": self._memory.summary(),
             "qnetwork": self._qnetwork.summary(),
             "train_policy": self._train_policy.summary(),
-            "test_policy" : self._test_policy.summary()
+            "test_policy" : self._test_policy.summary(),
+            "use_soft_update": self._use_soft_update,
+            "update_frequency": self._update_frequency,
+            "train_interval": self._train_interval,
+            "double_qlearning": self._double_qlearning,
         }
     
     @classmethod
     def from_summary(cls, summary: dict[str,]):
+        device = defaults_to(summary.get("device"), get_device)
+        summary["device"] = device
         from marl import policy
         summary["train_policy"] = policy.from_summary(summary["train_policy"])
         summary["test_policy"] = policy.from_summary(summary["test_policy"])
         from marl import nn
-        summary["qnetwork"] = nn.from_summary(summary["qnetwork"]).to(get_device())
+        summary["qnetwork"] = nn.from_summary(summary["qnetwork"])
         from marl.models import replay_memory
         summary["memory"] = replay_memory.from_summary(summary["memory"])
         summary["lr"] = summary.pop("optimizer")["learning rate"]
-        return cls(**summary)
+        return super().from_summary(summary)
     

@@ -58,3 +58,12 @@ export function stringToRGB(s: string) {
     }
     return colour;
 }
+
+
+export function downloadStringAsFile(textToSave: string, fileName: string) {
+    const hiddenElement = document.createElement('a');
+    hiddenElement.href = 'data:attachment/text,' + encodeURI(textToSave);
+    hiddenElement.target = '_blank';
+    hiddenElement.download = fileName;
+    hiddenElement.click();
+}

@@ -1,4 +1,4 @@
-from .schedule import Schedule, LinearSchedule, ExpSchedule
+from .schedule import Schedule, LinearSchedule, ExpSchedule, ConstantSchedule
 
 
 from marl.utils.registry import make_registry

@@ -1,5 +1,5 @@
 from typing_extensions import Self
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 from abc import ABC, abstractmethod
 import torch
 
@@ -31,13 +31,16 @@ class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
     def name(self) -> str:
         return self.__class__.__name__
     
-    def randomized(self) -> Self:
+    def randomize(self, method: Literal["xavier", "orthogonal"]="xavier"):
+        match method:
+            case "xavier": init = torch.nn.init.xavier_uniform_
+            case "orthogonal": init = torch.nn.init.orthogonal_
+            case _: raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
         for param in self.parameters():
-            if len(param.data.shape) == 1:
-                torch.nn.init.xavier_uniform_(param.data.view(1, -1))
+            if len(param.data.shape) < 2:
+                init(param.data.view(1, -1))
             else:
-                torch.nn.init.xavier_uniform_(param.data)
-        return self
+                init(param.data)
     
     @classmethod
     def from_env(cls, env: RLEnv):

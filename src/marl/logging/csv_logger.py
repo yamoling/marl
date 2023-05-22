@@ -11,42 +11,37 @@ class CSVLogger(Logger):
     def __init__(self, logdir: str, quiet: bool=False, flush_interval_sec: float=30):
         Logger.__init__(self, logdir, quiet)
         self._closed = False
-        self._first = True
-        self._headers = None
+        self._files: dict[str, TextIOWrapper] = {}
+        self._headers: dict[str, list[str]] = {}
         self._next_flush = time.time() + flush_interval_sec
         
-        if os.path.exists(self.test_path):
-            self._resume_logging()
-        self._train_file = open(self.train_path, "a")
-        self._test_file = open(self.test_path, "a")
-
-    def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
+    def log(self, category: str, data: Metrics, time_step: int):
         if self._closed:
             raise ValueError("Logger is closed")
-        data["time_step"] = time_step
-        data["timestamp_sec"] = time.time()
-        if self._first:
-            self._first = False
-            self._headers = list(data.keys())
-            str_headers = ",".join(self._headers) + "\n"
-            self._train_file.write(str_headers)
-            self._test_file.write(str_headers)
-        line = ",".join(str(data.get(head)) for head in self._headers) + "\n"
-        match tag:
-            case "train": self._train_file.write(line)
-            case "test": self._test_file.write(line)
-            case other: raise ValueError(f"Unknown tag: {other}")
         now = time.time()
+        data["time_step"] = time_step
+        data["timestamp_sec"] = now
+        if category not in self._files:
+            file_path = os.path.join(self.logdir, f"{category}.csv")
+            headers = list(data.keys())
+            self._headers[category] = headers
+            if not os.path.exists(file_path):
+                self._files[category] = open(file_path, "a")
+                self._files[category].write(",".join(headers) + "\n")
+            else:
+                self._files[category] = open(file_path, "w")
+        line = ",".join(str(data.get(head)) for head in self._headers[category]) + "\n"
+        self._files[category].write(line)
         if now >= self._next_flush:
-            self._train_file.flush()
-            self._test_file.flush()
+            for file in self._files.values():
+                file.flush()
             self._next_flush = now + 30
 
     def close(self):
         if not self._closed:
             self._closed = True
-            self._train_file.close()
-            self._test_file.close()
+            for file in self._files.values():
+                file.close()
 
     def _resume_logging(self):
         with open(self.test_path, "r") as f:

@@ -13,6 +13,7 @@ import laser_env
 from marl import logging
 from marl.qlearning import IDeepQLearning
 from marl.utils import encode_b64_image, defaults_to, exceptions
+from marl.utils import stats
 
 from .runner import Runner
 from .algo import RLAlgo
@@ -61,7 +62,10 @@ class Experiment:
         self.runs = []
         for run in os.listdir(logdir):
             if run.startswith("run_"):
-                self.runs.append(Run.load(os.path.join(logdir, run)))
+                try:
+                    self.runs.append(Run.load(os.path.join(logdir, run)))
+                except Exception as e:
+                    pass
                 
         
         self.logdir = logdir
@@ -194,6 +198,7 @@ class Experiment:
         logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
 
         algo = deepcopy(self.algo)
+        algo.logger = logger
         env = deepcopy(self.env)
         
         runner = Runner(
@@ -257,40 +262,21 @@ class Experiment:
         if len(df) == 0:
             return [], []
         df = df.drop("timestamp_sec")
-        df_mean = (
-            df.groupby("time_step")
-            .agg([pl.mean(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
-            .sort("time_step")
-        )
-        df_std = (
-            df.groupby("time_step")
-            .agg([pl.std(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
-            .sort("time_step")
-        )
-        df_min = (
-            df.groupby("time_step")
-            .agg([pl.min(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
-            .sort("time_step")
-        )
-        df_max = (
-            df.groupby("time_step")
-            .agg([pl.max(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
-            .sort("time_step")
-        )
+        df_stats = stats.stats_by("time_step", df)
         res = []
-        for col in df_mean.columns:
+        for col in df.columns:
             if col == "time_step":
                 continue
             res.append(Dataset(
                 label=col, 
-                mean=df_mean[col].to_list(), 
-                std=df_std[col].to_list(),
-                min=df_min[col].to_list(),
-                max=df_max[col].to_list(),
+                mean=df_stats[f"mean_{col}"].to_list(), 
+                std=df_stats[f"std_{col}"].to_list(),
+                min=df_stats[f"min_{col}"].to_list(),
+                max=df_stats[f"max_{col}"].to_list(),
             ))
-        return df_mean["time_step"].to_list(), res
+        return df_stats["time_step"].to_list(), res
 
-    def test_metrics(self):
+    def test_metrics(self) -> tuple[list[int], list[Dataset]]:
         try:
             df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
             return self._metrics(df)
@@ -299,16 +285,25 @@ class Experiment:
 
     def train_metrics(self):
         try:
-            df = pl.concat(run.train_metrics for run in self.runs if not run.test_metrics.is_empty())
-            # Round the time step to be grouped by the test interval
-            time_steps = df["time_step"] / self.test_interval
-            time_steps = time_steps.apply(round)
-            time_steps = time_steps * self.test_interval
-            time_steps = time_steps.cast(pl.Int64)
-            df = df.with_columns(time_steps.alias("time_step"))
-            return self._metrics(df)
+            df = pl.concat(run.train_metrics for run in self.runs if not run.train_metrics.is_empty())
+            # Round the time step to match the closest test interval
+            df = stats.round_col(df, "time_step", self.test_interval)
+            ticks, train_metrics = self._metrics(df)
+
+            df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())
+            df = stats.round_col(df, "time_step", self.test_interval)
+            _, training_data = self._metrics(df)
+            return ticks, train_metrics + training_data
         except ValueError:
             return [], []
+        
+    # def training_data(self):
+    #     try:
+    #         df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())
+    #         df = stats.round_col(df, "time_step", self.test_interval)
+    #         return self._metrics(df)
+    #     except ValueError:
+    #         return {}
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         summary = []
@@ -337,7 +332,7 @@ class Experiment:
             if isinstance(self.algo, IDeepQLearning):
                 qvalues.append(self.algo.compute_qvalues(obs).tolist())
             obs_, reward, done, truncated, info = env.step(action)
-            episode.add(Transition(obs, action, reward, done, info, obs_))
+            episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
             frames.append(encode_b64_image(env.render("rgb_array")))
             obs = obs_
         episode = episode.build()

@@ -15,7 +15,7 @@ class TensorBoardLogger(Logger):
         match data:
             case float() | int():
                 self.sw.add_scalar(tag, data, time_step)
-            case Metrics():
+            case Metrics() | dict():
                 for s, value in data.items():
                     self.log(f"{tag}/{s}", value, time_step)
             case other:

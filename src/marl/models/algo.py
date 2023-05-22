@@ -1,14 +1,15 @@
-from typing_extensions import Self
 from abc import ABC, abstractmethod
 import torch
 import numpy as np
 from rlenv.models import Episode, Transition, Observation
 from marl.utils.summarizable import Summarizable
+from marl.logging import Logger
 
 
 class RLAlgo(Summarizable, ABC):
     def __init__(self):
         super().__init__()
+        self.logger: Logger = None
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:

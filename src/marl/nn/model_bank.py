@@ -126,13 +126,6 @@ class CNN(LinearNN):
 
         self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         self.linear = MLP((n_features, ), extras_shape, output_shape)
-        # torch.nn.Sequential(
-        #     torch.nn.Linear(n_features + num_extras, 512),
-        #     torch.nn.ReLU(),
-        #     torch.nn.Linear(512, 256),
-        #     torch.nn.ReLU(),
-        #     torch.nn.Linear(256, output_shape[0])
-        # )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor = None) -> torch.Tensor:
         # Check that the input has the correct shape (at most 4 dimensions)

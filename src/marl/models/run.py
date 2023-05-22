@@ -13,29 +13,35 @@ class Run:
     rundir: str
     train_metrics: pl.DataFrame
     test_metrics: pl.DataFrame
+    training_data: pl.DataFrame
 
-    def __init__(self, rundir: str, train_df: pl.DataFrame, test_df: pl.DataFrame):
+    def __init__(self, rundir: str, train_df: pl.DataFrame, test_df: pl.DataFrame, train_data: pl.DataFrame):
         """This constructor is not meant to be called directly. Use the static methods `create` or `load` instead."""
         self.rundir = rundir
         self.train_metrics = train_df
         self.test_metrics = test_df
+        self.training_data = train_data
 
     @staticmethod
     def create(rundir: str):
         os.makedirs(rundir, exist_ok=True)
-        return Run(rundir, pl.DataFrame(), pl.DataFrame())
+        return Run(rundir, pl.DataFrame(), pl.DataFrame(), pl.DataFrame())
 
     @staticmethod
     def load(rundir: str):
         try:
             train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
-        except pl.NoDataError:
+        except (pl.NoDataError,  FileNotFoundError):
             train_metrics = pl.DataFrame()
         try:
             test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
-        except pl.NoDataError:
+        except (pl.NoDataError, FileNotFoundError):
             test_metrics = pl.DataFrame()
-        return Run(rundir, train_metrics, test_metrics)
+        try:
+            train_data = pl.read_csv(os.path.join(rundir, "training_data.csv"))
+        except (pl.NoDataError, FileNotFoundError):
+            train_data = pl.DataFrame()
+        return Run(rundir, train_metrics, test_metrics, train_data)
 
     @property
     def is_running(self) -> bool:

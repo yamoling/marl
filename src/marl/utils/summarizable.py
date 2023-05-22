@@ -11,6 +11,11 @@ class Summarizable(ABC):
             "name": self.__class__.__name__
         }
 
+    @property
+    def name(self) -> str:
+        """Return the name of the object."""
+        return self.__class__.__name__
+
     @classmethod
     def from_summary(cls, summary: dict[str, ]) -> "Summarizable":
         """Return an instance of the class from a summary."""
