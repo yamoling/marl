@@ -1,10 +1,12 @@
 import os
+from typing import Optional
 from dataclasses import dataclass
 from copy import deepcopy
 import torch
-from rlenv import Transition, Observation
+import numpy as np
+from rlenv.models import Transition, Observation, Metrics
 from marl import nn
-from marl.models import ReplayMemory, TransitionMemory, Batch, TransitionsBatch
+from marl.models import ReplayMemory, TransitionMemory, Batch, TransitionBatch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to, get_device
 from marl.logging import Logger
@@ -36,19 +38,19 @@ class DQN(IDeepQLearning):
         tau=1e-2,
         batch_size=64,
         lr=1e-4,
-        optimizer: torch.optim.Optimizer=None,
-        train_policy: Policy=None,
-        test_policy: Policy=None,
-        memory: TransitionMemory=None,
-        device: torch.device=None,
+        optimizer: Optional[torch.optim.Optimizer]=None,
+        train_policy: Optional[Policy]=None,
+        test_policy: Optional[Policy]=None,
+        memory: Optional[TransitionMemory]=None,
+        device: Optional[torch.device]=None,
         update_frequency=200,
         use_soft_update=True,
         double_qlearning=True,
-        logger: Logger=None,
+        logger: Optional[Logger]=None,
         train_interval=1
     ):
         """Soft update tau value"""
-        super().__init__()
+        super().__init__(logger)
         self._gamma = gamma
         self._tau = tau
         self._batch_size = batch_size
@@ -66,14 +68,13 @@ class DQN(IDeepQLearning):
         self._use_soft_update = use_soft_update
         self._train_interval = train_interval
         self._train_logs = {}
-        self.logger = logger
 
     @property
     def gamma(self) -> float:
         return self._gamma
     
     @property
-    def memory(self) -> ReplayMemory[Transition, TransitionsBatch]:
+    def memory(self) -> ReplayMemory[Transition, TransitionBatch]:
         return self._memory
     
     @property
@@ -81,7 +82,7 @@ class DQN(IDeepQLearning):
         return self._policy
 
     @torch.no_grad()
-    def choose_action(self, obs: Observation) -> list[int]:
+    def choose_action(self, obs: Observation) -> np.ndarray:
         qvalues = self.compute_qvalues(obs)
         qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
@@ -165,7 +166,7 @@ class DQN(IDeepQLearning):
         self._memory.update(batch, qvalues, qtargets)
 
         if self.logger is not None:
-            logs = dict(
+            logs = Metrics(
                 **self._train_logs, 
                 loss=loss.item(), 
                 grad_norm=grad_norm.item(), 

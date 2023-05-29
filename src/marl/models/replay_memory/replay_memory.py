@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Generic, TypeVar, Deque
+from typing import Generic, TypeVar, Deque, Iterable
 from rlenv import Episode, Transition
 import numpy as np
 import torch
 
 from marl.models.batch import Batch
-from marl.models.batch import TransitionsBatch, EpisodeBatch
+from marl.models.batch import TransitionBatch, EpisodeBatch
 from marl.utils.summarizable import Summarizable
 
 
@@ -41,7 +41,7 @@ class ReplayMemory(Summarizable, Generic[T, B], ABC):
         return self._max_size
 
     @abstractmethod
-    def get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(self, indices: Iterable[int]) -> B:
         """Create a `Batch` from the given indices"""
 
     def __len__(self) -> int:
@@ -57,15 +57,15 @@ class ReplayMemory(Summarizable, Generic[T, B], ABC):
         }
     
 
-class TransitionMemory(ReplayMemory[Transition, TransitionsBatch]):
+class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
     """Replay Memory that stores Transitions"""
 
     def get_batch(
             self, 
             indices: list[int]
-        ) -> TransitionsBatch:
+        ) -> TransitionBatch:
         transitions = [self._memory[i] for i in indices]
-        return TransitionsBatch(transitions, indices)
+        return TransitionBatch(transitions, indices)
 
 
 class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):

@@ -3,15 +3,8 @@ import marl
 from marl.utils import stats
 
 
-run = marl.Run.load("logs/lvl1-DQN-TransitionMemory/run_1684749550.2095988")
-df = run.training_data
-print(df)
 
-
-exp = marl.Experiment.load("logs/lvl1-DQN-TransitionMemory")
+exp = marl.Experiment.load("logs/lvl6-VDN-TransitionMemory-RND-p0.25")
 print("loaded")
-ticks, datasets = exp.training_data()
-print(ticks)
-print(datasets[0].label)
-print(datasets[0].mean)
-print(datasets[0].min)
+ticks, datasets = exp.train_metrics()
+

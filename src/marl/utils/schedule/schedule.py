@@ -1,7 +1,13 @@
+from typing_extensions import Self
+from typing import TypeVar, Generic
 from ..summarizable import Summarizable
 from abc import abstractmethod
 
-class Schedule(Summarizable):
+
+T = TypeVar("T")
+
+
+class Schedule(Summarizable, Generic[T]):
     def __init__(self, start_value: float, min_value: float, n_steps: int):
         self._start_value = start_value
         self._min_value = min_value
@@ -32,6 +38,77 @@ class Schedule(Summarizable):
             "min_value": self._min_value,
             "n_steps": self._n_steps,
         }
+    
+    @staticmethod
+    def constant(value: float) -> Self:
+        return ConstantSchedule(value)
+    
+    @staticmethod
+    def linear(start_value: float, min_value: float, n_steps: int) -> Self:
+        return LinearSchedule(start_value, min_value, n_steps)
+    
+    @staticmethod
+    def exp(start_value: float, min_value: float, n_steps: int) -> Self:
+        return ExpSchedule(start_value, min_value, n_steps)
+    
+    # Operator overloading
+    def __mul__(self, other: T) -> T:
+        return self.value * other
+    
+    def __rmul__(self, other: T) -> T:
+        return self.value * other
+    
+    def __pow__(self, exp: float) -> float:
+        return self.value ** exp
+    
+    def __add__(self, other: T) -> T:
+        return self.value + other
+    
+    def __radd__(self, other: T) -> T:
+        return self.value + other
+    
+    def __sub__(self, other: T) -> T:
+        return self.value - other
+    
+    def __rsub__(self, other: T) -> T:
+        return other - self.value
+    
+    def __div__(self, other: T) -> T:
+        return self.value / other
+    
+    def __rdiv__(self, other: T) -> T:
+        return other / self.value
+    
+    def __truediv__(self, other: T) -> T:
+        return self.value / other
+    
+    def __rtruediv__(self, other: T) -> T:
+        return other / self.value
+    
+    def __lt__(self, other: float) -> bool:
+        return self.value < other
+    
+    def __le__(self, other: float) -> bool:
+        return self.value <= other
+    
+    def __gt__(self, other: float) -> bool:
+        return self.value > other
+    
+    def __ge__(self, other: float) -> bool:
+        return self.value >= other
+    
+    def __eq__(self, other: float) -> bool:
+        return self.value == other
+    
+    def __ne__(self, other: float) -> bool:
+        return self.value != other
+    
+    def __float__(self) -> float:
+        return self.value
+    
+    def __int__(self) -> int:
+        return int(self.value)
+    
 
 class LinearSchedule(Schedule):
     def __init__(self, start_value: float, min_value: float, n_steps: int):
@@ -81,21 +158,21 @@ class ExpSchedule(Schedule):
         return self._value
     
 
-
+    
 class ConstantSchedule(Schedule):
     def __init__(self, value: float):
-        super().__init__(value, value, 1)
+        super().__init__(value, value, 0)
         self._value = value
-
+        
     def update(self, step=None):
         pass
+    
+    def summary(self) -> dict[str, ]:
+        return {
+            "name": self.name,
+            "value": self._value,
+        }
 
     @property
     def value(self) -> float:
         return self._value
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "value": self._value,
-        }

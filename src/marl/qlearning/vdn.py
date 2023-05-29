@@ -6,7 +6,7 @@ VDN optimises the sum of rewards instead of the individual rewards of each agent
 
 import torch
 from rlenv import Observation
-from marl.models import EpisodeBatch, TransitionsBatch
+from marl.models import EpisodeBatch, TransitionBatch
 from marl.nn import loss_functions
 from .rdqn import RDQN
 from .dqn import DQN
@@ -39,10 +39,10 @@ class RecurrentVDN(RDQN):
     
 
 class LinearVDN(DQN):
-    def process_batch(self, batch: TransitionsBatch) -> TransitionsBatch:
+    def process_batch(self, batch: TransitionBatch) -> TransitionBatch:
         return batch
     
-    def compute_targets(self, batch: TransitionsBatch) -> torch.Tensor:
+    def compute_targets(self, batch: TransitionBatch) -> torch.Tensor:
         next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
@@ -50,12 +50,12 @@ class LinearVDN(DQN):
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
 
-    def _sample(self) -> TransitionsBatch:
+    def _sample(self) -> TransitionBatch:
         return self.memory.sample(self._batch_size)
 
-    def compute_qvalues(self, data: TransitionsBatch | Observation) -> torch.Tensor:
+    def compute_qvalues(self, data: TransitionBatch | Observation) -> torch.Tensor:
         qvalues = super().compute_qvalues(data)
-        if isinstance(data, TransitionsBatch):
+        if isinstance(data, TransitionBatch):
             qvalues = qvalues.sum(dim=-1)
         return qvalues
     

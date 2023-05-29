@@ -1,11 +1,12 @@
 from .replay_memory import ReplayMemory, TransitionMemory, EpisodeMemory
 from .prioritized_memory import PrioritizedMemory
-# from .slice_memory import TransitionSliceMemory
-# from .nstep_memory import NStepReturnMemory
+from .nstep_memory import NStepMemory
 
 # from .builder import MemoryBuilder
 
+from . import replay_memory
+from . import prioritized_memory
+from . import nstep_memory
 
 from marl.utils.registry import make_registry
-register, from_summary = make_registry(ReplayMemory, [replay_memory, prioritized_memory])
-
+register, from_summary = make_registry(ReplayMemory, [replay_memory, prioritized_memory, nstep_memory])

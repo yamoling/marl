@@ -5,7 +5,7 @@ import shutil
 import polars as pl
 from dataclasses import dataclass
 from copy import deepcopy
-from typing import Literal
+from typing import Literal, Optional, Any
 
 import rlenv
 from rlenv.models import RLEnv, EpisodeBuilder, Transition
@@ -82,7 +82,7 @@ class Experiment:
         env: RLEnv,
         n_steps: int,
         test_interval: int,
-        test_env: RLEnv = None,
+        test_env: Optional[RLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
         if not logdir.startswith("logs/"):
@@ -133,6 +133,8 @@ class Experiment:
             )
         except exceptions.MissingParameterException as e:
             raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
+        except json.decoder.JSONDecodeError:
+            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file.")
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -152,7 +154,7 @@ class Experiment:
             return None
         return Experiment.find_experiment_directory(parent)
 
-    def summary(self) -> dict[str,]:
+    def summary(self) -> dict[str, Any]:
         return {
             "algorithm": self.algo.summary(),
             "env": {
@@ -176,14 +178,14 @@ class Experiment:
     def create_runner(
         self,
         *loggers: Literal["web", "tensorboard", "csv"],
-        rundir: str = None,
+        rundir: Optional[str] = None,
         quiet=True,
     ) -> Runner:
         if rundir is None:
             rundir = os.path.join(self.logdir, f"run_{time.time()}")
             os.makedirs(rundir, exist_ok=False)
         if len(loggers) == 0:
-            loggers = ["web", "tensorboard", "csv"]
+            loggers = ("web", "tensorboard", "csv")
         logger_list = []
         for logger in loggers:
             match logger:
@@ -346,7 +348,7 @@ class Experiment:
         )
 
 
-def restore_env(env_summary: dict[str,], force_static=False) -> RLEnv:
+def restore_env(env_summary: dict[str, Any], force_static=False) -> RLEnv:
     if force_static:
         try:
             return laser_env.StaticLaserEnv.from_summary(env_summary)

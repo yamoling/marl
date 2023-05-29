@@ -1,38 +1,42 @@
+from copy import deepcopy
 from rlenv import Transition
-from ..batch import Batch
-from .replay_memory import ReplayMemory
-from .memory_wrapper import MemoryWrapper
+from .replay_memory import TransitionMemory
 
-class NStepReturnMemory(MemoryWrapper[Transition]):
-    def __init__(self, wrapped: ReplayMemory[Transition], n: int, discout_factor: float):
-        super().__init__(wrapped)
-        # Gammas range from 1 to gamma ** (n-1) because the learning algorithm will also discount the reward
-        self._gammas = [(e+1, discout_factor ** e) for e in range(n-1)]
-        self._n  = n
+
+class NStepMemory(TransitionMemory):
+    def __init__(self, max_size: int, n: int, gamma: float) -> None:
+        super().__init__(max_size)
+        self._n = n
+        self._gamma = gamma
+        self._episode_len = 0
 
     def __len__(self) -> int:
-        return max(0, len(self.wrapped) - self._n)
-    
-    def get_batch(self, indices: list[int]) -> Batch:
-        """The following operations are performed on the batch
-        - replace the rewards by the discounted sum of the n-step returns
-        - set the dones flags properly if any of the n transitions was done
-        - set the obs_ to the n^th observation (or last of episode)
-        """
-        samples = []
-        for index in indices:
-            transition = self[index]
-            obs = transition.obs
-            action = transition.action
-            reward = transition.reward
-            done = transition.done
-            obs_  = transition.obs_
-            for i, gamma in self._gammas:
-                current = self._memory[index + i]
-                done = current.done
-                reward += gamma * current.reward
-                obs_ = current.obs_
-                if done:
-                    break
-            samples.append(Transition(obs, action, reward, done, {}, obs_))
-        return Batch.from_transitions(samples)
+        return max(0, len(self._memory) - self._n)
+
+    def add(self, item: Transition):
+        item = deepcopy(item)
+        self._episode_len += 1
+        r = item.reward
+        # Update the rewards of the last n transitions
+        for i in range(1, min(self._n, self._episode_len)):
+            r = self._gamma * r
+            self._memory[-i].reward += r
+        # Add the transition to the memory
+        super().add(item)
+        # Update the next obs of the -n transition to be the current one
+        if self._episode_len >= self._n:
+            t = self._memory[-self._n]
+            t.obs_ = item.obs
+        if item.is_terminal:
+            self._episode_len = 0
+            # Update the last n observations such that their next obs is the one of the episode
+            for i in range(-self._n+1, -1):
+                self._memory[i].obs_ = item.obs_
+                self._memory[i].done = item.done
+
+    def summary(self):
+        return {
+            **super().summary(),
+            "n": self._n,
+            "gamma": self._gamma,
+        }

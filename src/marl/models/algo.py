@@ -1,3 +1,4 @@
+from typing import Optional, Any
 from abc import ABC, abstractmethod
 import torch
 import numpy as np
@@ -7,12 +8,12 @@ from marl.logging import Logger
 
 
 class RLAlgo(Summarizable, ABC):
-    def __init__(self):
+    def __init__(self, logger: Optional[Logger] = None):
         super().__init__()
-        self.logger: Logger = None
+        self.logger = logger
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+    def choose_action(self, observation: Observation) -> np.ndarray[np.int64, Any]:
         """Get the action to perform given the input observation"""
 
     @abstractmethod

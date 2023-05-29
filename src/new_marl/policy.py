@@ -23,7 +23,7 @@ class EpsilonGreedy(Policy):
         chosen_actions = qvalues.argmax(axis=-1)
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
         r = np.random.random(len(qvalues))
-        mask = r < self._epsilon.value
+        mask = r < self._epsilon
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 

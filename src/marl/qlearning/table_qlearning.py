@@ -2,13 +2,13 @@ import torch
 import pickle
 import numpy as np
 from rlenv import Observation, Transition
-from .qlearning import QLearning
+from .qlearning import IQLearning
 from marl.models import TransitionMemory
-from marl.policy import Policy, EpsilonGreedy, DecreasingEpsilonGreedy
+from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to
 
 
-class VanillaQLearning(QLearning):
+class VanillaQLearning(IQLearning):
     def __init__(
         self, 
         train_policy: Policy=None,
@@ -16,9 +16,12 @@ class VanillaQLearning(QLearning):
         lr=0.1,
         gamma=0.99,
     ):
-        train_policy = defaults_to(train_policy, lambda: DecreasingEpsilonGreedy(decrease_amount=5e-4))
-        test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
-        super().__init__(train_policy, test_policy, gamma)
+        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy.linear(1, 0.01, 10_000))
+        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy.constant(0.01))
+        self.train_policy = train_policy
+        self.test_policy = test_policy
+        self.policy = train_policy
+        self._gamma = gamma
         self.lr = lr
         self.qtable: dict[int, np.ndarray[np.float32]] = {}
 

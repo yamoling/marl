@@ -5,7 +5,7 @@ from rlenv import Transition
 from .batch import Batch
 
 
-class TransitionsBatch(Batch):
+class TransitionBatch(Batch):
     def __init__(
             self, transitions: list[Transition], sample_indices: list[int]):
         super().__init__(len(transitions), transitions[0].n_agents, sample_indices)

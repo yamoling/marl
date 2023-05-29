@@ -1,7 +1,7 @@
 from rlenv.models import Episode
 import torch
 from rlenv import Observation
-from marl.models import TransitionsBatch, EpisodeBatch, EpisodeMemory
+from marl.models import TransitionBatch, EpisodeBatch, EpisodeMemory, TransitionMemory
 from marl.nn import LinearNN, RecurrentNN
 from marl import intrinsic_reward as ir
 from marl.logging import Logger
@@ -24,7 +24,7 @@ class LinearMixedDQN(DQN):
             optimizer: torch.optim.Optimizer = None,
             train_policy: Policy = None, 
             test_policy: Policy = None, 
-            memory: EpisodeMemory = None, 
+            memory: TransitionMemory = None, 
             double_qlearning=True,
             device: torch.device = None,
             logger: Logger=None,
@@ -71,7 +71,7 @@ class LinearMixedDQN(DQN):
         mse = torch.mean(td_error ** 2)
         return mse
 
-    def compute_targets(self, batch: TransitionsBatch) -> torch.Tensor:
+    def compute_targets(self, batch: TransitionBatch) -> torch.Tensor:
         with torch.no_grad():
             target_next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
             if self._double_qlearning:
@@ -104,12 +104,12 @@ class LinearMixedDQN(DQN):
             target_param.data.copy_(new_value, non_blocking=True)
         return super()._target_soft_update()
     
-    def process_batch(self, batch: TransitionsBatch) -> TransitionsBatch:
+    def process_batch(self, batch: TransitionBatch) -> TransitionBatch:
         return batch
 
-    def compute_qvalues(self, data: TransitionsBatch | Observation) -> torch.Tensor:
+    def compute_qvalues(self, data: TransitionBatch | Observation) -> torch.Tensor:
         match data:
-            case TransitionsBatch() as batch:
+            case TransitionBatch() as batch:
                 qvalues = self._qnetwork.forward(batch.obs, batch.extras)
                 qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
                 qvalues = qvalues.squeeze(dim=-1)
