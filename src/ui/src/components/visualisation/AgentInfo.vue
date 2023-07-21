@@ -1,6 +1,7 @@
 <template>
     <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
+        Obs type = {{ obsType }}
         <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obs1D" />
         <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
         <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
@@ -43,7 +44,6 @@ import { ExperimentInfo } from "../../models/Infos";
 import Features from "./observation/Features.vue";
 import Features2 from "./observation/Features2.vue";
 
-const ACTION_MEANINGS = ["North", "South", "West", "East", "Stay"] as const;
 
 
 const props = defineProps<{
@@ -56,7 +56,9 @@ const props = defineProps<{
 
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
 
-const obsType = computed(() => props.experiment.env.DynamicLaserEnv?.obs_type || props.experiment.env.StaticLaserEnv?.obs_type);
+const obsType = computed(() => props.experiment.env.DynamicLaserEnv?.obs_type
+    || props.experiment.env.StaticLaserEnv?.obs_type
+    || props.experiment.env.LLE?.obs_type);
 
 const obs = computed(() => {
     if (props.episode == null) return [];

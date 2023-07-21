@@ -31,6 +31,11 @@ class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
     def name(self) -> str:
         return self.__class__.__name__
     
+    @property
+    def device(self) -> torch.device:
+        """Returns the device of the model"""
+        return next(self.parameters()).device
+    
     def randomize(self, method: Literal["xavier", "orthogonal"]="xavier"):
         match method:
             case "xavier": init = torch.nn.init.xavier_uniform_

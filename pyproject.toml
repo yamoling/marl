@@ -19,6 +19,7 @@ tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
 pynvml = "^11.5.0"
 pyserde = "^0.10.6"
+lle = {git = "https://github.com/yamoling/lle"}
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
@@ -41,6 +42,6 @@ pythonpath = ["src"]
 
 
 [tool.pyright]
-typeCheckingMode = "basic" # "strict", "off"
+typeCheckingMode = "off" #"basic" # "strict", "off"
 include = ["src"]
 reportPrivateImportUsage = false

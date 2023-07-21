@@ -2,7 +2,7 @@ import os
 import json
 import torch
 from copy import deepcopy
-from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Observation
+from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
 from marl.logging import Logger
 from marl.utils import defaults_to

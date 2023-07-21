@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 
 from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
@@ -127,16 +128,13 @@ class CNN(LinearNN):
         self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         self.linear = MLP((n_features, ), extras_shape, output_shape)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor = None) -> torch.Tensor:
-        # Check that the input has the correct shape (at most 4 dimensions)
+    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
+        # Check that the input has the correct shape (at least 4 dimensions)
         *dims, channels, height, width = obs.shape
         obs = obs.view(-1, channels, height, width)
         extras = extras.view(-1, *self.extras_shape)
         features = self.cnn.forward(obs)
         res = self.linear.forward(features, extras)
-        # if extras is not None:
-        #     features = torch.concat((features, extras), dim=-1)
-        # res: torch.Tensor = self.linear(features)
         return res.view(*dims, *self.output_shape)
 
 

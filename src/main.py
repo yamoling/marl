@@ -3,6 +3,11 @@ import os
 from argparse import ArgumentParser, Namespace
 import argcomplete
 
+import lle
+import rlenv
+
+rlenv.register(lle.LLE)
+
 
 def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("logdir", type=str, help="The experiment directory")
@@ -84,7 +89,7 @@ def resume(args: Namespace):
         logdir = os.path.dirname(rundir)
         experiment = marl.Experiment.load(logdir)
         runner = experiment.restore_runner(rundir)
-        runner.train(n_tests=args.n_tests, quiet=quiet)
+        # runner.train(n_tests=args.n_tests, quiet=quiet)
     
     for rundir in args.rundirs[:-1]:
         pid = os.fork()

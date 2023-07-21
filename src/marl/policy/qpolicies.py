@@ -12,8 +12,7 @@ class SoftmaxPolicy(Policy):
         self._tau = tau
         """Temperature parameter"""
 
-    def get_action(self, qvalues: np.ndarray[np.float32], available_actions: np.ndarray[np.float32]) -> np.ndarray[np.int64]:
-        qvalues[available_actions == 0.] = -np.inf
+    def get_action(self, qvalues: np.ndarray[np.float32], _) -> np.ndarray[np.int64]:
         exp = np.exp(qvalues / self._tau)
         probs = exp / np.sum(exp, axis=-1, keepdims=True)
         chosen_actions = [np.random.choice(self._actions, p=agent_probs) for agent_probs in probs]
@@ -50,7 +49,6 @@ class EpsilonGreedy(Policy):
         return cls(schedule.ConstantSchedule(eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
-        qvalues[available_actions == 0.] = -np.inf
         chosen_actions = qvalues.argmax(axis=-1)
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
         r = np.random.random(len(qvalues))
@@ -107,8 +105,7 @@ class ArgMax(Policy):
     def __init__(self) -> None:
         super().__init__()
 
-    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
-        qvalues[available_actions == 0.] = -float("inf")
+    def get_action(self, qvalues: np.ndarray, _) -> np.ndarray:
         actions = qvalues.argmax(-1)
         return actions
     

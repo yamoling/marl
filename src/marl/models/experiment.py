@@ -28,6 +28,7 @@ class Dataset:
     min: list[float]
     max: list[float]
     std: list[float]
+    ci95: list[float]
 
     def to_json(self) -> dict:
         return {
@@ -36,6 +37,7 @@ class Dataset:
             "std": self.std,
             "min": self.min,
             "max": self.max,
+            "ci95": self.ci95,
         }
 
 
@@ -226,6 +228,7 @@ class Experiment:
 
     def restore_runner(self, rundir: str):
         """Retrieve the runner state and restart it if it is not running"""
+        raise NotImplementedError()
         run = Run.load(rundir)
         if run.is_running:
             raise ValueError(f"{rundir} is already running.")
@@ -233,7 +236,6 @@ class Experiment:
             "csv",
             "web",
             "tensorboard",
-            forced_rundir=rundir,
         )
         runner._algo.load(run.latest_checkpoint)
         try:
@@ -260,11 +262,13 @@ class Experiment:
         return os.path.join(self.logdir, "test")
 
     @staticmethod
-    def _metrics(df: pl.DataFrame) -> tuple[list[int], list[Dataset]]:
-        if len(df) == 0:
+    def _metrics(dfs: list[pl.DataFrame]) -> tuple[list[int], list[Dataset]]:
+        dfs = [d for d in dfs if not d.is_empty()]
+        if len(dfs) == 0:
             return [], []
+        df = pl.concat(dfs)
         df = df.drop("timestamp_sec")
-        df_stats = stats.stats_by("time_step", df)
+        df_stats = stats.stats_by("time_step", df, len(dfs))
         res = []
         for col in df.columns:
             if col == "time_step":
@@ -275,38 +279,28 @@ class Experiment:
                 std=df_stats[f"std_{col}"].to_list(),
                 min=df_stats[f"min_{col}"].to_list(),
                 max=df_stats[f"max_{col}"].to_list(),
+                ci95=df_stats[f"ci95_{col}"].to_list(),
             ))
         return df_stats["time_step"].to_list(), res
 
     def test_metrics(self) -> tuple[list[int], list[Dataset]]:
         try:
-            df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
-            return self._metrics(df)
+            return self._metrics([run.test_metrics for run in self.runs])
         except ValueError:
             return [], []
 
     def train_metrics(self):
         try:
-            df = pl.concat(run.train_metrics for run in self.runs if not run.train_metrics.is_empty())
             # Round the time step to match the closest test interval
-            df = stats.round_col(df, "time_step", self.test_interval)
-            ticks, train_metrics = self._metrics(df)
+            dfs = [stats.round_col(run.train_metrics, "time_step", self.test_interval) for run in self.runs if not run.train_metrics.is_empty()]
+            ticks, train_metrics = self._metrics(dfs)
 
-            df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())
-            df = stats.round_col(df, "time_step", self.test_interval)
-            _, training_data = self._metrics(df)
+            dfs = [stats.round_col(run.training_data, "time_step", self.test_interval) for run in self.runs if not run.training_data.is_empty()]
+            _, training_data = self._metrics(dfs)
             return ticks, train_metrics + training_data
         except ValueError:
             return [], []
         
-    # def training_data(self):
-    #     try:
-    #         df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())
-    #         df = stats.round_col(df, "time_step", self.test_interval)
-    #         return self._metrics(df)
-    #     except ValueError:
-    #         return {}
-
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         summary = []
         for run in self.runs:

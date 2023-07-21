@@ -20,12 +20,11 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset, toCSV } from '../../models/Experiment';
-import { downloadStringAsFile } from "../../utils";
+import { downloadStringAsFile, confidenceInterval, clip } from "../../utils";
 
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
-const download = ref({} as HTMLAnchorElement);
 const legendContainer = ref({} as HTMLElement);
 const props = defineProps<{
     datasets: readonly Dataset[]
@@ -34,10 +33,6 @@ const props = defineProps<{
     showLegend: boolean
 }>();
 
-
-function downloadPlot() {
-    download.value.href = canvas.value.toDataURL("image/jpg");
-}
 
 
 function downloadDatasets() {
@@ -72,9 +67,14 @@ function updateChart() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         const stdColour = rgbToAlpha(ds.colour, 0.3);
-        const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
+        // const std =  clippedStd(ds.mean, ds.std, ds.min, ds.max);
+        const lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+        const upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+        // const std = confidenceInterval(ds.mean, ds.std, ds.averaged_on, 0.95);
+        // std.lower = clip(std.lower, ds.min, ds.max);
+        // std.upper = clip(std.upper, ds.min, ds.max);
         datasets.push({
-            data: std.lower,
+            data: lower,
             backgroundColor: stdColour,
             fill: "+1",
             label: "-std"
@@ -86,7 +86,7 @@ function updateChart() {
             backgroundColor: ds.colour,
         });
         datasets.push({
-            data: std.upper,
+            data: upper,
             backgroundColor: stdColour,
             fill: "-1",
             label: "+std"

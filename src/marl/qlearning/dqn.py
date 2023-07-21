@@ -156,7 +156,7 @@ class DQN(IDeepQLearning):
         self._optimizer.zero_grad()
         loss.backward()
         grad_norm = torch.nn.utils.clip_grad_norm_(self._parameters, 10)
-        self._optimizer.step()
+        self._optimizer.step(None)
         
         self._train_policy.update()
         if self._use_soft_update:

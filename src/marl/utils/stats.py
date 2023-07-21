@@ -1,4 +1,6 @@
 import torch
+import numpy as np
+import scipy
 import polars as pl
 
 class RunningMeanStd:
@@ -49,10 +51,10 @@ def round_col(df: pl.DataFrame, col_name: str, round_value: int):
     return df.with_columns(col.alias(col_name))
 
 
-def stats_by(col_name: str, df: pl.DataFrame):
+def stats_by(col_name: str, df: pl.DataFrame, n_samples: int):
     grouped = df.groupby(col_name)
     cols = [col for col in df.columns if col not in ["time_step", "timestamp_sec"]]
-    return (
+    res = (
         grouped
         .agg(
             [pl.mean(col).alias(f"mean_{col}") for col in cols] +
@@ -61,3 +63,14 @@ def stats_by(col_name: str, df: pl.DataFrame):
             [pl.max(col).alias(f"max_{col}") for col in cols])
         .sort("time_step")
     )
+    # Compute confidence intervals for 95% confidence
+    ci95 = []
+    for col in cols:
+        new_col = 0.95 * res[f"std_{col}"] / n_samples ** 0.5
+        new_col = new_col.alias(f"ci95_{col}")
+        ci95.append(new_col)
+    res = res.with_columns(ci95)
+    return res
+
+
+    

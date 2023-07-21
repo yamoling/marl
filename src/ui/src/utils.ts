@@ -39,7 +39,7 @@ export function searchMatch(search: string, matchWith: string): boolean {
 }
 
 function hashString(s: string) {
-    let hash = 17;
+    let hash = 31;
     for (let i = 0; i < s.length; i++) {
         const chr = s.charCodeAt(i);
         hash = ((hash << 5) - hash) + chr;
@@ -66,4 +66,27 @@ export function downloadStringAsFile(textToSave: string, fileName: string) {
     hiddenElement.target = '_blank';
     hiddenElement.download = fileName;
     hiddenElement.click();
+}
+
+
+
+
+export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
+    console.log("confidenceInterval", mean, std, nSamples, confidence);
+    const sqrtN = Math.sqrt(nSamples);
+    const lower = Array<number>(std.length);
+    const upper = Array<number>(std.length);
+    for (let i = 0; i < std.length; i++) {
+        upper[i] = mean[i] + confidence * std[i] / sqrtN;
+        lower[i] = mean[i] - confidence * std[i] / sqrtN;
+    }
+    return { lower, upper };
+}
+
+export function clip(values: number[], min: number[], max: number[]) {
+    const result = new Array(values.length);
+    for (let i = 0; i < values.length; i++) {
+        result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
+    }
+    return result;
 }

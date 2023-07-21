@@ -31,6 +31,7 @@ export interface EnvInfo {
     wrappers: string[]
     DynamicLaserEnv: DynamicLaserEnv | null
     StaticLaserEnv: StaticLaserEnv | null
+    LLE: StaticLaserEnv | null
 }
 
 

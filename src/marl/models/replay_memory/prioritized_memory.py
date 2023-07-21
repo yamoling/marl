@@ -1,4 +1,4 @@
-from typing import List, TypeVar
+from typing import List, TypeVar, Any, Optional
 from sumtree import SumTree
 import torch
 
@@ -18,7 +18,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    def __init__(self, memory: ReplayMemory[T, B], alpha=0.7, beta=0.4, eps: float = 1e-2, beta_anneal_steps: int=None):
+    def __init__(self, memory: ReplayMemory[T, B], alpha=0.7, beta=0.4, eps: float = 1e-2, beta_anneal_steps: Optional[int]=None):
         super().__init__(memory.max_size)
         self._wrapped_memory = memory
         self._tree = SumTree(memory.max_size)
@@ -99,7 +99,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         }
     
     @classmethod
-    def from_summary(cls, summary: dict[str, ]):
+    def from_summary(cls, summary: dict[str, Any]):
         from marl.models import replay_memory
         summary["memory"] = replay_memory.from_summary(summary["memory"])
         return super().from_summary(summary)

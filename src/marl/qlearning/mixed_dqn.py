@@ -1,3 +1,4 @@
+from typing import Optional, Any
 from rlenv.models import Episode
 import torch
 from rlenv import Observation
@@ -21,17 +22,17 @@ class LinearMixedDQN(DQN):
             tau=0.01, 
             batch_size=64, 
             lr=0.0005, 
-            optimizer: torch.optim.Optimizer = None,
-            train_policy: Policy = None, 
-            test_policy: Policy = None, 
-            memory: TransitionMemory = None, 
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            train_policy: Optional[Policy] = None, 
+            test_policy: Optional[Policy] = None, 
+            memory: Optional[TransitionMemory] = None, 
             double_qlearning=True,
-            device: torch.device = None,
-            logger: Logger=None,
+            device: Optional[torch.device] = None,
+            logger: Optional[Logger]=None,
             update_frequency=200,
             use_soft_update=True,
             train_interval=1,
-            ir_module: ir.IRModule=None
+            ir_module: Optional[ir.IRModule]=None
         ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
@@ -137,7 +138,7 @@ class LinearMixedDQN(DQN):
         self.mixer.load(from_directory)
 
 
-    def summary(self) -> dict[str, ]:
+    def summary(self) -> dict[str, Any]:
         return {
             **super().summary(),
             "mixer": self.mixer.summary(),
@@ -145,7 +146,7 @@ class LinearMixedDQN(DQN):
         }
 
     @classmethod
-    def from_summary(cls, summary: dict[str, ]):
+    def from_summary(cls, summary: dict[str, Any]):
         from marl.qlearning import mixers
         device = defaults_to(summary.get("device"), get_device)
         summary["device"] = device
@@ -168,13 +169,13 @@ class RecurrentMixedDQN(DQN):
             tau=0.01, 
             batch_size=64, 
             lr=0.0005, 
-            optimizer: torch.optim.Optimizer = None,
-            train_policy: Policy = None, 
-            test_policy: Policy = None, 
-            memory: EpisodeMemory = None, 
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            train_policy: Optional[Policy] = None, 
+            test_policy: Optional[Policy] = None, 
+            memory: Optional[EpisodeMemory] = None, 
             double_qlearning=True,
-            device: torch.device = None,
-            logger: Logger=None
+            device: Optional[torch.device] = None,
+            logger: Optional[Logger] = None
         ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
@@ -272,7 +273,7 @@ class RecurrentMixedDQN(DQN):
 
     def after_train_episode(self, episode_num: int, episode: Episode):
         self._memory.add(episode)
-        self.update()
+        self.update(episode_num)
 
     def before_tests(self, time_step: int):
         self._saved_hidden_state = self._hidden_state

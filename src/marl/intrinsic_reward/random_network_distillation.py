@@ -1,3 +1,4 @@
+from typing import Optional
 import torch
 from marl.utils import get_device, defaults_to
 from marl.models import Batch
@@ -17,8 +18,8 @@ class RandomNetworkDistillation(IRModule):
             clip_value=1, 
             update_ratio=0.25,
             running_mean_warmup=64,
-            ir_weight: Schedule = None,
-            device: torch.device = None
+            ir_weight: Optional[Schedule] = None,
+            device: Optional[torch.device] = None
         ):
         super().__init__()
 

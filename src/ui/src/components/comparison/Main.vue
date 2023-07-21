@@ -14,6 +14,9 @@
                 :title="label.replaceAll('_', ' ')" :showLegend="false" />
         </div>
         <div class="col-3">
+            <button class="btn btn-outline-primary" @click="download">
+                <font-awesome-icon :icon="['fa', 'download']" />
+            </button>
             <RightExperimentTable class="row" @show-experiment="addExperiment" @hide-experiment="removeExperiment"
                 @inspect-experiment="(e) => emits('loadExperiment', e.logdir)" />
             <SettingsPanel class="row" @change-smooting="(v) => smoothValue = v"
@@ -33,9 +36,9 @@
  * - RightTable allows to change the colours of the experiments and to hide/show them.
  */
 import { ref, computed } from 'vue';
-import { Dataset, Experiment } from '../../models/Experiment';
+import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA } from "../../utils";
+import { EMA, downloadStringAsFile } from "../../utils";
 import LeftExperimentTable from './LeftExperimentTable.vue';
 import RightExperimentTable from './RightExperimentTable.vue';
 import SettingsPanel from './SettingsPanel.vue';
@@ -46,6 +49,13 @@ const metrics = ref<string[]>([]);
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
 const xTicks = ref([] as number[]);
+
+function download() {
+    const name = Array.from(datasets.value.keys());
+    const ds = Array.from(datasets.value.values()).flat();
+    const csv = toCSV(ds, xTicks.value);
+    downloadStringAsFile(csv, `${name}.csv`);
+}
 
 const datasets = computed(() => {
     const experimentDatasets = experiments.value.map(e => {
