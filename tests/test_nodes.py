@@ -1,7 +1,4 @@
-import torch
-
-from marl.qlearning.trainer.node import ValueNode, AddNode
-
+from marl.training.nodes import ValueNode, Add
 
 def test_value_node():
     n = ValueNode("abc")
@@ -13,24 +10,8 @@ def test_value_node():
 def test_add_node():
     n1 = ValueNode(25)
     n2 = ValueNode(40)
-    res = AddNode(n1, n2)
+    res = Add(n1, n2)
     assert res.value == 65
-
-
-def test_loss_node_zero():
-    n1 = ValueNode(torch.Tensor([1, 2, 3]))
-    n2 = ValueNode(torch.Tensor([1, 2, 3]))
-    n3 = LossNode(n1, n2, torch.nn.MSELoss())
-    loss = n3.value
-    assert loss.item() == 0.
-
-
-def test_loss_node_non_zero():
-    n1 = ValueNode(torch.Tensor([1, 2, 3]))
-    n2 = ValueNode(torch.Tensor([2, 2, 3]))
-    n3 = LossNode(n1, n2, torch.nn.MSELoss())
-    loss = n3.value.item()
-    assert abs(loss - 1/3) < 1e-6
 
 
 def test_replace_parent():
@@ -38,20 +19,43 @@ def test_replace_parent():
     n2 = ValueNode(40)
     n3 = ValueNode(10)
 
-    add1 = AddNode(n1, n2)
+    add1 = Add(n1, n2)
     assert add1.value == 65
 
     add1.replace_parent(n1, n3)
+    # Check that the value has been updated
     assert add1.value == 50
+
+    # Check that the parents and children have been updated
+    assert len(add1.parents) == 2
+    assert len(n1.children) == 0
+    assert len(n3.children) == 1
+
+    assert add1 not in n1.children
+    assert add1 in n3.children
+
+    assert n1 not in add1.parents
+    assert n3 in add1.parents
 
 
 def test_replace_node():
     n1 = ValueNode(25)
     n2 = ValueNode(40)
-    n3 = ValueNode(10)
 
-    add1 = AddNode(n1, n2)
-    assert add1.value == 65
+    res = Add(n1, n2)
+    assert res.value == 65
 
-    n2.replace_by(n3)
-    assert add1.value == 35
+    n3 = ValueNode(10)    
+    n2.replace(n3)
+
+    assert res.value == 35
+
+    assert len(n2.children) == 0
+    assert len(n3.children) == 1
+    assert n3.children[0] == res
+
+    # Check leaf parents
+    assert len(res.parents) == 2 
+    assert n3 in res.parents
+    assert n1 in res.parents
+

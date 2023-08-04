@@ -1,25 +1,26 @@
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Generic, TypeVar, Deque, Iterable
-from rlenv import Episode, Transition
+from dataclasses import dataclass
+from typing import Deque, Generic, Iterable, TypeVar
+
 import numpy as np
 import torch
+from rlenv import Episode, Transition
 
-from marl.models.batch import Batch
-from marl.models.batch import TransitionBatch, EpisodeBatch
-from marl.utils.summarizable import Summarizable
-
+from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
+from marl.utils.serializable import Serializable
 
 T = TypeVar("T")
 B = TypeVar("B", bound=Batch)
 
 
-class ReplayMemory(Summarizable, Generic[T, B], ABC):
+@dataclass
+class ReplayMemory(Serializable, Generic[T, B], ABC):
     """Parent class of any ReplayMemory"""
+    max_size: int
 
-    def __init__(self, max_size: int) -> None:
-        self._memory: Deque[T] = deque(maxlen=max_size)
-        self._max_size = max_size
+    def __post_init__(self):
+        self._memory: Deque[T] = deque(maxlen=self.max_size)
 
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""
@@ -36,10 +37,6 @@ class ReplayMemory(Summarizable, Generic[T, B], ABC):
     def clear(self):
         self._memory.clear()
     
-    @property
-    def max_size(self):
-        return self._max_size
-
     @abstractmethod
     def get_batch(self, indices: Iterable[int]) -> B:
         """Create a `Batch` from the given indices"""
@@ -49,12 +46,6 @@ class ReplayMemory(Summarizable, Generic[T, B], ABC):
     
     def __getitem__(self, index: int) -> T:
         return self._memory[index]
-
-    def summary(self):
-        return {
-            **super().summary(),
-            "max_size": self._max_size
-        }
     
 
 class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
@@ -66,7 +57,6 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
         ) -> TransitionBatch:
         transitions = [self._memory[i] for i in indices]
         return TransitionBatch(transitions, indices)
-
 
 class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
     """Replay Memory that stores and samples full Episodes"""

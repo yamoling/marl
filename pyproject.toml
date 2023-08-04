@@ -9,21 +9,21 @@ license = "MIT"
 python = ">=3.10, <3.11"
 torch = "^1.13.1"
 numpy = "^1.23.4"
-rlenv = {git = "https://github.com/yamoling/rlenv.git"}
+rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
-laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
+laser-env = { git = "https://github.com/raphaelavalos/laser-env.git" }
 sumtree = "^0.2"
 polars = "^0.16.18"
 tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
 pynvml = "^11.5.0"
 pyserde = "^0.10.6"
-lle = {git = "https://github.com/yamoling/lle"}
+lle = { git = "https://github.com/yamoling/lle" }
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
-pywebview = {extras = ["qt"], version = "^4.0.1"}
+pywebview = { extras = ["qt"], version = "^4.0.1" }
 pycairo = "^1.23.0"
 pygobject = "^3.42.2"
 websockets = "^10.4"
@@ -41,7 +41,6 @@ build-backend = "poetry.core.masonry.api"
 pythonpath = ["src"]
 
 
-[tool.pyright]
-typeCheckingMode = "off" #"basic" # "strict", "off"
-include = ["src"]
-reportPrivateImportUsage = false
+[tool.ruff]
+fixable = ["ALL"]
+line-length = 140

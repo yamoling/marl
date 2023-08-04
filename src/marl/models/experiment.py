@@ -1,28 +1,28 @@
-import os
 import json
-import time
+import os
 import shutil
-import polars as pl
-from dataclasses import dataclass
+import time
 from copy import deepcopy
-from typing import Literal, Optional, Any
+from dataclasses import dataclass
+from typing import Any, Literal, Optional
 
-import rlenv
-from rlenv.models import RLEnv, EpisodeBuilder, Transition
 import laser_env
+import polars as pl
+import rlenv
+from rlenv.models import EpisodeBuilder, RLEnv, Transition
+
 from marl import logging
 from marl.qlearning import IDeepQLearning
-from marl.utils import encode_b64_image, defaults_to, exceptions
-from marl.utils import stats
+from marl.utils import Serializable, defaults_to, encode_b64_image, exceptions, stats
 
-from .runner import Runner
 from .algo import RLAlgo
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
 from .run import Run
+from .runner import Runner
 
 
 @dataclass
-class Dataset:
+class Dataset(Serializable):
     label: str
     mean: list[float]
     min: list[float]
@@ -42,7 +42,7 @@ class Dataset:
 
 
 @dataclass
-class Experiment:
+class Experiment(Serializable):
     logdir: str
     runs: list[Run]
     algo: RLAlgo
@@ -51,25 +51,16 @@ class Experiment:
     test_interval: int
     s_steps: int
 
-    def __init__(
-        self,
-        logdir: str,
-        algo: RLAlgo,
-        env: RLEnv,
-        test_env: RLEnv,
-        test_interval: int,
-        n_steps: int
-    ):
+    def __init__(self, logdir: str, algo: RLAlgo, env: RLEnv, test_env: RLEnv, test_interval: int, n_steps: int):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
         self.runs = []
         for run in os.listdir(logdir):
             if run.startswith("run_"):
                 try:
                     self.runs.append(Run.load(os.path.join(logdir, run)))
-                except Exception as e:
+                except Exception:
                     pass
-                
-        
+
         self.logdir = logdir
         self.algo = algo
         self.env = env
@@ -111,7 +102,7 @@ class Experiment:
         except FileExistsError:
             raise exceptions.ExperimentAlreadyExistsException(logdir)
         except Exception as e:
-            # In case the experiment could not be created for another reason, remove its directory
+            # In case the experiment could not be created for another reason, do not create the experiment and remove its directory
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
 
@@ -120,32 +111,30 @@ class Experiment:
         """Load an existing experiment."""
         try:
             import marl
+
             with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
-            algo = marl.from_summary(summary["algorithm"])
+            algo = marl.from_dict(summary["algorithm"])
             env = rlenv.from_summary(summary["env"])
             test_env = rlenv.from_summary(summary["test_env"])
             return Experiment(
-                logdir=logdir,
-                algo=algo,
-                env=env,
-                test_env=test_env,
-                test_interval=summary["test_interval"],
-                n_steps=summary["n_steps"]
+                logdir=logdir, algo=algo, env=env, test_env=test_env, test_interval=summary["test_interval"], n_steps=summary["n_steps"]
             )
         except exceptions.MissingParameterException as e:
             raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
         except json.decoder.JSONDecodeError:
-            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file.")
+            raise exceptions.CorruptExperimentException(
+                f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file."
+            )
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
         """Check if a directory is an experiment directory."""
         try:
             return os.path.exists(os.path.join(logdir, "experiment.json"))
-        except:
+        except FileNotFoundError:
             return False
-        
+
     @staticmethod
     def find_experiment_directory(subdir: str) -> str | None:
         """Find the experiment directory containing a given subdirectory."""
@@ -158,11 +147,8 @@ class Experiment:
 
     def summary(self) -> dict[str, Any]:
         return {
-            "algorithm": self.algo.summary(),
-            "env": {
-                **self.env.summary(),
-                "action_meanings": self.env.action_meanings
-            },
+            "algorithm": self.algo.as_dict(),
+            "env": {**self.env.summary(), "action_meanings": self.env.action_meanings},
             "test_env": self.test_env.summary(),
             "logdir": self.logdir,
             "n_steps": self.n_steps,
@@ -204,15 +190,8 @@ class Experiment:
         algo = deepcopy(self.algo)
         algo.logger = logger
         env = deepcopy(self.env)
-        
-        runner = Runner(
-            env=env,
-            algo=algo,
-            logger=logger,
-            test_interval=self.test_interval,
-            n_steps=self.n_steps,
-            test_env=self.test_env
-        )
+
+        runner = Runner(env=env, algo=algo, logger=logger, test_interval=self.test_interval, n_steps=self.n_steps, test_env=self.test_env)
         self.runs.append(Run.create(rundir))
         return runner
 
@@ -273,14 +252,16 @@ class Experiment:
         for col in df.columns:
             if col == "time_step":
                 continue
-            res.append(Dataset(
-                label=col, 
-                mean=df_stats[f"mean_{col}"].to_list(), 
-                std=df_stats[f"std_{col}"].to_list(),
-                min=df_stats[f"min_{col}"].to_list(),
-                max=df_stats[f"max_{col}"].to_list(),
-                ci95=df_stats[f"ci95_{col}"].to_list(),
-            ))
+            res.append(
+                Dataset(
+                    label=col,
+                    mean=df_stats[f"mean_{col}"].to_list(),
+                    std=df_stats[f"std_{col}"].to_list(),
+                    min=df_stats[f"min_{col}"].to_list(),
+                    max=df_stats[f"max_{col}"].to_list(),
+                    ci95=df_stats[f"ci95_{col}"].to_list(),
+                )
+            )
         return df_stats["time_step"].to_list(), res
 
     def test_metrics(self) -> tuple[list[int], list[Dataset]]:
@@ -292,15 +273,19 @@ class Experiment:
     def train_metrics(self):
         try:
             # Round the time step to match the closest test interval
-            dfs = [stats.round_col(run.train_metrics, "time_step", self.test_interval) for run in self.runs if not run.train_metrics.is_empty()]
+            dfs = [
+                stats.round_col(run.train_metrics, "time_step", self.test_interval) for run in self.runs if not run.train_metrics.is_empty()
+            ]
             ticks, train_metrics = self._metrics(dfs)
 
-            dfs = [stats.round_col(run.training_data, "time_step", self.test_interval) for run in self.runs if not run.training_data.is_empty()]
+            dfs = [
+                stats.round_col(run.training_data, "time_step", self.test_interval) for run in self.runs if not run.training_data.is_empty()
+            ]
             _, training_data = self._metrics(dfs)
             return ticks, train_metrics + training_data
         except ValueError:
             return [], []
-        
+
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         summary = []
         for run in self.runs:

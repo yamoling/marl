@@ -1,8 +1,7 @@
 from abc import abstractmethod
 import torch
-from marl.models import RLAlgo
 from marl.policy import Policy
-from marl.models import ReplayMemory, Batch
+from marl.models import ReplayMemory, Batch, RLAlgo
 from rlenv import Observation
 
 
@@ -50,5 +49,3 @@ class IDeepQLearning(IQLearning):
     @abstractmethod
     def memory(self) -> ReplayMemory:
         """The attached replay memory"""
-
-

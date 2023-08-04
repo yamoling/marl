@@ -1,13 +1,14 @@
 import torch
+from marl.models.batch.batch import Batch
 from marl.nn import LinearNN
 from marl.models import Batch
 from .node import Node
 
-class QValuesNode(Node[torch.Tensor]):
+class QValues(Node[torch.Tensor]):
     def __init__(self, nn: LinearNN, batch: Node[Batch]):
-        super().__init__()
-        self.batch = batch
+        super().__init__([batch])
         self.nn = nn
+        self.batch = batch
 
     @property
     def value(self) -> torch.Tensor:
@@ -19,12 +20,12 @@ class QValuesNode(Node[torch.Tensor]):
         return qvalues
 
 
-class NextQValuesNode(Node[torch.Tensor]):
+class NextQValues(Node[torch.Tensor]):
     """Compute the next qvalues based on the next observations"""
     def __init__(self, qtarget: LinearNN, batch: Node[Batch]):
-        super().__init__()
-        self.batch = batch
+        super().__init__([batch])
         self.qtarget = qtarget
+        self.batch = batch
 
     @property
     def value(self) -> torch.Tensor:
@@ -35,12 +36,13 @@ class NextQValuesNode(Node[torch.Tensor]):
         return next_qvalues
 
 
-class DoubleQLearningNode(Node[torch.Tensor]):
+class DoubleQLearning(Node[torch.Tensor]):
+
     def __init__(self, qnetwork: LinearNN, qtarget: LinearNN, batch: Node[Batch]):
-        super().__init__()
-        self.batch = batch
+        super().__init__([batch])
         self.qnetwork = qnetwork
         self.qtarget = qtarget
+        self.batch = batch
 
     @property
     def value(self) -> torch.Tensor:
@@ -55,11 +57,10 @@ class DoubleQLearningNode(Node[torch.Tensor]):
         return next_qvalues
 
 
-class TargetNode(Node[torch.Tensor]):
+class Target(Node[torch.Tensor]):
     """Compute the target qvalues based on the next qvalues and the reward"""
-
     def __init__(self, gamma: float, next_qvalues: Node[torch.Tensor], batch: Node[Batch]):
-        super().__init__()
+        super().__init__([next_qvalues, batch])
         self.gamma = gamma
         self.next_qvalues = next_qvalues
         self.batch = batch
@@ -75,10 +76,10 @@ class TargetNode(Node[torch.Tensor]):
 
 
 
-class LossNode(Node[torch.Tensor]):
+class MSELoss(Node[torch.Tensor]):
     """MSE loss node"""
     def __init__(self, predicted: Node[torch.Tensor], target: Node[torch.Tensor], batch: Node[Batch]):
-        super().__init__()
+        super().__init__([predicted, target, batch])
         self.predicted = predicted
         self.target = target
         self.batch = batch

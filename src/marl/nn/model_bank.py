@@ -1,21 +1,27 @@
 from typing import Optional
+from dataclasses import dataclass
 import torch
 
 from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
 
 
+@dataclass(unsafe_hash=True, repr=False)
 class MLP(LinearNN):
     """
     Multi layer perceptron
     """
+    n_neurons: int=64
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...], n_neurons=64) -> None:
+    def __init__(self, input_shape: tuple[int], extras_shape: Optional[tuple[int]], output_shape: tuple[int], n_neurons: int=64):
         assert len(input_shape) == 1, "MLP can only handle 1D inputs"
         assert len(extras_shape) == 1, "MLP can only handle 1D extras"
         assert len(output_shape) == 1, "MLP can only handle 1D outputs"
+
         super().__init__(input_shape, extras_shape, output_shape)
-        input_size = input_shape[0] + extras_shape[0]
-        output_size = output_shape[0]
+        self.n_neurons = n_neurons
+
+        input_size = self.input_shape[0] + self.extras_shape[0]
+        output_size = self.output_shape[0]
         self.nn = torch.nn.Sequential(
             torch.nn.Linear(input_size, n_neurons),
             torch.nn.ReLU(),
@@ -24,7 +30,7 @@ class MLP(LinearNN):
             torch.nn.Linear(n_neurons, output_size)
         )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
         if extras is not None:
             obs = torch.concat((obs, extras), dim=-1)
         return self.nn(obs)
@@ -100,12 +106,11 @@ class AtariCNN(LinearNN):
             torch.nn.Linear(512, output_shape[0])
         )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
         batch_size, n_agents, channels, height, width = obs.shape
         obs = obs.view(batch_size * n_agents, channels, height, width)
         qvalues: torch.Tensor = self.nn.forward(obs)
         return qvalues.view(batch_size, n_agents, -1)
-
 
 
 class CNN(LinearNN):
@@ -115,18 +120,17 @@ class CNN(LinearNN):
     """
 
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int]|None, output_shape: tuple[int]) -> None:
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(self.input_shape)} here)"
         assert extras_shape is None or len(extras_shape) == 1, f"CNN can only handle 1D extras shapes ({len(extras_shape)} here)"
         assert len(output_shape) == 1, f"CNN can only handle 1D input shapes ({len(output_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
-        
-        # num_extras = extras_shape[0] if extras_shape is not None else 0
+
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
-        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP((n_features, ), extras_shape, output_shape)
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.linear = MLP((n_features, ), self.extras_shape, self.output_shape)
 
     def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
         # Check that the input has the correct shape (at least 4 dimensions)

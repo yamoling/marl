@@ -3,14 +3,14 @@ from typing_extensions import Self
 import torch
 
 from marl.models import Batch
-from marl.utils.summarizable import Summarizable
+from marl.utils import Serializable
 
-class IRModule(Summarizable, ABC):
+class IRModule(Serializable, ABC):
     """Intrinsic Reward Module."""
     
 
     @abstractmethod
-    def intrinsic_reward(self, batch: Batch) -> torch.Tensor:
+    def compute(self, batch: Batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
 
     def update(self):

@@ -1,13 +1,15 @@
-from typing import Optional, Any
 from abc import ABC, abstractmethod
-import torch
+from typing import Any, Optional
+
 import numpy as np
-from rlenv.models import Episode, Transition, Observation
-from marl.utils.summarizable import Summarizable
+import torch
+from rlenv.models import Episode, Observation, Transition
+
 from marl.logging import Logger
+from marl.utils.serializable import Serializable
 
 
-class RLAlgo(Summarizable, ABC):
+class RLAlgo(Serializable, ABC):
     def __init__(self, logger: Optional[Logger] = None):
         super().__init__()
         self.logger = logger

@@ -1,32 +1,34 @@
 from typing_extensions import Self
+from typing import Optional
+from dataclasses import dataclass
 from typing import Generic, Literal, TypeVar
 from abc import ABC, abstractmethod
 import torch
 
 from rlenv.models import RLEnv
-from marl.utils.summarizable import Summarizable
+from marl.utils import Serializable
 
 O = TypeVar("O")
 
-class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
+@dataclass(repr=False)
+class NN(torch.nn.Module, Serializable, ABC, Generic[O]):
     """Parent class of all neural networks"""
-    is_recurrent: bool
+    input_shape: tuple[int, ...]
+    extras_shape: Optional[tuple[int, ...]]
+    output_shape: tuple[int, ...]
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]|None, output_shape: tuple[int, ...]) -> None:
-        super().__init__()
-        self.input_shape = input_shape
-        self.extras_shape = extras_shape
-        self.output_shape = output_shape
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
+        torch.nn.Module.__init__(self)
+        Serializable.__init__(self)
+        self.input_shape = tuple(input_shape)
+        self.extras_shape = tuple(extras_shape)
+        self.output_shape = tuple(output_shape)
+        
 
     @abstractmethod
     def forward(self, x: torch.Tensor) -> O:
         """Forward pass"""
 
-    @property
-    def is_recurrent(self) -> bool:
-        """Returns whether the model is recurrent or not"""
-        return False
-    
     @property
     def name(self) -> str:
         return self.__class__.__name__
@@ -56,35 +58,36 @@ class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
             output_shape=(env.n_actions, )
         )
 
-    def summary(self) -> dict[str, ]:
+    def as_dict(self) -> dict[str, ]:
         return {
-            **super().summary(),
-            "input_shape": self.input_shape,
-            "extras_shape": self.extras_shape,
-            "output_shape": self.output_shape,
+            **super().as_dict(),
             "layers": str(self)
         }
     
+    def __hash__(self) -> int:
+        # Required for deserialization (in torch.nn.module)
+        return self.__class__.__name__.__hash__()
+
     @classmethod
-    def from_summary(cls, summary: dict[str, ]) -> Self:
+    def from_dict(cls, summary: dict[str, ]) -> Self:
         try: summary.pop("layers")
         except KeyError: pass
-        return super().from_summary(summary)
+        return super().from_dict(summary)
 
-class LinearNN(NN[torch.Tensor], ABC):
+class LinearNN(NN[torch.Tensor]):
     """Abstract class defining a linear neural network"""
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor|None = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Forward pass"""
 
-class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
+class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]]):
     """Abstract class representing a recurrent neural network"""
     @abstractmethod
     def forward(
         self,
         obs: torch.Tensor,
-        extras: torch.Tensor|None = None,
-        hidden_states: torch.Tensor|None = None
+        extras: Optional[torch.Tensor] = None,
+        hidden_states: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass.
@@ -101,11 +104,6 @@ class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
             - (torch.Tensor) The NN output
             - (torch.Tensor) The hidden states
         """
-
-    @property
-    def is_recurrent(self) -> bool:
-        return True
-
 
 class ActorCriticNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
     """Actor critic neural network"""

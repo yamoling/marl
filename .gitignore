@@ -192,3 +192,4 @@ config/
 nohup*
 files/
 saved/
+.ruff_cache

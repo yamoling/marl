@@ -13,45 +13,46 @@ from copy import deepcopy
 from .dqn import DQN
 from .mixers import Mixer
 
+
 class LinearMixedDQN(DQN):
     def __init__(
-            self, 
-            qnetwork: LinearNN, 
-            mixer: Mixer,
-            gamma=0.99, 
-            tau=0.01, 
-            batch_size=64, 
-            lr=0.0005, 
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            train_policy: Optional[Policy] = None, 
-            test_policy: Optional[Policy] = None, 
-            memory: Optional[TransitionMemory] = None, 
-            double_qlearning=True,
-            device: Optional[torch.device] = None,
-            logger: Optional[Logger]=None,
-            update_frequency=200,
-            use_soft_update=True,
-            train_interval=1,
-            ir_module: Optional[ir.IRModule]=None
-        ):
+        self,
+        qnetwork: LinearNN,
+        mixer: Mixer,
+        gamma=0.99,
+        tau=0.01,
+        batch_size=64,
+        lr=0.0005,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        train_policy: Optional[Policy] = None,
+        test_policy: Optional[Policy] = None,
+        memory: Optional[TransitionMemory] = None,
+        double_qlearning=True,
+        device: Optional[torch.device] = None,
+        logger: Optional[Logger] = None,
+        update_frequency=200,
+        use_soft_update=True,
+        train_interval=1,
+        ir_module: Optional[ir.IRModule] = None,
+    ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
             optimizer = torch.optim.Adam(parameters, lr=lr)
         super().__init__(
-            qnetwork=qnetwork, 
-            gamma=gamma, 
-            tau=tau, 
-            batch_size=batch_size, 
-            optimizer=optimizer, 
-            train_policy=train_policy, 
-            test_policy=test_policy, 
+            qnetwork=qnetwork,
+            gamma=gamma,
+            tau=tau,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            train_policy=train_policy,
+            test_policy=test_policy,
             memory=memory,
             device=device,
             double_qlearning=double_qlearning,
             update_frequency=update_frequency,
             use_soft_update=use_soft_update,
             logger=logger,
-            train_interval=train_interval
+            train_interval=train_interval,
         )
         self._parameters = parameters
         self.mixer = mixer.to(self._device, non_blocking=True)
@@ -59,7 +60,6 @@ class LinearMixedDQN(DQN):
         if ir_module is not None:
             ir_module = ir_module.to(self._device)
         self._ir_module = ir_module
-        
 
     def value(self, obs: Observation) -> float:
         qvalues = torch.max(self.compute_qvalues(obs), dim=-1).values
@@ -69,7 +69,7 @@ class LinearMixedDQN(DQN):
 
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
         td_error = qtargets - qvalues
-        mse = torch.mean(td_error ** 2)
+        mse = torch.mean(td_error**2)
         return mse
 
     def compute_targets(self, batch: TransitionBatch) -> torch.Tensor:
@@ -88,7 +88,7 @@ class LinearMixedDQN(DQN):
         next_qvalues = self.target_mixer.forward(next_qvalues, batch.states_).squeeze()
         rewards = batch.rewards
         if self._ir_module is not None:
-            ir = self._ir_module.intrinsic_reward(batch)
+            ir = self._ir_module.compute(batch)
             self._train_logs["intrinsic_reward"] = ir.mean().item()
             rewards = rewards + ir
         targets = rewards + self.gamma * next_qvalues * (1 - batch.dones)
@@ -101,10 +101,10 @@ class LinearMixedDQN(DQN):
 
     def _target_soft_update(self):
         for param, target_param in zip(self.mixer.parameters(), self.target_mixer.parameters()):
-            new_value = (1-self._tau) * target_param.data + self._tau * param.data
+            new_value = (1 - self._tau) * target_param.data + self._tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
         return super()._target_soft_update()
-    
+
     def process_batch(self, batch: TransitionBatch) -> TransitionBatch:
         return batch
 
@@ -120,7 +120,8 @@ class LinearMixedDQN(DQN):
                 obs_extras = torch.from_numpy(obs.extras).to(self._device, non_blocking=True).unsqueeze(0)
                 qvalues = self._qnetwork.forward(obs_data, obs_extras)
                 return qvalues.squeeze(dim=0)
-            case _: raise ValueError(f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'")
+            case _:
+                raise ValueError(f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'")
 
     def to(self, device: torch.device):
         self.mixer.to(device)
@@ -128,68 +129,65 @@ class LinearMixedDQN(DQN):
         if self._ir_module is not None:
             self._ir_module.to(device)
         return super().to(device)
-    
+
     def save(self, to_directory: str):
         super().save(to_directory)
         self.mixer.save(to_directory)
-    
+
     def load(self, from_directory: str):
         super().load(from_directory)
         self.mixer.load(from_directory)
-
 
     def summary(self) -> dict[str, Any]:
         return {
             **super().summary(),
             "mixer": self.mixer.summary(),
-            "ir_module": self._ir_module.summary() if self._ir_module is not None else None
+            "ir_module": self._ir_module.summary() if self._ir_module is not None else None,
         }
 
     @classmethod
     def from_summary(cls, summary: dict[str, Any]):
         from marl.qlearning import mixers
+
         device = defaults_to(summary.get("device"), get_device)
         summary["device"] = device
-        summary["mixer"] = mixers.from_summary(summary['mixer']).to(device)
+        summary["mixer"] = mixers.load(summary["mixer"]).to(device)
         ir_module = summary.get("ir_module")
         if ir_module is not None:
-            summary["ir_module"] = ir.from_summary(summary["ir_module"]).to(device)
+            summary["ir_module"] = ir.load(summary["ir_module"]).to(device)
         return super().from_summary(summary)
-    
-    
 
 
-    
 class RecurrentMixedDQN(DQN):
     def __init__(
-            self, 
-            qnetwork: RecurrentNN, 
-            mixer: Mixer,
-            gamma=0.99, 
-            tau=0.01, 
-            batch_size=64, 
-            lr=0.0005, 
-            optimizer: Optional[torch.optim.Optimizer] = None,
-            train_policy: Optional[Policy] = None, 
-            test_policy: Optional[Policy] = None, 
-            memory: Optional[EpisodeMemory] = None, 
-            double_qlearning=True,
-            device: Optional[torch.device] = None,
-            logger: Optional[Logger] = None
-        ):
+        self,
+        qnetwork: RecurrentNN,
+        mixer: Mixer,
+        gamma=0.99,
+        tau=0.01,
+        batch_size=64,
+        lr=0.0005,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        train_policy: Optional[Policy] = None,
+        test_policy: Optional[Policy] = None,
+        memory: Optional[EpisodeMemory] = None,
+        double_qlearning=True,
+        device: Optional[torch.device] = None,
+        logger: Optional[Logger] = None,
+    ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
             optimizer = torch.optim.RMSprop(parameters, lr=lr, alpha=0.99, eps=1e-5)
         super().__init__(
-            qnetwork=qnetwork, 
-            gamma=gamma, 
-            tau=tau, 
-            batch_size=batch_size, 
-            optimizer=optimizer, 
-            train_policy=train_policy, 
-            test_policy=test_policy, 
+            qnetwork=qnetwork,
+            gamma=gamma,
+            tau=tau,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            train_policy=train_policy,
+            test_policy=test_policy,
             memory=defaults_to(memory, lambda: EpisodeMemory(5000)),
-            device=device
+            device=device,
         )
         self._parameters = parameters
         self.mixer = mixer.to(self._device, non_blocking=True)
@@ -216,7 +214,7 @@ class RecurrentMixedDQN(DQN):
     def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
         error = qtargets - qvalues
         masked_error = error * batch.masks
-        criterion = masked_error ** 2
+        criterion = masked_error**2
         loss = torch.sum(criterion) / torch.sum(batch.masks)
         return loss
 
@@ -249,7 +247,7 @@ class RecurrentMixedDQN(DQN):
         #     new_value = (1-self._tau) * target_param.data + self._tau * param.data
         #     target_param.data.copy_(new_value, non_blocking=True)
         # return super()._target_soft_update()
-    
+
     def process_batch(self, batch: EpisodeBatch) -> EpisodeBatch:
         return batch
 
@@ -265,9 +263,9 @@ class RecurrentMixedDQN(DQN):
                 obs_extras = torch.from_numpy(obs.extras).to(self._device, non_blocking=True).unsqueeze(0)
                 qvalues, self._hidden_state = self._qnetwork.forward(obs_data, obs_extras, self._hidden_state)
                 return qvalues.squeeze(dim=0)
-            case _: raise ValueError(f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'")
+            case _:
+                raise ValueError(f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'")
 
-    
     def after_train_step(self, *_):
         self._train_policy.update()
 
@@ -278,11 +276,11 @@ class RecurrentMixedDQN(DQN):
     def before_tests(self, time_step: int):
         self._saved_hidden_state = self._hidden_state
         return super().before_tests(time_step)
-    
+
     def after_tests(self, time_step: int, episodes):
         self._hidden_state = self._saved_hidden_state
         return super().after_tests(time_step, episodes)
-        
+
     def before_train_episode(self, episode_num: int):
         self._hidden_state = None
         return super().before_train_episode(episode_num)
@@ -295,26 +293,21 @@ class RecurrentMixedDQN(DQN):
         self.mixer.to(device)
         self.target_mixer.to(device)
         return super().to(device)
-    
+
     def save(self, to_directory: str):
         super().save(to_directory)
         self.mixer.save(to_directory)
-    
+
     def load(self, from_directory: str):
         super().load(from_directory)
         self.mixer.load(from_directory)
 
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "mixer": self.mixer.summary()
-        }
+    def summary(self) -> dict[str,]:
+        return {**super().summary(), "mixer": self.mixer.summary()}
 
     @classmethod
-    def from_summary(cls, summary: dict[str, ]):
+    def from_summary(cls, summary: dict[str,]):
         from marl.qlearning import mixers
-        summary["mixer"] = mixers.from_summary(summary['mixer'])
+
+        summary["mixer"] = mixers.load(summary["mixer"])
         return super().from_summary(summary)
-    
-    

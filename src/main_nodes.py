@@ -8,7 +8,8 @@ from marl.qlearning.trainer import (
     TargetNode, 
     NextQValuesNode, 
     QValuesNode,
-    MixNode
+    MixNode,
+    TrainerBuilder
 )
 from marl.qlearning import VDN
 from lle import LLE, ObservationType
@@ -20,6 +21,10 @@ def main():
 
     qnetwork = marl.nn.model_bank.MLP.from_env(env)
     qtarget = marl.nn.model_bank.MLP.from_env(env)
+    builder = TrainerBuilder(qnetwork)
+    builder.mixer(VDN(env.n_agents))
+    trainer = builder.build()
+    exit(0)
     
     batch: ValueNode[marl.Batch] = ValueNode(None)
     qvalues = QValuesNode(qnetwork, batch)
@@ -35,7 +40,7 @@ def main():
         batch_node=batch,
         loss_node=loss,
         train_interval=1,
-        networks=[qnetwork],
+        trainable_parameters=[qnetwork],
         targets=[qtarget],
         memory=memory
     )

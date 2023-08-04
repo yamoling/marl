@@ -245,12 +245,12 @@ class DQN(IDeepQLearning):
         device = defaults_to(summary.get("device"), get_device)
         summary["device"] = device
         from marl import policy
-        summary["train_policy"] = policy.from_summary(summary["train_policy"])
-        summary["test_policy"] = policy.from_summary(summary["test_policy"])
+        summary["train_policy"] = policy.from_dict(summary["train_policy"])
+        summary["test_policy"] = policy.from_dict(summary["test_policy"])
         from marl import nn
         summary["qnetwork"] = nn.from_summary(summary["qnetwork"])
         from marl.models import replay_memory
-        summary["memory"] = replay_memory.from_summary(summary["memory"])
+        summary["memory"] = replay_memory.load(summary["memory"])
         summary["lr"] = summary.pop("optimizer")["learning rate"]
         return super().from_summary(summary)
     

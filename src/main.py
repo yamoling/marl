@@ -1,9 +1,9 @@
-import marl
 import os
 from argparse import ArgumentParser, Namespace
-import argcomplete
 
+import argcomplete
 import lle
+import marl
 import rlenv
 
 rlenv.register(lle.LLE)
@@ -22,6 +22,7 @@ def set_run_arguments(parser: ArgumentParser):
 def set_experiment_arguments(parser: ArgumentParser):
     pass
 
+
 def set_new_arguments(parser: ArgumentParser):
     p = parser.add_subparsers(title="New", required=True, dest="created_object")
     new_run_parser = p.add_parser("run", help="Create a new run")
@@ -29,13 +30,16 @@ def set_new_arguments(parser: ArgumentParser):
     new_experiment_parser = p.add_parser("experiment", help="Create a new experiment")
     set_experiment_arguments(new_experiment_parser)
 
+
 def set_resume_arguments(parser: ArgumentParser):
-    parser.add_argument("rundirs", nargs='+', type=str, help="The run directories to resume")
+    parser.add_argument("rundirs", nargs="+", type=str, help="The run directories to resume")
     parser.add_argument("--n_tests", type=int, default=5)
+
 
 def set_serve_arguments(parser: ArgumentParser):
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--debug", action="store_true", default=False)
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -48,6 +52,7 @@ def parse_args():
     set_serve_arguments(serve_parser)
     argcomplete.autocomplete(parser)
     return parser.parse_args()
+
 
 def new(args: Namespace):
     match args.created_object:
@@ -65,13 +70,16 @@ def new(args: Namespace):
             create_run(args, seed + args.n_runs)
         case "experiment":
             raise NotImplementedError("Not implemented yet")
-        
+
+
 def serve(args: Namespace):
-    from ui.backend import run
-    from marl.utils.env_pool import EnvPool
     import rlenv
+    from marl.utils.env_pool import EnvPool
+    from ui.backend import run
+
     rlenv.register_wrapper(EnvPool)
     run(port=args.port, debug=args.debug)
+
 
 def create_run(args: Namespace, seed: int):
     marl.seed(seed)
@@ -82,6 +90,7 @@ def create_run(args: Namespace, seed: int):
     runner.to(args.device)
     runner.train(n_tests=args.n_tests)
 
+
 def resume(args: Namespace):
     def _resume_run(rundir: str, args: Namespace, quiet=True):
         if rundir.endswith("/"):
@@ -89,8 +98,8 @@ def resume(args: Namespace):
         logdir = os.path.dirname(rundir)
         experiment = marl.Experiment.load(logdir)
         runner = experiment.restore_runner(rundir)
-        # runner.train(n_tests=args.n_tests, quiet=quiet)
-    
+        runner.train(n_tests=args.n_tests, quiet=quiet)
+
     for rundir in args.rundirs[:-1]:
         pid = os.fork()
         # Child process: resume the run
@@ -100,11 +109,17 @@ def resume(args: Namespace):
     rundir = args.rundirs[-1]
     _resume_run(rundir, args, quiet=False)
 
+
 if __name__ == "__main__":
     args = parse_args()
     match args.command:
-        case "new": new(args)
-        case "resume": resume(args)
-        case "load": print("TODO")
-        case "serve": serve(args)
-        case other: raise NotImplementedError("Command not implemented: " + other)
+        case "new":
+            new(args)
+        case "resume":
+            resume(args)
+        case "load":
+            print("TODO")
+        case "serve":
+            serve(args)
+        case other:
+            raise NotImplementedError("Command not implemented: " + other)

@@ -9,4 +9,4 @@ from . import prioritized_memory
 from . import nstep_memory
 
 from marl.utils.registry import make_registry
-register, from_summary = make_registry(ReplayMemory, [replay_memory, prioritized_memory, nstep_memory])
+register, load = make_registry(ReplayMemory, [replay_memory, prioritized_memory, nstep_memory])

@@ -1,14 +1,12 @@
-from typing import List, TypeVar, Any, Optional
+from typing import List, Any
 from sumtree import SumTree
 import torch
+from dataclasses import dataclass
+from .replay_memory import ReplayMemory, T, B
+from marl.utils import Schedule
 
-from ..batch import Batch
-from .replay_memory import ReplayMemory
 
-
-T = TypeVar("T")
-B = TypeVar("B", bound=Batch)
-
+@dataclass
 class PrioritizedMemory(ReplayMemory[T, B]):
     """
     Prioritized Experience Replay.
@@ -18,31 +16,35 @@ class PrioritizedMemory(ReplayMemory[T, B]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    def __init__(self, memory: ReplayMemory[T, B], alpha=0.7, beta=0.4, eps: float = 1e-2, beta_anneal_steps: Optional[int]=None):
+    memory: ReplayMemory[T, B]
+    alpha: Schedule = 0.7
+    beta: Schedule = 0.4
+    eps: float = 1e-2
+
+    def __init__(self, memory: ReplayMemory[T, B], alpha: float | Schedule = 0.7, beta: float | Schedule = 0.4, eps: float = 1e-2):
         super().__init__(memory.max_size)
-        self._wrapped_memory = memory
-        self._tree = SumTree(memory.max_size)
-        self._max_priority = eps  # Initialize the max priority with epsilon
-        self._eps = eps
-        self._alpha = alpha
-        self._beta = beta
-        if beta_anneal_steps is None:
-            self._beta_change = 0
-        else:
-            self._beta_change = (1 - beta) / beta_anneal_steps
-        self._beta_anneal_steps = beta_anneal_steps
+        if isinstance(self.alpha, float):
+            alpha = Schedule.constant(self.alpha)
+        if isinstance(self.beta, float):
+            beta = Schedule.constant(self.beta)
+        self.memory = memory
+        self.tree = SumTree(self.max_size)
+        self.eps = eps
+        self.max_priority = eps  # Initialize the max priority with epsilon
+        self.alpha = alpha
+        self.beta = beta
 
     def add(self, item: T):
-        self._tree.add(self._max_priority)
-        self._wrapped_memory.add(item)
+        self.tree.add(self.max_priority)
+        self.memory.add(item)
 
     def sample(self, batch_size: int) -> B:
-        sample_idxs, priorities = self._tree.sample(batch_size)
+        sample_idxs, priorities = self.tree.sample(batch_size)
 
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
         # where p_i > 0 is the priority of transition i. (Section 3.3)
         priorities = torch.tensor(priorities, dtype=torch.float32)
-        probs = priorities / self._tree.total
+        probs = priorities / self.tree.total
 
         # The estimation of the expected value with stochastic updates relies on those updates corresponding
         # to the same distribution as its expectation. Prioritized replay introduces bias because it changes this
@@ -53,7 +55,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         # instead of δ_i (this is thus weighted IS, not ordinary IS, see e.g. Mahmood et al., 2014).
         # For stability reasons, we always normalize weights by 1/maxi wi so that they only scale the
         # update downwards (Section 3.4, first paragraph)
-        weights = (len(self) * probs) ** -self._beta
+        weights = (len(self) * probs) ** -self.beta
 
         # As mentioned in Section 3.4, whenever importance sampling is used, all weights w_i were scaled
         # so that max_i w_i = 1. We found that this worked better in practice as it kept all weights
@@ -65,41 +67,38 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         return batch
 
     def get_batch(self, indices: List[int]) -> B:
-        return self._wrapped_memory.get_batch(indices)
+        return self.memory.get_batch(indices)
 
     def __len__(self) -> int:
-        return len(self._wrapped_memory)
-    
+        return len(self.memory)
+
     def __getitem__(self, idx: int) -> T:
-        return self._wrapped_memory[idx]
+        return self.memory[idx]
 
     def update(self, batch: B, qvalues: torch.Tensor, qtargets: torch.Tensor):
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
-        self._beta = self._beta + self._beta_change
+        self.beta.update()
+        self.alpha.update()
         with torch.no_grad():
             priorities = torch.abs(qtargets - qvalues)
-            priorities = (priorities + self._eps) ** self._alpha
-            self._max_priority = max(self._max_priority, priorities.max().item())
+            priorities = (priorities + self.eps) ** self.alpha
+            self.max_priority = max(self.max_priority, priorities.max().item())
         priorities = priorities.cpu()
         for idx, priority in zip(batch.sample_indices, priorities):
-            self._tree.update(idx, priority.item())
+            self.tree.update(idx, priority.item())
 
-    def summary(self):
-        summary = super().summary()
-        summary.pop("max_size")
-        return {
-            **summary,
-            "alpha": self._alpha,
-            "beta": self._beta,
-            "eps": self._eps,
-            "beta_anneal_steps": self._beta_anneal_steps,
-            "memory": self._wrapped_memory.summary()
-        }
-    
     @classmethod
-    def from_summary(cls, summary: dict[str, Any]):
+    def from_dict(cls, data: dict[str, Any]):
         from marl.models import replay_memory
-        summary["memory"] = replay_memory.from_summary(summary["memory"])
-        return super().from_summary(summary)
+        from marl.utils import schedule
+
+        data["memory"] = replay_memory.load(data["memory"])
+        data["alpha"] = schedule.from_dict(data["alpha"])
+        data["beta"] = schedule.from_dict(data["beta"])
+        try:
+            data.pop("max_size")
+        except KeyError:
+            pass
+        return super().from_dict(data)

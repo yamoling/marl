@@ -1,114 +1,71 @@
 import random
+from typing import Any
 import numpy as np
+from dataclasses import dataclass
+
 from marl.utils import schedule
 
 from .policy import Policy
 
+@dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
+    n_actions: int
+    tau: float = 1.
 
-    def __init__(self, n_actions: int, tau: float = 1.):
-        self._actions = np.arange(n_actions, dtype=np.int64)
-        self._tau = tau
-        """Temperature parameter"""
+    def __post_init__(self):
+        self.actions = np.arange(self.n_actions, dtype=np.int64)
 
-    def get_action(self, qvalues: np.ndarray[np.float32], _) -> np.ndarray[np.int64]:
-        exp = np.exp(qvalues / self._tau)
+    def get_action(self, qvalues: np.ndarray[np.float32], available_actions: np.ndarray[np.float32]) -> np.ndarray[np.int64]:
+        qvalues[available_actions == 0.] = -np.inf
+        exp = np.exp(qvalues / self.tau)
         probs = exp / np.sum(exp, axis=-1, keepdims=True)
-        chosen_actions = [np.random.choice(self._actions, p=agent_probs) for agent_probs in probs]
+        chosen_actions = [np.random.choice(self.actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)
 
-    def summary(self) -> dict[str,]:
-        return {
-            **super().summary(),
-            "tau": self._tau,
-            "n_actions": len(self._actions)
-        }
-    
-    @classmethod
-    def from_summary(cls, summary: dict[str,]):
-        return SoftmaxPolicy(summary["n_actions"], summary["tau"])
 
-
+@dataclass
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
-
-    def __init__(self, epsilon: schedule.Schedule) -> None:
-        self._epsilon = epsilon
+    epsilon: schedule.Schedule
 
     @classmethod
     def linear(cls, start_eps: float, min_eps: float, n_steps: int):
         return cls(schedule.LinearSchedule(start_eps, min_eps, n_steps))
     
     @classmethod
-    def exponential(cls, start_eps: float, min_eps: float, decay: float):
-        return cls(schedule.ExpSchedule(start_eps, min_eps, decay))
+    def exponential(cls, start_eps: float, min_eps: float, n_steps: float):
+        return cls(schedule.ExpSchedule(start_eps, min_eps, n_steps))
     
     @classmethod
     def constant(cls, eps: float):
         return cls(schedule.ConstantSchedule(eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
+        qvalues[available_actions == 0.] = -np.inf
         chosen_actions = qvalues.argmax(axis=-1)
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
         r = np.random.random(len(qvalues))
-        mask = r < self._epsilon
+        mask = r < self.epsilon
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
     
     def update(self):
-        return self._epsilon.update()
-
-    def summary(self) -> dict[str,]:
-        return { 
-            **super().summary(),
-            "epsilon": self._epsilon.value,
-            "schedule": self._epsilon.summary()
-        }
-
-    @classmethod
-    def from_summary(cls, summary: dict[str,]):
-        return EpsilonGreedy(schedule.from_summary(summary["schedule"]))
-
-
-class DecreasingEpsilonGreedy(EpsilonGreedy):
-    """Linearly decreasing epsilon greedy"""
-
-    def __init__(
-        self,
-        epsilon: float = 1.0,
-        decrease_amount: float = 1e-4,
-        min_eps: float = 1e-2
-    ) -> None:
-        super().__init__(epsilon)
-        self._decrease_amount = decrease_amount
-        self._min_epsilon = min_eps
-
-    def update(self):
-        self._epsilon = max(self._epsilon - self._decrease_amount, self._min_epsilon)
-
-    def summary(self):
-        return {
-            **super().summary(),
-            "epsilon": self._epsilon,
-            "decrease_amount": self._decrease_amount,
-            "min_epsilon": self._min_epsilon
-        }
+        return self.epsilon.update()
     
     @classmethod
-    def from_summary(cls, summary: dict[str,]):
-        return DecreasingEpsilonGreedy(summary["epsilon"], summary["decrease_amount"], summary["min_epsilon"])
+    def from_dict(cls, data: dict[str, Any]):
+        data["epsilon"] = schedule.from_dict(data["epsilon"])
+        return super().from_dict(data)
 
 
+@dataclass
 class ArgMax(Policy):
     """Exploiting the strategy"""
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
     def get_action(self, qvalues: np.ndarray, _) -> np.ndarray:
         actions = qvalues.argmax(-1)
         return actions
     
-    @classmethod
-    def from_summary(cls, summary: dict[str,]):
-        return ArgMax()
