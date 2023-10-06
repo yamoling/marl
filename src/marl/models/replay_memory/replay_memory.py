@@ -11,11 +11,10 @@ from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 from marl.utils.serializable import Serializable
 
 T = TypeVar("T")
-B = TypeVar("B", bound=Batch)
 
 
 @dataclass
-class ReplayMemory(Serializable, Generic[T, B], ABC):
+class ReplayMemory(Serializable, Generic[T], ABC):
     """Parent class of any ReplayMemory"""
     max_size: int
 
@@ -26,10 +25,10 @@ class ReplayMemory(Serializable, Generic[T, B], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def update(self, batch: B, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
         """Update the data in the memory"""
 
-    def sample(self, batch_size: int) -> B:
+    def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.randint(0, len(self), batch_size)
         return self.get_batch(indices)
@@ -38,7 +37,7 @@ class ReplayMemory(Serializable, Generic[T, B], ABC):
         self._memory.clear()
     
     @abstractmethod
-    def get_batch(self, indices: Iterable[int]) -> B:
+    def get_batch(self, indices: Iterable[int]) -> Batch:
         """Create a `Batch` from the given indices"""
 
     def __len__(self) -> int:
@@ -48,7 +47,7 @@ class ReplayMemory(Serializable, Generic[T, B], ABC):
         return self._memory[index]
     
 
-class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
+class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
     def get_batch(
@@ -58,7 +57,7 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
         transitions = [self._memory[i] for i in indices]
         return TransitionBatch(transitions, indices)
 
-class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
+class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
     def get_batch(self, indices: list[int]) -> EpisodeBatch:
         episodes = [self._memory[i] for i in indices]

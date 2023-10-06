@@ -1,5 +1,4 @@
 import torch
-from marl.models.batch.batch import Batch
 from marl.nn import LinearNN
 from marl.models import Batch
 from .node import Node
@@ -10,8 +9,7 @@ class QValues(Node[torch.Tensor]):
         self.nn = nn
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         qvalues = self.nn.forward(batch.obs, batch.extras)
         qvalues[batch.available_actions == 0.0] = -torch.inf
@@ -27,8 +25,7 @@ class NextQValues(Node[torch.Tensor]):
         self.qtarget = qtarget
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
@@ -44,8 +41,7 @@ class DoubleQLearning(Node[torch.Tensor]):
         self.qtarget = qtarget
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         target_next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
         # Take the indices from the target network and the values from the current network
@@ -65,8 +61,7 @@ class Target(Node[torch.Tensor]):
         self.next_qvalues = next_qvalues
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         """Compute the target qvalues based on the next qvalues and the reward"""
         batch = self.batch.value
         with torch.no_grad():
@@ -84,8 +79,7 @@ class MSELoss(Node[torch.Tensor]):
         self.target = target
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         qvalues = self.predicted.value
         qtargets = self.target.value
         mse = (qvalues - qtargets) ** 2

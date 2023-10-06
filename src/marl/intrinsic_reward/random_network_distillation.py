@@ -22,23 +22,19 @@ class RandomNetworkDistillation(IRModule):
     update_ratio: float = 0.25
     running_mean_warmup: int = 64
     ir_weight: Optional[Schedule] = None
-    device_str: Literal["auto", "cpu", "cuda"] = "auto"
 
     def __post_init__(self):
-        self.device = get_device(self.device_str)
-        self.target = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,)).to(self.device)
-        self.target.randomize("orthogonal")
+        self.target = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
         # Add an extra layer to the predictor to make it more difficult to predict the target
-        cnn = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
-        cnn.randomize("orthogonal")
-        self.predictor = torch.nn.Sequential(cnn, torch.nn.ReLU(), torch.nn.Linear(512, self.features_size)).to(self.device)
-        self.optimizer = torch.optim.Adam(self.predictor.parameters(), lr=self.lr)
+        self.predictor_head = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
+        self.predictor_tail = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Linear(512, self.features_size))
+        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=self.lr)
         if self.ir_weight is None:
             self.ir_weight = ConstantSchedule(1.0)
 
         # Initialize the running mean and std (section 2.4 of the article)
-        self._running_reward = RunningMeanStd().to(self.device)
-        self._running_obs = RunningMeanStd(shape=self.obs_shape).to(self.device)
+        self._running_reward = RunningMeanStd()
+        self._running_obs = RunningMeanStd(shape=self.obs_shape)
         self._update_count = 0
         self._warmup_duration = self.running_mean_warmup
 
@@ -48,7 +44,8 @@ class RandomNetworkDistillation(IRModule):
         # Compute the embedding and the squared error
         with torch.no_grad():
             target_features = self.target.forward(batch.obs_, batch.extras_)
-        predicted_features = self.predictor.forward(batch.obs_, batch.extras_)
+        predicted_features = self.predictor_head.forward(batch.obs_, batch.extras_)
+        predicted_features = self.predictor_tail.forward(predicted_features)
         squared_error = torch.pow(target_features - predicted_features, 2)
         # Reshape the error such that it is a vector of shape (batch_size, -1)
         # to be able to sum over batch size even if there are multiple agents

@@ -18,8 +18,8 @@ polars = "^0.16.18"
 tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
 pynvml = "^11.5.0"
-pyserde = "^0.10.6"
 lle = { git = "https://github.com/yamoling/lle" }
+scipy = "^1.11.3"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
@@ -42,5 +42,11 @@ pythonpath = ["src"]
 
 
 [tool.ruff]
+# Check https://beta.ruff.rs/docs/rules/ for all rules
 fixable = ["ALL"]
+
+unfixable = [
+    "F401", # Do not fix imports automatically (it removes unused imports in __init__.py files)
+    "F841", # Do not fix unused variables automatically
+]
 line-length = 140

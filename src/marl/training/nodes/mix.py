@@ -11,7 +11,6 @@ class QValueMixer(Node[torch.Tensor]):
         self.mixer = mixer
         self.batch = batch
 
-    @property
-    def value(self) -> torch.Tensor:
+    def _compute_value(self) -> torch.Tensor:
         return self.mixer.forward(self.parent.value, self.batch.value.states_)
     

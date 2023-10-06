@@ -2,12 +2,13 @@ from typing import List, Any
 from sumtree import SumTree
 import torch
 from dataclasses import dataclass
-from .replay_memory import ReplayMemory, T, B
+from .replay_memory import ReplayMemory, T
+from marl.models import Batch
 from marl.utils import Schedule
 
 
 @dataclass
-class PrioritizedMemory(ReplayMemory[T, B]):
+class PrioritizedMemory(ReplayMemory[T]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -16,12 +17,12 @@ class PrioritizedMemory(ReplayMemory[T, B]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    memory: ReplayMemory[T, B]
+    memory: ReplayMemory[T]
     alpha: Schedule = 0.7
     beta: Schedule = 0.4
     eps: float = 1e-2
 
-    def __init__(self, memory: ReplayMemory[T, B], alpha: float | Schedule = 0.7, beta: float | Schedule = 0.4, eps: float = 1e-2):
+    def __init__(self, memory: ReplayMemory[T], alpha: float | Schedule = 0.7, beta: float | Schedule = 0.4, eps: float = 1e-2):
         super().__init__(memory.max_size)
         if isinstance(self.alpha, float):
             alpha = Schedule.constant(self.alpha)
@@ -38,7 +39,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         self.tree.add(self.max_priority)
         self.memory.add(item)
 
-    def sample(self, batch_size: int) -> B:
+    def sample(self, batch_size: int) -> Batch:
         sample_idxs, priorities = self.tree.sample(batch_size)
 
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
@@ -60,13 +61,13 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         # As mentioned in Section 3.4, whenever importance sampling is used, all weights w_i were scaled
         # so that max_i w_i = 1. We found that this worked better in practice as it kept all weights
         # within a reasonable range, avoiding the possibility of extremely large updates. (Appendix B.2.1, Proportional prioritization)
-        weights = weights / weights.max()
+        weights = weights / torch.max(weights)
 
         batch = self.get_batch(sample_idxs)
         batch.importance_sampling_weights = weights
         return batch
 
-    def get_batch(self, indices: List[int]) -> B:
+    def get_batch(self, indices: List[int]) -> Batch:
         return self.memory.get_batch(indices)
 
     def __len__(self) -> int:
@@ -75,7 +76,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, batch: B, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)

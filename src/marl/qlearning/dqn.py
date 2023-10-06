@@ -6,7 +6,7 @@ import torch
 import numpy as np
 from rlenv.models import Transition, Observation, Metrics
 from marl import nn
-from marl.models import ReplayMemory, TransitionMemory, Batch, TransitionBatch
+from marl.models import ReplayMemory, TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to, get_device
 from marl.logging import Logger
@@ -74,7 +74,7 @@ class DQN(IDeepQLearning):
         return self._gamma
     
     @property
-    def memory(self) -> ReplayMemory[Transition, TransitionBatch]:
+    def memory(self) -> ReplayMemory[Transition]:
         return self._memory
     
     @property

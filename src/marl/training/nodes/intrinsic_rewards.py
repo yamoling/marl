@@ -8,8 +8,7 @@ class IR(Node[Batch]):
         self.ir_module = ir_module
         self.batch = batch
 
-    @property
-    def value(self) -> Batch:
+    def _compute_value(self) -> Batch:
         batch = self.batch.value
         ir = self.ir_module.compute(batch)
         batch.rewards += ir

@@ -5,7 +5,7 @@ from . import models
 from . import logging
 from . import nn
 from . import intrinsic_reward
-from .models import RLAlgo
+from .models import RLAlgo, Experiment
 
 from . import training
 from . import qlearning
@@ -14,20 +14,5 @@ from . import policy
 from . import wrappers
 
 
-register, from_dict = utils.make_registry(RLAlgo, [qlearning, policy_gradient, utils.random_algo])
-
-__all__ = [
-    "utils",
-    "models",
-    "logging",
-    "nn",
-    "intrinsic_reward",
-    "training",
-    "qlearning",
-    "policy_gradient",
-    "policy",
-    "wrappers",
-    "register",
-    "from_dict",
-    "RLAlgo",
-]
+register, load = utils.make_registry(RLAlgo, [qlearning, policy_gradient, utils.random_algo])
+from .utils import seed

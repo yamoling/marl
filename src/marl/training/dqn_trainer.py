@@ -1,6 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Set
+from typing import Any, Literal, Optional
 
 import torch
 from rlenv import Episode, Transition
@@ -13,7 +13,7 @@ from marl.training import nodes
 from marl.utils import Serializable, defaults_to, get_device
 
 
-@dataclass(eq=False, unsafe_hash=True)
+@dataclass
 class DQNTrainer(Serializable):
     qnetwork: LinearNN
     memory: Optional[ReplayMemory] = None
@@ -36,37 +36,38 @@ class DQNTrainer(Serializable):
         self.qtarget = deepcopy(self.qnetwork).to(self.device)
         self.parameters = list(self.qnetwork.parameters())
         self.target_parameters = list(self.qtarget.parameters())
-        self.memory = defaults_to(self.memory, self.make_memory)
+        self.memory = defaults_to(self.memory, self._make_memory)
 
-        self.batch = nodes.ValueNode[Batch](None)
+        self.root = nodes.ValueNode[Batch](None)
+        qvalues = self._make_qvalue_prediction_node(self.root)
+        qtargets_batch = self.root
         if self.ir_module is not None:
-            ir = nodes.IR(self.ir_module, self.batch)
-            self.batch = ir
-        qvalues = self._make_qvalue_prediction_node()
-        qtargets = self._make_targets_computation_node()
-        self.loss = nodes.MSELoss(qvalues, qtargets, self.batch)
+            self.ir_module.to(self.device)
+            qtargets_batch = nodes.IR(self.ir_module, qtargets_batch)
+        qtargets = self._make_targets_computation_node(qtargets_batch)
+        self.loss = nodes.MSELoss(qvalues, qtargets, self.root)
         self.optimizer = self._make_optimizer()
 
-    def _make_qvalue_prediction_node(self) -> nodes.Node[torch.Tensor]:
-        qvalues = nodes.QValues(self.qnetwork, self.batch)
+    def _make_qvalue_prediction_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
+        qvalues = nodes.QValues(self.qnetwork, batch)
         if self.mixer is not None:
-            mixed_qvalues = nodes.QValueMixer(self.mixer, qvalues, self.batch)
+            mixed_qvalues = nodes.QValueMixer(self.mixer.to(self.device), qvalues, batch)
             qvalues = mixed_qvalues
             self.parameters += list(self.mixer.parameters())
         return qvalues
 
-    def _make_targets_computation_node(self) -> nodes.Node[torch.Tensor]:
+    def _make_targets_computation_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
         if self.double_qlearning:
-            next_qvalues = nodes.DoubleQLearning(self.qnetwork, self.qtarget, self.batch)
+            next_qvalues = nodes.DoubleQLearning(self.qnetwork, self.qtarget, batch)
         else:
-            next_qvalues = nodes.NextQValues(self.qtarget, self.batch)
+            next_qvalues = nodes.NextQValues(self.qtarget, batch)
 
         if self.mixer is not None:
-            mixed_next_qvalues = nodes.QValueMixer(deepcopy(self.mixer), next_qvalues, self.batch)
+            mixed_next_qvalues = nodes.QValueMixer(deepcopy(self.mixer).to(self.device), next_qvalues, batch)
             next_qvalues = mixed_next_qvalues
             self.target_parameters += list(mixed_next_qvalues.mixer.parameters())
 
-        target_qvalues = nodes.Target(self.gamma, next_qvalues, self.batch)
+        target_qvalues = nodes.Target(self.gamma, next_qvalues, batch)
         return target_qvalues
 
     @classmethod
@@ -82,7 +83,7 @@ class DQNTrainer(Serializable):
             data["ir_module"] = marl.intrinsic_reward.load(data["ir_module"])
         return cls(**data)
 
-    def make_memory(self) -> ReplayMemory:
+    def _make_memory(self) -> ReplayMemory:
         if self.update_frequency == "step":
             return TransitionMemory(50_000)
         return EpisodeMemory(50_000)
@@ -105,9 +106,9 @@ class DQNTrainer(Serializable):
         if self.update_frequency == "episode":
             return
         self.memory.add(transition)
-        if len(self.memory) < self.batch_size or step_num % self.train_interval != 0:
+        if step_num % self.train_interval != 0 or len(self.memory) < self.batch_size:
             return
-        self.batch.value = self.memory.sample(self.batch_size).to(self.device)
+        self.root.value = self.memory.sample(self.batch_size).to(self.device)
         loss = self.loss.value
         self.optimizer.zero_grad()
         loss.backward()
@@ -125,22 +126,20 @@ class DQNTrainer(Serializable):
         import networkx as nx
 
         edges = []
-        to_visit: Set[nodes.Node] = set([self.batch])
-        visited = set()
+        to_visit = set[nodes.Node]([self.root])
+        visited = set[nodes.Node]()
         while len(to_visit) > 0:
             current = to_visit.pop()
             for child in current.children:
-                edges.append((current.name, child.name))
+                edges.append((current, child))
                 if child not in visited:
                     to_visit.add(child)
             visited.add(current)
         graph = nx.DiGraph()
         graph.add_edges_from(edges)
-        pos = nx.circular_layout(graph)
+        pos = nodes.compute_positions(visited)
+        # pos = nx.circular_layout(graph)
         # pos = nx.spectral_layout(graph)
         nx.draw_networkx(graph, pos)
         plt.savefig("graph.png")
         # plt.show()
-
-    # def __hash__(self) -> int:
-    #     raise NotImplementedError("No reason to hash this class")

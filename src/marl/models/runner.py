@@ -108,6 +108,7 @@ class Runner:
         if isinstance(device, str):
             from marl.utils import get_device
             device = get_device(device)
+        raise NotImplementedError("Here is the problem ! TODO: find a way to move the algo to the device")
         self._algo.to(device)
 
     @property

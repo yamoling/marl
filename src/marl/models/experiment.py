@@ -114,7 +114,7 @@ class Experiment(Serializable):
 
             with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
-            algo = marl.from_dict(summary["algorithm"])
+            algo = marl.load(summary["algorithm"])
             env = rlenv.from_summary(summary["env"])
             test_env = rlenv.from_summary(summary["test_env"])
             return Experiment(

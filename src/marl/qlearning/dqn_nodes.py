@@ -79,6 +79,7 @@ class DQN(RLAlgo):
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)
+        self.trainer.to(device)
         self.device = device
 
     @classmethod

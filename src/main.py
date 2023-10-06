@@ -61,12 +61,10 @@ def new(args: Namespace):
             for i in range(args.n_runs - 1):
                 seed = args.seed + i
                 if os.fork() == 0:
-                    marl.seed(seed)
                     # Force child processes to be quiet
                     args.quiet = True
                     create_run(args, seed)
                     exit(0)
-            marl.seed(seed + args.n_runs)
             create_run(args, seed + args.n_runs)
         case "experiment":
             raise NotImplementedError("Not implemented yet")

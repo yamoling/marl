@@ -65,7 +65,8 @@ class ArgMax(Policy):
     def __init__(self):
         super().__init__()
 
-    def get_action(self, qvalues: np.ndarray, _) -> np.ndarray:
+    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray[np.float32]) -> np.ndarray:
+        qvalues[available_actions == 0.] = -np.inf
         actions = qvalues.argmax(-1)
         return actions
     
