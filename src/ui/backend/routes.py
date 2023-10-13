@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from http import HTTPStatus
 from flask import request
 from .messages import (
@@ -81,7 +82,7 @@ def create_experiment():
 @app.route("/experiment/list")
 def list_experiments():
     try:
-        return [e.summary() for e in state.list_experiments().values()]
+        return [asdict(e) for e in state.list_experiments().values()]
     except ExperimentVersionMismatch as e:
         print(e)
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -91,16 +92,16 @@ def list_experiments():
 def load_experiment(logdir: str):
     try:
         experiment = state.load_experiment(logdir)
-        res = experiment.summary()
+        res = asdict(experiment)
         time_steps, datasets = experiment.test_metrics()
         res["test_metrics"] = {
             "time_steps": time_steps,
-            "datasets": [d.to_json() for d in datasets],
+            "datasets": [asdict(d) for d in datasets],
         }
         time_steps, datasets = experiment.train_metrics()
         res["train_metrics"] = {
             "time_steps": time_steps,
-            "datasets": [d.to_json() for d in datasets],
+            "datasets": [asdict(d) for d in datasets],
         }
         return res
     except CorruptExperimentException as e:

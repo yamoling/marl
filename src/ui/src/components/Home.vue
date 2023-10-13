@@ -19,7 +19,6 @@
                             Algorithm
                             <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                         </th>
-                        <th> Train/Test policies</th>
                         <th class="sortable" @click="() => sortBy('date')">
                             Start date
                             <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
@@ -36,9 +35,9 @@
                             </td>
                             <td> {{ info.logdir }} </td>
                             <td> {{ info.env.name }} </td>
-                            <td> {{ info.algorithm.name }} </td>
-                            <td> {{ info.algorithm?.train_policy?.name }} / {{ info.algorithm?.test_policy?.name }} </td>
-                            <td> {{ (info.timestamp_ms) ? new Date(info.timestamp_ms).toLocaleString() : '' }} </td>
+                            <td> {{ info.algo.name }} </td>
+                            <td> {{ (info.creation_timestamp) ? new Date(info.creation_timestamp).toLocaleString() : '' }}
+                            </td>
                             <td>
                                 <button class="btn btn-sm btn-danger" :disabled="deleting.includes(info.logdir)"
                                     @click.stop="() => deleteExperiment(info.logdir)" title="Delete experiment">
@@ -111,10 +110,10 @@ const experimentInfos = computed(() => {
             entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
             break;
         case "algo":
-            entries.sort((a, b) => a.algorithm.name.localeCompare(b.algorithm.name));
+            entries.sort((a, b) => a.algo.name.localeCompare(b.algo.name));
             break;
         case "date":
-            entries.sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+            entries.sort((a, b) => a.creation_timestamp - b.creation_timestamp);
             break;
     }
     if (sortOrder.value === "DESCENDING") {

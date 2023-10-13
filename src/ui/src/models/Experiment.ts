@@ -1,5 +1,4 @@
 import { ExperimentInfo } from "./Infos"
-import { clip, confidenceInterval } from "../utils"
 
 export interface Experiment extends ExperimentInfo {
     colour: string

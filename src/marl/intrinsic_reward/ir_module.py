@@ -3,9 +3,8 @@ from typing_extensions import Self
 import torch
 
 from marl.models import Batch
-from marl.utils import Serializable
 
-class IRModule(Serializable, ABC):
+class IRModule(ABC):
     """Intrinsic Reward Module."""
     
 

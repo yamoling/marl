@@ -8,13 +8,13 @@ import torch
 from rlenv import Episode, Transition
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
-from marl.utils.serializable import Serializable
+
 
 T = TypeVar("T")
 
 
 @dataclass
-class ReplayMemory(Serializable, Generic[T], ABC):
+class ReplayMemory(Generic[T], ABC):
     """Parent class of any ReplayMemory"""
     max_size: int
 

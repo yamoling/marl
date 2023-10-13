@@ -2,11 +2,7 @@ import os
 from argparse import ArgumentParser, Namespace
 
 import argcomplete
-import lle
 import marl
-import rlenv
-
-rlenv.register(lle.LLE)
 
 
 def set_run_arguments(parser: ArgumentParser):
@@ -15,7 +11,7 @@ def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("--seed", type=int, default=0, help="The seed of the first run. seed + <run_num> will be used for the other runs")
     parser.add_argument("--n_tests", type=int, default=5)
     parser.add_argument("--quiet", action="store_true", default=False)
-    parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv", "web", "tensorboard"], nargs="*")
+    parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv"], nargs="*")
     parser.add_argument("--device", type=str, choices=["auto", "cpu", "cuda", "cuda:0", "cuda:1", "cuda:2"], default="auto")
 
 
@@ -61,6 +57,9 @@ def new(args: Namespace):
             for i in range(args.n_runs - 1):
                 seed = args.seed + i
                 if os.fork() == 0:
+                    import time
+                    # Sleep for some time for each child process to allow GPUs to be allocated properly
+                    time.sleep(i)
                     # Force child processes to be quiet
                     args.quiet = True
                     create_run(args, seed)
@@ -71,11 +70,8 @@ def new(args: Namespace):
 
 
 def serve(args: Namespace):
-    import rlenv
-    from marl.utils.env_pool import EnvPool
     from ui.backend import run
 
-    rlenv.register_wrapper(EnvPool)
     run(port=args.port, debug=args.debug)
 
 

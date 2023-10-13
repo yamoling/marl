@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from copy import deepcopy
 import torch
 import numpy as np
-from rlenv.models import Transition, Observation, Metrics
+from rlenv.models import Transition, Observation
 from marl import nn
 from marl.models import ReplayMemory, TransitionMemory, Batch
 from marl.policy import Policy, EpsilonGreedy
@@ -46,11 +46,10 @@ class DQN(IDeepQLearning):
         update_frequency=200,
         use_soft_update=True,
         double_qlearning=True,
-        logger: Optional[Logger]=None,
         train_interval=1
     ):
         """Soft update tau value"""
-        super().__init__(logger)
+        super().__init__()
         self._gamma = gamma
         self._tau = tau
         self._batch_size = batch_size
@@ -155,7 +154,7 @@ class DQN(IDeepQLearning):
         loss = self.compute_loss(qvalues, qtargets, batch)
         self._optimizer.zero_grad()
         loss.backward()
-        grad_norm = torch.nn.utils.clip_grad_norm_(self._parameters, 10)
+        _grad_norm = torch.nn.utils.clip_grad_norm_(self._parameters, 10)
         self._optimizer.step(None)
         
         self._train_policy.update()
@@ -165,15 +164,6 @@ class DQN(IDeepQLearning):
             self._target_update(update_step)
         self._memory.update(batch, qvalues, qtargets)
 
-        if self.logger is not None:
-            logs = Metrics(
-                **self._train_logs, 
-                loss=loss.item(), 
-                grad_norm=grad_norm.item(), 
-                epsilon=self._train_policy._epsilon.value
-            )
-            self.logger.log("training_data", logs, update_step)
-        
 
     def _target_soft_update(self):
         for param, target_param in zip(self._qnetwork.parameters(), self._qtarget.parameters()):

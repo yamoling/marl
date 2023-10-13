@@ -1,6 +1,8 @@
 import os
+import pickle
 from dataclasses import dataclass
 from typing import Any, Optional
+
 
 import numpy as np
 import torch
@@ -16,22 +18,21 @@ from marl.utils import defaults_to
 class DQN(RLAlgo):
     """
     Independent Deep Q-Network agent with shared QNetwork.
-    If agents require different behaviours, an agentID should be included in the
-    observation 'extras'.
     """
 
     trainer: DQNTrainer
     train_policy: Optional[Policy] = None
     test_policy: Optional[Policy] = None
 
-    def __post_init__(self):
+    def __init__(self, trainer: DQNTrainer, train_policy: Optional[Policy] = None, test_policy: Optional[Policy] = None):
+        super().__init__()
+        self.trainer = trainer
         self.qnetwork = self.trainer.qnetwork
         self.device = self.qnetwork.device
-        self.train_policy = defaults_to(self.train_policy, lambda: EpsilonGreedy.constant(0.1))
-        self.test_policy = defaults_to(self.test_policy, lambda: EpsilonGreedy.constant(0.05))
+        self.train_policy = defaults_to(train_policy, lambda: EpsilonGreedy.constant(0.1))
+        self.test_policy = defaults_to(test_policy, lambda: EpsilonGreedy.constant(0.01))
         self.policy = self.train_policy
         self.device = self.qnetwork.device
-        self._train_logs = {}
 
     @torch.no_grad()
     def choose_action(self, obs: Observation) -> np.ndarray:
@@ -61,32 +62,27 @@ class DQN(RLAlgo):
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)
-        qnetwork_path = os.path.join(to_directory, "qnetwork.weights")
+        self.trainer.save(to_directory)
         train_policy_path = os.path.join(to_directory, "train_policy")
         test_policy_path = os.path.join(to_directory, "test_policy")
-        torch.save(self.qnetwork.state_dict(), qnetwork_path)
-        self.train_policy.save(train_policy_path)
-        self.test_policy.save(test_policy_path)
+        with (open(train_policy_path, "wb") as f,
+              open(test_policy_path, "wb") as g):
+            pickle.dump(self.train_policy, f)
+            pickle.dump(self.test_policy, g)
 
     def load(self, from_directory: str):
-        qnetwork_path = os.path.join(from_directory, "qnetwork.weights")
+        self.trainer.load(from_directory)
+        self.qnetwork = self.trainer.qnetwork
         train_policy_path = os.path.join(from_directory, "train_policy")
         test_policy_path = os.path.join(from_directory, "test_policy")
-        self.qnetwork.load_state_dict(torch.load(qnetwork_path))
-        self.train_policy = self.train_policy.__class__.load(train_policy_path)
-        self.test_policy = self.test_policy.__class__.load(test_policy_path)
+        with (open(train_policy_path, "rb") as f,
+              open(test_policy_path, "rb") as g):
+            self.train_policy = pickle.load(f)
+            self.test_policy = pickle.load(g)
         self.policy = self.train_policy
+
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)
         self.trainer.to(device)
         self.device = device
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        import marl
-
-        data["trainer"] = marl.training.from_dict(data["trainer"])
-        data["train_policy"] = marl.policy.from_dict(data["train_policy"])
-        data["test_policy"] = marl.policy.from_dict(data["test_policy"])
-        return super().from_dict(data)

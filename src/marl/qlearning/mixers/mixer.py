@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing_extensions import Self, Any
 
 from marl.nn import NN
 
@@ -26,9 +25,4 @@ class Mixer(NN[torch.Tensor], ABC):
     def load(self, from_directory: str):
         """Load the mixer from a directory."""
 
-    @classmethod
-    def from_dict(cls, summary: dict[str, Any]) -> Self:
-        summary.pop("input_shape", None)
-        summary.pop("output_shape", None)
-        summary.pop("extras_shape", None)
-        return super().from_dict(summary)
+  

@@ -2,18 +2,19 @@ import json
 import os
 import shutil
 import time
+import pickle
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from serde.json import to_json
+from typing import Literal, Optional
 
-import laser_env
+
 import polars as pl
-import rlenv
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl import logging
 from marl.qlearning import IDeepQLearning
-from marl.utils import Serializable, defaults_to, encode_b64_image, exceptions, stats
+from marl.utils import encode_b64_image, exceptions, stats
 
 from .algo import RLAlgo
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
@@ -22,7 +23,7 @@ from .runner import Runner
 
 
 @dataclass
-class Dataset(Serializable):
+class Dataset:
     label: str
     mean: list[float]
     min: list[float]
@@ -30,43 +31,28 @@ class Dataset(Serializable):
     std: list[float]
     ci95: list[float]
 
-    def to_json(self) -> dict:
-        return {
-            "label": self.label,
-            "mean": self.mean,
-            "std": self.std,
-            "min": self.min,
-            "max": self.max,
-            "ci95": self.ci95,
-        }
-
 
 @dataclass
-class Experiment(Serializable):
+class Experiment:
     logdir: str
-    runs: list[Run]
     algo: RLAlgo
     env: RLEnv
-    test_env: RLEnv
     test_interval: int
-    s_steps: int
+    n_steps: int
+    creation_timestamp: int
+    runs: list[Run]
+    
 
-    def __init__(self, logdir: str, algo: RLAlgo, env: RLEnv, test_env: RLEnv, test_interval: int, n_steps: int):
-        """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
-        self.runs = []
-        for run in os.listdir(logdir):
-            if run.startswith("run_"):
-                try:
-                    self.runs.append(Run.load(os.path.join(logdir, run)))
-                except Exception:
-                    pass
-
+    def __init__(self, logdir: str, algo: RLAlgo, env: RLEnv, test_interval: int, n_steps: int, creation_timestamp: int):
         self.logdir = logdir
         self.algo = algo
         self.env = env
-        self.test_env = test_env
-        self.n_steps = n_steps
         self.test_interval = test_interval
+        self.n_steps = n_steps
+        self.creation_timestamp = creation_timestamp
+        self.runs = []
+        self.refresh_runs()
+        
 
     @staticmethod
     def create(
@@ -75,27 +61,26 @@ class Experiment(Serializable):
         env: RLEnv,
         n_steps: int,
         test_interval: int,
-        test_env: Optional[RLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
-        try:
+        
             # Remove the test and debug logs
-            if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+        if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+            try:
                 shutil.rmtree(logdir)
-        except FileNotFoundError:
-            pass
+            except FileNotFoundError:
+                pass
         try:
             os.makedirs(logdir, exist_ok=False)
-            test_env = defaults_to(test_env, lambda: deepcopy(env))
             experiment = Experiment(
                 logdir,
                 algo=algo,
                 env=env,
                 n_steps=n_steps,
-                test_env=test_env,
                 test_interval=test_interval,
+                creation_timestamp=int(time.time() * 1000)
             )
             experiment.save()
             return experiment
@@ -108,24 +93,27 @@ class Experiment(Serializable):
 
     @staticmethod
     def load(logdir: str) -> "Experiment":
-        """Load an existing experiment."""
-        try:
-            import marl
+        """Load an experiment from disk."""
+        with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
+            experiment: Experiment = pickle.load(f)
+        experiment.refresh_runs()
+        return experiment
 
-            with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
-                summary = json.load(f)
-            algo = marl.load(summary["algorithm"])
-            env = rlenv.from_summary(summary["env"])
-            test_env = rlenv.from_summary(summary["test_env"])
-            return Experiment(
-                logdir=logdir, algo=algo, env=env, test_env=test_env, test_interval=summary["test_interval"], n_steps=summary["n_steps"]
-            )
-        except exceptions.MissingParameterException as e:
-            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
-        except json.decoder.JSONDecodeError:
-            raise exceptions.CorruptExperimentException(
-                f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file."
-            )
+    def save(self):
+        """Save the experiment to disk."""
+        with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
+            f.write(to_json(self))
+        with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
+            pickle.dump(self, f)
+
+    def refresh_runs(self):
+        self.runs = []
+        for run in os.listdir(self.logdir):
+            if run.startswith("run_"):
+                try:
+                    self.runs.append(Run.load(os.path.join(self.logdir, run)))
+                except Exception:
+                    pass
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -145,23 +133,16 @@ class Experiment(Serializable):
             return None
         return Experiment.find_experiment_directory(parent)
 
-    def summary(self) -> dict[str, Any]:
-        return {
-            "algorithm": self.algo.as_dict(),
-            "env": {**self.env.summary(), "action_meanings": self.env.action_meanings},
-            "test_env": self.test_env.summary(),
-            "logdir": self.logdir,
-            "n_steps": self.n_steps,
-            "timestamp_ms": int(time.time() * 1000),
-            "test_interval": self.test_interval,
-            "runs": [run.to_json() for run in self.runs],
-        }
-
-    def save(self):
-        os.makedirs(self.logdir, exist_ok=True)
-        with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
-            s = self.summary()
-            json.dump(s, f)
+    # def as_dict(self) -> dict[str, Any]:
+    #     return {
+    #         "algorithm": self.algo.name,
+    #         "env": {"name": self.env.name, "action_meanings": self.env.action_meanings},
+    #         "logdir": self.logdir,
+    #         "n_steps": self.n_steps,
+    #         "test_interval": self.test_interval,
+    #         "creation_timestamp": self.creation_timestamp,
+    #         "runs": [run.to_json() for run in self.runs],
+    #     }
 
     def create_runner(
         self,
@@ -173,7 +154,7 @@ class Experiment(Serializable):
             rundir = os.path.join(self.logdir, f"run_{time.time()}")
             os.makedirs(rundir, exist_ok=False)
         if len(loggers) == 0:
-            loggers = ("web", "tensorboard", "csv")
+            loggers = "csv", 
         logger_list = []
         for logger in loggers:
             match logger:
@@ -187,11 +168,14 @@ class Experiment(Serializable):
                     raise ValueError(f"Unknown logger: {other}")
         logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
 
-        algo = deepcopy(self.algo)
-        algo.logger = logger
-        env = deepcopy(self.env)
-
-        runner = Runner(env=env, algo=algo, logger=logger, test_interval=self.test_interval, n_steps=self.n_steps, test_env=self.test_env)
+        runner = Runner(
+            env=deepcopy(self.env), 
+            algo=deepcopy(self.algo), 
+            logger=logger, 
+            test_interval=self.test_interval, 
+            n_steps=self.n_steps, 
+            test_env=deepcopy(self.env)
+        )
         self.runs.append(Run.create(rundir))
         return runner
 
@@ -294,15 +278,10 @@ class Experiment(Serializable):
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         # Actions must be loaded because of the stochasticity of the policy
-        with (
-            open(os.path.join(episode_folder, "actions.json"), "r") as a,
-            open(os.path.join(episode_folder, "env.json"), "r") as e,
-        ):
+        with open(os.path.join(episode_folder, "actions.json"), "r") as a:
             actions = json.load(a)
-            env_summary = json.load(e)
-
-        self.algo.load(os.path.dirname(episode_folder))
-        env = rlenv.from_summary(env_summary)
+        self.algo = pickle.load(open(os.path.join(episode_folder, "algo.pkl"), "rb"))
+        env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
         obs = env.reset()
         values = []
         frames = [encode_b64_image(env.render("rgb_array"))]
@@ -325,12 +304,3 @@ class Experiment(Serializable):
             metrics=episode.metrics,
             state_values=values,
         )
-
-
-def restore_env(env_summary: dict[str, Any], force_static=False) -> RLEnv:
-    if force_static:
-        try:
-            return laser_env.StaticLaserEnv.from_summary(env_summary)
-        except KeyError:
-            return rlenv.from_summary(env_summary)
-    return rlenv.from_summary(env_summary)

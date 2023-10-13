@@ -1,7 +1,10 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from serde import serde
+from typing import Literal, Optional
+from typing_extensions import Self
 
+import os
 import torch
 from rlenv import Episode, Transition
 
@@ -10,11 +13,11 @@ from marl.models import Batch, EpisodeMemory, ReplayMemory, TransitionMemory
 from marl.nn import LinearNN
 from marl.qlearning.mixers import Mixer
 from marl.training import nodes
-from marl.utils import Serializable, defaults_to, get_device
+from marl.utils import defaults_to, get_device
 
-
+@serde
 @dataclass
-class DQNTrainer(Serializable):
+class DQNTrainer:
     qnetwork: LinearNN
     memory: Optional[ReplayMemory] = None
     gamma: float = 0.99
@@ -48,6 +51,30 @@ class DQNTrainer(Serializable):
         self.loss = nodes.MSELoss(qvalues, qtargets, self.root)
         self.optimizer = self._make_optimizer()
 
+    def to(self, device: torch.device) -> Self:
+        self.qnetwork = self.qnetwork.to(device)
+        self.qtarget = self.qtarget.to(device)
+        if self.mixer is not None:
+            self.mixer = self.mixer.to(device)
+        if self.ir_module is not None:
+            self.ir_module = self.ir_module.to(device)
+        self.device = device
+
+    def save(self, to_directory: str):
+        torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.pt")
+        if self.mixer is not None:
+            self.mixer.save(os.path.join(to_directory, "mixer"))
+        if self.ir_module is not None:
+            self.ir_module.save(os.path.join(to_directory, "ir"))
+
+    def load(self, from_directory: str):
+        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.pt"))
+        self.qtarget.load_state_dict(self.qnetwork.state_dict())
+        if self.mixer is not None:
+            self.mixer.load(os.path.join(from_directory, "mixer"))
+        if self.ir_module is not None:
+            self.ir_module.load(os.path.join(from_directory, "ir"))
+
     def _make_qvalue_prediction_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
         qvalues = nodes.QValues(self.qnetwork, batch)
         if self.mixer is not None:
@@ -69,19 +96,6 @@ class DQNTrainer(Serializable):
 
         target_qvalues = nodes.Target(self.gamma, next_qvalues, batch)
         return target_qvalues
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        import marl
-
-        data["qnetwork"] = marl.nn.from_summary(data["qnetwork"])
-        if data["memory"] is not None:
-            data["memory"] = marl.models.replay_memory.load(data["memory"])
-        if data["mixer"] is not None:
-            data["mixer"] = marl.qlearning.mixers.load(data["mixer"])
-        if data["ir_module"] is not None:
-            data["ir_module"] = marl.intrinsic_reward.load(data["ir_module"])
-        return cls(**data)
 
     def _make_memory(self) -> ReplayMemory:
         if self.update_frequency == "step":

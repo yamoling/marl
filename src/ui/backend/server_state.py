@@ -1,9 +1,7 @@
 import os
-import laser_env
 import rlenv
 import shutil
 from marl.models import Experiment, ReplayEpisodeSummary, Run, ReplayEpisode
-from marl.utils import EmptyForcedActionsException
 import marl
 
 from .messages import ExperimentConfig, RunConfig, TrainConfig
@@ -45,24 +43,6 @@ class ServerState:
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
 
-    def create_experiment(self, config: ExperimentConfig) -> Experiment:
-        env = self._create_env(config)
-        memory = self._create_memory(config)
-        qbuilder = marl.DeepQBuilder()
-        if config.vdn:
-            qbuilder.vdn()
-        qbuilder.qnetwork_default(env)
-        qbuilder.memory(memory)
-        algo = qbuilder.build()
-        if config.forced_actions is not None:
-            if len(config.forced_actions) == 0:
-                raise EmptyForcedActionsException()
-            else:
-                algo = marl.wrappers.ForceActionWrapper(algo, config.forced_actions)
-        algo = marl.wrappers.ReplayWrapper(algo, config.logdir)
-        experiment = Experiment.create(config.logdir, env, algo, 300_000)
-        self.experiments[config.logdir] = experiment
-        return experiment
 
     def create_runner(self, logdir: str, run_config: RunConfig):
         """Creates a runner for the given experiment and returns their loggers"""
@@ -109,47 +89,6 @@ class ServerState:
         if matching_experiment is None:
             raise ValueError(f"Could not find experiment for episode {episode_dir}")
         return matching_experiment.replay_episode(episode_dir)
-
-    @staticmethod
-    def _create_env(config: ExperimentConfig):
-        obs_type = laser_env.ObservationType.from_str(config.obs_type)
-        if config.static_map:
-            env = laser_env.StaticLaserEnv(config.level, obs_type)
-        else:
-            env = laser_env.DynamicLaserEnv(
-                width=config.generator.width,
-                height=config.generator.height,
-                num_agents=config.generator.n_agents,
-                num_gems=config.generator.n_gems,
-                num_lasers=config.generator.n_lasers,
-                obs_type=obs_type,
-                wall_density=config.generator.wall_density,
-            )
-        builder = rlenv.Builder(env)
-        for wrapper in config.env_wrappers:
-            match wrapper:
-                case "TimeLimit":
-                    builder.time_limit(config.time_limit)
-                case "IntrinsicReward":
-                    builder.intrinsic_reward("linear", initial_reward=0.5, anneal=10)
-                case "AgentId":
-                    builder.agent_id()
-                case "TimePenalty":
-                    builder.time_penalty(config.time_penalty)
-                case other:
-                    raise ValueError(f"Unknown wrapper: {wrapper}")
-        return builder.build()
-
-    @staticmethod
-    def _create_memory(config: ExperimentConfig) -> marl.models.ReplayMemory:
-        memory_builder = marl.models.MemoryBuilder(
-            config.memory.size, "episode" if config.recurrent else "transition"
-        )
-        if config.memory.prioritized:
-            memory_builder.prioritized()
-        if config.memory.nstep > 1:
-            memory_builder.nstep(config.memory.nstep, 0.99)
-        return memory_builder.build()
 
 
 def _start_process_function(experiment: Experiment, run_config: RunConfig):

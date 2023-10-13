@@ -1,8 +1,6 @@
-from .serializable import Serializable
-from .env_pool import EnvPool
+# from .env_pool import EnvPool
 from .exceptions import CorruptExperimentException, EmptyForcedActionsException, ExperimentAlreadyExistsException
 from .others import alpha_num_order, defaults_to, encode_b64_image, get_device, seed
-from .registry import make_registry
 from .schedule import ExpSchedule, LinearSchedule, Schedule
 from .random_algo import RandomAgent
 
@@ -15,11 +13,9 @@ __all__ = [
     "CorruptExperimentException",
     "EmptyForcedActionsException",
     "ExperimentAlreadyExistsException",
-    "EnvPool",
-    "make_registry",
+    # "EnvPool",
     "LinearSchedule",
     "ExpSchedule",
     "Schedule",
-    "Serializable",
     "RandomAgent",
 ]

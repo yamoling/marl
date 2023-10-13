@@ -14,5 +14,4 @@ from . import policy
 from . import wrappers
 
 
-register, load = utils.make_registry(RLAlgo, [qlearning, policy_gradient, utils.random_algo])
 from .utils import seed

@@ -1,18 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
+from dataclasses import dataclass
 import torch
 from rlenv.models import Episode, Observation, Transition
 
-from marl.logging import Logger
-from marl.utils.serializable import Serializable
 
+@dataclass
+class RLAlgo(ABC):
+    name: str
 
-class RLAlgo(Serializable, ABC):
-    def __init__(self, logger: Optional[Logger] = None):
-        super().__init__()
-        self.logger = logger
+    def __init__(self):
+        self.name = self.__class__.__name__
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64, Any]:
@@ -22,21 +22,8 @@ class RLAlgo(Serializable, ABC):
     def value(self, observation: Observation) -> float:
         """Get the value of the input observation"""
 
-    @property
-    def name(self) -> str:
-        """The name of the algorithm"""
-        return self.__class__.__name__
-    
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
-        raise NotImplementedError("Not implemented for this algorithm")
-
-    def save(self, to_path: str):
-        """Save the algorithm state to the specified file."""
-        raise NotImplementedError("Not implemented for this algorithm")
-
-    def load(self, from_path: str):
-        """Load the algorithm state from the specified file."""
         raise NotImplementedError("Not implemented for this algorithm")
 
     def before_tests(self, time_step: int):
@@ -72,3 +59,11 @@ class RLAlgo(Serializable, ABC):
         - test_num: the test number for this time step
         - episode: the actual episode
         """
+
+    @abstractmethod
+    def save(self, to_directory: str):
+        """Save the algorithm to the specified directory"""
+        
+    @abstractmethod
+    def load(self, from_directory: str):
+        """Load the algorithm parameters from the specified directory"""

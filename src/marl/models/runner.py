@@ -1,6 +1,7 @@
 import os
 import json
 import torch
+import pickle
 from copy import deepcopy
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
@@ -99,17 +100,17 @@ class Runner:
 
     def _save_test_episode(self, directory: str, episode: Episode):
         os.makedirs(directory, exist_ok=True)
-        with (open(os.path.join(directory, "env.json"), "w") as e,
+        with (open(os.path.join(directory, "env.pkl"), "wb") as e,
               open(os.path.join(directory, "actions.json"), "w") as a):
-            json.dump(self._test_env.summary(static=True), e)
+            pickle.dump(self._test_env, e)
             json.dump(episode.actions.tolist(), a)
 
     def to(self, device: str|torch.device):
         if isinstance(device, str):
             from marl.utils import get_device
             device = get_device(device)
-        raise NotImplementedError("Here is the problem ! TODO: find a way to move the algo to the device")
         self._algo.to(device)
+        #raise NotImplementedError("Here is the problem ! TODO: find a way to move the algo to the device")
 
     @property
     def rundir(self) -> str:

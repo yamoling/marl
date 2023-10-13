@@ -11,9 +11,6 @@ from marl.logging.ws_logger import WSLogger
 @dataclass
 class Run:
     rundir: str
-    train_metrics: pl.DataFrame
-    test_metrics: pl.DataFrame
-    training_data: pl.DataFrame
 
     def __init__(self, rundir: str, train_df: pl.DataFrame, test_df: pl.DataFrame, train_data: pl.DataFrame):
         """This constructor is not meant to be called directly. Use the static methods `create` or `load` instead."""

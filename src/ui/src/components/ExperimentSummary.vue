@@ -32,8 +32,8 @@ const envBadges = computed(() => {
 });
 const algoBadges = computed(() => {
     const res = [] as string[];
-    if (Object.hasOwn(props.experiment.algorithm, "qnetwork")) {
-        const algo = props.experiment.algorithm as DQNInfo;
+    if (Object.hasOwn(props.experiment.algo, "qnetwork")) {
+        const algo = props.experiment.algo as DQNInfo;
         res.push(`${algo.name}(${algo.qnetwork.name})`);
         res.push("Train: " + algo.train_policy.name);
         res.push("Test: " + algo.test_policy.name);

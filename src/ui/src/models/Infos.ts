@@ -1,15 +1,19 @@
 import { OBS_TYPES } from "../constants";
-import { AlgoInfo } from "./Algos";
 
 export interface ExperimentInfo {
-    algorithm: AlgoInfo
+    algo: AlgorithmInfo
     env: EnvInfo
-    test_env: EnvInfo
     logdir: string
-    timestamp_ms: number
+    creation_timestamp: number
     n_steps: number
     test_interval: number
     runs: RunInfo[]
+}
+
+export interface AlgorithmInfo {
+    name: string
+    train_policy: object,
+    test_policy: object,
 }
 
 export interface RunInfo {
@@ -21,17 +25,7 @@ export interface RunInfo {
 
 export interface EnvInfo {
     name: string
-    n_actions: number
-    n_agents: number
-    obs_shape: number[]
     action_meanings: string[]
-    state_shape: number[]
-    extras_shape: number[]
-    map_file_content: string
-    wrappers: string[]
-    DynamicLaserEnv: DynamicLaserEnv | null
-    StaticLaserEnv: StaticLaserEnv | null
-    LLE: StaticLaserEnv | null
 }
 
 

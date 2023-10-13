@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Literal, Optional
+from typing import Optional
 
 import torch
+import os
 
 from marl.models import Batch
 from marl.nn.model_bank import CNN
@@ -82,9 +83,21 @@ class RandomNetworkDistillation(IRModule):
     def update(self):
         pass
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        from marl.utils import schedule
 
-        data["ir_weight"] = schedule.from_dict(data["ir_weight"])
-        return super().from_dict(data)
+    def save(self, to_directory: str):
+        os.makedirs(to_directory, exist_ok=True)
+        target_path = os.path.join(to_directory, "target.weights")
+        torch.save(self.target.state_dict(), target_path)
+        predictor_head_path = os.path.join(to_directory, "predictor_head.weights")
+        torch.save(self.predictor_head.state_dict(), predictor_head_path)
+        predictor_tail_path = os.path.join(to_directory, "predictor_tail.weights")
+        torch.save(self.predictor_tail.state_dict(), predictor_tail_path)
+
+    def load(self, from_directory: str):
+        target_path = os.path.join(from_directory, "target.weights")
+        self.target.load_state_dict(torch.load(target_path))
+        predictor_head_path = os.path.join(from_directory, "predictor_head.weights")
+        self.predictor_head.load_state_dict(torch.load(predictor_head_path))
+        predictor_tail_path = os.path.join(from_directory, "predictor_tail.weights")
+        self.predictor_tail.load_state_dict(torch.load(predictor_tail_path))
+        return self

@@ -3,14 +3,13 @@ from typing import Any, TypeVar, Generic
 from dataclasses import dataclass
 
 from abc import abstractmethod
-from marl.utils.serializable import Serializable
 
 
 T = TypeVar("T")
 
 
 @dataclass(eq=False, order=False)
-class Schedule(Serializable, Generic[T]):
+class Schedule(Generic[T]):
     start_value: float
     min_value: float
     n_steps: int

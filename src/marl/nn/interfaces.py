@@ -6,12 +6,11 @@ from abc import ABC, abstractmethod
 import torch
 
 from rlenv.models import RLEnv
-from marl.utils import Serializable
 
 O = TypeVar("O")
 
 @dataclass(repr=False)
-class NN(torch.nn.Module, Serializable, ABC, Generic[O]):
+class NN(torch.nn.Module, ABC, Generic[O]):
     """Parent class of all neural networks"""
     input_shape: tuple[int, ...]
     extras_shape: Optional[tuple[int, ...]]
@@ -19,7 +18,6 @@ class NN(torch.nn.Module, Serializable, ABC, Generic[O]):
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
         torch.nn.Module.__init__(self)
-        Serializable.__init__(self)
         self.input_shape = tuple(input_shape)
         self.extras_shape = tuple(extras_shape)
         self.output_shape = tuple(output_shape)
@@ -40,9 +38,12 @@ class NN(torch.nn.Module, Serializable, ABC, Generic[O]):
     
     def randomize(self, method: Literal["xavier", "orthogonal"]="xavier"):
         match method:
-            case "xavier": init = torch.nn.init.xavier_uniform_
-            case "orthogonal": init = torch.nn.init.orthogonal_
-            case _: raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
+            case "xavier": 
+                init = torch.nn.init.xavier_uniform_
+            case "orthogonal": 
+                init = torch.nn.init.orthogonal_
+            case _: 
+                raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
         for param in self.parameters():
             if len(param.data.shape) < 2:
                 init(param.data.view(1, -1))
@@ -58,21 +59,11 @@ class NN(torch.nn.Module, Serializable, ABC, Generic[O]):
             output_shape=(env.n_actions, )
         )
 
-    def as_dict(self) -> dict[str, ]:
-        return {
-            **super().as_dict(),
-            "layers": str(self)
-        }
     
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
-        return self.__class__.__name__.__hash__()
+        return hash(self.__class__.__name__)
 
-    @classmethod
-    def from_dict(cls, summary: dict[str, ]) -> Self:
-        try: summary.pop("layers")
-        except KeyError: pass
-        return super().from_dict(summary)
 
 class LinearNN(NN[torch.Tensor]):
     """Abstract class defining a linear neural network"""
