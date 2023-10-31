@@ -9,8 +9,7 @@ def test_episode_batch_padded():
     for i in range(5, 10):
         env._step_limit = i
         episodes.append(generate_episode(env))
-    
-    batch = marl.models.EpisodeBatch(episodes, range(len(episodes)))
+    batch = marl.models.batch.EpisodeBatch(episodes, range(len(episodes)))
     assert len(batch.obs) == 9
     assert len(batch.obs_) == 10
     assert len(batch.masks) == 9

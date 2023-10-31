@@ -26,7 +26,7 @@ class Logger(ABC):
         """Log the data."""
 
     def log_print(self, category: str, data: Metrics, time_step: int):
-        """Log to TensorBoard and add the data to the printing queue."""
+        """Log and print the data."""
         self.log(category, data, time_step)
         if not self.quiet:
             self.print(category, data)

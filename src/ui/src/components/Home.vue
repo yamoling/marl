@@ -30,7 +30,7 @@
                     <template v-for="info in experimentInfos">
                         <tr v-if="searchMatch(searchString, info.logdir)" @click="() => loadExperiment(info.logdir)">
                             <td class="text-center">
-                                <font-awesome-icon v-if="info.runs.every((r => r.pid == null))" :icon="['fas', 'check']" />
+                                <font-awesome-icon v-if="info.runs.every(r => r.pid == null)" :icon="['fas', 'check']" />
                                 <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
                             </td>
                             <td> {{ info.logdir }} </td>

@@ -52,3 +52,4 @@ def test_update_marks_complex():
     assert not res._needs_update
     assert res2._needs_update
     assert res2.value == 55
+

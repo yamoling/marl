@@ -20,14 +20,12 @@ pynvml = "^11.5.0"
 lle = { git = "https://github.com/yamoling/lle" }
 scipy = "^1.11.3"
 psutil = "^5.9.5"
-gymnasium = "^0.29.1"
+gymnasium = { extras = ["box2d"], version = "^0.29.1" }
 pyserde = "^0.12.3"
+networkx = "^3.1"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
-pywebview = { extras = ["qt"], version = "^4.0.1" }
-pycairo = "^1.23.0"
-pygobject = "^3.42.2"
 websockets = "^10.4"
 flask = "^2.2.2"
 flask-cors = "^3.0.10"
@@ -41,6 +39,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
 
 
 [tool.ruff]

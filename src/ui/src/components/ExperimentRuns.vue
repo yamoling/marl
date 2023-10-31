@@ -99,13 +99,13 @@ function updateListeners(runs: RunInfo[]) {
     runs.forEach(run => {
         progresses.value.set(run.rundir, run.current_step);
         if (run.pid != null && run.port != null) {
-            store.startListening(
-                run.rundir,
-                run.port,
-                (data: ReplayEpisodeSummary) => onTrainUpdate(run.rundir, data),
-                (data: ReplayEpisodeSummary) => onTestUpdate(run.rundir, data),
-                () => onClose(run.rundir)
-            );
+            // store.startListening(
+            //     run.rundir,
+            //     run.port,
+            //     (data: ReplayEpisodeSummary) => onTrainUpdate(run.rundir, data),
+            //     (data: ReplayEpisodeSummary) => onTestUpdate(run.rundir, data),
+            //     () => onClose(run.rundir)
+            // );
         }
     });
 }

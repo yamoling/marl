@@ -1,7 +1,8 @@
 from abc import abstractmethod
 import numpy as np
+from dataclasses import dataclass
 
-
+@dataclass
 class Policy:
     """
     A policy takes decides which action to take given an input.
@@ -14,5 +15,5 @@ class Policy:
         Returns the chosen action.
         """
 
-    def update(self):
+    def update(self, time_step: int):
         """Update the policy"""

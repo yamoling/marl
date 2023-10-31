@@ -1,5 +1,5 @@
 from typing_extensions import Self
-from typing import Any, TypeVar, Generic
+from typing import Any, TypeVar, Generic, Optional
 from dataclasses import dataclass
 
 from abc import abstractmethod
@@ -8,17 +8,23 @@ from abc import abstractmethod
 T = TypeVar("T")
 
 
-@dataclass(eq=False, order=False)
+@dataclass
 class Schedule(Generic[T]):
+    name: str
     start_value: float
     min_value: float
     n_steps: int
 
-    def __post_init__(self):
+
+    def __init__(self, start_value: float, min_value: float, n_steps: int):
+        self.start_value = start_value
+        self.min_value = min_value
+        self.n_steps = n_steps
+        self.name = self.__class__.__name__
         self.current_step = 0
 
     @abstractmethod
-    def update(self, step: int = None):
+    def update(self, step: Optional[int]=None):
         """Update the value of the schedule. Force a step if given."""
 
     @property
@@ -103,7 +109,7 @@ class LinearSchedule(Schedule):
         self.decrease = (self.start_value - self.min_value) / self.n_steps
         self.current_value = self.start_value
 
-    def update(self, step=None):
+    def update(self, step: Optional[int]=None):
         if step is None:
             self.current_step += 1
             self.current_value = max(self.value - self.decrease, self.min_value)
@@ -130,7 +136,7 @@ class ExpSchedule(Schedule):
         self.base = self.min_value / self.start_value
         self.last_update_step = self.n_steps - 1
 
-    def update(self, step=None):
+    def update(self, step: Optional[int]=None):
         if step is not None:
             raise NotImplementedError("ExpSchedule does not support direct step updates")
         if self.current_step >= self.last_update_step:
@@ -151,10 +157,6 @@ class ConstantSchedule(Schedule):
 
     def update(self, step=None):
         pass
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        return cls(data["start_value"])
 
     @property
     def value(self) -> float:

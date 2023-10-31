@@ -1,6 +1,9 @@
 import os
 import shutil
 import polars as pl
+import json
+from typing import Optional
+from serde.json import to_json
 from dataclasses import dataclass
 from rlenv.models import Metrics
 from marl.utils import CorruptExperimentException
@@ -11,18 +14,29 @@ from marl.logging.ws_logger import WSLogger
 @dataclass
 class Run:
     rundir: str
+    seed: int
+    pid: Optional[int]
+    port: Optional[int]
+    current_step: int
 
-    def __init__(self, rundir: str, train_df: pl.DataFrame, test_df: pl.DataFrame, train_data: pl.DataFrame):
+    def __init__(self, rundir: str, seed: int, train_df: pl.DataFrame, test_df: pl.DataFrame, train_data: pl.DataFrame):
         """This constructor is not meant to be called directly. Use the static methods `create` or `load` instead."""
         self.rundir = rundir
+        self.seed = seed
         self.train_metrics = train_df
         self.test_metrics = test_df
         self.training_data = train_data
+        self.port = self.get_port()
+        self.pid =  self.get_pid()
+        self.current_step = self.get_current_step()
 
     @staticmethod
-    def create(rundir: str):
+    def create(rundir: str, seed: int):
         os.makedirs(rundir, exist_ok=True)
-        return Run(rundir, pl.DataFrame(), pl.DataFrame(), pl.DataFrame())
+        run = Run(rundir, seed, pl.DataFrame(), pl.DataFrame(), pl.DataFrame())
+        with open(os.path.join(rundir, "run.json"), "w") as f:
+            f.write(to_json(run))
+        return run
 
     @staticmethod
     def load(rundir: str):
@@ -38,7 +52,12 @@ class Run:
             train_data = pl.read_csv(os.path.join(rundir, "training_data.csv"))
         except (pl.NoDataError, FileNotFoundError):
             train_data = pl.DataFrame()
-        return Run(rundir, train_metrics, test_metrics, train_data)
+        try:
+            with open(os.path.join(rundir, "run.json"), "r") as f:
+                seed = json.load(f)["seed"]
+        except:
+            seed = 0
+        return Run(rundir, seed, train_metrics, test_metrics, train_data)
 
     @property
     def is_running(self) -> bool:
@@ -78,17 +97,17 @@ class Run:
         except pl.ColumnNotFoundError:
             return []
 
-    @property
-    def current_step(self) -> int:
+    
+    def get_current_step(self) -> int:
         try:
             self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
             max_train = self.train_metrics["time_step"].max()
-        except pl.NoDataError:
+        except (pl.NoDataError, FileNotFoundError):
             max_train = 0
         try:
             self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
             max_test = self.test_metrics["time_step"].max()
-        except pl.NoDataError:
+        except (pl.NoDataError, FileNotFoundError):
             max_test = 0
         return max(max_train, max_test)
 
@@ -123,10 +142,4 @@ class Run:
             os.remove(pid_file)
             return None
 
-    def to_json(self) -> dict[str, str | int | None]:
-        return {
-            "rundir": self.rundir, 
-            "port": self.get_port(), 
-            "pid": self.get_pid(),
-            "current_step": self.current_step,
-        }
+    

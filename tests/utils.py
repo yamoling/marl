@@ -1,5 +1,17 @@
-from rlenv.models import RLEnv, Episode, Transition, EpisodeBuilder
+from rlenv.models import RLEnv, Episode, Transition, EpisodeBuilder, Observation, DiscreteActionSpace
 
+import torch
+import numpy as np
+
+
+def almost_equal(a, b, eps=1e-5):
+    return abs(a - b) < eps
+
+def parameters_equal(p1: list[torch.nn.Parameter], p2: list[torch.nn.Parameter]) -> bool:
+    for a, b, in zip(p1, p2):
+        if not torch.equal(a, b):
+            return False
+    return  True
 
 def generate_episode(env: RLEnv) -> Episode:
     obs = env.reset()
@@ -12,10 +24,6 @@ def generate_episode(env: RLEnv) -> Episode:
     return episode.build()
 
 
-
-import numpy as np
-from rlenv import RLEnv, Observation
-from rlenv.models import DiscreteActionSpace
 
 
 class MockEnv(RLEnv[DiscreteActionSpace]):
@@ -47,7 +55,7 @@ class MockEnv(RLEnv[DiscreteActionSpace]):
 
     def observation(self):
         obs_data = np.array([np.arange(self.t + agent, self.t + agent + MockEnv.OBS_SIZE) for agent in range(self.n_agents)])
-        return Observation(obs_data, self.get_avail_actions(), self.get_state())
+        return Observation(obs_data, self.available_actions(), self.get_state())
 
     def get_state(self):
         return np.array([])

@@ -23,7 +23,7 @@ def create(experiment_dir: str):
         mixer=mixers.VDN(env.n_agents),
         ir_module=ir,
         double_qlearning=True,
-        update_frequency="step",
+        train_every="step",
         train_interval=5,
     )
     dqn = DQN(trainer)

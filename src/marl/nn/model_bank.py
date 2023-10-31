@@ -5,7 +5,7 @@ import torch
 from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
 
 
-@dataclass(unsafe_hash=True, repr=False)
+@dataclass(unsafe_hash=True)
 class MLP(LinearNN):
     """
     Multi layer perceptron
@@ -120,7 +120,7 @@ class CNN(LinearNN):
     """
 
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int]|None, output_shape: tuple[int]) -> None:
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(self.input_shape)} here)"
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         assert extras_shape is None or len(extras_shape) == 1, f"CNN can only handle 1D extras shapes ({len(extras_shape)} here)"
         assert len(output_shape) == 1, f"CNN can only handle 1D input shapes ({len(output_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)

@@ -7,30 +7,35 @@ import torch
 
 from rlenv.models import RLEnv
 
-O = TypeVar("O")
+Output = TypeVar("Output")
 
-@dataclass(repr=False)
-class NN(torch.nn.Module, ABC, Generic[O]):
+def randomize(init_fn, nn: torch.nn.Module):
+    for param in nn.parameters():
+        if len(param.data.shape) < 2:
+            init_fn(param.data.view(1, -1))
+        else:
+            init_fn(param.data)
+
+@dataclass
+class NN(torch.nn.Module, ABC, Generic[Output]):
     """Parent class of all neural networks"""
     input_shape: tuple[int, ...]
     extras_shape: Optional[tuple[int, ...]]
     output_shape: tuple[int, ...]
+    name: str
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
         torch.nn.Module.__init__(self)
         self.input_shape = tuple(input_shape)
         self.extras_shape = tuple(extras_shape)
         self.output_shape = tuple(output_shape)
+        self.name = self.__class__.__name__
         
 
     @abstractmethod
-    def forward(self, x: torch.Tensor) -> O:
+    def forward(self, x: torch.Tensor) -> Output:
         """Forward pass"""
 
-    @property
-    def name(self) -> str:
-        return self.__class__.__name__
-    
     @property
     def device(self) -> torch.device:
         """Returns the device of the model"""
@@ -39,16 +44,16 @@ class NN(torch.nn.Module, ABC, Generic[O]):
     def randomize(self, method: Literal["xavier", "orthogonal"]="xavier"):
         match method:
             case "xavier": 
-                init = torch.nn.init.xavier_uniform_
+                randomize(torch.nn.init.xavier_uniform_, self)
             case "orthogonal": 
-                init = torch.nn.init.orthogonal_
+                randomize(torch.nn.init.orthogonal_, self)
             case _: 
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
-        for param in self.parameters():
-            if len(param.data.shape) < 2:
-                init(param.data.view(1, -1))
-            else:
-                init(param.data)
+        # for param in self.parameters():
+        #     if len(param.data.shape) < 2:
+        #         init(param.data.view(1, -1))
+        #     else:
+        #         init(param.data)
     
     @classmethod
     def from_env(cls, env: RLEnv):

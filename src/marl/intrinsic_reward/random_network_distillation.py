@@ -1,43 +1,57 @@
 from dataclasses import dataclass
 from typing import Optional
+from serde import serde
 
 import torch
 import os
 
 from marl.models import Batch
+from marl.nn import randomize
 from marl.nn.model_bank import CNN
-from marl.utils import get_device
 from marl.utils.schedule import ConstantSchedule, Schedule
 from marl.utils.stats import RunningMeanStd
 
 from .ir_module import IRModule
 
 
+@serde
 @dataclass
 class RandomNetworkDistillation(IRModule):
     obs_shape: tuple[int, ...]
     extras_shape: tuple[int, ...]
-    features_size: int = 512
-    lr: float = 1e-4
-    clip_value: float = 1
-    update_ratio: float = 0.25
-    running_mean_warmup: int = 64
-    ir_weight: Optional[Schedule] = None
+    features_size: int
+    lr: float
+    clip_value: float
+    update_ratio: float
+    running_mean_warmup: int
+    ir_weight: Schedule
 
-    def __post_init__(self):
+    def __init__(self, obs_shape: tuple[int, ...], extras_shape: tuple[int, ...], feature_size: int=512, lr:float=1e-4, clip_value: float=1.0, update_ratio: float=0.25, running_mean_warmup: int=64, ir_weight: Optional[Schedule]=None):
+        super().__init__()
+        self.obs_shape = obs_shape
+        self.extras_shape = extras_shape
+        self.features_size = feature_size
+        self.lr = lr
+        self.clip_value = clip_value
+        self.update_ratio = update_ratio
+        self.running_mean_warmup = running_mean_warmup
+        if ir_weight is None:
+            ir_weight = ConstantSchedule(1.0)
+        self.ir_weight = ir_weight
+
         self.target = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
         # Add an extra layer to the predictor to make it more difficult to predict the target
         self.predictor_head = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
         self.predictor_tail = torch.nn.Sequential(torch.nn.ReLU(), torch.nn.Linear(512, self.features_size))
         self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=self.lr)
-        if self.ir_weight is None:
-            self.ir_weight = ConstantSchedule(1.0)
 
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_reward = RunningMeanStd()
         self._running_obs = RunningMeanStd(shape=self.obs_shape)
         self._update_count = 0
         self._warmup_duration = self.running_mean_warmup
+
+
 
     def compute(self, batch: Batch) -> torch.Tensor:
         self._update_count += 1
@@ -83,6 +97,10 @@ class RandomNetworkDistillation(IRModule):
     def update(self):
         pass
 
+    def randomize(self):
+        self.target.randomize()
+        self.predictor_head.randomize()
+        randomize(torch.nn.init.xavier_uniform_, self.predictor_tail)
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)

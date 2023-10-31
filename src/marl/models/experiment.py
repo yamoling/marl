@@ -6,7 +6,8 @@ import pickle
 from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
-from typing import Literal, Optional
+from serde import serde
+from typing import Literal
 
 
 import polars as pl
@@ -17,6 +18,7 @@ from marl.qlearning import IDeepQLearning
 from marl.utils import encode_b64_image, exceptions, stats
 
 from .algo import RLAlgo
+from .trainer import Trainer
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
 from .run import Run
 from .runner import Runner
@@ -31,11 +33,12 @@ class Dataset:
     std: list[float]
     ci95: list[float]
 
-
+@serde
 @dataclass
 class Experiment:
     logdir: str
     algo: RLAlgo
+    trainer: Trainer
     env: RLEnv
     test_interval: int
     n_steps: int
@@ -43,8 +46,9 @@ class Experiment:
     runs: list[Run]
     
 
-    def __init__(self, logdir: str, algo: RLAlgo, env: RLEnv, test_interval: int, n_steps: int, creation_timestamp: int):
+    def __init__(self, logdir: str, algo: RLAlgo, trainer: Trainer, env: RLEnv, test_interval: int, n_steps: int, creation_timestamp: int):
         self.logdir = logdir
+        self.trainer = trainer
         self.algo = algo
         self.env = env
         self.test_interval = test_interval
@@ -58,6 +62,7 @@ class Experiment:
     def create(
         logdir: str,
         algo: RLAlgo,
+        trainer: Trainer,
         env: RLEnv,
         n_steps: int,
         test_interval: int,
@@ -77,6 +82,7 @@ class Experiment:
             experiment = Experiment(
                 logdir,
                 algo=algo,
+                trainer=trainer,
                 env=env,
                 n_steps=n_steps,
                 test_interval=test_interval,
@@ -133,26 +139,14 @@ class Experiment:
             return None
         return Experiment.find_experiment_directory(parent)
 
-    # def as_dict(self) -> dict[str, Any]:
-    #     return {
-    #         "algorithm": self.algo.name,
-    #         "env": {"name": self.env.name, "action_meanings": self.env.action_meanings},
-    #         "logdir": self.logdir,
-    #         "n_steps": self.n_steps,
-    #         "test_interval": self.test_interval,
-    #         "creation_timestamp": self.creation_timestamp,
-    #         "runs": [run.to_json() for run in self.runs],
-    #     }
-
     def create_runner(
         self,
         *loggers: Literal["web", "tensorboard", "csv"],
-        rundir: Optional[str] = None,
+        seed: int,
         quiet=True,
     ) -> Runner:
-        if rundir is None:
-            rundir = os.path.join(self.logdir, f"run_{time.time()}")
-            os.makedirs(rundir, exist_ok=False)
+        rundir = os.path.join(self.logdir, f"run_{time.time()}")
+        os.makedirs(rundir, exist_ok=False)
         if len(loggers) == 0:
             loggers = "csv", 
         logger_list = []
@@ -168,15 +162,22 @@ class Experiment:
                     raise ValueError(f"Unknown logger: {other}")
         logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
 
+        import marl
+        marl.seed(seed)
+        self.env.seed(seed)
+        self.algo.randomize()
+        self.trainer.randomize()
+        
         runner = Runner(
-            env=deepcopy(self.env), 
-            algo=deepcopy(self.algo), 
+            env=self.env, 
+            algo=self.algo, 
+            trainer=self.trainer,
             logger=logger, 
             test_interval=self.test_interval, 
             n_steps=self.n_steps, 
             test_env=deepcopy(self.env)
         )
-        self.runs.append(Run.create(rundir))
+        self.runs.append(Run.create(rundir, seed))
         return runner
 
     def stop_runner(self, rundir: str):
@@ -188,25 +189,6 @@ class Experiment:
                 return
         # If the run was not found, raise an error
         raise ValueError("This rundir does not exist.")
-
-    def restore_runner(self, rundir: str):
-        """Retrieve the runner state and restart it if it is not running"""
-        raise NotImplementedError()
-        run = Run.load(rundir)
-        if run.is_running:
-            raise ValueError(f"{rundir} is already running.")
-        runner = self.create_runner(
-            "csv",
-            "web",
-            "tensorboard",
-        )
-        runner._algo.load(run.latest_checkpoint)
-        try:
-            shutil.copytree(run.latest_checkpoint, rundir)
-        except FileExistsError:
-            pass
-        runner._start_step = run.current_step
-        return runner
 
     def delete_run(self, rundir: str):
         for i, run in enumerate(self.runs):
@@ -230,7 +212,10 @@ class Experiment:
         if len(dfs) == 0:
             return [], []
         df = pl.concat(dfs)
-        df = df.drop("timestamp_sec")
+        try:
+            df = df.drop("timestamp_sec")
+        except pl.SchemaFieldNotFoundError:
+            pass
         df_stats = stats.stats_by("time_step", df, len(dfs))
         res = []
         for col in df.columns:
@@ -280,7 +265,7 @@ class Experiment:
         # Actions must be loaded because of the stochasticity of the policy
         with open(os.path.join(episode_folder, "actions.json"), "r") as a:
             actions = json.load(a)
-        self.algo = pickle.load(open(os.path.join(episode_folder, "algo.pkl"), "rb"))
+        self.algo.load(os.path.dirname(episode_folder))
         env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
         obs = env.reset()
         values = []

@@ -1,11 +1,19 @@
 from abc import ABC, abstractmethod
 from typing_extensions import Self
 import torch
+from dataclasses import dataclass
+from serde import serde
 
 from marl.models import Batch
 
+@serde
+@dataclass
 class IRModule(ABC):
     """Intrinsic Reward Module."""
+    name: str
+
+    def __init__(self):
+        self.name = self.__class__.__name__
     
 
     @abstractmethod
@@ -25,4 +33,8 @@ class IRModule(ABC):
 
     def to(self, device: torch.device) -> Self:
         """Move the IR Module to the given device."""
+        raise NotImplementedError()
+    
+    def randomize(self):
+        """Randomize the Intrinsic Reward Module."""
         raise NotImplementedError()

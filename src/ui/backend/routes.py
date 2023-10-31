@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from serde.json import to_json
 from http import HTTPStatus
 from flask import request
 from .messages import (
@@ -82,7 +83,12 @@ def create_experiment():
 @app.route("/experiment/list")
 def list_experiments():
     try:
-        return [asdict(e) for e in state.list_experiments().values()]
+        response = app.response_class(
+            response=to_json(list(state.list_experiments().values())),
+            status=200,
+            mimetype='application/json'
+        )
+        return response
     except ExperimentVersionMismatch as e:
         print(e)
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
@@ -118,7 +124,7 @@ def unload_experiment(logdir: str):
 @app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
 def delete_experiment(logdir: str):
     try:
-        state.delete_experiment(logdir)
+        #state.delete_experiment(logdir)
         return ""
     except ValueError as e:
         return str(e), HTTPStatus.BAD_REQUEST

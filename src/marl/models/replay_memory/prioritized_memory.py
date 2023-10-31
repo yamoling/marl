@@ -90,16 +90,3 @@ class PrioritizedMemory(ReplayMemory[T]):
         for idx, priority in zip(batch.sample_indices, priorities):
             self.tree.update(idx, priority.item())
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]):
-        from marl.models import replay_memory
-        from marl.utils import schedule
-
-        data["memory"] = replay_memory.load(data["memory"])
-        data["alpha"] = schedule.from_dict(data["alpha"])
-        data["beta"] = schedule.from_dict(data["beta"])
-        try:
-            data.pop("max_size")
-        except KeyError:
-            pass
-        return super().from_dict(data)

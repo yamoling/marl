@@ -1,6 +1,7 @@
 
-from . import dqn_trainer, nodes
+from . import nodes
+from .trainable import Trainable
 from .dqn_trainer import DQNTrainer
 
 
-__all__ = ["nodes", "DQNTrainer", "register", "from_dict"]
+__all__ = ["nodes", "DQNTrainer"]

@@ -8,7 +8,7 @@ import marl
 def set_run_arguments(parser: ArgumentParser):
     parser.add_argument("logdir", type=str, help="The experiment directory")
     parser.add_argument("--n_runs", type=int, default=1, help="Number of runs to create")
-    parser.add_argument("--seed", type=int, default=0, help="The seed of the first run. seed + <run_num> will be used for the other runs")
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--n_tests", type=int, default=5)
     parser.add_argument("--quiet", action="store_true", default=False)
     parser.add_argument("--loggers", type=str, choices=["csv", "tensorboard", "web"], default=["csv"], nargs="*")
@@ -53,8 +53,9 @@ def parse_args():
 def new(args: Namespace):
     match args.created_object:
         case "run":
-            seed = args.seed
-            for i in range(args.n_runs - 1):
+            # Load the experiment from disk and start a child process for each run.
+            # The run with seed=0 is spawned in the main process.
+            for i in range(1, args.n_runs):
                 seed = args.seed + i
                 if os.fork() == 0:
                     import time
@@ -64,7 +65,7 @@ def new(args: Namespace):
                     args.quiet = True
                     create_run(args, seed)
                     exit(0)
-            create_run(args, seed + args.n_runs)
+            create_run(args, args.seed)
         case "experiment":
             raise NotImplementedError("Not implemented yet")
 
@@ -76,11 +77,8 @@ def serve(args: Namespace):
 
 
 def create_run(args: Namespace, seed: int):
-    marl.seed(seed)
     experiment = marl.Experiment.load(args.logdir)
-    runner = experiment.create_runner(*args.loggers, quiet=args.quiet)
-    runner._env.seed(seed)
-    runner._test_env.seed(seed)
+    runner = experiment.create_runner(*args.loggers, seed=seed, quiet=args.quiet)
     runner.to(args.device)
     runner.train(n_tests=args.n_tests)
 
