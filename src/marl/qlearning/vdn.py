@@ -9,7 +9,7 @@ from rlenv import Observation
 from marl.models import EpisodeBatch, TransitionBatch
 from marl.nn import loss_functions
 from .rdqn import RDQN
-from .dqn import DQN
+from .dqn_old import DQN
 
 
 class RecurrentVDN(RDQN):

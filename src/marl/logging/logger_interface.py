@@ -3,11 +3,11 @@ from pprint import pprint
 import os
 import shutil
 import time
-from rlenv.models import Metrics
 
 
 class Logger(ABC):
     """Logging interface"""
+
     def __init__(self, logdir: str, quiet=False) -> None:
         super().__init__()
         if logdir is None:
@@ -22,21 +22,20 @@ class Logger(ABC):
         self.quiet = quiet
 
     @abstractmethod
-    def log(self, category: str, data: Metrics, time_step: int):
+    def log(self, category: str, data: dict[str, float], time_step: int):
         """Log the data."""
 
-    def log_print(self, category: str, data: Metrics, time_step: int):
+    def log_print(self, category: str, data: dict[str, float], time_step: int):
         """Log and print the data."""
         self.log(category, data, time_step)
         if not self.quiet:
             self.print(category, data)
 
-    def print(self, category: str, data: Metrics):
+    def print(self, category: str, data: dict[str, float]):
         """Add the data to the printing queue."""
         if not self.quiet:
             pprint(f"{category}: {data}")
-    
+
     @abstractmethod
     def close(self):
         """Close the logger"""
-

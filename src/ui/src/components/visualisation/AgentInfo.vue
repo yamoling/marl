@@ -1,20 +1,17 @@
 <template>
     <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
-        Obs type = {{ obsType }}
-        <RelativePositions v-if="obsType == 'RELATIVE_POSITIONS'" :extras="extras" :obs="obs1D" />
-        <Layered v-else-if="obsType == 'LAYERED'" :obs="obsLayered" :extras="extras" />
-        <Flattened v-else-if="obsType == 'FLATTENED'" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
-        <Features v-else-if="obsType == 'FEATURES'" :obs="obs1D" :extras="extras" />
-        <Features2 v-else-if="obsType == 'FEATURES2'" :obs="obs1D" :extras="extras" />
-        <p v-else> No preview available for obs type {{ obsType }}</p>
+        Obs shape = {{ obsShape }}
+        <Flattened v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
+        <Layered v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras" />
+        <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
                     <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5 }"
-                        v-for="(meaning, action) in experiment.env.action_meanings">
+                        v-for="(meaning, action) in experiment.env.action_space.action_names">
                         {{ meaning }}
                     </th>
                 </tr>
@@ -37,12 +34,10 @@
 import { computed } from "vue";
 import type Rainbow from "rainbowvis.js";
 import { ReplayEpisode } from "../../models/Episode";
-import RelativePositions from "./observation/RelativePositions.vue";
 import Layered from "./observation/Layered.vue";
 import Flattened from "./observation/Flattened.vue";
-import { ExperimentInfo } from "../../models/Infos";
-import Features from "./observation/Features.vue";
-import Features2 from "./observation/Features2.vue";
+import { Experiment } from "../../models/Experiment";
+import { computeShape } from "../../utils";
 
 
 
@@ -51,14 +46,15 @@ const props = defineProps<{
     agentNum: number
     currentStep: number
     rainbow: Rainbow
-    experiment: ExperimentInfo
+    experiment: Experiment
 }>();
 
+const obsShape = computed(() => {
+    if (props.episode?.episode == null) return [];
+    return computeShape(props.episode.episode.obs[0][0])
+});
+const obsDimensions = computed(() => obsShape.value.length);
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
-
-const obsType = computed(() => props.experiment.env.DynamicLaserEnv?.obs_type
-    || props.experiment.env.StaticLaserEnv?.obs_type
-    || props.experiment.env.LLE?.obs_type);
 
 const obs = computed(() => {
     if (props.episode == null) return [];

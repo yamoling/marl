@@ -1,22 +1,22 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { HTTP_URL } from "../constants";
+import { wsURL } from "../constants";
 import { SystemInfo } from "../models/SystemInfo";
 
 export const useSystemStore = defineStore("SystemStore", () => {
     const systemInfo = ref(null as SystemInfo | null);
 
 
-    async function updateSystemInfo() {
-        try {
-            const response = await fetch(`${HTTP_URL}/system/usage`);
-            systemInfo.value = await response.json();
-            setTimeout(updateSystemInfo, 2000);
-        } catch (e) {
+    function updateSystemInfo() {
+        const ws = new WebSocket(wsURL(5001));
+        ws.onmessage = (event) => {
+            systemInfo.value = JSON.parse(event.data) as SystemInfo;
+        }
+        ws.onclose = () => {
+            console.log("Lost system info websocket connection, retrying in 10 seconds")
             systemInfo.value = null;
             setTimeout(updateSystemInfo, 10_000);
         }
-
     }
     updateSystemInfo();
 

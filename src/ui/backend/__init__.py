@@ -1,18 +1,16 @@
 from flask import Flask
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder="/workspaces/marl/src/ui/dist/", static_url_path='')
+app = Flask(__name__, static_folder="/workspaces/marl/src/ui/dist/", static_url_path="")
 CORS(app)
 
-from .server_state import ServerState
-
-state = ServerState()
 
 def run(port=5000, debug=False):
     from . import routes
+    from . import system_info
+
     try:
-        import os
-        print(os.getpid())
+        system_info.run(port + 1)
         app.run(port=port, debug=debug)
     except KeyboardInterrupt:
         print("Shutting down server...")

@@ -3,7 +3,7 @@ import { Metrics } from "./Metric"
 export interface ReplayEpisodeSummary {
     name: string,
     directory: string,
-    metrics: Metrics,
+    metrics: object,
 }
 
 export interface ReplayEpisode {

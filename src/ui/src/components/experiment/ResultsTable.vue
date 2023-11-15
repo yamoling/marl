@@ -7,16 +7,16 @@
                     <thead>
                         <tr>
                             <th class="px-1"> # Step </th>
-                            <th v-for="col in columns" class="text-capitalize"> {{ col.replaceAll('_', ' ') }}</th>
+                            <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
+                            }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(time_step, i) in experiment.test_metrics.time_steps"
-                            @click="() => onTestClicked(time_step)"
+                        <tr v-for="(time_step, i) in results.ticks" @click="() => onTestClicked(time_step)"
                             :class="(time_step == selectedTimeStep) ? 'selected' : ''">
                             <td> {{ time_step }} </td>
-                            <td v-for="(col, j) in columns">
-                                {{ experiment.test_metrics.datasets[j].mean[i]?.toFixed(3) }}
+                            <td v-for="ds in results.test">
+                                {{ ds.mean[i]?.toFixed(3) }}
                             </td>
                         </tr>
                     </tbody>
@@ -29,11 +29,8 @@
                 <table class="table table-sm table-striped table-hover">
                     <thead>
                         <tr>
-                            <th> # Test </th>
-                            <th> Length </th>
-                            <th> Score </th>
-                            <th> Gems </th>
-                            <th> Elevator </th>
+                            <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
+                            }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -43,11 +40,10 @@
                             </td>
                         </tr>
                         <tr v-for="test in testsAtStep" @click="() => emits('view-episode', test.directory)">
-                            <td> {{ test.name }} </td>
-                            <td> {{ test.metrics.episode_length }} </td>
-                            <td> {{ test.metrics.score.toFixed(3) }} </td>
-                            <td> {{ test.metrics.gems_collected }} </td>
-                            <td> {{ test.metrics.in_elevator }} </td>
+                            <td>{{ test.metrics }}</td>
+                            <td v-for="col in test.metrics">
+                                {{ test.metrics[col] }}
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -56,39 +52,35 @@
     </div>
 </template>
 <script setup lang="ts">
-import { ref } from 'vue';
-import type { ReplayEpisodeSummary } from "../models/Episode";
-import { Experiment } from '../models/Experiment';
-import { useExperimentStore } from '../stores/ExperimentStore';
-import { computed } from '@vue/reactivity';
+import { computed, ref } from 'vue';
+import type { ReplayEpisodeSummary } from "../../models/Episode";
+import { Experiment, ExperimentResults } from '../../models/Experiment';
+import { useExperimentStore } from '../../stores/ExperimentStore';
+import { useResultsStore } from '../../stores/ResultsStore';
 
 
 const props = defineProps<{
     experiment: Experiment
+    results: ExperimentResults
 }>();
 
-const store = useExperimentStore();
 const selectedTimeStep = ref(null as number | null);
-const testsAtStep = ref(null as ReplayEpisodeSummary[] | null);
-const columns = computed(() => props.experiment.test_metrics.datasets.map(d => d.label));
-
+const testsAtStep = ref([] as ReplayEpisodeSummary[]);
+const labels = computed(() => props.results.test.map(d => d.label));
+const resultsStore = useResultsStore();
 
 
 async function onTestClicked(time_step: number) {
     selectedTimeStep.value = time_step;
-    testsAtStep.value = null;
+    testsAtStep.value = [];
     try {
-        const tests = await store.getTestEpisodes(props.experiment.logdir, time_step);
-        testsAtStep.value = tests;
+        testsAtStep.value = await resultsStore.getTestsResultsAt(props.experiment.logdir, time_step);
     } catch (e) {
         selectedTimeStep.value = null;
         alert("Failed to load test episodes");
     }
 }
 
-async function loadModel() {
-    alert("TODO: Load model")
-}
 
 /*
 function getScollProgress(e: UIEvent): { downScrollProgress: number, upScrollProgress: number } {

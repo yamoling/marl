@@ -1,33 +1,30 @@
 import os
-import rlenv
+import json
 import shutil
 from marl.models import Experiment, ReplayEpisodeSummary, Run, ReplayEpisode
-import marl
 
-from .messages import ExperimentConfig, RunConfig, TrainConfig
+from .messages import RunConfig, TrainConfig
 
 
 class ServerState:
-    def __init__(self, logdir="logs") -> None:
+    def __init__(self, logdir="logs"):
         self.experiments: dict[str, Experiment] = {}
         self.logdir = logdir
 
     def list_experiments(self):
-        experiments: dict[str, Experiment] = {}
+        experiments = []
         for directory in os.listdir(self.logdir):
             directory = os.path.join(self.logdir, directory)
             try:
-                experiments[directory] = Experiment.load(directory)
+                experiments.append(Experiment.get_parameters(directory))
             except FileNotFoundError:
                 # Not an experiment directory, ignore
                 pass
         return experiments
 
-    def load_experiment(self, logdir: str) -> Experiment:
-        # Reload the experiment even if it is already in memory
-        experiment = Experiment.load(logdir)
-        self.experiments[logdir] = experiment
-        return experiment
+    def get_experiment_parameters(self, logdir: str) -> dict:
+        with open(os.path.join(logdir, "experiment.json"), "r") as f:
+            return json.load(f)
 
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self.experiments.pop(logdir, None)
@@ -42,7 +39,6 @@ class ServerState:
             shutil.rmtree(logdir)
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
-
 
     def create_runner(self, logdir: str, run_config: RunConfig):
         """Creates a runner for the given experiment and returns their loggers"""
@@ -66,15 +62,6 @@ class ServerState:
     def delete_runner(self, rundir: str):
         shutil.rmtree(rundir)
 
-    def get_test_episodes_at(
-        self, logdir: str, time_step: int
-    ) -> list[ReplayEpisodeSummary]:
-        if logdir not in self.experiments:
-            experiment_dir = Experiment.find_experiment_directory(logdir)
-            self.load_experiment(experiment_dir)
-        res = self.experiments[logdir].get_test_episodes(time_step)
-        return res
-
     def get_runner_port(self, rundir: str) -> int:
         run = Run.load(rundir)
         return run.get_port()
@@ -89,24 +76,3 @@ class ServerState:
         if matching_experiment is None:
             raise ValueError(f"Could not find experiment for episode {episode_dir}")
         return matching_experiment.replay_episode(episode_dir)
-
-
-def _start_process_function(experiment: Experiment, run_config: RunConfig):
-    # os.setpgrp is used to prevent CTRL+C from killing the child process (but still terminate the server)
-    os.setpgrp()
-    runner = experiment.create_runner(seed=run_config.seed)
-    runner.train(n_tests=run_config.num_tests, quiet=True)
-
-
-def _restart_process_function(
-    experiment: Experiment, rundir: str, train_config: TrainConfig
-):
-    # os.setpgrp is used to prevent CTRL+C from killing the child process (but still terminate the server)
-    os.setpgrp()
-    runner = experiment.restore_runner(rundir)
-    runner.train(
-        n_steps=train_config.num_steps,
-        n_tests=train_config.num_tests,
-        test_interval=train_config.test_interval,
-        quiet=True,
-    )

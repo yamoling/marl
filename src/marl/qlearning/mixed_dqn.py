@@ -10,7 +10,7 @@ from marl.policy import Policy
 from marl.utils import defaults_to, get_device
 from copy import deepcopy
 
-from .dqn import DQN
+from .dqn_old import DQN
 from .mixers import Mixer
 
 

@@ -1,31 +1,57 @@
-import { ExperimentInfo } from "./Infos"
+import { Algorithm } from "./Algorithm"
+import { Trainer } from "./Trainer"
 
-export interface Experiment extends ExperimentInfo {
-    colour: string
-    test_metrics: {
-        time_steps: number[]
-        datasets: Dataset[]
-    }
-    train_metrics: {
-        time_steps: number[]
-        datasets: Dataset[]
+export interface Env {
+    name: string
+    n_agents: number
+    n_actions: number
+    action_space: {
+        action_names: string[]
     }
 }
 
+export interface Experiment {
+    logdir: string
+    algo: Algorithm
+    trainer: Trainer
+    env: Env
+    test_interval: number
+    n_steps: number
+    creation_timestamp: number
+    runs: Run[]
+}
+
+export interface Run {
+    rundir: string
+    port: number | null
+    current_step: number
+    pid: number | null
+}
+
+export interface ExperimentResults {
+    logdir: string
+    colour: string
+    ticks: number[]
+    /** Training datasets*/
+    train: Dataset[]
+    /** Test datasets*/
+    test: Dataset[]
+}
 
 export interface Dataset {
     label: string
-    ci95: number[]
+    colour: string
     mean: number[]
     std: number[]
     min: number[]
     max: number[]
-    colour: string
+    ci95: number[]
 }
 
-export function toCSV(datasets: readonly Dataset[], ticks: number[]) {
+
+export function toCSV(datasets: readonly Dataset[], metric: string, ticks: number[]) {
     const csv = []
-    const firstLine = "time_step," + datasets.map(ds => `${ds.label}_mean,${ds.label}_plus_std,${ds.label}_minus_std,${ds.label}_plus95,${ds.label}_minus95`).join(",");
+    const firstLine = "time_step," + datasets.map(ds => `${metric}_mean,${metric}_plus_std,${metric}_minus_std,${metric}_plus95,${metric}_minus95`).join(",");
     csv.push(firstLine);
     for (let i = 0; i < ticks.length; i++) {
         const x = ticks[i];

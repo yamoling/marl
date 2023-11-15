@@ -11,6 +11,7 @@ import torch
 @dataclass
 class Trainer(ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
+    name: str
     update_interval: int
     """
     How often to update the algorithm. 
@@ -25,7 +26,7 @@ class Trainer(ABC):
     def __init__(self, update_type: Literal["step", "episode"], update_interval: int):
         assert update_type in ["step", "episode"]
         assert update_interval > 0
-        self.update_after_each = update_type
+        self.name = self.__class__.__name__
         self.update_interval = update_interval
         self.update_on_steps = update_type == "step"
         self.update_on_episodes = update_type == "episode"

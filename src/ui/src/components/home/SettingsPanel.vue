@@ -37,30 +37,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { useExperimentStore } from '../../stores/ExperimentStore';
+import { ref, watch } from 'vue';
 
-const store = useExperimentStore();
 const testOrTrain = ref<"Test" | "Train">("Test");
 const smoothing = ref(0.0);
-const selectedMetrics = ref<string[]>([]);
-const metrics = computed(() => {
-    const m = new Set<string>();
-    if (testOrTrain.value === "Train") {
-        store.experiments.forEach(e => e.train_metrics.datasets.forEach(ds => m.add(ds.label)));
-    } else {
-        store.experiments.forEach(e => e.test_metrics.datasets.forEach(ds => m.add(ds.label)));
-    }
-    if (selectedMetrics.value.length == 0 && m.has("score")) {
-        selectedMetrics.value = ["score"];
-        emits("change-selected-metrics", selectedMetrics.value);
-    }
-    return m;
-});
+const selectedMetrics = ref<string[]>(["score"]);
+
+
+defineProps<{
+    metrics: Set<string>
+}>();
+
+
 const emits = defineEmits<{
     (event: "change-type", value: typeof testOrTrain.value): void
-    (event: "change-smooting", value: typeof smoothing.value): void
-    (event: "change-selected-metrics", value: typeof selectedMetrics.value): void
+    (event: "change-smooting", value: number): void
+    (event: "change-selected-metrics", value: string[]): void
 }>();
 
 

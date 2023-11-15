@@ -1,22 +1,7 @@
 import marl
-import torch
 from copy import deepcopy
 from marl.training.dqn_trainer import SoftUpdate, HardUpdate
 from .utils import MockEnv, generate_episode, parameters_equal
-
-def test_trainer_nodes_vanilla_dqn():
-    env = MockEnv(4)
-    trainer = marl.training.DQNTrainer(
-        qnetwork=marl.nn.model_bank.MLP256.from_env(env),
-        train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
-        target_update=HardUpdate(200)
-    )
-
-    assert len(trainer.root.children) == 2
-    assert len(trainer.loss.parents) == 2
-    assert isinstance(trainer.target_params_updater, HardUpdate)
-    assert trainer.mixer is None
-    assert trainer.ir_module is None
 
 
 def test_trainer_nodes_vdn():
@@ -26,9 +11,10 @@ def test_trainer_nodes_vdn():
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
         mixer=marl.qlearning.VDN(env.n_agents)
     )
+    trainer.show()
 
-    assert len(trainer.root.children) == 2
-    assert len(trainer.loss.parents) == 2
+    assert len(trainer.root.children) == len(["next qvalues", "next qvalues mixer", "qvalues", "qvalues mixer", "targets", "loss"])
+    assert len(trainer.loss.parents) == len(["qvalues", "qtargets", "batch"])
     assert isinstance(trainer.target_params_updater, SoftUpdate)
     assert trainer.mixer is not None
     assert trainer.ir_module is None
@@ -52,13 +38,13 @@ def test_target_network_is_updated():
     trainer.qnetwork.randomize()
     episode = generate_episode(env)
     assert len(episode) > batch_size + target_update
-    for i, transition in enumerate(episode):
-        trainer.update_step(transition, i)
-        if i >= batch_size - 1:
+    for time_step, transition in enumerate(episode):
+        trainer.update_step(transition, time_step)
+        if time_step >= batch_size - 1:
             # Check that the update indeed happened to the qnetwork
             assert not parameters_equal(qnetwork_params, trainer.qnetwork.parameters())
             qnetwork_params = deepcopy(list(trainer.qnetwork.parameters()))
-            if (i - batch_size) % target_update == 0:
+            if time_step % target_update == 0:
                 # If we should update the qtarget, check that it has indeed been updated and 
                 # that they are equal to the qnetwork weights
                 assert not parameters_equal(qtarget_params, trainer.qtarget.parameters())

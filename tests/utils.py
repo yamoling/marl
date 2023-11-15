@@ -63,6 +63,9 @@ class MockEnv(RLEnv[DiscreteActionSpace]):
     def render(self, mode: str = "human"):
         return
 
+    def seed(self, seed_value: int):
+        return
+
     def step(self, action):
         self.t += 1
         self.actions_history.append(action)

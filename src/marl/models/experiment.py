@@ -24,6 +24,7 @@ from .run import Run
 from .runner import Runner
 
 
+@serde
 @dataclass
 class Dataset:
     label: str
@@ -32,6 +33,16 @@ class Dataset:
     max: list[float]
     std: list[float]
     ci95: list[float]
+
+
+@serde
+@dataclass
+class ExperimentResults:
+    logdir: str
+    ticks: list[int]
+    train: list[Dataset]
+    test: list[Dataset]
+
 
 @serde
 @dataclass
@@ -44,7 +55,6 @@ class Experiment:
     n_steps: int
     creation_timestamp: int
     runs: list[Run]
-    
 
     def __init__(self, logdir: str, algo: RLAlgo, trainer: Trainer, env: RLEnv, test_interval: int, n_steps: int, creation_timestamp: int):
         self.logdir = logdir
@@ -56,7 +66,6 @@ class Experiment:
         self.creation_timestamp = creation_timestamp
         self.runs = []
         self.refresh_runs()
-        
 
     @staticmethod
     def create(
@@ -70,7 +79,7 @@ class Experiment:
         """Create a new experiment."""
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
-        
+
             # Remove the test and debug logs
         if logdir in ["logs/test", "logs/debug", "logs/tests"]:
             try:
@@ -86,7 +95,7 @@ class Experiment:
                 env=env,
                 n_steps=n_steps,
                 test_interval=test_interval,
-                creation_timestamp=int(time.time() * 1000)
+                creation_timestamp=int(time.time() * 1000),
             )
             experiment.save()
             return experiment
@@ -104,6 +113,32 @@ class Experiment:
             experiment: Experiment = pickle.load(f)
         experiment.refresh_runs()
         return experiment
+
+    @staticmethod
+    def get_parameters(logdir: str) -> dict:
+        """Get the parameters of an experiment."""
+        with open(os.path.join(logdir, "experiment.json"), "r") as f:
+            return json.load(f)
+
+    @staticmethod
+    def get_runs(logdir: str) -> list[Run]:
+        """Get the runs of an experiment."""
+        runs = []
+        for run in os.listdir(logdir):
+            if run.startswith("run_"):
+                try:
+                    runs.append(Run.load(os.path.join(logdir, run)))
+                except Exception:
+                    pass
+        return runs
+
+    @staticmethod
+    def get_tests_at(logdir: str, time_step: int) -> list[ReplayEpisodeSummary]:
+        runs = Experiment.get_runs(logdir)
+        summary = []
+        for run in runs:
+            summary += run.get_test_episodes(time_step)
+        return summary
 
     def save(self):
         """Save the experiment to disk."""
@@ -148,7 +183,7 @@ class Experiment:
         rundir = os.path.join(self.logdir, f"run_{time.time()}")
         os.makedirs(rundir, exist_ok=False)
         if len(loggers) == 0:
-            loggers = "csv", 
+            loggers = ("csv",)
         logger_list = []
         for logger in loggers:
             match logger:
@@ -163,19 +198,20 @@ class Experiment:
         logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
 
         import marl
+
         marl.seed(seed)
         self.env.seed(seed)
         self.algo.randomize()
         self.trainer.randomize()
-        
+
         runner = Runner(
-            env=self.env, 
-            algo=self.algo, 
+            env=self.env,
+            algo=self.algo,
             trainer=self.trainer,
-            logger=logger, 
-            test_interval=self.test_interval, 
-            n_steps=self.n_steps, 
-            test_env=deepcopy(self.env)
+            logger=logger,
+            test_interval=self.test_interval,
+            n_steps=self.n_steps,
+            test_env=deepcopy(self.env),
         )
         self.runs.append(Run.create(rundir, seed))
         return runner
@@ -207,7 +243,7 @@ class Experiment:
         return os.path.join(self.logdir, "test")
 
     @staticmethod
-    def _metrics(dfs: list[pl.DataFrame]) -> tuple[list[int], list[Dataset]]:
+    def compute_datasets(dfs: list[pl.DataFrame]) -> tuple[list[int], list[Dataset]]:
         dfs = [d for d in dfs if not d.is_empty()]
         if len(dfs) == 0:
             return [], []
@@ -216,7 +252,7 @@ class Experiment:
             df = df.drop("timestamp_sec")
         except pl.SchemaFieldNotFoundError:
             pass
-        df_stats = stats.stats_by("time_step", df, len(dfs))
+        df_stats = stats.stats_by("time_step", df)
         res = []
         for col in df.columns:
             if col == "time_step":
@@ -224,20 +260,35 @@ class Experiment:
             res.append(
                 Dataset(
                     label=col,
-                    mean=df_stats[f"mean_{col}"].to_list(),
-                    std=df_stats[f"std_{col}"].to_list(),
-                    min=df_stats[f"min_{col}"].to_list(),
-                    max=df_stats[f"max_{col}"].to_list(),
-                    ci95=df_stats[f"ci95_{col}"].to_list(),
+                    mean=df_stats[f"mean_{col}"],
+                    std=df_stats[f"std_{col}"],
+                    min=df_stats[f"min_{col}"],
+                    max=df_stats[f"max_{col}"],
+                    ci95=df_stats[f"ci95_{col}"],
                 )
             )
         return df_stats["time_step"].to_list(), res
 
-    def test_metrics(self) -> tuple[list[int], list[Dataset]]:
+    @staticmethod
+    def get_experiment_results(logdir: str) -> ExperimentResults:
+        """Get the test metrics of an experiment."""
+        runs = Experiment.get_runs(logdir)
         try:
-            return self._metrics([run.test_metrics for run in self.runs])
+            ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs])
         except ValueError:
-            return [], []
+            ticks, test_datasets = [], []
+        try:
+            dfs = [run.train_metrics for run in runs if not run.train_metrics.is_empty()]
+            dfs += [run.training_data for run in runs if not run.training_data.is_empty()]
+            if len(ticks) >= 2:
+                test_interval = ticks[1] - ticks[0]
+                dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
+            ticks2, train_datasets = Experiment.compute_datasets(dfs)
+        except ValueError:
+            ticks2, train_datasets = [], []
+        if len(ticks) == 0:
+            ticks = ticks2
+        return ExperimentResults(logdir, ticks, train_datasets, test_datasets)
 
     def train_metrics(self):
         try:
@@ -245,21 +296,15 @@ class Experiment:
             dfs = [
                 stats.round_col(run.train_metrics, "time_step", self.test_interval) for run in self.runs if not run.train_metrics.is_empty()
             ]
-            ticks, train_metrics = self._metrics(dfs)
+            ticks, train_metrics = self.compute_datasets(dfs)
 
             dfs = [
                 stats.round_col(run.training_data, "time_step", self.test_interval) for run in self.runs if not run.training_data.is_empty()
             ]
-            _, training_data = self._metrics(dfs)
+            _, training_data = self.compute_datasets(dfs)
             return ticks, train_metrics + training_data
         except ValueError:
             return [], []
-
-    def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
-        summary = []
-        for run in self.runs:
-            summary += run.get_test_episodes(time_step)
-        return summary
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         # Actions must be loaded because of the stochasticity of the policy

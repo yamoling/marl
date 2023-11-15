@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 from dataclasses import dataclass

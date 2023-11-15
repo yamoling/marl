@@ -1,7 +1,7 @@
 import rlenv as rl
 from lle import LLE, ObservationType
 from marl.models import Experiment
-from marl.qlearning.dqn_nodes import DQN
+from marl.qlearning.dqn import DQN
 from marl.training import DQNTrainer
 from marl.qlearning import mixers
 from marl.nn.model_bank import CNN

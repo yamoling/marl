@@ -18,12 +18,12 @@
 </template>
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
-import { ExperimentInfo } from '../../models/Infos';
+import { Experiment } from '../../models/Experiment';
 
 
 const someRef = ref({} as HTMLElement);
 const props = defineProps<{
-    experiment: ExperimentInfo
+    experiment: Experiment
 }>();
 
 

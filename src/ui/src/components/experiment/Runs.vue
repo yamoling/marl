@@ -63,13 +63,13 @@ import { Modal } from 'bootstrap';
 import { computed, onMounted, ref, watch } from 'vue';
 import { ReplayEpisodeSummary } from '../models/Episode';
 import { Experiment } from '../models/Experiment';
-import { RunInfo } from '../models/Infos';
-import { useRunnerStore } from '../stores/RunnerStore';
+import { Run } from '../models/Experiment';
+import { useRunStore } from '../stores/RunStore';
 
 let runConfigModal = {} as Modal;
 let restartRunModal = {} as Modal;
-const runToRestart = ref(null as null | RunInfo);
-const store = useRunnerStore();
+const runToRestart = ref(null as null | Run);
+const store = useRunStore();
 // Map rundir to run.time_step.
 const progresses = ref(new Map<string, number>());
 const runStatus = computed(() => {
@@ -91,30 +91,8 @@ const deleting = ref(props.experiment.runs.map(_ => false));
 const pausing = ref(props.experiment.runs.map(_ => false));
 
 
-onMounted(() => {
-    updateListeners(props.experiment.runs);
-})
 
-function updateListeners(runs: RunInfo[]) {
-    runs.forEach(run => {
-        progresses.value.set(run.rundir, run.current_step);
-        if (run.pid != null && run.port != null) {
-            // store.startListening(
-            //     run.rundir,
-            //     run.port,
-            //     (data: ReplayEpisodeSummary) => onTrainUpdate(run.rundir, data),
-            //     (data: ReplayEpisodeSummary) => onTestUpdate(run.rundir, data),
-            //     () => onClose(run.rundir)
-            // );
-        }
-    });
-}
-
-
-watch(() => props.experiment.runs, updateListeners);
-
-
-async function deleteRun(index: number, run: RunInfo) {
+async function deleteRun(index: number, run: Run) {
     if (confirm(`Are you sure you want to delete ${run.rundir}?`)) {
         deleting.value[index] = true;
         try {
@@ -127,7 +105,7 @@ async function deleteRun(index: number, run: RunInfo) {
     }
 }
 
-async function restartRun(index: number, run: RunInfo) {
+async function restartRun(index: number, run: Run) {
     runToRestart.value = run;
     restartRunModal.show()
 }
@@ -205,4 +183,4 @@ table td:nth-child(2),
 table td:nth-child(3) {
     text-align: center;
 }
-</style>
+</style>../stores/RunStore

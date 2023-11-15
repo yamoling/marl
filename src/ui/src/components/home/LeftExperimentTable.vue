@@ -14,8 +14,8 @@
             <input class="form-control" type="text" v-model="searchString" />
         </div>
         <table>
-            <template v-for="(e, i) in store.experimentInfos">
-                <tr v-show="searchMatch(searchString, e.logdir) && !store.isLoaded(e.logdir)" class="experiment-row">
+            <template v-for="(e, i) in store.experiments">
+                <tr v-show="searchMatch(searchString, e.logdir)" class="experiment-row">
                     <td>
                         <font-awesome-icon v-if="!e.runs.every((r => r.pid == null))" :icon="['fas', 'spinner']" spin />
                         {{ e.logdir }}
@@ -36,19 +36,17 @@
 import { ref } from 'vue';
 import { searchMatch } from '../../utils';
 import { useExperimentStore } from '../../stores/ExperimentStore';
-import { Experiment } from '../../models/Experiment';
 
 const searchString = ref("");
-const store = useExperimentStore()
+const store = useExperimentStore();
 
 
 async function loadExperiment(logdir: string) {
-    const exp = await store.loadExperiment(logdir);
-    emits("experiment-loaded", exp);
+    emits("load-experiment", logdir);
 }
 
 const emits = defineEmits<{
-    (event: "experiment-loaded", experiment: Experiment): void
+    (event: "load-experiment", logdir: string): void
 }>()
 </script>
 

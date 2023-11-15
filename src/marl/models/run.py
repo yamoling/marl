@@ -5,7 +5,6 @@ import json
 from typing import Optional
 from serde.json import to_json
 from dataclasses import dataclass
-from rlenv.models import Metrics
 from marl.utils import CorruptExperimentException
 from .replay_episode import ReplayEpisodeSummary
 from marl.logging.ws_logger import WSLogger
@@ -27,7 +26,7 @@ class Run:
         self.test_metrics = test_df
         self.training_data = train_data
         self.port = self.get_port()
-        self.pid =  self.get_pid()
+        self.pid = self.get_pid()
         self.current_step = self.get_current_step()
 
     @staticmethod
@@ -42,7 +41,7 @@ class Run:
     def load(rundir: str):
         try:
             train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
-        except (pl.NoDataError,  FileNotFoundError):
+        except (pl.NoDataError, FileNotFoundError):
             train_metrics = pl.DataFrame()
         try:
             test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
@@ -55,7 +54,7 @@ class Run:
         try:
             with open(os.path.join(rundir, "run.json"), "r") as f:
                 seed = json.load(f)["seed"]
-        except:
+        except OSError:
             seed = 0
         return Run(rundir, seed, train_metrics, test_metrics, train_data)
 
@@ -77,27 +76,22 @@ class Run:
             shutil.rmtree(self.rundir)
             return
         except FileNotFoundError:
-            raise CorruptExperimentException(
-                f"Rundir {self.rundir} has already been removed from the file system."
-            )
+            raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         try:
-            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort(
-                "timestamp_sec"
-            )
+            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort("timestamp_sec")
             test_dir = os.path.join(self.rundir, "test", f"{time_step}")
             episodes = []
             for i, row in enumerate(test_metrics.rows()):
                 episode_dir = os.path.join(test_dir, f"{i}")
-                metrics = Metrics(zip(test_metrics.columns, row))
+                metrics = dict(zip(test_metrics.columns, row))
                 episode = ReplayEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
         except pl.ColumnNotFoundError:
             return []
 
-    
     def get_current_step(self) -> int:
         try:
             self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
@@ -141,5 +135,3 @@ class Run:
         except ProcessLookupError:
             os.remove(pid_file)
             return None
-
-    

@@ -3,7 +3,8 @@ import json
 import torch
 import pickle
 from copy import deepcopy
-from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition, Metrics
+from typing import Optional
+from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
 from marl.logging import Logger
 from marl.utils import defaults_to
@@ -21,8 +22,8 @@ class Runner:
         logger: Logger,
         test_interval: int,
         n_steps: int,
-        test_env: RLEnv=None,
-        quiet=False
+        test_env: RLEnv = None,
+        quiet=False,
     ):
         self._trainer = trainer
         self._env = env
@@ -32,7 +33,6 @@ class Runner:
         self._test_interval = test_interval
         self._quiet = quiet
         self._max_step = n_steps
-
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int) -> Episode:
         episode = EpisodeBuilder()
@@ -54,7 +54,7 @@ class Runner:
         self._trainer.update_episode(episode, step_num)
         return episode
 
-    def train(self, n_tests: int) -> str:
+    def train(self, n_tests: int):
         """Start the training loop"""
         with open(os.path.join(self.rundir, "pid"), "w") as f:
             f.write(str(os.getpid()))
@@ -62,7 +62,7 @@ class Runner:
         step = 0
         pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=self._quiet)
         while step < self._max_step:
-            episode = self._train_episode(step, episode_num,n_tests)
+            episode = self._train_episode(step, episode_num, n_tests)
             episode_num += 1
             if episode is None:
                 episode_length = self._max_step - step
@@ -94,20 +94,20 @@ class Runner:
             self._save_test_episode(os.path.join(test_dir, f"{i}"), episode)
             self._logger.log("test", episode.metrics, time_step)
             episodes.append(episode)
-        agg = Metrics.agregate([e.metrics for e in episodes], skip_keys={"timestamp_sec", "time_step"})
+        agg = agregate_metrics([e.metrics for e in episodes], skip_keys={"timestamp_sec", "time_step"})
         self._logger.print("test", agg)
         self._algo.set_training()
 
     def _save_test_episode(self, directory: str, episode: Episode):
         os.makedirs(directory, exist_ok=True)
-        with (open(os.path.join(directory, "env.pkl"), "wb") as e,
-              open(os.path.join(directory, "actions.json"), "w") as a):
+        with open(os.path.join(directory, "env.pkl"), "wb") as e, open(os.path.join(directory, "actions.json"), "w") as a:
             pickle.dump(self._test_env, e)
             json.dump(episode.actions.tolist(), a)
 
-    def to(self, device: str|torch.device):
+    def to(self, device: str | torch.device):
         if isinstance(device, str):
             from marl.utils import get_device
+
             device = get_device(device)
         self._algo.to(device)
         self._trainer.to(device)
@@ -116,7 +116,6 @@ class Runner:
     @property
     def rundir(self) -> str:
         return self._logger.logdir
-    
 
     def __del__(self):
         self._logger.close()
@@ -124,3 +123,33 @@ class Runner:
             os.remove(os.path.join(self.rundir, "pid"))
         except FileNotFoundError:
             pass
+
+
+def agregate_metrics(
+    all_metrics: list[dict[str, float]],
+    only_avg=False,
+    skip_keys: Optional[set[str]] = None,
+) -> dict[str, float]:
+    """Aggregate a list of metrics into min, max, avg and std."""
+    import numpy as np
+    if skip_keys is None:
+        skip_keys = {}
+    all_values: dict[str, list[float]] = {}
+    for metrics in all_metrics:
+        for key, value in metrics.items():
+            if key not in all_values:
+                all_values[key] = []
+            all_values[key].append(value)
+    res = {}
+    if only_avg:
+        for key, values in all_values.items():
+            res[key] = float(np.average(np.array(values)))
+    else:
+        for key, values in all_values.items():
+            if key not in skip_keys:
+                values = np.array(values)
+                res[f"avg_{key}"] = float(np.average(values))
+                res[f"std_{key}"] = float(np.std(values))
+                res[f"min_{key}"] = float(values.min())
+                res[f"max_{key}"] = float(values.max())
+    return res

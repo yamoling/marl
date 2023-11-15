@@ -1,4 +1,16 @@
 
+/**
+ * Compute the shape of a multi-dimensional array.
+ */
+export function computeShape(array: any[]): number[] {
+    const result = [];
+    let a = array;
+    while (Array.isArray(a)) {
+        result.push(a.length);
+        a = a[0];
+    }
+    return result;
+}
 
 /**
  * Exponential moving average

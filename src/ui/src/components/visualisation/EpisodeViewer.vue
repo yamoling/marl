@@ -53,7 +53,7 @@ import Rainbow from "rainbowvis.js";
 import AgentInfo from './AgentInfo.vue';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Modal } from 'bootstrap';
-import { ExperimentInfo } from '../../models/Infos';
+import { Experiment } from '../../models/Experiment';
 
 
 const replayStore = useReplayStore();
@@ -64,7 +64,7 @@ const modal = ref({} as HTMLElement);
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 defineProps<{
-    experiment: ExperimentInfo
+    experiment: Experiment
 }>();
 
 const nAgents = computed(() => (episode.value?.episode.actions[0].length) || 0);

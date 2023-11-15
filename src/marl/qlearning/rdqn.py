@@ -6,7 +6,7 @@ from marl.models import EpisodeMemory, Batch
 from marl.policy import Policy
 from marl.utils import defaults_to
 
-from .dqn import DQN
+from .dqn_old import DQN
 
 @dataclass
 class RDQN(DQN):

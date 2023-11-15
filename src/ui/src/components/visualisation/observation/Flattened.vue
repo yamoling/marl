@@ -28,19 +28,18 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { EnvInfo } from "../../../models/Infos";
-
+import { Env } from "../../../models/Experiment";
 
 const layerSize = computed(() => props.obs.length / (2 * props.envInfo.n_agents + 3));
 const props = defineProps<{
     obs: number[]
     extras: number[]
-    envInfo: EnvInfo
+    envInfo: Env
 }>();
 
 const layers = computed(() => {
     const layers = [];
-    for (let i = 0; i < props.envInfo.obs_shape[0]; i += layerSize.value) {
+    for (let i = 0; i < props.obs.length; i += layerSize.value) {
         layers.push(props.obs.slice(i, i + layerSize.value));
     }
     return layers;

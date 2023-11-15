@@ -15,7 +15,7 @@ from marl.nn import LinearNN
 from marl.policy import Policy
 from marl.qlearning.mixers import Mixer
 from marl.training import nodes
-from marl.utils import defaults_to, get_device
+from marl.utils import defaults_to
 
 
 @dataclass
@@ -101,7 +101,7 @@ class DQNTrainer(Trainer):
         self.target_params_updater = target_update
         self.memory = defaults_to(memory, self._make_memory)
 
-        self.device = get_device()
+        self.device = qnetwork.device
         self.qnetwork = self.qnetwork.to(self.device)
         self.qtarget = deepcopy(self.qnetwork).to(self.device)
         self.parameters = list(self.qnetwork.parameters())

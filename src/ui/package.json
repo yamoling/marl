@@ -19,7 +19,8 @@
     "chart.js": "^4.2.0",
     "pinia": "^2.0.29",
     "rainbowvis.js": "^1.1.1",
-    "vue": "^3.2.45"
+    "vue": "^3.2.45",
+    "vue-router": "4"
   },
   "devDependencies": {
     "@types/bootstrap": "^5.2.6",

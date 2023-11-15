@@ -1,5 +1,4 @@
 import random
-from typing import Any
 import numpy as np
 from dataclasses import dataclass
 from serde import serde
@@ -12,11 +11,12 @@ from .policy import Policy
 @dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
-    n_actions: int
-    tau: float = 1.
+    tau: float
 
-    def __post_init__(self):
-        self.actions = np.arange(self.n_actions, dtype=np.int64)
+    def __init__(self, n_actions: int, tau: float = 1.):
+        super().__init__()
+        self.actions = np.arange(n_actions, dtype=np.int64)
+        self.tau = tau
 
     def get_action(self, qvalues: np.ndarray[np.float32], available_actions: np.ndarray[np.float32]) -> np.ndarray[np.int64]:
         qvalues[available_actions == 0.] = -np.inf
@@ -30,6 +30,10 @@ class SoftmaxPolicy(Policy):
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
     epsilon: schedule.Schedule
+
+    def __init__(self, epsilon: schedule.Schedule):
+        super().__init__()
+        self.epsilon = epsilon
 
     @classmethod
     def linear(cls, start_eps: float, min_eps: float, n_steps: int):
@@ -59,8 +63,6 @@ class EpsilonGreedy(Policy):
 @dataclass
 class ArgMax(Policy):
     """Exploiting the strategy"""
-    def __init__(self):
-        super().__init__()
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray[np.float32]) -> np.ndarray:
         qvalues[available_actions == 0.] = -np.inf

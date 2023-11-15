@@ -3,7 +3,7 @@ import { HTTP_URL, wsURL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { RunConfig } from "../models/Runs";
 
-export const useRunnerStore = defineStore("RunnerStore", () => {
+export const useRunStore = defineStore("RunnerStore", () => {
     const webSockets = new Map<string, WebSocket>();
 
     async function createRunner(runConfig: RunConfig) {
