@@ -12,16 +12,19 @@ class EpisodeBatch(Batch):
         self._n_actions = episodes[0].n_actions
         self._base_episides = episodes
         self.episodes = [e.padded(self._max_episode_len) for e in episodes]
-        self.masks = torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).transpose(1, 0)
 
-    def for_individual_learners(self) -> "EpisodeBatch":
-        super().for_individual_learners()
+    def for_individual_learners(self):
         self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
-        return self
+        return super().for_individual_learners()
 
     @cached_property
     def obs_(self):
-        """All the observations of the episodes, from 0 to episode_length + 1"""
+        """
+        All the observations of the episodes, from 0 to episode_length + 1.
+
+        The reason why we have episode_length + 1 is because we need the first observation of the episode
+        to perform a correct inference right from the start.
+        """
         return torch.from_numpy(np.array([e._observations for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
@@ -70,3 +73,7 @@ class EpisodeBatch(Batch):
     @cached_property
     def action_probs(self):
         return torch.from_numpy(np.array([e.actions_probs for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+
+    @cached_property
+    def masks(self):
+        return torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)

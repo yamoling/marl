@@ -61,10 +61,10 @@
 <script setup lang="ts">
 import { Modal } from 'bootstrap';
 import { computed, onMounted, ref, watch } from 'vue';
-import { ReplayEpisodeSummary } from '../models/Episode';
-import { Experiment } from '../models/Experiment';
-import { Run } from '../models/Experiment';
-import { useRunStore } from '../stores/RunStore';
+import { ReplayEpisodeSummary } from '../../models/Episode';
+import { Experiment } from '../../models/Experiment';
+import { Run } from '../../models/Experiment';
+import { useRunStore } from '../../stores/RunStore';
 
 let runConfigModal = {} as Modal;
 let restartRunModal = {} as Modal;
@@ -151,23 +151,6 @@ async function createNewRunner() {
     //     use_seed: useSeed.value,
     // } as RunConfig;
     // store.createRunner(runConfig)
-}
-
-function onTestUpdate(rundir: string, data: ReplayEpisodeSummary) {
-    emits("new-test", rundir, data);
-}
-
-function onClose(rundir: string) {
-    // Set the port to null
-    props.experiment.runs.forEach(run => {
-        if (run.rundir == rundir) {
-            run.port = null;
-        }
-    });
-}
-
-function onRunStart() {
-    runConfigModal.hide();
 }
 
 

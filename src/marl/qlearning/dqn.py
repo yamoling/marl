@@ -101,10 +101,10 @@ class RDQN(IDQN[RecurrentNN]):
         self._saved_train_hidden_states = None
 
     def compute_qvalues(self, obs: Observation):
-        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
-        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
+        obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device, non_blocking=True)
         qvalues, self._hidden_states = self.qnetwork.forward(obs_data, obs_extras, self._hidden_states)
-        return qvalues
+        return qvalues.squeeze(0)
 
     def new_episode(self):
         self._hidden_states = None

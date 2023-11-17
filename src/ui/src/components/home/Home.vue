@@ -45,7 +45,7 @@
                                     <font-awesome-icon v-if="resultsLoading.has(exp.logdir)" :icon="['fas', 'spinner']"
                                         spin />
                                     <button v-else-if="experimentResults.has(exp.logdir)" class="btn btn-sm btn-danger"
-                                        @click.stop="() => experimentResults.delete(exp.logdir)">
+                                        @click.stop="() => unloadResults(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
                                     </button>
                                 </td>
@@ -80,9 +80,9 @@
             </div>
             <template v-else>
                 <div>
-                    <span v-for="colour, logdir in colours">
+                    <span v-for="[logdir, colour] in colours">
                         <input type="color" :value="colour"
-                            @change="(e) => setColour(logdir, (e.target as HTMLInputElement).value)">
+                            @change="(e) => setColour(logdir as string, (e.target as HTMLInputElement).value)">
                         {{ logdir }}
                     </span>
                 </div>
@@ -102,7 +102,7 @@ import { EMA, stringToRGB } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
-import { searchMatch } from '../../utils';
+import { searchMatch, unionXTicks, alignTicks } from '../../utils';
 import { RouterLink } from 'vue-router';
 
 const experimentStore = useExperimentStore();
@@ -118,21 +118,26 @@ const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
 const experiments = ref([] as Experiment[]);
 const experimentResults = ref(new Map<string, ExperimentResults>());
-const ticks = ref([] as number[]);
+const alignedExperimentResults = computed(() => {
+    const res = new Map<string, ExperimentResults>();
+    experimentResults.value.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
+    return res;
+});
+const ticks = computed(() => unionXTicks([...experimentResults.value.values()].map(r => r.ticks)));
 const metrics = computed(() => {
     const res = new Set<string>();
     experimentResults.value.forEach((v, _) => v.train.forEach(d => res.add(d.label)));
     return res;
 });
 const selectedMetrics = ref(["score"]);
-const colours = ref<{ [key: string]: string }>({});
+const colours = ref(initColoursFromLocalStorage());
 
 onMounted(refreshExperiments)
 
 /** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    experimentResults.value.forEach((v, k) => {
+    alignedExperimentResults.value.forEach((v, k) => {
         const ds = testOrTrain.value === "Test" ? v.test : v.train;
         ds.forEach(d => {
             if (!selectedMetrics.value.includes(d.label)) return
@@ -158,23 +163,24 @@ async function refreshExperiments() {
     experimentLoading.value = false;
 }
 function setColour(logdir: string, newColour: string) {
-    colours.value[logdir] = newColour;
-    localStorage.setItem("logdirColours", JSON.stringify(colours.value));
+    console.log(logdir, newColour)
+    colours.value.set(logdir, newColour);
+    localStorage.setItem("logdirColours", JSON.stringify(Array.from(colours.value.entries())));
 }
 
 async function loadResults(logdir: string) {
     resultsLoading.value.add(logdir);
     const res = await resultsStore.loadExperimentResults(logdir);
-    const savedColours = JSON.parse(localStorage.getItem("logdirColours") ?? "{}");
-    if (savedColours[logdir] != null) {
-        colours.value[logdir] = savedColours[logdir];
-    } else {
-        colours.value[logdir] = stringToRGB(logdir);
+    if (!colours.value.has(logdir)) {
+        colours.value.set(logdir, stringToRGB(logdir));
     }
-    console.log(colours.value[logdir])
     experimentResults.value.set(logdir, res);
-    ticks.value = res.ticks;
     resultsLoading.value.delete(logdir);
+}
+
+function unloadResults(logdir: string) {
+    experimentResults.value.delete(logdir);
+    colours.value.delete(logdir);
 }
 
 const emits = defineEmits<{
@@ -216,7 +222,16 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
 }
 
 
+function initColoursFromLocalStorage() {
+    const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
+    console.log(entries)
+    try {
+        return new Map<string, string>(entries);
+    } catch (e) {
+        return new Map<string, string>();
+    }
 
+}
 
 
 </script>

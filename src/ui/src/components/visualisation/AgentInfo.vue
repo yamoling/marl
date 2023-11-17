@@ -2,8 +2,8 @@
     <div class="agent-info text-center">
         <h3> Agent {{ agentNum }}</h3>
         Obs shape = {{ obsShape }}
-        <Flattened v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
-        <Layered v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras" />
+        <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
+        <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras" />
         <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
@@ -34,8 +34,8 @@
 import { computed } from "vue";
 import type Rainbow from "rainbowvis.js";
 import { ReplayEpisode } from "../../models/Episode";
-import Layered from "./observation/Layered.vue";
-import Flattened from "./observation/Flattened.vue";
+import ThreeDimension from "./observation/3Dimensions.vue";
+import OneDimension from "./observation/1Dimension.vue";
 import { Experiment } from "../../models/Experiment";
 import { computeShape } from "../../utils";
 

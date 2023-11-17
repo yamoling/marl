@@ -4,7 +4,6 @@
       <h1 class="col"> Experiment manager</h1>
     </header>
     <RouterView></RouterView>
-    <!-- <Home /> -->
     <footer class="row">
       <SystemInfo />
     </footer>
@@ -13,7 +12,6 @@
 
 
 <script setup lang="ts">
-import Home from './components/home/Home.vue';
 import SystemInfo from './components/SystemInfo.vue';
 
 </script>

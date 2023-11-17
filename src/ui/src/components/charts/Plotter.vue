@@ -29,7 +29,7 @@ const props = defineProps<{
     xTicks: number[]
     title: string
     showLegend: boolean
-    colours: { [key: string]: string }
+    colours: Map<string, string>
 }>();
 
 
@@ -39,7 +39,7 @@ function updateChart() {
     }
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
-        const colour = props.colours[ds.logdir];
+        const colour = props.colours.get(ds.logdir) ?? "#000000";
         const stdColour = rgbToAlpha(colour, 0.3);
 
         const lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);

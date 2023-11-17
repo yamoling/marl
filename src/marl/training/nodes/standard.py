@@ -1,10 +1,10 @@
 import torch
-from marl.nn import LinearNN, RecurrentNN
+from marl.nn import LinearNN, RecurrentNN, NN
 from marl.models import Batch
 from .node import Node
 
 
-def forward(nn: LinearNN | RecurrentNN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+def forward(nn: NN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
     match nn:
         case LinearNN():
             return nn.forward(obs, extras)
@@ -15,7 +15,7 @@ def forward(nn: LinearNN | RecurrentNN, obs: torch.Tensor, extras: torch.Tensor)
 
 
 class QValues(Node[torch.Tensor]):
-    def __init__(self, nn: LinearNN | RecurrentNN, batch: Node[Batch]):
+    def __init__(self, nn: NN, batch: Node[Batch]):
         super().__init__([batch])
         self.nn = nn
         self.batch = batch
@@ -33,7 +33,7 @@ class QValues(Node[torch.Tensor]):
 class NextQValues(Node[torch.Tensor]):
     """Compute the next qvalues based on the next observations"""
 
-    def __init__(self, qtarget: LinearNN | RecurrentNN, batch: Node[Batch]):
+    def __init__(self, qtarget: NN, batch: Node[Batch]):
         super().__init__([batch])
         self.qtarget = qtarget
         self.batch = batch
@@ -41,13 +41,18 @@ class NextQValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        if isinstance(self.qtarget, RecurrentNN):
+            # For recurrent networks, the batch includes the initial observation
+            # in order to compute the hidden state at t=0 and use it for t=1.
+            # We need to remove it when considering the next qvalues.
+            next_qvalues = next_qvalues[1:]
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues = torch.max(next_qvalues, dim=-1)[0]
         return next_qvalues
 
 
 class DoubleQLearning(Node[torch.Tensor]):
-    def __init__(self, qnetwork: LinearNN | RecurrentNN, qtarget: LinearNN | RecurrentNN, batch: Node[Batch]):
+    def __init__(self, qnetwork: NN, qtarget: LinearNN | RecurrentNN, batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
         self.qtarget = qtarget
@@ -92,7 +97,7 @@ class MSELoss(Node[torch.Tensor]):
         self.target = target
         self.batch = batch
 
-    def _compute_value(self) -> torch.Tensor:
+    def _compute_value_old(self):
         qvalues = self.predicted.value
         qtargets = self.target.value
         mse = (qvalues - qtargets) ** 2
@@ -101,3 +106,16 @@ class MSELoss(Node[torch.Tensor]):
         if importance_sampling_weights is not None:
             mse = mse * importance_sampling_weights
         return torch.mean(mse)
+
+    def _compute_value(self):
+        """Masked Mean Squared Error"""
+        batch = self.batch.value
+        error = self.target.value - self.predicted.value
+        masked_error = error * batch.masks
+        criterion = masked_error**2
+        criterion = criterion.sum(dim=0)
+        if batch.importance_sampling_weights is not None:
+            assert criterion.shape == batch.importance_sampling_weights.shape
+            criterion = criterion * batch.importance_sampling_weights
+        loss = criterion.sum() / batch.masks.sum()
+        return loss

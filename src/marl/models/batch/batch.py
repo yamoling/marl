@@ -90,7 +90,12 @@ class Batch(ABC):
     def action_probs(self) -> torch.Tensor:
         """Probabilities of the taken action"""
 
-    def to(self, device: torch.device) -> "Batch":
+    @abstractmethod  # type: ignore
+    @cached_property
+    def masks(self) -> torch.LongTensor:
+        """Masks (for padded episodes)"""
+
+    def to(self, device: torch.device):
         """Send the tensors to the given device"""
         self.device = device
         for key, value in self.__dict__.items():

@@ -17,10 +17,14 @@ class QMix(Mixer):
         self.state_dim = int(np.prod(state_shape))
 
         self.hyper_w_1 = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents)
+            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.ReLU(),
+            nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents),
         )
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size)
+            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.ReLU(),
+            nn.Linear(hypernet_embed_size, self.embed_size),
         )
 
         # State dependent bias for hidden layer
@@ -51,9 +55,9 @@ class QMix(Mixer):
         return q_tot
 
     def save(self, to_directory: str):
-        filename = f"{to_directory}/qmix.model"
+        filename = f"{to_directory}/qmix.weights"
         torch.save(self.state_dict(), filename)
 
     def load(self, from_directory: str):
-        filename = f"{from_directory}/qmix.model"
+        filename = f"{from_directory}/qmix.weights"
         return self.load_state_dict(torch.load(filename))

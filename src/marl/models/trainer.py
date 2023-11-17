@@ -7,10 +7,12 @@ from rlenv import Transition, Episode
 
 import torch
 
+
 @serde
 @dataclass
 class Trainer(ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
+
     name: str
     update_interval: int
     """
@@ -31,11 +33,10 @@ class Trainer(ABC):
         self.update_on_steps = update_type == "step"
         self.update_on_episodes = update_type == "episode"
 
-
     def update_step(self, transition: Transition, time_step: int):
         """Update to call after each step. Should be run when update_after_each == "step"."""
 
-    def update_episode(self, episode: Episode, time_step: int):
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         """Update to call after each episode. Should be run when update_after_each == "episode"."""
 
     @abstractmethod

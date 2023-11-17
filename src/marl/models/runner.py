@@ -52,7 +52,7 @@ class Runner:
         if not episode.is_finished:
             return None
         episode = episode.build({"initial_value": initial_value})
-        self._trainer.update_episode(episode, step_num)
+        self._trainer.update_episode(episode, episode_num, step_num)
         return episode
 
     def train(self, n_tests: int):
@@ -103,7 +103,11 @@ class Runner:
     def _save_test_episode(self, directory: str, episode: Episode):
         os.makedirs(directory, exist_ok=True)
         with open(os.path.join(directory, "env.pkl"), "wb") as e, open(os.path.join(directory, "actions.json"), "w") as a:
-            pickle.dump(self._test_env, e)
+            try:
+                pickle.dump(self._test_env, e)
+            except (pickle.PicklingError, AttributeError):
+                # AttributeError can be raised when the env is not pickleable
+                pass
             json.dump(episode.actions.tolist(), a)
 
     def to(self, device: str | torch.device):
