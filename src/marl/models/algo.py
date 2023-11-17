@@ -19,8 +19,15 @@ class RLAlgo(ABC):
         raise NotImplementedError("Not implemented for this algorithm")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64, Any]:
+    def choose_action(self, observation: Observation) -> np.ndarray[np.int32, Any]:
         """Get the action to perform given the input observation"""
+
+    def new_episode(self):
+        """
+        Called when a new episode starts.
+
+        This is required for recurrent algorithms, such as R-DQN, that need to reset their hidden states.
+        """
 
     @abstractmethod
     def value(self, observation: Observation) -> float:

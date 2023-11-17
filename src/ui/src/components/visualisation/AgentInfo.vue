@@ -51,24 +51,25 @@ const props = defineProps<{
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
-    return computeShape(props.episode.episode.obs[0][0])
+    console.log(props.episode.episode._observations)
+    return computeShape(props.episode.episode._observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
 
 const obs = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode.obs[props.currentStep][props.agentNum];
+    return props.episode.episode._observations[props.currentStep][props.agentNum];
 });
 
 const extras = computed(() => {
     if (props.episode == null) return []
-    return props.episode.episode.extras[props.currentStep][props.agentNum];
+    return props.episode.episode._extras[props.currentStep][props.agentNum];
 });
 
 const availableActions = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode.available_actions[props.currentStep][props.agentNum];
+    return props.episode.episode._available_actions[props.currentStep][props.agentNum];
 });
 
 const qvalues = computed(() => {

@@ -107,7 +107,9 @@ async function viewEpisode(episodeDirectory: string) {
     episode.value = null;
     loading.value = true;
     (new Modal("#" + modal.value.id)).show()
-    episode.value = await replayStore.getEpisode(episodeDirectory);
+    const replay = await replayStore.getEpisode(episodeDirectory);
+    console.log(replay)
+    episode.value = replay;
     currentStep.value = 0;
     if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
         const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));

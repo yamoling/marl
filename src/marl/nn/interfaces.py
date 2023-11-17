@@ -39,7 +39,7 @@ class NN(torch.nn.Module, ABC, Generic[Output]):
         self.name = self.__class__.__name__
 
     @abstractmethod
-    def forward(self, x: torch.Tensor) -> Output:
+    def forward(self, x: torch.Tensor, *args) -> Output:
         """Forward pass"""
 
     @property

@@ -30,6 +30,7 @@ websockets = "^10.4"
 flask = "^2.2.2"
 flask-cors = "^3.0.10"
 pytest = "^7.3.1"
+pytest-xdist = "^3.4.0"
 
 
 [build-system]
@@ -40,6 +41,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+# By default, run tests on two cores with xdist
+addopts = "-n 2"
 
 
 [tool.ruff]

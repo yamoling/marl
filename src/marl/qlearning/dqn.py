@@ -1,29 +1,34 @@
 import os
 import pickle
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Generic, TypeVar
 from serde import serde
 
 import numpy as np
 import torch
 from rlenv.models import Observation
 
-from marl.nn import LinearNN
+from marl.nn import LinearNN, RecurrentNN, NN
 from marl.models import RLAlgo
 from marl.policy import Policy
 
+
+N = TypeVar("N", bound=NN)
+
+
 @serde
 @dataclass
-class DQN(RLAlgo):
+class IDQN(RLAlgo, ABC, Generic[N]):
     """
-    Deep Q-Network agent with shared QNetwork.
+    Deep Q-Network Interface with shared QNetwork.
     """
 
-    qnetwork: LinearNN
+    qnetwork: N
     train_policy: Policy
     test_policy: Policy
 
-    def __init__(self, qnetwork: LinearNN, train_policy: Policy, test_policy: Optional[Policy] = None):
+    def __init__(self, qnetwork: N, train_policy: Policy, test_policy: Optional[Policy] = None):
         super().__init__()
         self.qnetwork = qnetwork
         self.device = self.qnetwork.device
@@ -44,10 +49,9 @@ class DQN(RLAlgo):
         max_qvalues = torch.max(qvalues, dim=-1).values
         return torch.mean(max_qvalues).item()
 
+    @abstractmethod
     def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
-        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
-        return self.qnetwork.forward(obs_data, obs_extras)
+        pass
 
     def set_testing(self):
         self.policy = self.test_policy
@@ -60,8 +64,7 @@ class DQN(RLAlgo):
         torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.weights")
         train_policy_path = os.path.join(to_directory, "train_policy")
         test_policy_path = os.path.join(to_directory, "test_policy")
-        with (open(train_policy_path, "wb") as f,
-              open(test_policy_path, "wb") as g):
+        with open(train_policy_path, "wb") as f, open(test_policy_path, "wb") as g:
             pickle.dump(self.train_policy, f)
             pickle.dump(self.test_policy, g)
 
@@ -69,8 +72,7 @@ class DQN(RLAlgo):
         self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights"))
         train_policy_path = os.path.join(from_directory, "train_policy")
         test_policy_path = os.path.join(from_directory, "test_policy")
-        with (open(train_policy_path, "rb") as f,
-              open(test_policy_path, "rb") as g):
+        with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:
             self.train_policy = pickle.load(f)
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
@@ -81,3 +83,36 @@ class DQN(RLAlgo):
     def to(self, device: torch.device):
         self.qnetwork.to(device)
         self.device = device
+
+
+class DQN(IDQN[LinearNN]):
+    def compute_qvalues(self, obs: Observation):
+        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
+        return self.qnetwork.forward(obs_data, obs_extras)
+
+
+class RDQN(IDQN[RecurrentNN]):
+    """Recurrent DQN"""
+
+    def __init__(self, qnetwork: RecurrentNN, train_policy: Policy, test_policy: Policy | None = None):
+        super().__init__(qnetwork, train_policy, test_policy)
+        self._hidden_states = None
+        self._saved_train_hidden_states = None
+
+    def compute_qvalues(self, obs: Observation):
+        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
+        qvalues, self._hidden_states = self.qnetwork.forward(obs_data, obs_extras, self._hidden_states)
+        return qvalues
+
+    def new_episode(self):
+        self._hidden_states = None
+
+    def set_testing(self):
+        super().set_testing()
+        self._saved_train_hidden_states = self._hidden_states
+
+    def set_training(self):
+        super().set_training()
+        self._hidden_states = self._saved_train_hidden_states

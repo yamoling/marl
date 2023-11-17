@@ -1,17 +1,29 @@
 import torch
-from marl.nn import LinearNN
+from marl.nn import LinearNN, RecurrentNN
 from marl.models import Batch
 from .node import Node
 
+
+def forward(nn: LinearNN | RecurrentNN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    match nn:
+        case LinearNN():
+            return nn.forward(obs, extras)
+        case RecurrentNN():
+            return nn.forward(obs, extras)[0]
+        case other:
+            raise NotImplementedError(f"Unknown NN type: {type(other)}")
+
+
 class QValues(Node[torch.Tensor]):
-    def __init__(self, nn: LinearNN, batch: Node[Batch]):
+    def __init__(self, nn: LinearNN | RecurrentNN, batch: Node[Batch]):
         super().__init__([batch])
         self.nn = nn
         self.batch = batch
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        qvalues = self.nn.forward(batch.obs, batch.extras)
+        qvalues = forward(self.nn, batch.obs, batch.extras)
+        qvalues = forward(self.nn, batch.obs, batch.extras)
         qvalues[batch.available_actions == 0.0] = -torch.inf
         qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
         qvalues = qvalues.squeeze(dim=-1)
@@ -20,22 +32,22 @@ class QValues(Node[torch.Tensor]):
 
 class NextQValues(Node[torch.Tensor]):
     """Compute the next qvalues based on the next observations"""
-    def __init__(self, qtarget: LinearNN, batch: Node[Batch]):
+
+    def __init__(self, qtarget: LinearNN | RecurrentNN, batch: Node[Batch]):
         super().__init__([batch])
         self.qtarget = qtarget
         self.batch = batch
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
+        next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         next_qvalues = torch.max(next_qvalues, dim=-1)[0]
         return next_qvalues
 
 
 class DoubleQLearning(Node[torch.Tensor]):
-
-    def __init__(self, qnetwork: LinearNN, qtarget: LinearNN, batch: Node[Batch]):
+    def __init__(self, qnetwork: LinearNN | RecurrentNN, qtarget: LinearNN | RecurrentNN, batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
         self.qtarget = qtarget
@@ -43,10 +55,10 @@ class DoubleQLearning(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        target_next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
+        target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
         # Take the indices from the target network and the values from the current network
         # instead of taking both from the target network
-        current_next_qvalues = self.qnetwork.forward(batch.obs_, batch.extras_)
+        current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(current_next_qvalues, dim=-1, keepdim=True)
         next_qvalues = torch.gather(target_next_qvalues, -1, indices).squeeze(-1)
@@ -55,6 +67,7 @@ class DoubleQLearning(Node[torch.Tensor]):
 
 class Target(Node[torch.Tensor]):
     """Compute the target qvalues based on the next qvalues and the reward"""
+
     def __init__(self, gamma: float, next_qvalues: Node[torch.Tensor], batch: Node[Batch]):
         super().__init__([next_qvalues, batch])
         self.gamma = gamma
@@ -70,9 +83,9 @@ class Target(Node[torch.Tensor]):
             return targets
 
 
-
 class MSELoss(Node[torch.Tensor]):
     """MSE loss node"""
+
     def __init__(self, predicted: Node[torch.Tensor], target: Node[torch.Tensor], batch: Node[Batch]):
         super().__init__([predicted, target, batch])
         self.predicted = predicted

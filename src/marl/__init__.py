@@ -11,7 +11,6 @@ from . import training
 from . import qlearning
 from . import policy_gradient
 from . import policy
-from . import wrappers
 
 
 from .utils import seed

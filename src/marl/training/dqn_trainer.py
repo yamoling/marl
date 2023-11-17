@@ -126,12 +126,12 @@ class DQNTrainer(Trainer):
         return batch, loss
 
     def to(self, device: torch.device):
-        self.qnetwork = self.qnetwork.to(device)
-        self.qtarget = self.qtarget.to(device)
+        self.qnetwork.to(device)
+        self.qtarget.to(device)
         if self.mixer is not None:
-            self.mixer = self.mixer.to(device)
+            self.mixer.to(device)
         if self.ir_module is not None:
-            self.ir_module = self.ir_module.to(device)
+            self.ir_module.to(device)
         self.device = device
 
     def randomize(self):

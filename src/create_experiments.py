@@ -9,6 +9,7 @@ def create_experiments():
     memory_size = 50_000
     n_steps = 1_000_000
 
+    env = rlenv.adapters.smac_adapter.SMACAdapter("3m")
     env = rlenv.make("CartPole-v1")
     env = rlenv.Builder(LLE.from_file("maps/lvl6-shaping", ObservationType.LAYERED)).agent_id().time_limit(78).build()
 

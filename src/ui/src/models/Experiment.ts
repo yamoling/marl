@@ -40,7 +40,7 @@ export interface ExperimentResults {
 
 export interface Dataset {
     label: string
-    colour: string
+    logdir: string
     mean: number[]
     std: number[]
     min: number[]

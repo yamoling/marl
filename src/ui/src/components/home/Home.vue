@@ -78,8 +78,18 @@
                 <font-awesome-icon :icon="['fas', 'chart-line']" class="fa-10x mt-5"
                     style="color: rgba(211, 211, 211, 0.5);" />
             </div>
-            <Plotter v-else v-for="[label, ds] in datasetPerLabel" :datasets="ds" :xTicks="ticks"
-                :title="label.replaceAll('_', ' ')" :showLegend="false" />
+            <template v-else>
+                <div>
+                    <span v-for="colour, logdir in colours">
+                        <input type="color" :value="colour"
+                            @change="(e) => setColour(logdir, (e.target as HTMLInputElement).value)">
+                        {{ logdir }}
+                    </span>
+                </div>
+                <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
+                    :title="label.replaceAll('_', ' ')" :showLegend="false" :colours="colours" />
+            </template>
+
         </div>
     </div>
 </template>
@@ -88,7 +98,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA } from "../../utils";
+import { EMA, stringToRGB } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
@@ -104,7 +114,6 @@ const searchString = ref("");
 const experimentLoading = ref(false);
 const resultsLoading = ref(new Set<string>());
 
-
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
 const experiments = ref([] as Experiment[]);
@@ -116,6 +125,7 @@ const metrics = computed(() => {
     return res;
 });
 const selectedMetrics = ref(["score"]);
+const colours = ref<{ [key: string]: string }>({});
 
 onMounted(refreshExperiments)
 
@@ -147,12 +157,21 @@ async function refreshExperiments() {
     experiments.value = await experimentStore.getAllExperiments();
     experimentLoading.value = false;
 }
-
-
+function setColour(logdir: string, newColour: string) {
+    colours.value[logdir] = newColour;
+    localStorage.setItem("logdirColours", JSON.stringify(colours.value));
+}
 
 async function loadResults(logdir: string) {
     resultsLoading.value.add(logdir);
     const res = await resultsStore.loadExperimentResults(logdir);
+    const savedColours = JSON.parse(localStorage.getItem("logdirColours") ?? "{}");
+    if (savedColours[logdir] != null) {
+        colours.value[logdir] = savedColours[logdir];
+    } else {
+        colours.value[logdir] = stringToRGB(logdir);
+    }
+    console.log(colours.value[logdir])
     experimentResults.value.set(logdir, res);
     ticks.value = res.ticks;
     resultsLoading.value.delete(logdir);
@@ -211,4 +230,4 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     cursor: pointer;
     text-decoration: underline;
 }
-</style>../../stores/ResultsStore
+</style>

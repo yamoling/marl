@@ -5,21 +5,6 @@ import pickle
 import torch
 
 
-def setup_experiment():
-    env = MockEnv(4)
-    qnetwork = marl.nn.model_bank.MLP.from_env(env).to("cpu")
-    policy = marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=100_000)
-
-    return marl.Experiment.create(
-        "test",
-        algo=marl.qlearning.DQN(qnetwork=qnetwork, train_policy=policy),
-        trainer=DQNTrainer(qnetwork, policy, mixer=marl.qlearning.VDN(env.n_agents)),
-        env=env,
-        test_interval=100,
-        n_steps=100,
-    )
-
-
 def test_unpickle_experiment_and_update_network():
     """
     Create an experiment and pickle it to a file.
@@ -55,5 +40,6 @@ def test_unpickle_experiment_and_update_network():
     runner.train(1)
 
     # Check that the parameters values have been updated
-    for param, initial_param in zip(qnetwork.parameters(), param_values):
+    algo: marl.qlearning.DQN = exp.algo  # type: ignore
+    for param, initial_param in zip(algo.qnetwork.parameters(), param_values):
         assert not torch.equal(param, initial_param)

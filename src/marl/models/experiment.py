@@ -14,7 +14,7 @@ import polars as pl
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl import logging
-from marl.qlearning import IDeepQLearning
+from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
 
 from .algo import RLAlgo
@@ -319,7 +319,7 @@ class Experiment:
         qvalues = []
         for action in actions:
             values.append(self.algo.value(obs))
-            if isinstance(self.algo, IDeepQLearning):
+            if isinstance(self.algo, DQN):
                 qvalues.append(self.algo.compute_qvalues(obs).tolist())
             obs_, reward, done, truncated, info = env.step(action)
             episode.add(Transition(obs, action, reward, done, info, obs_, truncated))

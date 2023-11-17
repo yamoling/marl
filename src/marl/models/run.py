@@ -97,12 +97,12 @@ class Run:
             self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
             max_train = self.train_metrics["time_step"].max()
         except (pl.NoDataError, FileNotFoundError):
-            pass
+            max_train = 0
         try:
             self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
             max_test = self.test_metrics["time_step"].max()
         except (pl.NoDataError, FileNotFoundError):
-            pass
+            max_test = 0
         return max(max_train, max_test)  # type: ignore
 
     def stop(self):

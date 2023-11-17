@@ -47,9 +47,9 @@ def test_target_network_is_updated():
             if time_step % target_update == 0:
                 # If we should update the qtarget, check that it has indeed been updated and
                 # that they are equal to the qnetwork weights
-                assert not parameters_equal(qtarget_params, trainer.qtarget.parameters())
+                assert not parameters_equal(qtarget_params, list(trainer.qtarget.parameters()))
                 qtarget_params = deepcopy(list(trainer.qtarget.parameters()))
                 assert parameters_equal(qnetwork_params, qtarget_params)
             else:
                 # Otherwise, check that the qtarget has not been updated
-                assert parameters_equal(qtarget_params, trainer.qtarget.parameters())
+                assert parameters_equal(qtarget_params, list(trainer.qtarget.parameters()))

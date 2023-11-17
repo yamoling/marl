@@ -37,6 +37,7 @@ class Runner:
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int) -> Optional[Episode]:
         episode = EpisodeBuilder()
         obs = self._env.reset()
+        self._algo.new_episode()
         initial_value = self._algo.value(obs)
         while not episode.is_finished and step_num < self._max_step:
             if self._test_interval != 0 and step_num % self._test_interval == 0:
@@ -83,6 +84,7 @@ class Runner:
         for i in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
+            self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
