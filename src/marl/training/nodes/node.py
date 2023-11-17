@@ -28,7 +28,7 @@ class Node(Generic[T], ABC):
         Node.num += 1
 
         self._needs_update = True
-        self._cache: T = None
+        self._cache = None
 
     @abstractmethod
     def _compute_value(self) -> T:
@@ -48,16 +48,68 @@ class Node(Generic[T], ABC):
         if self._needs_update:
             self._cache = self._compute_value()
             self._needs_update = False
+        if self._cache is None:
+            raise RuntimeError("Node value has no value !")
         return self._cache
 
     def __hash__(self) -> int:
         return hash(self.name)
-    
+
     def __repr__(self) -> str:
         return self.name
-    
+
     def __str__(self) -> str:
         return self.name
+
+        # Operator overloading
+
+    def __mul__(self, other):
+        return self.value * other
+
+    def __rmul__(self, other):
+        return self.value * other
+
+    def __add__(self, other):
+        return self.value + other
+
+    def __radd__(self, other):
+        return self.value + other
+
+    def __sub__(self, other):
+        return self.value - other
+
+    def __rsub__(self, other):
+        return other - self.value
+
+    def __div__(self, other):
+        return self.value / other
+
+    def __rdiv__(self, other):
+        return other / self.value
+
+    def __truediv__(self, other):
+        return self.value / other
+
+    def __rtruediv__(self, other):
+        return other / self.value
+
+    def __lt__(self, other) -> bool:
+        return self.value < other
+
+    def __le__(self, other) -> bool:
+        return self.value <= other
+
+    def __gt__(self, other) -> bool:
+        return self.value > other
+
+    def __ge__(self, other) -> bool:
+        return self.value >= other
+
+    def __eq__(self, other) -> bool:
+        return self.value == other
+
+    def __ne__(self, other) -> bool:
+        return self.value != other
 
 
 class ValueNode(Node[T]):

@@ -22,7 +22,7 @@ class Runner:
         logger: Logger,
         test_interval: int,
         n_steps: int,
-        test_env: RLEnv = None,
+        test_env: Optional[RLEnv] = None,
         quiet=False,
     ):
         self._trainer = trainer
@@ -34,7 +34,7 @@ class Runner:
         self._quiet = quiet
         self._max_step = n_steps
 
-    def _train_episode(self, step_num: int, episode_num: int, n_tests: int) -> Episode:
+    def _train_episode(self, step_num: int, episode_num: int, n_tests: int) -> Optional[Episode]:
         episode = EpisodeBuilder()
         obs = self._env.reset()
         initial_value = self._algo.value(obs)
@@ -108,7 +108,7 @@ class Runner:
         if isinstance(device, str):
             from marl.utils import get_device
 
-            device = get_device(device)
+            device = get_device(device)  # type: ignore
         self._algo.to(device)
         self._trainer.to(device)
         return self
@@ -132,8 +132,9 @@ def agregate_metrics(
 ) -> dict[str, float]:
     """Aggregate a list of metrics into min, max, avg and std."""
     import numpy as np
+
     if skip_keys is None:
-        skip_keys = {}
+        skip_keys = set()
     all_values: dict[str, list[float]] = {}
     for metrics in all_metrics:
         for key, value in metrics.items():

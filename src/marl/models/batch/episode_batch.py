@@ -20,54 +20,53 @@ class EpisodeBatch(Batch):
         return self
 
     @cached_property
-    def obs_(self) -> torch.Tensor:
+    def obs_(self):
         """All the observations of the episodes, from 0 to episode_length + 1"""
         return torch.from_numpy(np.array([e._observations for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
-    def extras_(self) -> torch.Tensor:
+    def extras_(self):
         """All the extras of the episodes, from 0 to episode_length + 1"""
         return torch.from_numpy(np.array([e._extras for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
-    def obs(self) -> torch.Tensor:
+    def obs(self):
         obs = np.array([e.obs.data for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(obs).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def extras(self) -> torch.Tensor:
+    def extras(self):
         return torch.from_numpy(np.array([e.extras for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def actions(self) -> torch.LongTensor:
+    def actions(self):
         actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=np.int64)).to(self.device)
         return actions.unsqueeze(-1).transpose(1, 0)
-    
+
     @cached_property
-    def rewards(self) -> torch.Tensor:
+    def rewards(self):
         return torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def dones(self) -> torch.Tensor:
+    def dones(self):
         return torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def available_actions_(self) -> torch.LongTensor:
+    def available_actions_(self):
         return torch.from_numpy(np.array([e.available_actions_ for e in self.episodes], dtype=np.int64)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def available_actions(self) -> torch.LongTensor:
+    def available_actions(self):
         return torch.from_numpy(np.array([e.available_actions for e in self.episodes], dtype=np.int64)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def states(self) -> torch.Tensor:
+    def states(self):
         return torch.from_numpy(np.array([e.states[:-1] for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def states_(self) -> torch.Tensor:
+    def states_(self):
         return torch.from_numpy(np.array([e.states[1:] for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    
+
     @cached_property
-    def action_probs(self) -> torch.Tensor:
+    def action_probs(self):
         return torch.from_numpy(np.array([e.actions_probs for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-    

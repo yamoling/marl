@@ -18,7 +18,7 @@ class MultiLogger(Logger):
 
     def __del__(self):
         for logger in self.loggers:
-            logger.__del__()
+            del logger
 
     def close(self):
         for logger in self.loggers:

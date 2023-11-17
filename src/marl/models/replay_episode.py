@@ -24,3 +24,18 @@ class ReplayEpisode(ReplayEpisodeSummary):
     qvalues: list[list[list[float]]]
     state_values: list[float]
     frames: list[str]
+
+    def __init__(
+        self,
+        directory: str,
+        metrics: dict[str, float],
+        episode: Episode,
+        qvalues: list[list[list[float]]],
+        state_values: list[float],
+        frames: list[str],
+    ):
+        super().__init__(directory, metrics)
+        self.episode = episode
+        self.qvalues = qvalues
+        self.state_values = state_values
+        self.frames = frames

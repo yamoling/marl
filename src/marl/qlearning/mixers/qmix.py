@@ -16,20 +16,18 @@ class QMix(Mixer):
 
         self.state_dim = int(np.prod(state_shape))
 
-        self.hyper_w_1 = nn.Sequential(nn.Linear(self.state_dim, hypernet_embed_size),
-                                        nn.ReLU(),
-                                        nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents))
-        self.hyper_w_final = nn.Sequential(nn.Linear(self.state_dim, hypernet_embed_size),
-                                        nn.ReLU(),
-                                        nn.Linear(hypernet_embed_size, self.embed_size))
+        self.hyper_w_1 = nn.Sequential(
+            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents)
+        )
+        self.hyper_w_final = nn.Sequential(
+            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size)
+        )
 
         # State dependent bias for hidden layer
         self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_size)
 
         # V(s) instead of a bias for the last layers
-        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size),
-                               nn.ReLU(),
-                               nn.Linear(self.embed_size, 1))
+        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
 
     def forward(self, agent_qs: torch.Tensor, states: torch.Tensor):
         bs = agent_qs.size(0)
@@ -51,15 +49,6 @@ class QMix(Mixer):
         # Reshape and return
         q_tot = y.view(bs, -1)
         return q_tot
-
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "state_shape": self.state_shape,
-            "embed_size": self.embed_size,
-            "hypernet_embed_size": self.hypernet_embed_size,
-        }
 
     def save(self, to_directory: str):
         filename = f"{to_directory}/qmix.model"

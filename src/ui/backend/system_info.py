@@ -1,24 +1,25 @@
 import asyncio
 from threading import Thread
+from serde.json import to_json
 from websockets.server import serve, WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosed
 import psutil
-import json
 from marl.utils.others import list_gpus
+
+
+def get_system_info():
+    return {
+        "cpus": psutil.cpu_percent(percpu=True),
+        "ram": psutil.virtual_memory().percent,
+        "gpus": list_gpus(),
+    }
 
 
 async def send_system_info(websocket: WebSocketServerProtocol):
     try:
         while True:
             await asyncio.sleep(1)
-            gpus = list_gpus()
-            data = json.dumps(
-                {
-                    "cpus": psutil.cpu_percent(percpu=True),
-                    "ram": psutil.virtual_memory().percent,
-                    "gpus": [gpu.to_json() for gpu in gpus],
-                }
-            )
+            data = to_json(get_system_info())
             await websocket.send(data)
     except ConnectionClosed:
         return

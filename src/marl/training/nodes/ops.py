@@ -10,4 +10,4 @@ class Add(Node[T]):
         self.n2 = n2
 
     def _compute_value(self) -> T:
-        return self.n1.value + self.n2.value
+        return self.n1.value + self.n2.value  # type: ignore

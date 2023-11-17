@@ -36,10 +36,3 @@ class NStepMemory(TransitionMemory):
         t.obs_ = obs_
         t.done = done
         t.truncated = truncated
-
-    def summary(self):
-        return {
-            **super().summary(),
-            "n": self._n,
-            "gamma": self._gamma,
-        }

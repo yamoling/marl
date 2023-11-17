@@ -10,7 +10,7 @@ class AbsLayer(torch.nn.Module):
 
 
 class ReshapeLayer(torch.nn.Module):
-    def __init__(self, *output_shape: tuple[int]) -> None:
+    def __init__(self, *output_shape: int) -> None:
         super().__init__()
         self._output_shape = output_shape
 
@@ -28,10 +28,10 @@ class LambdaLayer(torch.nn.Module):
 
 
 class BMMLayer(torch.nn.Module):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
-        self.weights: torch.FloatTensor = None
-        self.biases: torch.FloatTensor = None
+        self.weights: torch.Tensor = torch.Tensor([0])
+        self.biases: torch.Tensor = torch.Tensor([0])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.bmm(x, self.weights) + self.biases
@@ -62,14 +62,8 @@ class HyperNetwork(torch.nn.Module):
         self.w2.append(AbsLayer())
         self.w2.append(ReshapeLayer(-1, n_hidden_features, 1))
 
-        self.b1 = torch.nn.Sequential(
-            torch.nn.Linear(state_size, n_hidden_features),
-            ReshapeLayer(-1, 1, n_hidden_features)
-        )
-        self.b2 = torch.nn.Sequential(
-            torch.nn.Linear(state_size, 1),
-            ReshapeLayer(-1, 1, 1)
-        )
+        self.b1 = torch.nn.Sequential(torch.nn.Linear(state_size, n_hidden_features), ReshapeLayer(-1, 1, n_hidden_features))
+        self.b2 = torch.nn.Sequential(torch.nn.Linear(state_size, 1), ReshapeLayer(-1, 1, 1))
 
     def forward(self, states: torch.Tensor) -> list[tuple[torch.Tensor, torch.Tensor]]:
         w1 = self.w1(states)
@@ -101,7 +95,6 @@ class QMix(Mixer):
         i = 0
         for layer in self.estimator:
             if isinstance(layer, BMMLayer):
-                layer: BMMLayer = layer
                 w, b = weights[i]
                 layer.weights = w
                 layer.biases = b
@@ -110,7 +103,7 @@ class QMix(Mixer):
     def save(self, to_directory: str):
         filename = os.path.join(to_directory, "qmix.weights")
         return torch.save(self.state_dict(), filename)
-    
+
     def load(self, from_directory: str):
         filename = os.path.join(from_directory, "qmix.weights")
         return self.load_state_dict(torch.load(filename))
@@ -123,13 +116,4 @@ class QMix(Mixer):
         weights = self.hyper_network.forward(states)
         self._set_weights(weights)
         mixed_qvalues = self.estimator.forward(qvalues)
-        return torch.reshape(mixed_qvalues, (*dims, ))
-
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "state_size": self._state_size,
-            "n_agents": self._n_agents,
-            "hidden_dims": self._hidden_dims
-        }
+        return torch.reshape(mixed_qvalues, (*dims,))

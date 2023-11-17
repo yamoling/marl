@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import List
 from sumtree import SumTree
 import torch
 from dataclasses import dataclass
@@ -18,22 +18,30 @@ class PrioritizedMemory(ReplayMemory[T]):
     """
 
     memory: ReplayMemory[T]
-    alpha: Schedule = 0.7
-    beta: Schedule = 0.4
+    alpha: Schedule
+    beta: Schedule
     eps: float = 1e-2
 
     def __init__(self, memory: ReplayMemory[T], alpha: float | Schedule = 0.7, beta: float | Schedule = 0.4, eps: float = 1e-2):
         super().__init__(memory.max_size)
-        if isinstance(self.alpha, float):
-            alpha = Schedule.constant(self.alpha)
-        if isinstance(self.beta, float):
-            beta = Schedule.constant(self.beta)
         self.memory = memory
         self.tree = SumTree(self.max_size)
         self.eps = eps
         self.max_priority = eps  # Initialize the max priority with epsilon
-        self.alpha = alpha
-        self.beta = beta
+        match alpha:
+            case float():
+                self.alpha = Schedule.constant(alpha)
+            case Schedule():
+                self.alpha = alpha
+            case other:
+                raise ValueError(f"alpha must be a float or a Schedule, got {other}")
+        match beta:
+            case float():
+                self.beta = Schedule.constant(beta)
+            case Schedule():
+                self.beta = beta
+            case other:
+                raise ValueError(f"beta must be a float or a Schedule, got {other}")
 
     def add(self, item: T):
         self.tree.add(self.max_priority)
@@ -64,7 +72,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         weights = weights / torch.max(weights)
 
         batch = self.get_batch(sample_idxs)
-        batch.importance_sampling_weights = weights
+        batch.importance_sampling_weights = weights  # type: ignore
         return batch
 
     def get_batch(self, indices: List[int]) -> Batch:
@@ -89,4 +97,3 @@ class PrioritizedMemory(ReplayMemory[T]):
         priorities = priorities.cpu()
         for idx, priority in zip(batch.sample_indices, priorities):
             self.tree.update(idx, priority.item())
-

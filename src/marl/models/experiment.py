@@ -188,7 +188,7 @@ class Experiment:
         for logger in loggers:
             match logger:
                 case "web":
-                    logger_list.append(logging.WSLogger(rundir))
+                    logger_list.append(logging.WSLogger(rundir, port=0))
                 case "tensorboard":
                     logger_list.append(logging.TensorBoardLogger(rundir, quiet=quiet))
                 case "csv":
@@ -260,11 +260,11 @@ class Experiment:
             res.append(
                 Dataset(
                     label=col,
-                    mean=df_stats[f"mean_{col}"],
-                    std=df_stats[f"std_{col}"],
-                    min=df_stats[f"min_{col}"],
-                    max=df_stats[f"max_{col}"],
-                    ci95=df_stats[f"ci95_{col}"],
+                    mean=df_stats[f"mean_{col}"].to_list(),
+                    std=df_stats[f"std_{col}"].to_list(),
+                    min=df_stats[f"min_{col}"].to_list(),
+                    max=df_stats[f"max_{col}"].to_list(),
+                    ci95=df_stats[f"ci95_{col}"].to_list(),
                 )
             )
         return df_stats["time_step"].to_list(), res

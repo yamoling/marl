@@ -4,8 +4,8 @@ from marl.training.nodes import ValueNode, Add
 def test_value_node():
     n = ValueNode("abc")
     assert n.value == "abc"
-    n.value = 25
-    assert n.value == 25
+    n.value = "def"
+    assert n.value == "def"
 
 
 def test_add_node():
@@ -29,12 +29,12 @@ def test_update_marks_complex():
     """
     When updating n3, only res2 should be marked as needing an update.
     n1   n2   n3
-     \   /    |
+     \\   /    |
       Add     |
      (res)    |
-         \    |  
-          \   |
-           \  |
+         \\    |
+          \\   |
+           \\  |
             Add
            (res2)
     """
@@ -52,4 +52,3 @@ def test_update_marks_complex():
     assert not res._needs_update
     assert res2._needs_update
     assert res2.value == 55
-

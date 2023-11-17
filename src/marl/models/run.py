@@ -97,13 +97,13 @@ class Run:
             self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
             max_train = self.train_metrics["time_step"].max()
         except (pl.NoDataError, FileNotFoundError):
-            max_train = 0
+            pass
         try:
             self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
             max_test = self.test_metrics["time_step"].max()
         except (pl.NoDataError, FileNotFoundError):
-            max_test = 0
-        return max(max_train, max_test)
+            pass
+        return max(max_train, max_test)  # type: ignore
 
     def stop(self):
         """Stop the run by sending a SIGINT to the process. This method waits for the process to terminate before returning."""
@@ -124,8 +124,8 @@ class Run:
             return None
 
     def get_pid(self) -> int | None:
+        pid_file = os.path.join(self.rundir, "pid")
         try:
-            pid_file = os.path.join(self.rundir, "pid")
             with open(pid_file, "r") as f:
                 pid = int(f.read())
                 os.kill(pid, 0)

@@ -27,11 +27,6 @@ def set_new_arguments(parser: ArgumentParser):
     set_experiment_arguments(new_experiment_parser)
 
 
-def set_resume_arguments(parser: ArgumentParser):
-    parser.add_argument("rundirs", nargs="+", type=str, help="The run directories to resume")
-    parser.add_argument("--n_tests", type=int, default=5)
-
-
 def set_serve_arguments(parser: ArgumentParser):
     parser.add_argument("--port", type=int, default=5000)
     parser.add_argument("--debug", action="store_true", default=False)
@@ -42,8 +37,6 @@ def parse_args():
     subparsers = parser.add_subparsers(title="RLEnv main entry point", required=True, dest="command")
     new_parser = subparsers.add_parser("new", help="Create a new run or experiment")
     set_new_arguments(new_parser)
-    resume_parser = subparsers.add_parser("resume", help="Resume an existing run")
-    set_resume_arguments(resume_parser)
     serve_parser = subparsers.add_parser("serve", help="Serve the web interface")
     set_serve_arguments(serve_parser)
     argcomplete.autocomplete(parser)
@@ -59,6 +52,7 @@ def new(args: Namespace):
                 seed = args.seed + i
                 if os.fork() == 0:
                     import time
+
                     # Sleep for some time for each child process to allow GPUs to be allocated properly
                     time.sleep(i)
                     # Force child processes to be quiet
@@ -83,32 +77,11 @@ def create_run(args: Namespace, seed: int):
     runner.train(n_tests=args.n_tests)
 
 
-def resume(args: Namespace):
-    def _resume_run(rundir: str, args: Namespace, quiet=True):
-        if rundir.endswith("/"):
-            rundir = rundir[:-1]
-        logdir = os.path.dirname(rundir)
-        experiment = marl.Experiment.load(logdir)
-        runner = experiment.restore_runner(rundir)
-        runner.train(n_tests=args.n_tests, quiet=quiet)
-
-    for rundir in args.rundirs[:-1]:
-        pid = os.fork()
-        # Child process: resume the run
-        if pid == 0:
-            _resume_run(rundir, args)
-            exit(0)
-    rundir = args.rundirs[-1]
-    _resume_run(rundir, args, quiet=False)
-
-
 if __name__ == "__main__":
     args = parse_args()
     match args.command:
         case "new":
             new(args)
-        case "resume":
-            resume(args)
         case "load":
             print("TODO")
         case "serve":

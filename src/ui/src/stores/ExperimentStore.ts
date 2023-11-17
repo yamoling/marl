@@ -30,6 +30,14 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    async function loadExperiment(logdir: string) {
+        return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "POST" })
+    }
+
+    async function unloadExperiment(logdir: string) {
+        return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "DELETE" })
+    }
+
 
     async function getTestEpisodes(logdir: string, time_step: number): Promise<ReplayEpisodeSummary[]> {
         const resp = await fetch(`${HTTP_URL}/experiment/test/list/${time_step}/${logdir}`);
@@ -39,6 +47,8 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     return {
         getAllExperiments,
         getExperiment,
+        loadExperiment,
+        unloadExperiment,
         getTestEpisodes,
     };
 });

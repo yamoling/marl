@@ -1,20 +1,15 @@
-from typing_extensions import Self
-from typing import Any, TypeVar, Generic, Optional
+from typing import Optional
 from dataclasses import dataclass
 
 from abc import abstractmethod
 
 
-T = TypeVar("T")
-
-
 @dataclass
-class Schedule(Generic[T]):
+class Schedule:
     name: str
     start_value: float
     min_value: float
     n_steps: int
-
 
     def __init__(self, start_value: float, min_value: float, n_steps: int):
         self.start_value = start_value
@@ -24,7 +19,7 @@ class Schedule(Generic[T]):
         self.current_step = 0
 
     @abstractmethod
-    def update(self, step: Optional[int]=None):
+    def update(self, step: Optional[int] = None):
         """Update the value of the schedule. Force a step if given."""
 
     @property
@@ -33,70 +28,76 @@ class Schedule(Generic[T]):
         """Returns the current value of the schedule"""
 
     @staticmethod
-    def constant(value: float) -> Self:
+    def constant(value: float):
         return ConstantSchedule(value)
 
     @staticmethod
-    def linear(start_value: float, min_value: float, n_steps: int) -> Self:
+    def linear(start_value: float, min_value: float, n_steps: int):
         return LinearSchedule(start_value, min_value, n_steps)
 
     @staticmethod
-    def exp(start_value: float, min_value: float, n_steps: int) -> Self:
+    def exp(start_value: float, min_value: float, n_steps: int):
         return ExpSchedule(start_value, min_value, n_steps)
 
     # Operator overloading
-    def __mul__(self, other: T) -> T:
+    def __mul__(self, other):
         return self.value * other
 
-    def __rmul__(self, other: T) -> T:
+    def __rmul__(self, other):
         return self.value * other
 
-    def __pow__(self, exp: float) -> T:
+    def __pow__(self, exp: float) -> float:
         return self.value**exp
 
-    def __add__(self, other: T) -> T:
+    def __add__(self, other):
         return self.value + other
 
-    def __radd__(self, other: T) -> T:
+    def __neg__(self) -> float:
+        return -self.value
+
+    def __pos__(self) -> float:
+        return +self.value
+
+    def __radd__(self, other):
         return self.value + other
 
-    def __sub__(self, other: T) -> T:
+    def __sub__(self, other):
         return self.value - other
 
-    def __rsub__(self, other: T) -> T:
+    def __rsub__(self, other):
         return other - self.value
 
-    def __div__(self, other: T) -> T:
+    def __div__(self, other):
         return self.value / other
 
-    def __rdiv__(self, other: T) -> T:
+    def __rdiv__(self, other):
         return other / self.value
 
-    def __truediv__(self, other: T) -> T:
+    def __truediv__(self, other):
         return self.value / other
 
-    def __rtruediv__(self, other: T) -> T:
+    def __rtruediv__(self, other):
         return other / self.value
 
-    def __lt__(self, other: float) -> bool:
+    def __lt__(self, other) -> bool:
         return self.value < other
 
-    def __le__(self, other: float) -> bool:
+    def __le__(self, other) -> bool:
         return self.value <= other
 
-    def __gt__(self, other: float) -> bool:
+    def __gt__(self, other) -> bool:
         return self.value > other
 
-    def __ge__(self, other: float) -> bool:
+    def __ge__(self, other) -> bool:
         return self.value >= other
 
-    def __eq__(self, other: float) -> bool:
+    def __eq__(self, other) -> bool:
         return self.value == other
 
-    def __ne__(self, other: float) -> bool:
+    def __ne__(self, other) -> bool:
         return self.value != other
 
-    def __float__(self) -> float:
+    def __float__(self):
         return self.value
 
     def __int__(self) -> int:
@@ -109,7 +110,7 @@ class LinearSchedule(Schedule):
         self.decrease = (self.start_value - self.min_value) / self.n_steps
         self.current_value = self.start_value
 
-    def update(self, step: Optional[int]=None):
+    def update(self, step: Optional[int] = None):
         if step is None:
             self.current_step += 1
             self.current_value = max(self.value - self.decrease, self.min_value)
@@ -136,7 +137,7 @@ class ExpSchedule(Schedule):
         self.base = self.min_value / self.start_value
         self.last_update_step = self.n_steps - 1
 
-    def update(self, step: Optional[int]=None):
+    def update(self, step: Optional[int] = None):
         if step is not None:
             raise NotImplementedError("ExpSchedule does not support direct step updates")
         if self.current_step >= self.last_update_step:

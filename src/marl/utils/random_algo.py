@@ -9,26 +9,15 @@ class RandomAgent(RLAlgo):
         self._n_actions = n_actions
         self._n_agents = n_agents
 
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+    def choose_action(self, observation: Observation):
         actions = []
         for available in observation.available_actions:
             probs = available / available.sum()
             actions.append(np.random.choice(self._n_actions, p=probs))
         return actions
-        
+
     def save(self, to_path: str):
         return
-    
+
     def load(self, from_path: str):
         return
-    
-    def summary(self) -> dict:
-        return {
-            **super().summary(),
-            "n_actions": self._n_actions,
-            "n_agents": self._n_agents
-        }
-
-    @classmethod
-    def from_summary(cls, summary: dict):
-        return cls(summary["n_actions"], summary["n_agents"])

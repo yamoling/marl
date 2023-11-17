@@ -19,7 +19,6 @@ class DQNUpdater(Trainer):
         self.batch_size = 64
         self.gamma = 0.99
 
-    
     def update_step(self, transition: Transition, time_step: int):
         self.memory.add(transition)
         if len(self.memory) < self.batch_size:
@@ -27,6 +26,7 @@ class DQNUpdater(Trainer):
         self.train_policy.update(time_step)
 
         import numpy as np
+
         indices = np.random.randint(0, len(self.memory), self.batch_size)
         transitions = [self.memory._memory[i] for i in indices]
 
@@ -58,13 +58,11 @@ class DQNUpdater(Trainer):
         self.optim.step()
         if time_step % 200 == 0:
             self.qtarget.load_state_dict(self.qnetwork.state_dict())
-            print(f"[{time_step:5d}]Loss: {loss.item()}, epsilon: {self.train_policy.epsilon.value}")
-
-
+            print(f"[{time_step:5d}]Loss: {loss.item()}, epsilon: {self.train_policy}")
 
     def save(self, to_directory: str):
         return
-    
+
     def load(self, from_directory: str):
         return
 
@@ -73,7 +71,7 @@ class DQNUpdater(Trainer):
         self.qnetwork = self.qnetwork.to(device)
         self.qtarget = self.qtarget.to(device)
         return self
-    
+
     def randomize(self):
         self.qnetwork.randomize()
         self.qnetwork.randomize()

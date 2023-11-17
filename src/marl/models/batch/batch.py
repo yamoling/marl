@@ -3,14 +3,16 @@ from abc import ABC, abstractmethod
 from functools import cached_property
 import torch
 
+
 @dataclass
 class Batch(ABC):
     """
     Lazy loaded batch for training.
-    Every field is set to None by default. When the field is accessed, the specific attribute is 
+    Every field is set to None by default. When the field is accessed, the specific attribute is
     loaded with the `_get_<attribute>()` method that child classes must implement.
     (exception for importance sampling weights that are set by the memory)
     """
+
     def __init__(self, size: int, n_agents: int, sample_indices: list[int]) -> None:
         super().__init__()
         self.size = size
@@ -27,67 +29,67 @@ class Batch(ABC):
 
     def __len__(self) -> int:
         return self.size
-    
-    @abstractmethod
+
+    @abstractmethod  # type: ignore
     @cached_property
     def obs(self) -> torch.Tensor:
         """Observations"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def obs_(self) -> torch.Tensor:
         """Next observations"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def extras(self) -> torch.Tensor:
         """Extra information"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def extras_(self) -> torch.Tensor:
         """Nest extra information"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def actions(self) -> torch.LongTensor:
         """Actions"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def rewards(self) -> torch.Tensor:
         """Rewards"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def dones(self) -> torch.Tensor:
         """Dones"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def available_actions_(self) -> torch.LongTensor:
         """Next available actions"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def available_actions(self) -> torch.LongTensor:
         """Available actions"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def states(self) -> torch.Tensor:
         """Environment states"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def states_(self) -> torch.Tensor:
         """Next environment states"""
 
-    @abstractmethod
+    @abstractmethod  # type: ignore
     @cached_property
     def action_probs(self) -> torch.Tensor:
         """Probabilities of the taken action"""
-    
+
     def to(self, device: torch.device) -> "Batch":
         """Send the tensors to the given device"""
         self.device = device

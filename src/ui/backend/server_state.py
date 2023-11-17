@@ -1,9 +1,7 @@
 import os
-import json
 import shutil
-from marl.models import Experiment, ReplayEpisodeSummary, Run, ReplayEpisode
-
-from .messages import RunConfig, TrainConfig
+from typing import Optional
+from marl.models import Experiment, Run, ReplayEpisode
 
 
 class ServerState:
@@ -11,7 +9,7 @@ class ServerState:
         self.experiments: dict[str, Experiment] = {}
         self.logdir = logdir
 
-    def list_experiments(self):
+    def list_experiments(self) -> list[dict]:
         experiments = []
         for directory in os.listdir(self.logdir):
             directory = os.path.join(self.logdir, directory)
@@ -22,9 +20,10 @@ class ServerState:
                 pass
         return experiments
 
-    def get_experiment_parameters(self, logdir: str) -> dict:
-        with open(os.path.join(logdir, "experiment.json"), "r") as f:
-            return json.load(f)
+    def load_experiment(self, logdir: str) -> Experiment:
+        experiment = Experiment.load(logdir)
+        self.experiments[logdir] = experiment
+        return experiment
 
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self.experiments.pop(logdir, None)
@@ -40,29 +39,7 @@ class ServerState:
         except FileNotFoundError:
             raise ValueError(f"Experiment {logdir} could not be deleted !")
 
-    def create_runner(self, logdir: str, run_config: RunConfig):
-        """Creates a runner for the given experiment and returns their loggers"""
-        if logdir not in self.experiments:
-            raise ValueError(f"Experiment {logdir} not found")
-        experiment = self.experiments[logdir]
-        raise NotImplementedError()
-
-    def stop_runner(self, rundir: str):
-        logdir = os.path.dirname(rundir)
-        if logdir not in self.experiments:
-            raise ValueError(f"Experiment {rundir} not found")
-        self.experiments[logdir].stop_runner(rundir)
-
-    def restart_runner(self, rundir: str, train_config: TrainConfig):
-        logdir = os.path.dirname(rundir)
-        if logdir not in self.experiments:
-            self.experiments[logdir] = Experiment.load(logdir)
-        raise NotImplementedError()
-
-    def delete_runner(self, rundir: str):
-        shutil.rmtree(rundir)
-
-    def get_runner_port(self, rundir: str) -> int:
+    def get_runner_port(self, rundir: str) -> Optional[int]:
         run = Run.load(rundir)
         return run.get_port()
 

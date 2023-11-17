@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from serde import serde
 from abc import ABC, abstractmethod
 from typing import Literal, Optional
-from typing_extensions import Self
 
 import os
 import torch
@@ -29,6 +28,7 @@ class TargetParametersUpdater(ABC):
     def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter], time_step: int):
         """Update the target network parameters based on the current network parameters"""
 
+
 @dataclass
 class HardUpdate(TargetParametersUpdater):
     update_period: int
@@ -42,7 +42,8 @@ class HardUpdate(TargetParametersUpdater):
             for param, target in zip(current_params, target_params):
                 target.data.copy_(param.data, non_blocking=True)
 
-@dataclass  
+
+@dataclass
 class SoftUpdate(TargetParametersUpdater):
     tau: float
 
@@ -54,9 +55,6 @@ class SoftUpdate(TargetParametersUpdater):
         for param, target in zip(current_params, target_params):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
-
-
-
 
 
 @serde
@@ -117,7 +115,7 @@ class DQNTrainer(Trainer):
         self.optimizer = self._make_optimizer(optimizer_str)
 
     def _make_graph(self):
-        batch = nodes.ValueNode[Batch](None)
+        batch = nodes.ValueNode[Batch](None)  # type: ignore
         qvalues = self._make_qvalue_prediction_node(batch)
         qtargets_batch = batch
 
@@ -127,7 +125,7 @@ class DQNTrainer(Trainer):
         loss = nodes.MSELoss(qvalues, qtargets, batch)
         return batch, loss
 
-    def to(self, device: torch.device) -> Self:
+    def to(self, device: torch.device):
         self.qnetwork = self.qnetwork.to(device)
         self.qtarget = self.qtarget.to(device)
         if self.mixer is not None:
@@ -200,7 +198,7 @@ class DQNTrainer(Trainer):
     def update_episode(self, episode: Episode, episode_num: int):
         if not self.update_on_episodes:
             return
-        self.policy.update()
+        self.policy.update(episode_num)
         raise NotImplementedError()
 
     def update_step(self, transition: Transition, step_num: int):
@@ -216,11 +214,6 @@ class DQNTrainer(Trainer):
         loss.backward()
         self.optimizer.step()
         self.target_params_updater.update(self.parameters, self.target_parameters, step_num)
-
-    def _soft_update(self):
-        for param, target in zip(self.parameters, self.target_parameters):
-            new_value = (1 - self.tau) * target.data + self.tau * param.data
-            target.data.copy_(new_value, non_blocking=True)
 
     def show(self, filename: str = "trainer.png"):
         """Display the computation graph"""

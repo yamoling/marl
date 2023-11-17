@@ -43,13 +43,6 @@ class CSVLogger(Logger):
             for file in self._files.values():
                 file.close()
 
-    def _resume_logging(self):
-        with open(self.test_path, "r") as f:
-            header = f.readline()
-            if len(header) > 0:
-                self._headers = header.strip().split(",")
-                self._first = False
-
     @property
     def test_path(self):
         return os.path.join(self.logdir, "test.csv")

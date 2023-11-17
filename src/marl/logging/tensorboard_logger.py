@@ -1,6 +1,6 @@
 import logging
-from typing import Union
-from torch.utils.tensorboard import SummaryWriter
+from typing import Union, Optional
+from torch.utils.tensorboard import SummaryWriter  # type: ignore
 from .logger_interface import Logger
 
 
@@ -30,7 +30,7 @@ class TensorBoardLogger(Logger):
         else:
             self.to_print.append(f"{tag} {data}")
 
-    def flush(self, prefix: str = None):
+    def flush(self, prefix: Optional[str] = None):
         if prefix is not None:
             self.to_print.insert(0, prefix)
         logging.info("  \t".join(self.to_print))

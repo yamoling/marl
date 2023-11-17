@@ -40,9 +40,8 @@
                             </td>
                         </tr>
                         <tr v-for="test in testsAtStep" @click="() => emits('view-episode', test.directory)">
-                            <td>{{ test.metrics }}</td>
-                            <td v-for="col in test.metrics">
-                                {{ test.metrics[col] }}
+                            <td v-for="col in labels">
+                                {{ formatFloat(test.metrics[col] as number) }}
                             </td>
                         </tr>
                     </tbody>
@@ -69,6 +68,15 @@ const testsAtStep = ref([] as ReplayEpisodeSummary[]);
 const labels = computed(() => props.results.test.map(d => d.label));
 const resultsStore = useResultsStore();
 
+
+function formatFloat(value: number) {
+    // At most 3 decimal places
+    // If the number is an integer, don't show the decimal point
+    if (value == Math.floor(value)) {
+        return value.toString();
+    }
+    return value.toFixed(3);
+}
 
 async function onTestClicked(time_step: number) {
     selectedTimeStep.value = time_step;

@@ -26,7 +26,17 @@ class RandomNetworkDistillation(IRModule):
     running_mean_warmup: int
     ir_weight: Schedule
 
-    def __init__(self, obs_shape: tuple[int, ...], extras_shape: tuple[int, ...], feature_size: int=512, lr:float=1e-4, clip_value: float=1.0, update_ratio: float=0.25, running_mean_warmup: int=64, ir_weight: Optional[Schedule]=None):
+    def __init__(
+        self,
+        obs_shape: tuple[int, int, int],
+        extras_shape: tuple[int],
+        feature_size: int = 512,
+        lr: float = 1e-4,
+        clip_value: float = 1.0,
+        update_ratio: float = 0.25,
+        running_mean_warmup: int = 64,
+        ir_weight: Optional[Schedule] = None,
+    ):
         super().__init__()
         self.obs_shape = obs_shape
         self.extras_shape = extras_shape
@@ -50,8 +60,6 @@ class RandomNetworkDistillation(IRModule):
         self._running_obs = RunningMeanStd(shape=self.obs_shape)
         self._update_count = 0
         self._warmup_duration = self.running_mean_warmup
-
-
 
     def compute(self, batch: Batch) -> torch.Tensor:
         self._update_count += 1
