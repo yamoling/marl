@@ -62,4 +62,4 @@ class TransitionBatch(Batch):
 
     @cached_property
     def masks(self):
-        return 1.0
+        return torch.ones(self.size).to(self.device)

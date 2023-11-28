@@ -72,7 +72,7 @@ def serve(args: Namespace):
 
 def create_run(args: Namespace, seed: int):
     experiment = marl.Experiment.load(args.logdir)
-    runner = experiment.create_runner(*args.loggers, seed=seed, quiet=args.quiet)
+    runner = experiment.create_runner(seed=seed)
     runner.to(args.device)
     runner.train(n_tests=args.n_tests)
 

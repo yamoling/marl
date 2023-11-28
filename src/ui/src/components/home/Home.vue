@@ -80,11 +80,13 @@
             </div>
             <template v-else>
                 <div>
-                    <span v-for="[logdir, colour] in colours">
-                        <input type="color" :value="colour"
-                            @change="(e) => setColour(logdir as string, (e.target as HTMLInputElement).value)">
-                        {{ logdir }}
-                    </span>
+                    <template v-for="[logdir, colour] in colours">
+                        <span v-if="experimentResults.has(logdir)">
+                            <input type="color" :value="colour"
+                                @change="(e) => setColour(logdir as string, (e.target as HTMLInputElement).value)">
+                            {{ logdir }}
+                        </span>
+                    </template>
                 </div>
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
                     :title="label.replaceAll('_', ' ')" :showLegend="false" :colours="colours" />
@@ -224,7 +226,6 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
 
 function initColoursFromLocalStorage() {
     const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
-    console.log(entries)
     try {
         return new Map<string, string>(entries);
     } catch (e) {

@@ -26,7 +26,7 @@ class ReplayMemory(Generic[T], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: Batch, td_error: torch.Tensor) -> None:
         """Update the data in the memory"""
 
     def sample(self, batch_size: int) -> Batch:

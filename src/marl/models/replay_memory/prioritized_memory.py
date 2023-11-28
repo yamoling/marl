@@ -84,15 +84,15 @@ class PrioritizedMemory(ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, batch: Batch, qvalues: torch.Tensor, qtargets: torch.Tensor):
+    def update(self, batch: Batch, td_error: torch.Tensor):
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
         self.beta.update()
         self.alpha.update()
         with torch.no_grad():
-            priorities = torch.abs(qtargets - qvalues)
-            priorities = (priorities + self.eps) ** self.alpha
+            priorities = torch.abs(td_error)
+            priorities = (priorities + self.eps) ** self.alpha.value
             self.max_priority = max(self.max_priority, priorities.max().item())
         priorities = priorities.cpu()
         for idx, priority in zip(batch.sample_indices, priorities):

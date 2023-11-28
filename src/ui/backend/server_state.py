@@ -28,20 +28,8 @@ class ServerState:
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self.experiments.pop(logdir, None)
 
-    def delete_experiment(self, logdir: str):
-        try:
-            experiment = self.unload_experiment(logdir)
-            if experiment is None:
-                experiment = Experiment.load(logdir)
-            for run in experiment.runs:
-                run.stop()
-            shutil.rmtree(logdir)
-        except FileNotFoundError:
-            raise ValueError(f"Experiment {logdir} could not be deleted !")
-
     def get_runner_port(self, rundir: str) -> Optional[int]:
-        run = Run.load(rundir)
-        return run.get_port()
+        return None
 
     def replay_episode(self, episode_dir: str) -> ReplayEpisode:
         longest_match = ""

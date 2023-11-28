@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Generic, TypeVar
+import torch
 
 T = TypeVar("T")
 
@@ -28,7 +29,8 @@ class Node(Generic[T], ABC):
         Node.num += 1
 
         self._needs_update = True
-        self._cache = None
+        # Type hinting. self._cache is initially unbound.
+        self._cache: T
 
     @abstractmethod
     def _compute_value(self) -> T:
@@ -42,14 +44,17 @@ class Node(Generic[T], ABC):
             child._mark_for_update()
         self._needs_update = True
 
+    def to(self, device: torch.device):
+        """Move the node to the given device"""
+        for child in self.children:
+            child.to(device)
+
     @property
     def value(self) -> T:
         """The value of the node"""
         if self._needs_update:
             self._cache = self._compute_value()
             self._needs_update = False
-        if self._cache is None:
-            raise RuntimeError("Node value has no value !")
         return self._cache
 
     def __hash__(self) -> int:

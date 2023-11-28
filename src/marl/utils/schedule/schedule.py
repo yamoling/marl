@@ -8,12 +8,12 @@ from abc import abstractmethod
 class Schedule:
     name: str
     start_value: float
-    min_value: float
+    end_value: float
     n_steps: int
 
-    def __init__(self, start_value: float, min_value: float, n_steps: int):
+    def __init__(self, start_value: float, end_value: float, n_steps: int):
         self.start_value = start_value
-        self.min_value = min_value
+        self.end_value = end_value
         self.n_steps = n_steps
         self.name = self.__class__.__name__
         self.current_step = 0
@@ -32,12 +32,12 @@ class Schedule:
         return ConstantSchedule(value)
 
     @staticmethod
-    def linear(start_value: float, min_value: float, n_steps: int):
-        return LinearSchedule(start_value, min_value, n_steps)
+    def linear(start_value: float, end_value: float, n_steps: int):
+        return LinearSchedule(start_value, end_value, n_steps)
 
     @staticmethod
-    def exp(start_value: float, min_value: float, n_steps: int):
-        return ExpSchedule(start_value, min_value, n_steps)
+    def exp(start_value: float, end_value: float, n_steps: int):
+        return ExpSchedule(start_value, end_value, n_steps)
 
     # Operator overloading
     def __mul__(self, other):
@@ -48,6 +48,9 @@ class Schedule:
 
     def __pow__(self, exp: float) -> float:
         return self.value**exp
+
+    def __rpow__(self, other):
+        return other**self.value
 
     def __add__(self, other):
         return self.value + other
@@ -105,20 +108,22 @@ class Schedule:
 
 
 class LinearSchedule(Schedule):
-    def __init__(self, start_value: float, min_value: float, n_steps: int):
-        super().__init__(start_value, min_value, n_steps)
-        self.decrease = (self.start_value - self.min_value) / self.n_steps
+    def __init__(self, start_value: float, end_value: float, n_steps: int):
+        super().__init__(start_value, end_value, n_steps)
         self.current_value = self.start_value
+        # y = ax + b
+        self.a = (self.end_value - self.start_value) / self.n_steps
+        self.b = self.start_value
 
     def update(self, step: Optional[int] = None):
         if step is None:
             self.current_step += 1
-            self.current_value = max(self.value - self.decrease, self.min_value)
         else:
-            diff = step - self.current_step
-            delta = diff * self.decrease
-            self.current_value = max(self.value - delta, self.min_value)
             self.current_step = step
+        if self.current_step >= self.n_steps:
+            self.current_value = self.end_value
+        else:
+            self.current_value = self.a * (self.current_step) + self.b
 
     @property
     def value(self) -> float:
@@ -134,14 +139,14 @@ class ExpSchedule(Schedule):
     def __init__(self, start_value: float, min_value: float, n_steps: int):
         super().__init__(start_value, min_value, n_steps)
         self.current_value = self.start_value
-        self.base = self.min_value / self.start_value
+        self.base = self.end_value / self.start_value
         self.last_update_step = self.n_steps - 1
 
     def update(self, step: Optional[int] = None):
         if step is not None:
             raise NotImplementedError("ExpSchedule does not support direct step updates")
         if self.current_step >= self.last_update_step:
-            self.current_value = self.min_value
+            self.current_value = self.end_value
         else:
             self.current_step += 1
             self.current_value = self.start_value * (self.base) ** (self.current_step / (self.n_steps - 1))

@@ -4,3 +4,4 @@ from .csv_logger import CSVLogger
 from .ws_logger import WSLogger
 from .multi_logger import MultiLogger
 
+__all__ = ["Logger", "TensorBoardLogger", "CSVLogger", "WSLogger", "MultiLogger"]

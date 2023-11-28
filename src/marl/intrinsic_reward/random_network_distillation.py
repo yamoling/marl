@@ -28,8 +28,8 @@ class RandomNetworkDistillation(IRModule):
 
     def __init__(
         self,
-        obs_shape: tuple[int, int, int],
-        extras_shape: tuple[int],
+        obs_shape: tuple[int, ...],
+        extras_shape: tuple[int, ...],
         feature_size: int = 512,
         lr: float = 1e-4,
         clip_value: float = 1.0,
@@ -49,6 +49,8 @@ class RandomNetworkDistillation(IRModule):
             ir_weight = ConstantSchedule(1.0)
         self.ir_weight = ir_weight
 
+        assert len(self.obs_shape) == 3
+        assert len(self.extras_shape) == 1
         self.target = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
         # Add an extra layer to the predictor to make it more difficult to predict the target
         self.predictor_head = CNN(self.obs_shape, self.extras_shape, output_shape=(self.features_size,))
@@ -58,39 +60,33 @@ class RandomNetworkDistillation(IRModule):
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_reward = RunningMeanStd()
         self._running_obs = RunningMeanStd(shape=self.obs_shape)
-        self._update_count = 0
+        
         self._warmup_duration = self.running_mean_warmup
 
-    def compute(self, batch: Batch) -> torch.Tensor:
-        self._update_count += 1
+        # Bookkeeping for uptade
+        self.squared_error = torch.tensor(0.0)
+        self._update_count = 0
 
+    def compute(self, batch: Batch) -> torch.Tensor:
         # Compute the embedding and the squared error
         with torch.no_grad():
             target_features = self.target.forward(batch.obs_, batch.extras_)
         predicted_features = self.predictor_head.forward(batch.obs_, batch.extras_)
         predicted_features = self.predictor_tail.forward(predicted_features)
-        squared_error = torch.pow(target_features - predicted_features, 2)
+        self.squared_error = torch.pow(target_features - predicted_features, 2)
         # Reshape the error such that it is a vector of shape (batch_size, -1)
         # to be able to sum over batch size even if there are multiple agents
-        squared_error = squared_error.view(batch.size, -1)
+        self.squared_error = self.squared_error.view(batch.size, -1)
         with torch.no_grad():
-            intrinsic_reward = torch.sum(squared_error, dim=-1)
+            intrinsic_reward = torch.sum(self.squared_error, dim=-1)
             # self._running_reward.update(intrinsic_reward)
             # intrinsic_reward = self._running_reward.normalize(intrinsic_reward)
-
-        # Randomly mask some of the features and perform the optimization
-        masks = torch.rand_like(squared_error) < self.update_ratio
-        loss = torch.sum(squared_error * masks) / torch.sum(masks)
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
 
         if self._update_count < self._warmup_duration:
             return torch.zeros(batch.size, dtype=torch.float32).to(self.device)
 
         intrinsic_reward = torch.clip(intrinsic_reward, max=self.clip_value)
         intrinsic_reward = self.ir_weight * intrinsic_reward
-        self.ir_weight.update()
         return intrinsic_reward
 
     def to(self, device: torch.device):
@@ -103,7 +99,14 @@ class RandomNetworkDistillation(IRModule):
         return self
 
     def update(self):
-        pass
+        self._update_count += 1
+        # Randomly mask some of the features and perform the optimization
+        masks = torch.rand_like(self.squared_error) < self.update_ratio
+        loss = torch.sum(self.squared_error * masks) / torch.sum(masks)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        self.ir_weight.update()
 
     def randomize(self):
         self.target.randomize()

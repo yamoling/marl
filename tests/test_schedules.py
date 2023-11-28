@@ -1,5 +1,6 @@
 from marl.utils import ExpSchedule, LinearSchedule, ConstantSchedule
 
+
 def test_exp_schedule():
     sched = ExpSchedule(16, 1, 5)
     expected = [16, 8, 4, 2, 1, 1, 1, 1]
@@ -11,10 +12,14 @@ def test_exp_schedule():
 
 def test_linear_schedule():
     sched = LinearSchedule(10, 0, 10)
-    expected = [10] + list(reversed(range(10))) + [0] * 10
+    expected = list(range(10, 0, -1)) + [0, 0, 0, 0, 0, 0, 0, 0]
     for exp in expected:
         assert sched == exp
         sched.update()
+
+    for i, exp in enumerate(expected):
+        sched.update(i)
+        assert sched == exp
 
 
 def test_constant_schedule():

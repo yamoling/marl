@@ -1,61 +1,19 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from serde import serialize
-from abc import ABC, abstractmethod
 from typing import Literal, Optional
 
-import os
 import torch
 from rlenv import Episode, Transition
 
 from marl.intrinsic_reward import IRModule
 from marl.models import Batch, ReplayMemory, Trainer
 from marl.nn import LinearNN, RecurrentNN, NN
-from marl.policy import Policy
+from marl.policy import Policy, EpsilonGreedy
 from marl.qlearning.mixers import Mixer
 from marl.training import nodes
 
-
-@dataclass
-class TargetParametersUpdater(ABC):
-    name: str
-
-    def __init__(self):
-        self.name = self.__class__.__name__
-
-    @abstractmethod
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
-        """Update the target network parameters based on the current network parameters"""
-
-
-@dataclass
-class HardUpdate(TargetParametersUpdater):
-    update_period: int
-
-    def __init__(self, update_period: int):
-        super().__init__()
-        self.update_period = update_period
-        self.update_num = 0
-
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
-        self.update_num += 1
-        if self.update_num % self.update_period == 0:
-            for param, target in zip(current_params, target_params):
-                target.data.copy_(param.data, non_blocking=True)
-
-
-@dataclass
-class SoftUpdate(TargetParametersUpdater):
-    tau: float
-
-    def __init__(self, tau: float):
-        super().__init__()
-        self.tau = tau
-
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter], time_step: int):
-        for param, target in zip(current_params, target_params):
-            new_value = (1 - self.tau) * target.data + self.tau * param.data
-            target.data.copy_(new_value, non_blocking=True)
+from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 
 
 @serialize
@@ -71,6 +29,7 @@ class DQNTrainer(Trainer):
     double_qlearning: bool
     mixer: Optional[Mixer]
     ir_module: Optional[IRModule]
+    grad_norm_clipping: Optional[float]
 
     def __init__(
         self,
@@ -82,33 +41,36 @@ class DQNTrainer(Trainer):
         update_interval: int = 5,
         lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
-        target_update: TargetParametersUpdater = SoftUpdate(0.01),
+        target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
         mixer: Optional[Mixer] = None,
         train_every: Literal["step", "episode"] = "step",
         ir_module: Optional[IRModule] = None,
+        grad_norm_clipping: Optional[float] = None,
     ):
         super().__init__(train_every, update_interval)
         self.qnetwork = qnetwork
-        self.qtarget = deepcopy(self.qnetwork)
         self.policy = train_policy
         self.gamma = gamma
         self.batch_size = batch_size
         self.lr = lr
         self.ir_module = ir_module
         self.mixer = mixer
-        self.target_mixer = deepcopy(self.mixer)
         self.double_qlearning = double_qlearning
-        self.target_params_updater = target_update
+        if target_updater is None:
+            target_updater = SoftUpdate(1e-2)
+        self.target_params_updater = target_updater
+        self.grad_norm_clipping = grad_norm_clipping
         self.memory = memory
-        self.device = qnetwork.device
 
-        self.parameters = list(self.qnetwork.parameters())
-        self.target_parameters = list(self.qtarget.parameters())
+        self.parameters = list[torch.nn.Parameter]()
+        self.target_parameters = list[torch.nn.Parameter]()
 
-        self.root, self.loss = self._make_graph()
+        self.batch, self.td_error, self.loss = self._make_graph()
         self.optimiser = self._make_optimizer(optimiser)
         self.update_num = 0
+        self.device = qnetwork.device
+        self.to(self.device)
 
     def _make_graph(self):
         batch = nodes.ValueNode[Batch](None)  # type: ignore
@@ -118,41 +80,27 @@ class DQNTrainer(Trainer):
         if self.ir_module is not None:
             qtargets_batch = nodes.IR(self.ir_module, qtargets_batch)
         qtargets = self._make_targets_computation_node(qtargets_batch)
-        loss = nodes.MSELoss(qvalues, qtargets, batch)
-        return batch, loss
+        td_error = nodes.TDError(qvalues, qtargets)
+        loss = nodes.MSELoss(td_error, batch)
+        return batch, td_error, loss
 
     def to(self, device: torch.device):
-        for key, value in self.__dict__.items():
-            if isinstance(value, torch.nn.Module):
-                value.to(device, non_blocking=True)
         self.device = device
-        return self
+        self.batch.to(device)
 
     def randomize(self):
-        self.qnetwork.randomize()
-        self.qtarget.randomize()
-        if self.ir_module is not None:
-            self.ir_module.randomize()
-        if self.mixer is not None:
-            self.mixer.randomize()
-
-    def save(self, to_directory: str):
-        torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.weights")
-        if self.mixer is not None:
-            self.mixer.save(os.path.join(to_directory, "mixer"))
-        if self.ir_module is not None:
-            self.ir_module.save(os.path.join(to_directory, "ir"))
-
-    def load(self, from_directory: str):
-        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights"))
-        self.qtarget.load_state_dict(self.qnetwork.state_dict())
-        if self.mixer is not None:
-            self.mixer.load(os.path.join(from_directory, "mixer"))
-        if self.ir_module is not None:
-            self.ir_module.load(os.path.join(from_directory, "ir"))
+        for key, value in self.__dict__.items():
+            match value:
+                case NN():
+                    value.randomize()
+                case IRModule():
+                    value.randomize()
+                case _:
+                    pass
 
     def _make_qvalue_prediction_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
         qvalues = nodes.QValues(self.qnetwork, batch)
+        self.parameters += list(self.qnetwork.parameters())
         if self.mixer is not None:
             mixed_qvalues = nodes.QValueMixer(self.mixer, qvalues, batch)
             qvalues = mixed_qvalues
@@ -160,14 +108,17 @@ class DQNTrainer(Trainer):
         return qvalues
 
     def _make_targets_computation_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
+        qtarget = deepcopy(self.qnetwork)
+        self.target_parameters += list(qtarget.parameters())
         if self.double_qlearning:
-            next_qvalues = nodes.DoubleQLearning(self.qnetwork, self.qtarget, batch)
+            next_qvalues = nodes.DoubleQLearning(self.qnetwork, qtarget, batch)
         else:
-            next_qvalues = nodes.NextQValues(self.qtarget, batch)
+            next_qvalues = nodes.NextQValues(qtarget, batch)
 
-        if self.target_mixer is not None:
-            next_qvalues = nodes.QValueMixer(self.target_mixer, next_qvalues, batch)
-            self.target_parameters += list(self.target_mixer.parameters())
+        if self.mixer is not None:
+            target_mixer = deepcopy(self.mixer)
+            next_qvalues = nodes.TargetQValueMixer(target_mixer, next_qvalues, batch)
+            self.target_parameters += list(target_mixer.parameters())
 
         target_qvalues = nodes.Target(self.gamma, next_qvalues, batch)
         return target_qvalues
@@ -181,31 +132,42 @@ class DQNTrainer(Trainer):
             case other:
                 raise ValueError(f"Unknown optimizer: {other}")
 
-    def update(self, time_step: int):
+    def _update(self, time_step: int):
         if len(self.memory) < self.batch_size:
-            return
+            return {}
         self.update_num += 1
         if self.update_num % self.update_interval != 0:
-            return
-        self.policy.update(time_step)
-        self.root.value = self.memory.sample(self.batch_size).to(self.device)
+            return {}
+
+        self.batch.value = self.memory.sample(self.batch_size).to(self.device)
         loss = self.loss.value
         self.optimiser.zero_grad()
         loss.backward()
+        log = {"loss": loss.item(), "td_error": self.td_error.value.mean().item()}
+        if self.grad_norm_clipping is not None:
+            log["grad_norm"] = torch.nn.utils.clip_grad.clip_grad_norm_(self.parameters, self.grad_norm_clipping).item()
+
         self.optimiser.step()
+        self.policy.update(time_step)
+        if isinstance(self.policy, EpsilonGreedy):
+            log["epsilon"] = self.policy.epsilon.value
+        if self.ir_module is not None:
+            self.ir_module.update()
+        self.memory.update(self.batch.value, self.td_error.value.detach())
         self.target_params_updater.update(self.parameters, self.target_parameters)
+        return log
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         if not self.update_on_episodes:
-            return
+            return {}
         self.memory.add(episode)
-        self.update(time_step)
+        return self._update(time_step)
 
     def update_step(self, transition: Transition, step_num: int):
         if not self.update_on_steps:
-            return
+            return {}
         self.memory.add(transition)
-        self.update(step_num)
+        return self._update(step_num)
 
     def show(self, filename: str = "trainer.png"):
         """Display the computation graph"""
@@ -213,7 +175,7 @@ class DQNTrainer(Trainer):
         import networkx as nx
 
         edges = []
-        to_visit = set[nodes.Node]([self.root])
+        to_visit = set[nodes.Node]([self.batch])
         visited = set[nodes.Node]()
         while len(to_visit) > 0:
             current = to_visit.pop()

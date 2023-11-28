@@ -7,13 +7,11 @@ from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
-from typing import Literal
 
 
 import polars as pl
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
-from marl import logging
 from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
 
@@ -128,8 +126,8 @@ class Experiment:
             if run.startswith("run_"):
                 try:
                     runs.append(Run.load(os.path.join(logdir, run)))
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(e)
         return runs
 
     @staticmethod
@@ -174,29 +172,9 @@ class Experiment:
             return None
         return Experiment.find_experiment_directory(parent)
 
-    def create_runner(
-        self,
-        *loggers: Literal["web", "tensorboard", "csv"],
-        seed: int,
-        quiet=True,
-    ) -> Runner:
+    def create_runner(self, seed: int) -> Runner:
         rundir = os.path.join(self.logdir, f"run_{time.time()}")
         os.makedirs(rundir, exist_ok=False)
-        if len(loggers) == 0:
-            loggers = ("csv",)
-        logger_list = []
-        for logger in loggers:
-            match logger:
-                case "web":
-                    logger_list.append(logging.WSLogger(rundir, port=0))
-                case "tensorboard":
-                    logger_list.append(logging.TensorBoardLogger(rundir, quiet=quiet))
-                case "csv":
-                    logger_list.append(logging.CSVLogger(rundir, quiet))
-                case other:
-                    raise ValueError(f"Unknown logger: {other}")
-        logger = logging.MultiLogger(rundir, *logger_list, quiet=quiet)
-
         import marl
 
         marl.seed(seed)
@@ -204,35 +182,15 @@ class Experiment:
         self.algo.randomize()
         self.trainer.randomize()
 
-        runner = Runner(
+        return Runner(
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            logger=logger,
+            rundir=rundir,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
             test_env=deepcopy(self.env),
         )
-        self.runs.append(Run.create(rundir, seed))
-        return runner
-
-    def stop_runner(self, rundir: str):
-        """Stops the runner at the given rundir."""
-        for i, run in enumerate(self.runs):
-            if run.rundir == rundir:
-                run = self.runs.pop(i)
-                run.stop()
-                return
-        # If the run was not found, raise an error
-        raise ValueError("This rundir does not exist.")
-
-    def delete_run(self, rundir: str):
-        for i, run in enumerate(self.runs):
-            if run.rundir == rundir:
-                run = self.runs.pop(i)
-                run.delete()
-        # If the run was not found, raise an error
-        raise ValueError("This rundir does not exist.")
 
     @property
     def train_dir(self) -> str:
@@ -279,16 +237,19 @@ class Experiment:
             ticks, test_datasets = [], []
         try:
             dfs = [run.train_metrics for run in runs if not run.train_metrics.is_empty()]
-            dfs += [run.training_data for run in runs if not run.training_data.is_empty()]
+            dfs_training_data = [run.training_data for run in runs if not run.training_data.is_empty()]
             if len(ticks) >= 2:
                 test_interval = ticks[1] - ticks[0]
                 dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
+                dfs_training_data = [stats.round_col(df, "time_step", test_interval) for df in dfs_training_data]
+            
             ticks2, train_datasets = Experiment.compute_datasets(dfs)
+            _, training_data = Experiment.compute_datasets(dfs_training_data)
         except ValueError:
-            ticks2, train_datasets = [], []
+            ticks2, train_datasets, training_data = [], [], []
         if len(ticks) == 0:
             ticks = ticks2
-        return ExperimentResults(logdir, ticks, train_datasets, test_datasets)
+        return ExperimentResults(logdir, ticks, train_datasets + training_data, test_datasets)
 
     def train_metrics(self):
         try:
@@ -311,26 +272,35 @@ class Experiment:
         with open(os.path.join(episode_folder, "actions.json"), "r") as a:
             actions = json.load(a)
         self.algo.load(os.path.dirname(episode_folder))
-        env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
+        try:
+            env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
+        except EOFError:
+            # The environment has not been saved, so we we the local one
+            env = self.env
         obs = env.reset()
         values = []
         frames = [encode_b64_image(env.render("rgb_array"))]
         episode = EpisodeBuilder()
         qvalues = []
-        for action in actions:
-            values.append(self.algo.value(obs))
-            if isinstance(self.algo, DQN):
-                qvalues.append(self.algo.compute_qvalues(obs).tolist())
-            obs_, reward, done, truncated, info = env.step(action)
-            episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
-            frames.append(encode_b64_image(env.render("rgb_array")))
-            obs = obs_
-        episode = episode.build()
-        return ReplayEpisode(
-            directory=episode_folder,
-            episode=episode,
-            qvalues=qvalues,
-            frames=frames,
-            metrics=episode.metrics,
-            state_values=values,
-        )
+        try:
+            for action in actions:
+                values.append(self.algo.value(obs))
+                if isinstance(self.algo, DQN):
+                    qvalues.append(self.algo.compute_qvalues(obs).tolist())
+                obs_, reward, done, truncated, info = env.step(action)
+                episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
+                frames.append(encode_b64_image(env.render("rgb_array")))
+                obs = obs_
+            episode = episode.build()
+            return ReplayEpisode(
+                directory=episode_folder,
+                episode=episode,
+                qvalues=qvalues,
+                frames=frames,
+                metrics=episode.metrics,
+                state_values=values,
+            )
+        except AssertionError:
+            raise ValueError(
+                "Not possible to replay the episode. Maybe the enivornment state was not saved properly or it does not support (un)pickling."
+            )

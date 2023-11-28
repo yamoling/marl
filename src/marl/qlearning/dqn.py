@@ -93,7 +93,11 @@ class DQN(IDQN[LinearNN]):
 
 
 class RDQN(IDQN[RecurrentNN]):
-    """Recurrent DQN"""
+    """
+    Recurrent DQN
+
+    Essentially the same as DQN, but we have to manage the hidden states.
+    """
 
     def __init__(self, qnetwork: RecurrentNN, train_policy: Policy, test_policy: Policy | None = None):
         super().__init__(qnetwork, train_policy, test_policy)

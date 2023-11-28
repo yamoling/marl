@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
+from typing import Optional
 from functools import cached_property
 import torch
 
@@ -19,7 +20,7 @@ class Batch(ABC):
         self.n_agents = n_agents
         self.sample_indices = sample_indices
         self.device = torch.device("cpu")
-        self.importance_sampling_weights = None
+        self.importance_sampling_weights: Optional[torch.Tensor] = None
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones such that each agent has its own (identical) signal."""

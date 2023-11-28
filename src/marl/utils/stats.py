@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import scipy.stats as sp
 import polars as pl
+from typing import Optional
 
 
 class RunningMeanStd:
@@ -81,4 +82,35 @@ def stats_by(col_name: str, df: pl.DataFrame):
         confidence_intervals.append(new_col)
 
     res = res.with_columns(confidence_intervals)
+    return res
+
+
+def agregate_metrics(
+    all_metrics: list[dict[str, float]],
+    only_avg=False,
+    skip_keys: Optional[set[str]] = None,
+) -> dict[str, float]:
+    """Aggregate a list of metrics into min, max, avg and std."""
+    import numpy as np
+
+    if skip_keys is None:
+        skip_keys = set()
+    all_values: dict[str, list[float]] = {}
+    for metrics in all_metrics:
+        for key, value in metrics.items():
+            if key not in all_values:
+                all_values[key] = []
+            all_values[key].append(value)
+    res = {}
+    if only_avg:
+        for key, values in all_values.items():
+            res[key] = float(np.average(np.array(values)))
+    else:
+        for key, values in all_values.items():
+            if key not in skip_keys:
+                values = np.array(values)
+                res[f"avg_{key}"] = float(np.average(values))
+                res[f"std_{key}"] = float(np.std(values))
+                res[f"min_{key}"] = float(values.min())
+                res[f"max_{key}"] = float(values.max())
     return res

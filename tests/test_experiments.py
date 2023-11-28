@@ -17,7 +17,12 @@ def test_unpickle_experiment_and_update_network():
     exp = marl.Experiment.create(
         "test",
         algo=marl.qlearning.DQN(qnetwork=qnetwork, train_policy=policy),
-        trainer=DQNTrainer(qnetwork, policy, mixer=marl.qlearning.VDN(env.n_agents)),
+        trainer=DQNTrainer(
+            qnetwork,
+            policy,
+            mixer=marl.qlearning.VDN(env.n_agents),
+            memory=marl.models.TransitionMemory(50_000),
+        ),
         env=env,
         test_interval=100,
         n_steps=100,

@@ -2,12 +2,19 @@ import os
 import shutil
 import polars as pl
 import json
+from rlenv import Episode
 from typing import Optional
 from serde.json import to_json
 from dataclasses import dataclass
 from marl.utils import CorruptExperimentException
+from marl import logging
+from marl.utils.stats import agregate_metrics
 from .replay_episode import ReplayEpisodeSummary
-from marl.logging.ws_logger import WSLogger
+
+
+TRAIN = "train.csv"
+TEST = "test.csv"
+TRAINING_DATA = "training_data.csv"
 
 
 @dataclass
@@ -15,61 +22,99 @@ class Run:
     rundir: str
     seed: int
     pid: Optional[int]
-    port: Optional[int]
-    current_step: int
 
-    def __init__(self, rundir: str, seed: int, train_df: pl.DataFrame, test_df: pl.DataFrame, train_data: pl.DataFrame):
-        """This constructor is not meant to be called directly. Use the static methods `create` or `load` instead."""
+    def __init__(self, rundir: str, seed: int):
+        """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
         self.seed = seed
-        self.train_metrics = train_df
-        self.test_metrics = test_df
-        self.training_data = train_data
-        self.port = self.get_port()
+        self.train_logger = None
+        self.test_logger = None
+        self.training_data_logger = None
         self.pid = self.get_pid()
-        self.current_step = self.get_current_step()
 
     @staticmethod
     def create(rundir: str, seed: int):
         os.makedirs(rundir, exist_ok=True)
-        run = Run(rundir, seed, pl.DataFrame(), pl.DataFrame(), pl.DataFrame())
+        run = Run(rundir, seed)
         with open(os.path.join(rundir, "run.json"), "w") as f:
             f.write(to_json(run))
         return run
 
     @staticmethod
     def load(rundir: str):
+        with open(os.path.join(rundir, "run.json"), "r") as f:
+            seed = json.load(f)["seed"]
+        return Run(rundir, seed)
+
+    def log_tests(self, episodes: list[Episode], time_step: int):
+        if self.test_logger is None:
+            self.test_logger = logging.CSVLogger(self.test_filename)
+        agg = agregate_metrics([e.metrics for e in episodes], skip_keys={"timestamp_sec", "time_step"})
+        print(agg)
+        directory = os.path.join(self.rundir, "test", f"{time_step}")
+        for i, episode in enumerate(episodes):
+            episode_directory = os.path.join(directory, f"{i}")
+            self.test_logger.log(episode.metrics)
+            os.makedirs(episode_directory)
+            with open(os.path.join(episode_directory, "actions.json"), "w") as a:
+                json.dump(episode.actions.tolist(), a)
+
+    def log_train_episode(self, episode: Episode, training_logs: dict):
+        if self.train_logger is None:
+            self.train_logger = logging.CSVLogger(self.train_filename)
+        self.train_logger.log(episode.metrics)
+        if len(training_logs) > 1:
+            if self.training_data_logger is None:
+                self.training_data_logger = logging.CSVLogger(self.training_data_filename)
+            self.training_data_logger.log(training_logs)
+
+    def log_train_step(self, metrics: dict):
+        if len(metrics) > 1:
+            if self.training_data_logger is None:
+                self.training_data_logger = logging.CSVLogger(self.training_data_filename)
+            self.training_data_logger.log(metrics)
+
+    def test_dir(self, time_step: int):
+        return os.path.join(self.rundir, "test", f"{time_step}")
+
+    @property
+    def train_metrics(self):
         try:
-            train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
+            # With SMAC, there are sometimes episodes that are not finished and that produce
+            # None values for some metrics. We ignore these episodes.
+            return pl.read_csv(self.train_filename, ignore_errors=True)
         except (pl.NoDataError, FileNotFoundError):
-            train_metrics = pl.DataFrame()
+            return pl.DataFrame()
+
+    @property
+    def test_metrics(self):
         try:
-            test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
+            return pl.read_csv(self.test_filename, ignore_errors=True)
         except (pl.NoDataError, FileNotFoundError):
-            test_metrics = pl.DataFrame()
+            return pl.DataFrame()
+
+    @property
+    def training_data(self):
         try:
-            train_data = pl.read_csv(os.path.join(rundir, "training_data.csv"))
+            return pl.read_csv(self.training_data_filename)
         except (pl.NoDataError, FileNotFoundError):
-            train_data = pl.DataFrame()
-        try:
-            with open(os.path.join(rundir, "run.json"), "r") as f:
-                seed = json.load(f)["seed"]
-        except OSError:
-            seed = 0
-        return Run(rundir, seed, train_metrics, test_metrics, train_data)
+            return pl.DataFrame()
 
     @property
     def is_running(self) -> bool:
         return os.path.exists(os.path.join(self.rundir, "pid"))
 
     @property
-    def latest_checkpoint(self) -> str | None:
-        # Get the last test directory
-        tests = os.listdir(os.path.join(self.rundir, "test"))
-        if len(tests) == 0:
-            return None
-        last_test = max(tests, key=lambda x: int(x))
-        return os.path.join(self.rundir, "test", f"{last_test}")
+    def test_filename(self):
+        return os.path.join(self.rundir, TEST)
+
+    @property
+    def train_filename(self):
+        return os.path.join(self.rundir, TRAIN)
+
+    @property
+    def training_data_filename(self):
+        return os.path.join(self.rundir, TRAINING_DATA)
 
     def delete(self):
         try:
@@ -90,38 +135,8 @@ class Run:
                 episodes.append(episode)
             return episodes
         except pl.ColumnNotFoundError:
+            # There is no log at all in the file, return an empty list
             return []
-
-    def get_current_step(self) -> int:
-        try:
-            self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
-            max_train = self.train_metrics["time_step"].max()
-        except (pl.NoDataError, FileNotFoundError):
-            max_train = 0
-        try:
-            self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
-            max_test = self.test_metrics["time_step"].max()
-        except (pl.NoDataError, FileNotFoundError):
-            max_test = 0
-        return max(max_train, max_test)  # type: ignore
-
-    def stop(self):
-        """Stop the run by sending a SIGINT to the process. This method waits for the process to terminate before returning."""
-        pid = self.get_pid()
-        if pid is not None:
-            import signal
-
-            os.kill(pid, signal.SIGINT)
-            print("waiting for process to terminate...")
-            os.waitpid(pid, 0)
-            print(f"process {pid} has terminated")
-
-    def get_port(self) -> int | None:
-        try:
-            with open(os.path.join(self.rundir, WSLogger.WS_FILE), "r") as f:
-                return int(f.read())
-        except FileNotFoundError:
-            return None
 
     def get_pid(self) -> int | None:
         pid_file = os.path.join(self.rundir, "pid")
