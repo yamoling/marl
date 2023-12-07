@@ -1,8 +1,13 @@
 import marl
 import rlenv
+from rlenv.wrappers import RLEnvWrapper
 from lle import LLE, ObservationType
 from marl.training import DQNTrainer
 from marl.training.qtarget_updater import SoftUpdate
+
+
+class CommunicationWrapper(RLEnvWrapper):
+    pass
 
 
 def create_experiments():
@@ -40,7 +45,6 @@ def create_experiments():
     algo = marl.qlearning.DQN(qnetwork=qnetwork, train_policy=trainer.policy)
 
     logdir = f"logs/{env.name}-vdn-double"
-    # logdir = "logs/test"
 
     exp = marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
     # runner = exp.create_runner(seed=0)

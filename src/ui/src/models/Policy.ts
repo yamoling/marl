@@ -6,7 +6,7 @@ export interface EpsilonGreedy extends Policy {
     epsilon: {
         name: string
         start_value: number
-        min_value: number
+        end_value: number
         n_steps: number
     }
 }

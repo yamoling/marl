@@ -242,7 +242,7 @@ class Experiment:
                 test_interval = ticks[1] - ticks[0]
                 dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
                 dfs_training_data = [stats.round_col(df, "time_step", test_interval) for df in dfs_training_data]
-            
+
             ticks2, train_datasets = Experiment.compute_datasets(dfs)
             _, training_data = Experiment.compute_datasets(dfs_training_data)
         except ValueError:
@@ -274,7 +274,7 @@ class Experiment:
         self.algo.load(os.path.dirname(episode_folder))
         try:
             env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
-        except EOFError:
+        except FileNotFoundError:
             # The environment has not been saved, so we we the local one
             env = self.env
         obs = env.reset()

@@ -51,7 +51,7 @@ class ReplayMemory(Generic[T], ABC):
 class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
-    def get_batch(self, indices: Iterable[int]) -> TransitionBatch:
+    def get_batch(self, indices: Iterable[int]):
         transitions = [self._memory[i] for i in indices]
         return TransitionBatch(transitions, list(indices))
 
@@ -59,6 +59,6 @@ class TransitionMemory(ReplayMemory[Transition]):
 class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
-    def get_batch(self, indices: list[int]) -> EpisodeBatch:
+    def get_batch(self, indices: list[int]):
         episodes = [self._memory[i] for i in indices]
         return EpisodeBatch(episodes, indices)

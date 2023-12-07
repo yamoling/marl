@@ -1,20 +1,12 @@
 import { Algorithm } from "./Algorithm"
 import { Trainer } from "./Trainer"
-
-export interface Env {
-    name: string
-    n_agents: number
-    n_actions: number
-    action_space: {
-        action_names: string[]
-    }
-}
+import { Env, EnvWrapper } from "./Env"
 
 export interface Experiment {
     logdir: string
     algo: Algorithm
     trainer: Trainer
-    env: Env
+    env: Env | EnvWrapper
     test_interval: number
     n_steps: number
     creation_timestamp: number

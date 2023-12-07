@@ -3,7 +3,7 @@ from .utils import generate_episode, MockEnv
 
 
 def test_episode_batch_padded():
-    from rlenv.wrappers.time_limit import TimeLimitWrapper
+    from rlenv.wrappers import TimeLimitWrapper
 
     env = TimeLimitWrapper(MockEnv(2), 5)
     episodes = []

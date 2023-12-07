@@ -555,13 +555,13 @@ woff = ["brotli (>=1.0.1)", "brotlicffi (>=0.8.0)", "zopfli (>=0.1.4)"]
 
 [[package]]
 name = "google-auth"
-version = "2.23.4"
+version = "2.24.0"
 description = "Google Authentication Library"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "google-auth-2.23.4.tar.gz", hash = "sha256:79905d6b1652187def79d491d6e23d0cbb3a21d3c7ba0dbaa9c8a01906b13ff3"},
-    {file = "google_auth-2.23.4-py2.py3-none-any.whl", hash = "sha256:d4bbc92fe4b8bfd2f3e8d88e5ba7085935da208ee38a134fc280e7ce682a05f2"},
+    {file = "google-auth-2.24.0.tar.gz", hash = "sha256:2ec7b2a506989d7dbfdbe81cb8d0ead8876caaed14f86d29d34483cbe99c57af"},
+    {file = "google_auth-2.24.0-py2.py3-none-any.whl", hash = "sha256:9b82d5c8d3479a5391ea0a46d81cca698d328459da31d4a459d4e901a5d927e0"},
 ]
 
 [package.dependencies]
@@ -886,7 +886,7 @@ files = [
 
 [[package]]
 name = "lle"
-version = "0.1.9"
+version = "0.1.10"
 description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 optional = false
 python-versions = ">=3.10,<3.13"
@@ -903,7 +903,7 @@ rlenv = {git = "https://github.com/yamoling/rlenv.git"}
 type = "git"
 url = "https://github.com/yamoling/lle"
 reference = "HEAD"
-resolved_reference = "acd0ccb28d8c0079f6f98af8301a9c63755e031c"
+resolved_reference = "58d5567e8984ea75c47f7863ad6b22c7c0d1d667"
 
 [[package]]
 name = "markdown"
@@ -1589,13 +1589,13 @@ websocket-client = "*"
 
 [[package]]
 name = "pyserde"
-version = "0.12.5"
+version = "0.12.6"
 description = "Yet another serialization library on top of dataclasses"
 optional = false
 python-versions = ">=3.7.0,<4.0.0"
 files = [
-    {file = "pyserde-0.12.5-py3-none-any.whl", hash = "sha256:73c26f9cbc39ea0af42ee2d30d8d6ec247f84e7085d54f157e42255e3825b9a1"},
-    {file = "pyserde-0.12.5.tar.gz", hash = "sha256:c759cd49148963014dbc9422236de72dd0e87482220e92d92c4f92ea02201ebe"},
+    {file = "pyserde-0.12.6-py3-none-any.whl", hash = "sha256:e4cd3d7b2ea47e1cabf82e1aba3028e132099a746bddce9d7a6fcb3c873b3bb3"},
+    {file = "pyserde-0.12.6.tar.gz", hash = "sha256:f1222ea9593eedc484c9e2a7cfa2643936fafde3a54ae7fe4abce4d1b7217451"},
 ]
 
 [package.dependencies]
@@ -1708,8 +1708,8 @@ rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
 name = "rlenv"
-version = "0.4.5"
-description = "A strongly typed Reinforcement Learning framework"
+version = "0.4.6"
+description = "A strongly typed Multi-Agent Reinforcement Learning framework"
 optional = false
 python-versions = ">=3.10,<3.13"
 files = []
@@ -1730,7 +1730,7 @@ smac = ["smac @ git+https://github.com/oxwhirl/smac.git"]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "a960b8bdb4c90ce12580fd32dcdc03b210247189"
+resolved_reference = "ae52b0a1c8b7ff8b7e663933fb912f93a22186e8"
 
 [[package]]
 name = "rsa"

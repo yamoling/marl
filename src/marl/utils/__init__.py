@@ -1,4 +1,3 @@
-# from .env_pool import EnvPool
 from .exceptions import CorruptExperimentException, EmptyForcedActionsException, ExperimentAlreadyExistsException
 from .others import alpha_num_order, defaults_to, encode_b64_image, get_device, seed
 from .schedule import ExpSchedule, LinearSchedule, Schedule, ConstantSchedule

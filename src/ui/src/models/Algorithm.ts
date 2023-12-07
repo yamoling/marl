@@ -1,7 +1,8 @@
-import { Policy, EpsilonGreedy } from "./Policy";
+import { EpsilonGreedy } from "./Policy";
 
 export interface Algorithm {
     name: string
+    train_policy?: EpsilonGreedy
 }
 
 
@@ -10,9 +11,10 @@ export interface DQN extends Algorithm {
         input_shape: number[]
         extras_shape: number[]
         output_shape: number[]
+        name: string
     }
     train_policy: EpsilonGreedy
-    test_policy: Policy
+    test_policy: EpsilonGreedy
 }
 
 
