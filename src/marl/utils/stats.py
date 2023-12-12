@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import scipy.stats as sp
 import polars as pl
+import polars.exceptions as pl_errors
 from typing import Optional
 
 
@@ -46,14 +47,19 @@ class RunningMeanStd:
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):
-    col = df[col_name] / round_value
-    col = col.round(0)
-    col = col * round_value
-    col = col.cast(pl.Int64)
-    return df.with_columns(col.alias(col_name))
+    try:
+        col = df[col_name] / round_value
+        col = col.round(0)
+        col = col * round_value
+        col = col.cast(pl.Int64)
+        return df.with_columns(col.alias(col_name))
+    except pl_errors.ColumnNotFoundError:
+        return df
 
 
 def stats_by(col_name: str, df: pl.DataFrame):
+    if len(df) == 0:
+        return df
     grouped = df.groupby(col_name)
     cols = [col for col in df.columns if col not in ["time_step", "timestamp_sec"]]
     res = grouped.agg(

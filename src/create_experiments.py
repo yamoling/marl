@@ -22,7 +22,7 @@ def create_smac(map_name="8m"):
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         optimiser="adam",
-        batch_size=8,
+        batch_size=64,
         update_interval=1,
         gamma=0.99,
         train_every="episode",
@@ -37,7 +37,7 @@ def create_smac(map_name="8m"):
         test_policy=test_policy,
     )
     logdir = f"logs/smac-{map_name}-qmix"
-    logdir = "logs/test"
+    # logdir = "logs/test"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
