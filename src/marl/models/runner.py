@@ -3,7 +3,7 @@ import json
 import torch
 import pickle
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
 from marl.utils import defaults_to
@@ -101,11 +101,11 @@ class Runner:
                 pass
             json.dump(episode.actions.tolist(), a)
 
-    def to(self, device: str | torch.device):
+    def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
         if isinstance(device, str):
             from marl.utils import get_device
 
-            device = get_device(device)  # type: ignore
+            device = get_device(device)
         self._algo.to(device)
         self._trainer.to(device)
         return self

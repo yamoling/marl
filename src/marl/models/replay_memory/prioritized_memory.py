@@ -1,4 +1,4 @@
-from typing import List
+from typing import Optional
 from sumtree import SumTree
 import torch
 from dataclasses import dataclass
@@ -20,14 +20,24 @@ class PrioritizedMemory(ReplayMemory[T]):
     memory: ReplayMemory[T]
     alpha: Schedule
     beta: Schedule
-    eps: float = 1e-2
+    eps: float
+    priority_clipping: Optional[float]
+    """Clip the priorities to avoid numerical instability. Often required in sparse reward environments."""
 
-    def __init__(self, memory: ReplayMemory[T], alpha: float | Schedule = 0.7, beta: float | Schedule = 0.4, eps: float = 1e-2):
+    def __init__(
+        self,
+        memory: ReplayMemory[T],
+        alpha: float | Schedule = 0.7,
+        beta: float | Schedule = 0.4,
+        eps: float = 1e-2,
+        priority_clipping: Optional[float] = None,
+    ):
         super().__init__(memory.max_size)
         self.memory = memory
         self.tree = SumTree(self.max_size)
         self.eps = eps
         self.max_priority = eps  # Initialize the max priority with epsilon
+        self.priority_clipping = priority_clipping
         match alpha:
             case float():
                 self.alpha = Schedule.constant(alpha)
@@ -72,10 +82,10 @@ class PrioritizedMemory(ReplayMemory[T]):
         weights = weights / torch.max(weights)
 
         batch = self.get_batch(sample_idxs)
-        batch.importance_sampling_weights = weights  # type: ignore
+        batch.importance_sampling_weights = weights
         return batch
 
-    def get_batch(self, indices: List[int]) -> Batch:
+    def get_batch(self, indices: list[int]) -> Batch:
         return self.memory.get_batch(indices)
 
     def __len__(self) -> int:
@@ -93,7 +103,9 @@ class PrioritizedMemory(ReplayMemory[T]):
         with torch.no_grad():
             priorities = torch.abs(td_error)
             priorities = (priorities + self.eps) ** self.alpha.value
+            # clip the priorities to avoid numerical instability.
+            if self.priority_clipping is not None:
+                priorities = torch.clip(priorities, max=self.priority_clipping)
             self.max_priority = max(self.max_priority, priorities.max().item())
         priorities = priorities.cpu()
-        for idx, priority in zip(batch.sample_indices, priorities):
-            self.tree.update(idx, priority.item())
+        self.tree.update_batched(batch.sample_indices, priorities.tolist())

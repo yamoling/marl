@@ -1,4 +1,4 @@
-from rlenv.models import RLEnv, Episode, Transition, EpisodeBuilder, Observation, DiscreteActionSpace, ActionSpace
+from rlenv.models import RLEnv, Episode, Transition, EpisodeBuilder, Observation, DiscreteActionSpace
 
 import torch
 import numpy as np
@@ -36,18 +36,14 @@ class MockEnv(RLEnv[DiscreteActionSpace]):
     REWARD_STEP = 1
 
     def __init__(self, n_agents: int) -> None:
-        super().__init__(DiscreteActionSpace(n_agents, MockEnv.N_ACTIONS))
+        super().__init__(
+            DiscreteActionSpace(n_agents, MockEnv.N_ACTIONS),
+            observation_shape=(MockEnv.OBS_SIZE,),
+            state_shape=(0,),
+        )
         self._n_agents = n_agents
         self.t = 0
         self.actions_history = []
-
-    @property
-    def observation_shape(self):
-        return (MockEnv.OBS_SIZE,)
-
-    @property
-    def state_shape(self):
-        return (0,)
 
     def reset(self):
         self.t = 0

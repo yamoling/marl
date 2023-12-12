@@ -12,10 +12,9 @@ def test_trainer_nodes_vdn():
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
         mixer=marl.qlearning.VDN(env.n_agents),
     )
-    trainer.show()
 
     assert len(trainer.batch.children) == len(["next qvalues", "next qvalues mixer", "qvalues", "qvalues mixer", "targets", "loss"])
-    assert len(trainer.loss.parents) == len(["qvalues", "qtargets", "batch"])
+    assert len(trainer.loss.parents) == len(["qvalues", "qtargets", "batch", "td-error"])
     assert isinstance(trainer.target_params_updater, SoftUpdate)
     assert trainer.mixer is not None
     assert trainer.ir_module is None

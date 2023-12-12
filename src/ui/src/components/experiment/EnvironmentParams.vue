@@ -4,17 +4,13 @@
             <h2 class="accordion-header">
                 <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseEnv"
                     aria-expanded="true" aria-controls="collapseEnv">
-                    <b>Environment</b>
+                    <h5>Environment: {{ env.name }}</h5>
                 </button>
             </h2>
             <div id="collapseEnv" class="accordion-collapse collapse show">
                 <div class="accordion-body">
                     <table class="table table-sm">
                         <tbody>
-                            <tr>
-                                <th>Name</th>
-                                <td>{{ env.name }}</td>
-                            </tr>
                             <template v-for="[name, params] in wrappers">
                                 <tr>
                                     <th class="align-middle">{{ name }}</th>

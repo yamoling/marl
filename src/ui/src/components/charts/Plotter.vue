@@ -10,6 +10,17 @@
         <div v-show="datasets.length > 0">
             <canvas ref="canvas"></canvas>
         </div>
+        <div>
+            <b class="me-1">Y axis type:</b>
+            <label class="me-2">
+                linear
+                <input type="radio" value="linear" name="y-scale" v-model="yScaleType">
+            </label>
+            <label>
+                logarithmic
+                <input type="radio" value="logarithmic" name="y-scale" v-model="yScaleType">
+            </label>
+        </div>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
 </template>
@@ -24,6 +35,7 @@ let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
 const legendContainer = ref({} as HTMLElement);
+const yScaleType = ref("linear" as "linear" | "logarithmic");
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
@@ -33,7 +45,7 @@ const props = defineProps<{
 }>();
 
 
-function updateChart() {
+function updateChartData() {
     if (props.datasets.length == 0) {
         return;
     }
@@ -66,11 +78,21 @@ function updateChart() {
     chart.update();
 }
 
-watch(props, () => updateChart());
+watch(props, updateChartData);
+watch(yScaleType, () => {
+    chart.options!.scales!.y!.type = yScaleType.value;
+    chart.update()
+    // updateChartData();
+})
 
 
 onMounted(() => {
-    chart = new Chart(canvas.value, {
+    chart = initialiseChart();
+    updateChartData();
+})
+
+function initialiseChart(): Chart {
+    return new Chart(canvas.value, {
         type: 'line',
         data: {
             labels: [],
@@ -87,12 +109,17 @@ onMounted(() => {
                 legend: {
                     display: props.showLegend,
                 }
+            },
+            scales: {
+                y: {
+                    display: true,
+                    type: yScaleType.value,
+                }
             }
         },
         // plugins: [htmlLegendPlugin]
     });
-    updateChart();
-})
+}
 
 function rgbToAlpha(rgb: string, alpha: number) {
     let R = parseInt(rgb.substring(1, 3), 16);

@@ -18,9 +18,12 @@ class ReplayMemory(Generic[T], ABC):
     """Parent class of any ReplayMemory"""
 
     max_size: int
+    name: str
 
-    def __post_init__(self):
-        self._memory: Deque[T] = deque(maxlen=self.max_size)
+    def __init__(self, max_size: int):
+        self._memory: Deque[T] = deque(maxlen=max_size)
+        self.max_size = max_size
+        self.name = self.__class__.__name__
 
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""

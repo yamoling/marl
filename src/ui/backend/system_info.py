@@ -16,7 +16,6 @@ def get_system_info():
 
 
 async def send_system_info(websocket: WebSocketServerProtocol):
-    print("sending system info")
     try:
         while True:
             await asyncio.sleep(1)

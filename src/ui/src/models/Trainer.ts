@@ -1,4 +1,5 @@
 import { EpsilonGreedy, Policy } from "./Policy"
+import { ReplayMemory } from "./ReplayMemory"
 
 export interface Trainer {
     name: string
@@ -9,5 +10,16 @@ export interface Trainer {
     policy: Policy | EpsilonGreedy
     batch_size: number
     lr: number
+    mixer?: {
+        name: string
+    }
+    ir_module?: {
+        name: string
+    }
+    grad_norm_clipping?: number
+    target_params_updater: {
+        name: string
+    }
+    memory: ReplayMemory
 }
 

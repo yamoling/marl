@@ -1,13 +1,11 @@
 <template>
   <main>
-    <header class="row mb-1">
-      <h1 class="col"> Experiment manager</h1>
-    </header>
+    <h1>RL dashboard</h1>
     <RouterView></RouterView>
-    <footer class="row">
-      <SystemInfo />
-    </footer>
   </main>
+  <footer>
+    <SystemInfo />
+  </footer>
 </template>
 
 
@@ -29,22 +27,17 @@ import SystemInfo from './components/SystemInfo.vue';
 html,
 body {
   height: 100%;
-  margin: 0;
 }
 
 #app {
   height: 100%;
-  width: 100%;
-  padding: 1%;
-  display: flex;
-  flex-direction: row;
 }
 
 main {
-  width: 100%;
-  height: 100%;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  max-height: 97.5%;
   padding-left: 0.5%;
-  /* overflow: hidden; */
 }
 
 footer {
@@ -52,6 +45,7 @@ footer {
   bottom: 0;
   font-size: smaller;
   width: 100%;
+  max-height: 2.5%;
 }
 
 dialog {

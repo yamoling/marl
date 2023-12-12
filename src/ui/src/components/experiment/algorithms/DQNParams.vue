@@ -4,7 +4,7 @@
             <h2 class="accordion-header">
                 <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDQN"
                     aria-expanded="true" aria-controls="collapseDQN">
-                    <b>Algorithm</b>
+                    <h5>Algorithm: {{ algoName }}</h5>
                 </button>
             </h2>
             <div id="collapseDQN" class="accordion-collapse collapse show">
@@ -12,12 +12,18 @@
                     <table class="table table-sm">
                         <tbody>
                             <tr>
-                                <th>Name</th>
-                                <td>{{ algo.name }}</td>
+                                <th class="align-middle"> Qnetwork</th>
+                                <td>
+                                    {{ algo.qnetwork.name }} <br>
+                                    <template v-if="trainer.grad_norm_clipping">
+                                        Grad norm clip={{ trainer.grad_norm_clipping }} <br>
+                                    </template>
+                                    {{ trainer.target_params_updater.name }}
+                                </td>
                             </tr>
-                            <tr>
-                                <th> Qnetwork</th>
-                                <td>{{ algo.qnetwork.name }}</td>
+                            <tr v-if="trainer.ir_module">
+                                <th>Intrinsic reward</th>
+                                <td>{{ trainer.ir_module.name }}</td>
                             </tr>
                             <tr>
                                 <th class="align-middle"> Train policy </th>
@@ -69,6 +75,10 @@
                                 <th>Learning rate</th>
                                 <td>{{ trainer.lr.toExponential() }}</td>
                             </tr>
+                            <tr>
+                                <th> Memory </th>
+                                <td> Size={{ trainer.memory.max_size / 1000 }}k</td>
+                            </tr>
 
                         </tbody>
                     </table>
@@ -80,12 +90,20 @@
 
 <script lang="ts" setup>
 
+import { computed } from "vue";
 import { DQN } from "../../../models/Algorithm"
 import { Trainer } from "../../../models/Trainer"
 
-defineProps<{
+const props = defineProps<{
     algo: DQN
     trainer: Trainer
 }>();
+const algoName = computed(() => {
+    if (props.trainer.mixer) {
+        return props.trainer.mixer.name
+    } else {
+        return props.algo.name
+    }
+})
 
 </script>

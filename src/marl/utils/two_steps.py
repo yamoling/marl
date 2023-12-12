@@ -27,9 +27,13 @@ class State(IntEnum):
 
 class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
     def __init__(self):
-        super().__init__(DiscreteActionSpace(2, 2))
         self.state = State.INITIAL
         self._identity = np.identity(self.n_agents, dtype=np.float32)
+        super().__init__(
+            DiscreteActionSpace(2, 2),
+            observation_shape=(self.state.one_hot().shape[0] + 2,),
+            state_shape=self.state.one_hot().shape,
+        )
 
     def reset(self) -> Observation:
         self.state = State.INITIAL
@@ -67,16 +71,8 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
         extras = self._identity
         return Observation(obs_data, self.available_actions(), self.get_state(), extras)
 
-    @property
-    def observation_shape(self) -> tuple[int, ...]:
-        return (self.state.one_hot().shape[0] + self.n_agents,)
-
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         print(self.state)
-
-    @property
-    def state_shape(self) -> tuple[int, ...]:
-        return self.state.one_hot().shape
 
     def force_state(self, state: State):
         self.state = state

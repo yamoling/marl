@@ -1,5 +1,6 @@
 from marl.intrinsic_reward import IRModule
 from marl.models import Batch
+import torch
 from .node import Node
 
 class IR(Node[Batch]):
@@ -13,3 +14,8 @@ class IR(Node[Batch]):
         ir = self.ir_module.compute(batch)
         batch.rewards += ir
         return batch
+
+
+    def to(self, device: torch.device):
+        self.ir_module.to(device)
+        super().to(device)

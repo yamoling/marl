@@ -79,6 +79,12 @@ class DoubleQLearning(Node[torch.Tensor]):
             # Take the indices from the target network and the values from the current network
             # instead of taking both from the target network
             current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
+        if isinstance(self.qtarget, RecurrentNN):
+            # For recurrent networks, the batch includes the initial observation
+            # in order to compute the hidden state at t=0 and use it for t=1.
+            # We need to remove it when considering the next qvalues.
+            target_next_qvalues = target_next_qvalues[1:]
+            current_next_qvalues = current_next_qvalues[1:]
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(current_next_qvalues, dim=-1, keepdim=True)
         next_qvalues = torch.gather(target_next_qvalues, -1, indices).squeeze(-1)

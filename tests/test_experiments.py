@@ -27,7 +27,7 @@ def test_unpickle_experiment_and_update_network():
         test_interval=100,
         n_steps=100,
     )
-    runner = exp.create_runner("csv", seed=0)
+    runner = exp.create_runner(seed=0)
     runner.train(1)
     param_values = [p.data.clone() for p in qnetwork.parameters()]
     with open("test.pkl", "wb") as f:
@@ -41,7 +41,7 @@ def test_unpickle_experiment_and_update_network():
     for param, initial_param in zip(qnetwork.parameters(), param_values):
         assert torch.equal(param, initial_param)
 
-    runner = exp.create_runner("csv", seed=0)
+    runner = exp.create_runner(0)
     runner.train(1)
 
     # Check that the parameters values have been updated

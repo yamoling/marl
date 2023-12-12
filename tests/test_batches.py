@@ -3,12 +3,12 @@ from .utils import generate_episode, MockEnv
 
 
 def test_episode_batch_padded():
-    from rlenv.wrappers import TimeLimitWrapper
+    from rlenv.wrappers import TimeLimit
 
-    env = TimeLimitWrapper(MockEnv(2), 5)
+    env = TimeLimit(MockEnv(2), 5)
     episodes = []
     for i in range(5, 10):
-        env._step_limit = i
+        env.step_limit = i
         episodes.append(generate_episode(env))
     batch = marl.models.batch.EpisodeBatch(episodes, list(range(len(episodes))))
     assert len(batch.obs) == 9
