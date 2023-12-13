@@ -14,50 +14,59 @@ from .mixers import Mixer
 
 class MixedDQN(DQN):
     def __init__(
-            self, 
-            qnetwork: LinearNN, 
-            mixer: Mixer,
-            gamma=0.99, 
-            tau=0.01, 
-            batch_size=64, 
-            lr=0.0001, 
-            train_policy: Policy = None, 
-            test_policy: Policy = None, 
-            memory: TransitionMemory = None, 
-            device: torch.device = None):
-        optimizer = torch.optim.Adam(list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr)
+        self,
+        qnetwork: LinearNN,
+        mixer: Mixer,
+        gamma=0.99,
+        tau=0.01,
+        batch_size=64,
+        lr=0.0001,
+        train_policy: Policy = None,
+        test_policy: Policy = None,
+        memory: TransitionMemory = None,
+        device: torch.device = None,
+    ):
+        optimizer = torch.optim.Adam(
+            list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr
+        )
         super().__init__(
-            qnetwork=qnetwork, 
-            gamma=gamma, 
-            tau=tau, 
-            batch_size=batch_size, 
-            optimizer=optimizer, 
-            train_policy=train_policy, 
-            test_policy=test_policy, 
-            memory=memory, 
-            device=device
+            qnetwork=qnetwork,
+            gamma=gamma,
+            tau=tau,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            train_policy=train_policy,
+            test_policy=test_policy,
+            memory=memory,
+            device=device,
         )
         self.mixer = mixer.to(self._device, non_blocking=True)
-        self.target_mixer = deepcopy(mixer).randomized().to(self._device, non_blocking=True)
+        self.target_mixer = (
+            deepcopy(mixer).randomized().to(self._device, non_blocking=True)
+        )
 
     def process_batch(self, batch: TransitionsBatch) -> TransitionsBatch:
         return batch
-    
+
     def compute_targets(self, batch: TransitionsBatch) -> torch.Tensor:
         # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
         # next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         # next_qvalues: torch.Tensor = torch.max(next_qvalues, dim=-1)[0]
         next_qvalues = self.double_qlearning(batch)
         next_qvalues = self.target_mixer.forward(next_qvalues, batch.states_)
-        targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
+        targets = batch.rewards.unsqueeze(-1) + self.gamma * next_qvalues * (
+            1 - batch.dones.unsqueeze(-1)
+        )
         return targets
 
     def _sample(self) -> TransitionsBatch:
         return self.memory.sample(self._batch_size)
-    
+
     def _target_soft_update(self):
-        for param, target_param in zip(self.mixer.parameters(), self.target_mixer.parameters()):
-            new_value = (1-self._tau) * target_param.data + self._tau * param.data
+        for param, target_param in zip(
+            self.mixer.parameters(), self.target_mixer.parameters()
+        ):
+            new_value = (1 - self._tau) * target_param.data + self._tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
         return super()._target_soft_update()
 
@@ -66,67 +75,61 @@ class MixedDQN(DQN):
         if isinstance(data, TransitionsBatch):
             qvalues = self.mixer.forward(qvalues, data.states)
         return qvalues
-    
+
     def to(self, device: torch.device):
         self.mixer.to(device)
         self.target_mixer.to(device)
         return super().to(device)
-    
+
     def save(self, to_directory: str):
         super().save(to_directory)
         self.mixer.save(to_directory)
-    
+
     def load(self, from_directory: str):
         super().load(from_directory)
         self.mixer.load(from_directory)
 
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "mixer": self.mixer.summary()
-        }
+    def summary(self) -> dict[str,]:
+        return {**super().summary(), "mixer": self.mixer.summary()}
 
     @classmethod
-    def from_summary(cls, summary: dict[str, ]):
+    def from_summary(cls, summary: dict[str,]):
         from marl.qlearning import mixers
-        summary["mixer"] = mixers.from_summary(summary['mixer'])
+
+        summary["mixer"] = mixers.from_summary(summary["mixer"])
         return super().from_summary(summary)
 
 
-
-
-    
 class RecurrentMixedDQN(DQN):
     def __init__(
-            self, 
-            qnetwork: RecurrentNN, 
-            mixer: Mixer,
-            gamma=0.99, 
-            tau=0.01, 
-            batch_size=64, 
-            lr=0.0005, 
-            optimizer: torch.optim.Optimizer = None,
-            train_policy: Policy = None, 
-            test_policy: Policy = None, 
-            memory: EpisodeMemory = None, 
-            double_qlearning=True,
-            device: torch.device = None,
-            logger: Logger=None
-        ):
+        self,
+        qnetwork: RecurrentNN,
+        mixer: Mixer,
+        gamma=0.99,
+        tau=0.01,
+        batch_size=64,
+        lr=0.0005,
+        optimizer: torch.optim.Optimizer = None,
+        train_policy: Policy = None,
+        test_policy: Policy = None,
+        memory: EpisodeMemory = None,
+        double_qlearning=True,
+        device: torch.device = None,
+        logger: Logger = None,
+    ):
         parameters = list(qnetwork.parameters()) + list(mixer.parameters())
         if optimizer is None:
             optimizer = torch.optim.RMSprop(parameters, lr=lr, alpha=0.99, eps=1e-5)
         super().__init__(
-            qnetwork=qnetwork, 
-            gamma=gamma, 
-            tau=tau, 
-            batch_size=batch_size, 
-            optimizer=optimizer, 
-            train_policy=train_policy, 
-            test_policy=test_policy, 
+            qnetwork=qnetwork,
+            gamma=gamma,
+            tau=tau,
+            batch_size=batch_size,
+            optimizer=optimizer,
+            train_policy=train_policy,
+            test_policy=test_policy,
             memory=defaults_to(memory, lambda: EpisodeMemory(5000)),
-            device=device
+            device=device,
         )
         self._parameters = parameters
         self.mixer = mixer.to(self._device, non_blocking=True)
@@ -150,10 +153,12 @@ class RecurrentMixedDQN(DQN):
         state = torch.from_numpy(obs.state).to(self._device, non_blocking=True)
         return self.mixer.forward(qvalues, state).item()
 
-    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: EpisodeBatch) -> torch.Tensor:
+    def compute_loss(
+        self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: EpisodeBatch
+    ) -> torch.Tensor:
         error = qtargets - qvalues
         masked_error = error * batch.masks
-        criterion = masked_error ** 2
+        criterion = masked_error**2
         loss = torch.sum(criterion) / torch.sum(batch.masks)
         return loss
 
@@ -186,7 +191,7 @@ class RecurrentMixedDQN(DQN):
         #     new_value = (1-self._tau) * target_param.data + self._tau * param.data
         #     target_param.data.copy_(new_value, non_blocking=True)
         # return super()._target_soft_update()
-    
+
     def process_batch(self, batch: EpisodeBatch) -> EpisodeBatch:
         return batch
 
@@ -198,13 +203,25 @@ class RecurrentMixedDQN(DQN):
                 qvalues = qvalues.squeeze(dim=-1)
                 return self.mixer.forward(qvalues, batch.states)
             case Observation() as obs:
-                obs_data = torch.from_numpy(obs.data).to(self._device, non_blocking=True).unsqueeze(0)
-                obs_extras = torch.from_numpy(obs.extras).to(self._device, non_blocking=True).unsqueeze(0)
-                qvalues, self._hidden_state = self._qnetwork.forward(obs_data, obs_extras, self._hidden_state)
+                obs_data = (
+                    torch.from_numpy(obs.data)
+                    .to(self._device, non_blocking=True)
+                    .unsqueeze(0)
+                )
+                obs_extras = (
+                    torch.from_numpy(obs.extras)
+                    .to(self._device, non_blocking=True)
+                    .unsqueeze(0)
+                )
+                qvalues, self._hidden_state = self._qnetwork.forward(
+                    obs_data, obs_extras, self._hidden_state
+                )
                 return qvalues.squeeze(dim=0)
-            case _: raise ValueError(f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'")
+            case _:
+                raise ValueError(
+                    f"Invalid input data type {data.__class__.__name__} for 'compute_qvalues'"
+                )
 
-    
     def after_train_step(self, *_):
         self._train_policy.update()
 
@@ -215,11 +232,11 @@ class RecurrentMixedDQN(DQN):
     def before_tests(self, time_step: int):
         self._saved_hidden_state = self._hidden_state
         return super().before_tests(time_step)
-    
+
     def after_tests(self, time_step: int, episodes):
         self._hidden_state = self._saved_hidden_state
         return super().after_tests(time_step, episodes)
-        
+
     def before_train_episode(self, episode_num: int):
         self._hidden_state = None
         return super().before_train_episode(episode_num)
@@ -232,26 +249,21 @@ class RecurrentMixedDQN(DQN):
         self.mixer.to(device)
         self.target_mixer.to(device)
         return super().to(device)
-    
+
     def save(self, to_directory: str):
         super().save(to_directory)
         self.mixer.save(to_directory)
-    
+
     def load(self, from_directory: str):
         super().load(from_directory)
         self.mixer.load(from_directory)
 
-
-    def summary(self) -> dict[str, ]:
-        return {
-            **super().summary(),
-            "mixer": self.mixer.summary()
-        }
+    def summary(self) -> dict[str,]:
+        return {**super().summary(), "mixer": self.mixer.summary()}
 
     @classmethod
-    def from_summary(cls, summary: dict[str, ]):
+    def from_summary(cls, summary: dict[str,]):
         from marl.qlearning import mixers
-        summary["mixer"] = mixers.from_summary(summary['mixer'])
+
+        summary["mixer"] = mixers.from_summary(summary["mixer"])
         return super().from_summary(summary)
-    
-    
