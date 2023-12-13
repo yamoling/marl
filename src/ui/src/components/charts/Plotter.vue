@@ -20,6 +20,20 @@
                 logarithmic
                 <input type="radio" value="logarithmic" name="y-scale" v-model="yScaleType">
             </label>
+            <br>
+
+            <label>
+                <input type="checkbox" v-model="enablePlusMinus">
+                <b class="me-1">Show</b>
+            </label>
+            <label class="me-2">
+                standard deviation
+                <input type="radio" value="std" name="plusMinus" v-model="plusMinus">
+            </label>
+            <label>
+                95% confidence interval
+                <input type="radio" value="ci95" name="plusMinus" v-model="plusMinus">
+            </label>
         </div>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
@@ -36,6 +50,8 @@ const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
 const legendContainer = ref({} as HTMLElement);
 const yScaleType = ref("linear" as "linear" | "logarithmic");
+const enablePlusMinus = ref(true);
+const plusMinus = ref("std" as "std" | "ci95");
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
@@ -52,26 +68,41 @@ function updateChartData() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         const colour = props.colours.get(ds.logdir) ?? "#000000";
-        const stdColour = rgbToAlpha(colour, 0.3);
 
-        const lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
-        const upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
-        datasets.push({
-            data: lower,
-            backgroundColor: stdColour,
-            fill: "+1"
-        });
+        if (enablePlusMinus.value) {
+            let lower;
+            if (plusMinus.value == "std") {
+                lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+            } else {
+                lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+            }
+            const lowerColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: lower,
+                backgroundColor: lowerColour,
+                fill: "+1"
+            });
+        }
         datasets.push({
             label: "",
             data: ds.mean,
             borderColor: colour,
             backgroundColor: colour,
         });
-        datasets.push({
-            data: upper,
-            backgroundColor: stdColour,
-            fill: "-1",
-        });
+        if (enablePlusMinus.value) {
+            let upper;
+            if (plusMinus.value == "std") {
+                upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+            } else {
+                upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+            }
+            const upperColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: upper,
+                backgroundColor: upperColour,
+                fill: "-1",
+            });
+        }
     });
     // Take the dataset with the longes ticks
     chart.data = { labels: props.xTicks, datasets };
@@ -82,9 +113,9 @@ watch(props, updateChartData);
 watch(yScaleType, () => {
     chart.options!.scales!.y!.type = yScaleType.value;
     chart.update()
-    // updateChartData();
-})
-
+});
+watch(enablePlusMinus, updateChartData)
+watch(plusMinus, updateChartData);
 
 onMounted(() => {
     chart = initialiseChart();
