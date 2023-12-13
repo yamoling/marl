@@ -1,6 +1,6 @@
 import os
 import json
-from rlenv.models import Episode, Metrics
+from rlenv.models import Episode
 from .deep_qwrapper import DeepQWrapper, IDeepQLearning
 
 
@@ -14,10 +14,10 @@ class ReplayWrapper(DeepQWrapper):
         if test_num is not None:
             directory = os.path.join(directory, f"{test_num}")
         return directory
-    
+
     def train_directory(self, episode_num: int) -> str:
         return os.path.join(self.logdir, "train", f"{episode_num}")
-    
+
     def after_tests(self, episodes: list[Episode], time_step: int):
         # Log the actions and the metrics of individual episodes
         for test_num, episode in enumerate(episodes):
@@ -26,15 +26,17 @@ class ReplayWrapper(DeepQWrapper):
         # Save the model and log the agregated metrics
         test_dir = self.test_directory(time_step)
         self.save(test_dir)
-        metrics = Episode.agregate_metrics(episodes)
+        metrics = {}
         with open(os.path.join(test_dir, "metrics.json"), "w") as f:
             json.dump(metrics, f)
         return super().after_tests(episodes, time_step)
 
     @staticmethod
-    def _log_episode(directory: str, actions: list, metrics: Metrics):
+    def _log_episode(directory: str, actions: list, metrics: dict):
         os.makedirs(directory, exist_ok=True)
-        with (open(os.path.join(directory, "actions.json"), "w") as a,
-              open(os.path.join(directory, "metrics.json"), "w") as m):
+        with (
+            open(os.path.join(directory, "actions.json"), "w") as a,
+            open(os.path.join(directory, "metrics.json"), "w") as m,
+        ):
             json.dump(actions, a)
             json.dump(metrics, m)

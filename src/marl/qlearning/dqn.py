@@ -10,13 +10,15 @@ from marl.utils import defaults_to, get_device
 
 from .qlearning import IDeepQLearning
 
+
 @dataclass
 class DQN(IDeepQLearning):
     """
     Independent Deep Q-Network agent with shared QNetwork.
-    If agents require different behaviours, an agentID should be included in the 
+    If agents require different behaviours, an agentID should be included in the
     observation 'extras'.
     """
+
     _gamma: float
     _tau: float
     _batch_size: int
@@ -35,11 +37,11 @@ class DQN(IDeepQLearning):
         tau=1e-2,
         batch_size=64,
         lr=1e-4,
-        optimizer: torch.optim.Optimizer=None,
-        train_policy: Policy=None,
-        test_policy: Policy=None,
-        memory: TransitionMemory=None,
-        device: torch.device=None,
+        optimizer: torch.optim.Optimizer = None,
+        train_policy: Policy = None,
+        test_policy: Policy = None,
+        memory: TransitionMemory = None,
+        device: torch.device = None,
     ):
         """Soft update tau value"""
         super().__init__()
@@ -50,20 +52,24 @@ class DQN(IDeepQLearning):
         self._qnetwork = qnetwork.to(self._device, non_blocking=True)
         self._qtarget = deepcopy(self._qnetwork).to(self._device, non_blocking=True)
         self._memory = defaults_to(memory, lambda: TransitionMemory(50_000))
-        self._optimizer = defaults_to(optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr))
-        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy(0.1))
-        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy(0.01))
+        self._optimizer = defaults_to(
+            optimizer, lambda: torch.optim.Adam(qnetwork.parameters(), lr=lr)
+        )
+        self._train_policy = defaults_to(
+            train_policy, lambda: EpsilonGreedy.constant(0.1)
+        )
+        self._test_policy = defaults_to(test_policy, lambda: train_policy)
         self._policy = self._train_policy
         self._parameters = list(self._qnetwork.parameters())
 
     @property
     def gamma(self) -> float:
         return self._gamma
-    
+
     @property
     def memory(self) -> ReplayMemory[Transition, TransitionsBatch]:
         return self._memory
-    
+
     @property
     def policy(self) -> Policy:
         return self._policy
@@ -73,28 +79,33 @@ class DQN(IDeepQLearning):
         qvalues = self.compute_qvalues(obs)
         qvalues = qvalues.cpu().numpy()
         return self._policy.get_action(qvalues, obs.available_actions)
-    
+
     @torch.no_grad()
     def value(self, obs: Observation) -> float:
         qvalues = self.compute_qvalues(obs)
         max_qvalues = torch.max(qvalues, dim=-1).values
         return torch.mean(max_qvalues).item()
-    
+
     def after_train_step(self, transition: Transition, _time_step: int):
         self._memory.add(transition)
         self.update()
-    
-    def compute_qvalues(self, data: Batch|Observation) -> torch.Tensor:
+
+    def compute_qvalues(self, data: Batch | Observation) -> torch.Tensor:
         match data:
             case Batch() as batch:
                 qvalues = self._qnetwork.forward(batch.obs, batch.extras)
                 qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
                 return qvalues.squeeze(dim=-1)
             case Observation() as obs:
-                obs_data = torch.from_numpy(obs.data).to(self._device, non_blocking=True)
-                obs_extras = torch.from_numpy(obs.extras).to(self._device, non_blocking=True)
+                obs_data = torch.from_numpy(obs.data).to(
+                    self._device, non_blocking=True
+                )
+                obs_extras = torch.from_numpy(obs.extras).to(
+                    self._device, non_blocking=True
+                )
                 return self._qnetwork.forward(obs_data, obs_extras)
-            case _: raise ValueError("Invalid input data type for 'compute_qvalues'")
+            case _:
+                raise ValueError("Invalid input data type for 'compute_qvalues'")
 
     def double_qlearning(self, batch: Batch) -> torch.Tensor:
         # 1) Take the max qvalues from the online network
@@ -109,20 +120,21 @@ class DQN(IDeepQLearning):
     @torch.no_grad()
     def compute_targets(self, batch: Batch) -> torch.Tensor:
         # next_qvalues = self._qtarget.forward(batch.obs_, batch.extras_)
-        #next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        #next_qvalues = torch.max(next_qvalues, dim=-1)[0]
+        # next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
+        # next_qvalues = torch.max(next_qvalues, dim=-1)[0]
         next_qvalues = self.double_qlearning(batch)
         target_qvalues = batch.rewards + self._gamma * next_qvalues * (1 - batch.dones)
         return target_qvalues
 
-    def compute_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch) -> torch.Tensor:
+    def compute_loss(
+        self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch
+    ) -> torch.Tensor:
         # Mean squared error
         mse = (qvalues - qtargets) ** 2
         # Apply importance sampling weights is necessary
         if batch.importance_sampling_weights is not None:
             mse = mse * batch.importance_sampling_weights
         return torch.mean(mse)
-
 
     def process_batch(self, batch: Batch) -> Batch:
         return batch.for_individual_learners()
@@ -135,7 +147,9 @@ class DQN(IDeepQLearning):
         # Compute qvalues and qtargets (delegated to child classes)
         qvalues = self.compute_qvalues(batch)
         qtargets = self.compute_targets(batch).detach()
-        assert qvalues.shape == qtargets.shape, f"Predicted qvalues ({qvalues.shape}) and target qvalues ({qtargets.shape}) do not have the same shape !"
+        assert (
+            qvalues.shape == qtargets.shape
+        ), f"Predicted qvalues ({qvalues.shape}) and target qvalues ({qtargets.shape}) do not have the same shape !"
         # Compute the loss and apply gradient descent
         loss = self.compute_loss(qvalues, qtargets, batch)
         self._optimizer.zero_grad()
@@ -148,8 +162,10 @@ class DQN(IDeepQLearning):
         return loss.item(), grad_norm.item()
 
     def _target_soft_update(self):
-        for param, target_param in zip(self._qnetwork.parameters(), self._qtarget.parameters()):
-            new_value = (1-self._tau) * target_param.data + self._tau * param.data
+        for param, target_param in zip(
+            self._qnetwork.parameters(), self._qtarget.parameters()
+        ):
+            new_value = (1 - self._tau) * target_param.data + self._tau * param.data
             target_param.data.copy_(new_value, non_blocking=True)
 
     def before_tests(self, time_step: int):
@@ -170,7 +186,6 @@ class DQN(IDeepQLearning):
         torch.save(self._qtarget.state_dict(), qtarget_path)
         self._train_policy.save(train_policy_path)
         self._test_policy.save(test_policy_path)
-        
 
     def load(self, from_directory: str):
         qnetwork_path = os.path.join(from_directory, "qnetwork.weights")
@@ -196,23 +211,25 @@ class DQN(IDeepQLearning):
             "tau": self._tau,
             "optimizer": {
                 "name": self._optimizer.__class__.__name__,
-                "learning rate": self._optimizer.param_groups[0]["lr"]
+                "learning rate": self._optimizer.param_groups[0]["lr"],
             },
             "memory": self._memory.summary(),
             "qnetwork": self._qnetwork.summary(),
             "train_policy": self._train_policy.summary(),
-            "test_policy" : self._test_policy.summary()
+            "test_policy": self._test_policy.summary(),
         }
-    
+
     @classmethod
     def from_summary(cls, summary: dict[str,]):
         from marl import policy
+
         summary["train_policy"] = policy.from_summary(summary["train_policy"])
         summary["test_policy"] = policy.from_summary(summary["test_policy"])
         from marl import nn
+
         summary["qnetwork"] = nn.from_summary(summary["qnetwork"]).to(get_device())
         from marl.models import replay_memory
+
         summary["memory"] = replay_memory.from_summary(summary["memory"])
         summary["lr"] = summary.pop("optimizer")["learning rate"]
         return cls(**summary)
-    

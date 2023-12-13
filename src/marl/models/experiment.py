@@ -9,7 +9,6 @@ from typing import Literal
 
 import rlenv
 from rlenv.models import RLEnv, EpisodeBuilder, Transition
-import laser_env
 from marl import logging
 from marl.qlearning import IDeepQLearning
 from marl.utils import encode_b64_image, defaults_to, exceptions
@@ -55,15 +54,14 @@ class Experiment:
         env: RLEnv,
         test_env: RLEnv,
         test_interval: int,
-        n_steps: int
+        n_steps: int,
     ):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
         self.runs = []
         for run in os.listdir(logdir):
             if run.startswith("run_"):
                 self.runs.append(Run.load(os.path.join(logdir, run)))
-                
-        
+
         self.logdir = logdir
         self.algo = algo
         self.env = env
@@ -100,7 +98,7 @@ class Experiment:
                 test_env=test_env,
                 test_interval=test_interval,
             )
-            experiment.save()
+            # experiment.save()
             return experiment
         except FileExistsError:
             raise exceptions.ExperimentAlreadyExistsException(logdir)
@@ -114,7 +112,10 @@ class Experiment:
         """Load an existing experiment."""
         try:
             import marl
-            with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
+
+            with open(
+                os.path.join(logdir, "experiment.json"), "r", encoding="utf-8"
+            ) as f:
                 summary = json.load(f)
             algo = marl.from_summary(summary["algorithm"])
             env = rlenv.from_summary(summary["env"])
@@ -125,10 +126,12 @@ class Experiment:
                 env=env,
                 test_env=test_env,
                 test_interval=summary["test_interval"],
-                n_steps=summary["n_steps"]
+                n_steps=summary["n_steps"],
             )
         except exceptions.MissingParameterException as e:
-            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
+            raise exceptions.CorruptExperimentException(
+                f"\n\tUnable to load experiment from {logdir}:{e}"
+            )
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -137,7 +140,7 @@ class Experiment:
             return os.path.exists(os.path.join(logdir, "experiment.json"))
         except:
             return False
-        
+
     @staticmethod
     def find_experiment_directory(subdir: str) -> str | None:
         """Find the experiment directory containing a given subdirectory."""
@@ -151,10 +154,7 @@ class Experiment:
     def summary(self) -> dict[str,]:
         return {
             "algorithm": self.algo.summary(),
-            "env": {
-                **self.env.summary(),
-                "action_meanings": self.env.action_meanings
-            },
+            "env": {**self.env.summary(), "action_meanings": self.env.action_meanings},
             "test_env": self.test_env.summary(),
             "logdir": self.logdir,
             "n_steps": self.n_steps,
@@ -195,14 +195,14 @@ class Experiment:
 
         algo = deepcopy(self.algo)
         env = deepcopy(self.env)
-        
+
         runner = Runner(
             env=env,
             algo=algo,
             logger=logger,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
-            test_env=self.test_env
+            test_env=self.test_env,
         )
         self.runs.append(Run.create(rundir))
         return runner
@@ -259,47 +259,79 @@ class Experiment:
         df = df.drop("timestamp_sec")
         df_mean = (
             df.groupby("time_step")
-            .agg([pl.mean(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .agg(
+                [
+                    pl.mean(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
             .sort("time_step")
         )
         df_std = (
             df.groupby("time_step")
-            .agg([pl.std(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .agg(
+                [
+                    pl.std(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
             .sort("time_step")
         )
         df_min = (
             df.groupby("time_step")
-            .agg([pl.min(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .agg(
+                [
+                    pl.min(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
             .sort("time_step")
         )
         df_max = (
             df.groupby("time_step")
-            .agg([pl.max(col) for col in df.columns if col not in ["time_step", "timestamp_sec"]])
+            .agg(
+                [
+                    pl.max(col)
+                    for col in df.columns
+                    if col not in ["time_step", "timestamp_sec"]
+                ]
+            )
             .sort("time_step")
         )
         res = []
         for col in df_mean.columns:
             if col == "time_step":
                 continue
-            res.append(Dataset(
-                label=col, 
-                mean=df_mean[col].to_list(), 
-                std=df_std[col].to_list(),
-                min=df_min[col].to_list(),
-                max=df_max[col].to_list(),
-            ))
+            res.append(
+                Dataset(
+                    label=col,
+                    mean=df_mean[col].to_list(),
+                    std=df_std[col].to_list(),
+                    min=df_min[col].to_list(),
+                    max=df_max[col].to_list(),
+                )
+            )
         return df_mean["time_step"].to_list(), res
 
     def test_metrics(self):
         try:
-            df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
+            df = pl.concat(
+                run.test_metrics for run in self.runs if not run.test_metrics.is_empty()
+            )
             return self._metrics(df)
         except ValueError:
             return [], []
 
     def train_metrics(self):
         try:
-            df = pl.concat(run.train_metrics for run in self.runs if not run.test_metrics.is_empty())
+            df = pl.concat(
+                run.train_metrics
+                for run in self.runs
+                if not run.test_metrics.is_empty()
+            )
             # Round the time step to be grouped by the test interval
             time_steps = df["time_step"] / self.test_interval
             time_steps = time_steps.apply(round)
@@ -352,9 +384,4 @@ class Experiment:
 
 
 def restore_env(env_summary: dict[str,], force_static=False) -> RLEnv:
-    if force_static:
-        try:
-            return laser_env.StaticLaserEnv.from_summary(env_summary)
-        except KeyError:
-            return rlenv.from_summary(env_summary)
-    return rlenv.from_summary(env_summary)
+    raise NotImplementedError()

@@ -5,20 +5,12 @@ import numpy as np
 from rlenv.models import DiscreteActionSpace
 from rlenv.models.observation import Observation
 
-PAYOFF_INITIAL = np.array([
-    [0, 0],
-    [0, 0]
-])
+PAYOFF_INITIAL = np.array([[0, 0], [0, 0]])
 
-PAYOFF_2A = np.array([
-    [7, 7],
-    [7, 7]
-])
+PAYOFF_2A = np.array([[7, 7], [7, 7]])
 
-PAYOFF_2B = np.array([
-    [0, 1],
-    [1, 8]
-])
+PAYOFF_2B = np.array([[0, 1], [1, 8]])
+
 
 class State(IntEnum):
     INITIAL = 0
@@ -27,22 +19,26 @@ class State(IntEnum):
     END = 3
 
     def one_hot(self):
-        res = np.zeros((4, ), dtype=np.float32)
+        res = np.zeros((4,), dtype=np.float32)
         res[self.value] = 1
         return res
 
 
 class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
     def __init__(self):
-        super().__init__(DiscreteActionSpace(2, 2))
         self.state = State.INITIAL
-        self._identity = np.identity(self.n_agents, dtype=np.float32)
+        self._identity = np.identity(2, dtype=np.float32)
+        super().__init__(
+            DiscreteActionSpace(2, 2),
+            (self.state.one_hot().shape[0] + 2,),
+            (self.state.one_hot().shape[0],),
+        )
 
     def reset(self) -> Observation:
         self.state = State.INITIAL
         return self.observation()
-    
-    def step(self, actions: np.ndarray[np.int32]) -> tuple[Observation, float, bool, dict]:
+
+    def step(self, actions: np.ndarray):
         match self.state:
             case State.INITIAL:
                 # In the initial step, only agent 0's actions have an influence on the state
@@ -62,28 +58,23 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
             case State.END:
                 raise ValueError("Episode is already over")
         obs = self.observation()
-        reward = payoffs[actions[0], actions[1]]
+        reward = float(payoffs[actions[0], actions[1]])
         done = self.state == State.END
-        return obs, reward, done, {}
-    
+        return obs, reward, done, False, {}
+
     def get_state(self):
         return self.state.one_hot()
-    
+
     def observation(self):
         obs_data = np.array([self.state.one_hot(), self.state.one_hot()])
         extras = self._identity
-        return Observation(obs_data, self.get_avail_actions(), self.get_state(), extras)
-    
-    @property
-    def observation_shape(self) -> tuple[int, ...]:
-        return (self.state.one_hot().shape[0] + self.n_agents, )
-    
-    def render(self, mode: Literal['human', 'rgb_array'] = "human"):
+        return Observation(obs_data, self.available_actions(), self.get_state(), extras)
+
+    def render(self, mode: Literal["human", "rgb_array"] = "human"):
         print(self.state)
 
-    @property
-    def state_shape(self) -> tuple[int, ...]:
-        return self.state.one_hot().shape
-    
     def force_state(self, state: State):
         self.state = state
+
+    def seed(self, seed_value: int):
+        pass

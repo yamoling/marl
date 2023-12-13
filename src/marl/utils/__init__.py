@@ -5,6 +5,6 @@ from .exceptions import (
     ExperimentAlreadyExistsException
 )
 from .random_algo import RandomAgent
-from .env_pool import EnvPool
+# from .env_pool import EnvPool
 from .registry import make_registry
 from .schedule import LinearSchedule, ExpSchedule, Schedule

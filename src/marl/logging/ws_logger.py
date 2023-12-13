@@ -5,21 +5,20 @@ import asyncio
 from dataclasses import dataclass
 from typing import ClassVar
 from websockets.server import serve, WebSocketServerProtocol
-from rlenv.models import Metrics
 from marl.models.replay_episode import ReplayEpisodeSummary
 from .logger_interface import Logger
-
 
 
 @dataclass
 class WSLogger(Logger):
     """A logger that logs to a websocket"""
+
     WS_FILE: ClassVar[str] = "ws_port"
 
     clients: set[WebSocketServerProtocol]
     port: int
 
-    def __init__(self, logdir: str, port: int=None) -> None:
+    def __init__(self, logdir: str, port: int = None) -> None:
         super().__init__(logdir)
         self.port = port
         self.clients = set()
@@ -77,17 +76,18 @@ class WSLogger(Logger):
                 while not self._stop:
                     await asyncio.sleep(1)
         except OSError:
-            print("Could not start websocket server because the port is already in use...")
+            print(
+                "Could not start websocket server because the port is already in use..."
+            )
             exit(1)
-            
 
-    def log(self, tag: str, data: Metrics, time_step: int):
+    def log(self, tag: str, data: dict, time_step: int):
         directory = os.path.join(self.logdir, tag, f"{time_step}")
         self.messages.put_nowait(ReplayEpisodeSummary(directory, data))
 
     def print(self, tag: str, data):
         pass
-        
+
     def flush(self, prefix: str | None = None):
         pass
 

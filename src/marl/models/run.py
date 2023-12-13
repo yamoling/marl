@@ -2,7 +2,6 @@ import os
 import shutil
 import polars as pl
 from dataclasses import dataclass
-from rlenv.models import Metrics
 from marl.utils import CorruptExperimentException
 from .replay_episode import ReplayEpisodeSummary
 from marl.logging.ws_logger import WSLogger
@@ -61,14 +60,14 @@ class Run:
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         try:
-            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort(
-                "timestamp_sec"
-            )
+            test_metrics = self.test_metrics.filter(
+                pl.col("time_step") == time_step
+            ).sort("timestamp_sec")
             test_dir = os.path.join(self.rundir, "test", f"{time_step}")
             episodes = []
             for i, row in enumerate(test_metrics.rows()):
                 episode_dir = os.path.join(test_dir, f"{i}")
-                metrics = Metrics(zip(test_metrics.columns, row))
+                metrics = dict(zip(test_metrics.columns, row))
                 episode = ReplayEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
@@ -122,8 +121,8 @@ class Run:
 
     def to_json(self) -> dict[str, str | int | None]:
         return {
-            "rundir": self.rundir, 
-            "port": self.get_port(), 
+            "rundir": self.rundir,
+            "port": self.get_port(),
             "pid": self.get_pid(),
             "current_step": self.current_step,
         }

@@ -3,11 +3,11 @@ from typing import Literal
 import os
 import shutil
 import time
-from rlenv.models import Metrics
 
 
 class Logger(ABC):
     """Logging interface"""
+
     def __init__(self, logdir: str, quiet=False) -> None:
         super().__init__()
         if logdir is None:
@@ -25,21 +25,20 @@ class Logger(ABC):
         self.quiet = quiet
 
     @abstractmethod
-    def log(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
+    def log(self, tag: Literal["train", "test"], data, time_step: int):
         """Log the data."""
 
-    def log_print(self, tag: Literal["train", "test"], data: Metrics, time_step: int):
+    def log_print(self, tag: Literal["train", "test"], data, time_step: int):
         """Log to TensorBoard and add the data to the printing queue."""
         self.log(tag, data, time_step)
         if not self.quiet:
             self.print(tag, data)
 
-    def print(self, tag: Literal["train", "test"], data: Metrics):
+    def print(self, tag: Literal["train", "test"], data):
         """Add the data to the printing queue."""
         if not self.quiet:
             print(f"{tag}: {data}")
-    
+
     @abstractmethod
     def close(self):
         """Close the logger"""
-

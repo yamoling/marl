@@ -1,12 +1,12 @@
 import os
 from dataclasses import dataclass
-from rlenv.models import Metrics, Episode
+from rlenv.models import Episode
 
 
 @dataclass
 class ReplayEpisodeSummary:
     directory: str
-    metrics: Metrics
+    metrics: dict
 
     @property
     def name(self) -> str:
@@ -16,8 +16,9 @@ class ReplayEpisodeSummary:
         return {
             "name": self.name,
             "directory": self.directory,
-            "metrics": self.metrics.to_json(),
+            "metrics": self.metrics,
         }
+
 
 @dataclass
 class ReplayEpisode(ReplayEpisodeSummary):
@@ -36,5 +37,5 @@ class ReplayEpisode(ReplayEpisodeSummary):
             "episode": self.episode.to_json(),
             "qvalues": self.qvalues,
             "frames": self.frames,
-            "state_values": self.state_values
+            "state_values": self.state_values,
         }
