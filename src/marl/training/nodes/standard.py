@@ -1,6 +1,7 @@
 import torch
 from marl.nn import LinearNN, RecurrentNN, NN
 from marl.models import Batch
+from marl.models.batch import EpisodeBatch
 from .node import Node
 
 
@@ -50,8 +51,8 @@ class NextQValues(Node[torch.Tensor]):
         batch = self.batch.value
         with torch.no_grad():
             next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
-        if isinstance(self.qtarget, RecurrentNN):
-            # For recurrent networks, the batch includes the initial observation
+        if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
+            # For episode batches, the batch includes the initial observation
             # in order to compute the hidden state at t=0 and use it for t=1.
             # We need to remove it when considering the next qvalues.
             next_qvalues = next_qvalues[1:]
@@ -79,10 +80,8 @@ class DoubleQLearning(Node[torch.Tensor]):
             # Take the indices from the target network and the values from the current network
             # instead of taking both from the target network
             current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
-        if isinstance(self.qtarget, RecurrentNN):
-            # For recurrent networks, the batch includes the initial observation
-            # in order to compute the hidden state at t=0 and use it for t=1.
-            # We need to remove it when considering the next qvalues.
+        if isinstance(batch, EpisodeBatch):
+            # See above comment in NextQValues for an explanation
             target_next_qvalues = target_next_qvalues[1:]
             current_next_qvalues = current_next_qvalues[1:]
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf

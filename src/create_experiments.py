@@ -1,6 +1,5 @@
 import marl
 import rlenv
-from rlenv.wrappers import RLEnvWrapper
 from lle import LLE, ObservationType
 from marl.training import DQNTrainer
 from marl.training.qtarget_updater import SoftUpdate
@@ -26,8 +25,8 @@ def create_smac(map_name="8m"):
         update_interval=1,
         gamma=0.99,
         train_every="episode",
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        mixer=marl.qlearning.VDN(env.n_agents),
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
     )
 
@@ -36,14 +35,16 @@ def create_smac(map_name="8m"):
         train_policy=train_policy,
         test_policy=test_policy,
     )
-    logdir = f"logs/smac-{map_name}-qmix"
+    logdir = f"logs/smac-{map_name}-vdn"
     # logdir = "logs/test"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 def create_lle():
-    n_steps = 1_000_000
-    env = rlenv.Builder(LLE.level(6, ObservationType.LAYERED)).agent_id().time_limit(78, add_extra=True).build()
+    n_steps = 2_000_000
+    # env = LLE.from_file("maps/lvl6-shaping", ObservationType.LAYERED)
+    env = LLE.level(6, ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -70,10 +71,10 @@ def create_lle():
         mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=marl.intrinsic_reward.RandomNetworkDistillation(
-            obs_shape=env.observation_shape,
-            extras_shape=env.extra_feature_shape,
-        ),
+        # ir_module=marl.intrinsic_reward.RandomNetworkDistillation(
+        #     obs_shape=env.observation_shape,
+        #     extras_shape=env.extra_feature_shape,
+        # ),
     )
 
     algo = marl.qlearning.DQN(
@@ -82,15 +83,14 @@ def create_lle():
         test_policy=test_policy,
     )
 
-    logdir = f"logs/{env.name}-vdn-rnd"
+    # logdir = f"logs/{env.name}-lvl6-shaping-vdn"
+    logdir = f"logs/{env.name}-vdn-2Msteps"
     # logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 if __name__ == "__main__":
-    exp = create_smac()
-    # exp = create_lle()
-    runner = exp.create_runner(seed=0)
-    runner.to("cuda")
-    runner.train(0)
+    # exp = create_smac()
+    exp = create_lle()
+    # exp.create_runner(seed=0).to("cuda").train(5)
