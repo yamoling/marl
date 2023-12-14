@@ -1,11 +1,9 @@
 # MARL
 ## Requirements
 - poetry
-- python3.10
-## For pywebview
-```bash
-$ sudo apt install libcairo2-dev libxt-dev libgirepository1.0-dev
-```
+- python >=  3.10
+- torch (does not work well with poetry, you should install it with pip as shown on the pytorch website)
+
 ## Getting started
 ```bash
 $ poetry install

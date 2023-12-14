@@ -76,3 +76,6 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
 
     def force_state(self, state: State):
         self.state = state
+
+    def seed(self, seed):
+        return

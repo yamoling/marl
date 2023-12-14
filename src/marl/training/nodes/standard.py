@@ -32,6 +32,10 @@ class QValues(Node[torch.Tensor]):
         qvalues = qvalues.squeeze(dim=-1)
         return qvalues
 
+    def randomize(self):
+        self.qnetwork.randomize()
+        return super().randomize()
+
 
 class NextQValues(Node[torch.Tensor]):
     """Compute the next qvalues based on the next observations"""
@@ -45,10 +49,14 @@ class NextQValues(Node[torch.Tensor]):
         self.qtarget.to(device)
         return super().to(device)
 
+    def randomize(self):
+        self.qtarget.randomize()
+        return super().randomize()
+
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        with torch.no_grad():
-            next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        # with torch.no_grad():
+        next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
             # For episode batches, the batch includes the initial observation
             # in order to compute the hidden state at t=0 and use it for t=1.
@@ -66,6 +74,11 @@ class DoubleQLearning(Node[torch.Tensor]):
         self.qtarget = qtarget
         self.batch = batch
 
+    def randomize(self):
+        self.qnetwork.randomize()
+        self.qtarget.randomize()
+        return super().randomize()
+
     def to(self, device: torch.device):
         self.qnetwork.to(device)
         self.qtarget.to(device)
@@ -73,11 +86,11 @@ class DoubleQLearning(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        with torch.no_grad():
-            target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
-            # Take the indices from the target network and the values from the current network
-            # instead of taking both from the target network
-            current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
+        # with torch.no_grad():
+        target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        # Take the indices from the target network and the values from the current network
+        # instead of taking both from the target network
+        current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):
             # See above comment in NextQValues for an explanation
             target_next_qvalues = target_next_qvalues[1:]
@@ -97,19 +110,12 @@ class Target(Node[torch.Tensor]):
         self.next_qvalues = next_qvalues
         self.batch = batch
 
-    def _mark_for_update(self):
-        return super()._mark_for_update()
-
     def _compute_value(self) -> torch.Tensor:
         """Compute the target qvalues based on the next qvalues and the reward"""
         batch = self.batch.value
         next_qvalues = self.next_qvalues.value
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
-
-    @property
-    def value(self):
-        return super().value
 
 
 class TDError(Node[torch.Tensor]):
@@ -122,14 +128,11 @@ class TDError(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         """Compute the target qvalues based on the next qvalues and the reward"""
-        predicted = self.predicted.value
-        target = self.target.value
-        assert predicted.shape == target.shape
-        td_error = target - predicted
+        qvalues = self.predicted.value
+        qtargets = self.target.value.detach()
+        assert qvalues.shape == qtargets.shape
+        td_error = qvalues - qtargets
         return td_error
-
-    def _mark_for_update(self):
-        return super()._mark_for_update()
 
 
 class MSELoss(Node[torch.Tensor]):

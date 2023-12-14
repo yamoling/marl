@@ -22,7 +22,7 @@ class HardUpdate(TargetParametersUpdater):
 
     def __init__(self, update_period: int):
         super().__init__()
-        assert update_period > 0
+        assert update_period > 0, "Update period must be positive"
         self.update_period = update_period
         self.update_num = 0
 
@@ -39,7 +39,7 @@ class SoftUpdate(TargetParametersUpdater):
 
     def __init__(self, tau: float):
         super().__init__()
-        assert 0 < tau < 1
+        assert 0 < tau < 1, "Soft update ratio must be between 0 and 1"
         self.tau = tau
 
     def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):

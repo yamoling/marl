@@ -11,10 +11,8 @@ from dataclasses import dataclass
 def seed(seed_value: int):
     import torch
     import random
-    import os
     import numpy as np
 
-    os.environ["PYTHONHASHSEED"] = str(seed_value)
     torch.manual_seed(seed_value)
     np.random.seed(seed_value)
     random.seed(seed_value)

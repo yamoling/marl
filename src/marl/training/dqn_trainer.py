@@ -89,14 +89,7 @@ class DQNTrainer(Trainer):
         self.batch.to(device)
 
     def randomize(self):
-        for key, value in self.__dict__.items():
-            match value:
-                case NN():
-                    value.randomize()
-                case IRModule():
-                    value.randomize()
-                case _:
-                    pass
+        self.batch.randomize()
 
     def _make_qvalue_prediction_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
         qvalues = nodes.QValues(self.qnetwork, batch)
