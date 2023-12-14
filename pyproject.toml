@@ -6,14 +6,12 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.11"
-torch = "^1.13.1"
+python = ">=3.10, <3.13"
 numpy = "^1.23.4"
-rlenv = {git = "https://github.com/yamoling/rlenv.git"}
+rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
-laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
-sumtree = "^0.2"
+sumtree = "^0.2.2"
 polars = "^0.16.18"
 tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
@@ -21,9 +19,6 @@ pynvml = "^11.5.0"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
-pywebview = {extras = ["qt"], version = "^4.0.1"}
-pycairo = "^1.23.0"
-pygobject = "^3.42.2"
 websockets = "^10.4"
 flask = "^2.2.2"
 flask-cors = "^3.0.10"
