@@ -1,4 +1,5 @@
 from rlenv.models import Episode
+from typing import Optional
 import torch
 from rlenv import Observation
 from marl.models import TransitionMemory, TransitionsBatch, EpisodeBatch, EpisodeMemory
@@ -21,10 +22,10 @@ class MixedDQN(DQN):
         tau=0.01,
         batch_size=64,
         lr=0.0001,
-        train_policy: Policy = None,
-        test_policy: Policy = None,
-        memory: TransitionMemory = None,
-        device: torch.device = None,
+        train_policy: Optional[Policy] = None,
+        test_policy: Optional[Policy] = None,
+        memory: Optional[TransitionMemory] = None,
+        device: Optional[torch.device] = None,
     ):
         optimizer = torch.optim.Adam(
             list(qnetwork.parameters()) + list(mixer.parameters()), lr=lr
@@ -89,11 +90,11 @@ class MixedDQN(DQN):
         super().load(from_directory)
         self.mixer.load(from_directory)
 
-    def summary(self) -> dict[str,]:
+    def summary(self):
         return {**super().summary(), "mixer": self.mixer.summary()}
 
     @classmethod
-    def from_summary(cls, summary: dict[str,]):
+    def from_summary(cls, summary: dict):
         from marl.qlearning import mixers
 
         summary["mixer"] = mixers.from_summary(summary["mixer"])

@@ -6,7 +6,9 @@ from .mixer import Mixer
 
 
 class QMix(Mixer):
-    def __init__(self, state_shape: int, n_agents: int, embed_size=32, hypernet_embed_size=64):
+    def __init__(
+        self, state_shape: int, n_agents: int, embed_size=32, hypernet_embed_size=64
+    ):
         super().__init__(n_agents)
 
         self.state_shape = state_shape
@@ -16,20 +18,26 @@ class QMix(Mixer):
 
         self.state_dim = int(np.prod(state_shape))
 
-        self.hyper_w_1 = nn.Sequential(nn.Linear(self.state_dim, hypernet_embed_size),
-                                        nn.ReLU(),
-                                        nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents))
-        self.hyper_w_final = nn.Sequential(nn.Linear(self.state_dim, hypernet_embed_size),
-                                        nn.ReLU(),
-                                        nn.Linear(hypernet_embed_size, self.embed_size))
+        self.hyper_w_1 = nn.Sequential(
+            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.ReLU(),
+            nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents),
+        )
+        self.hyper_w_final = nn.Sequential(
+            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.ReLU(),
+            nn.Linear(hypernet_embed_size, self.embed_size),
+        )
 
         # State dependent bias for hidden layer
         self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_size)
 
         # V(s) instead of a bias for the last layers
-        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size),
-                               nn.ReLU(),
-                               nn.Linear(self.embed_size, 1))
+        self.V = nn.Sequential(
+            nn.Linear(self.state_dim, self.embed_size),
+            nn.ReLU(),
+            nn.Linear(self.embed_size, 1),
+        )
 
     def forward(self, agent_qs: torch.Tensor, states):
         bs = agent_qs.size(0)
@@ -37,7 +45,7 @@ class QMix(Mixer):
         agent_qs = agent_qs.view(-1, 1, self.n_agents)
         # First layer
         w1 = torch.abs(self.hyper_w_1(states))
-        b1 = self.hyper_b_1(states)
+        b1 = self.hyper_b_1.forward(states)
         w1 = w1.view(-1, self.n_agents, self.embed_size)
         b1 = b1.view(-1, 1, self.embed_size)
         hidden = F.elu(torch.bmm(agent_qs, w1) + b1)
@@ -52,8 +60,7 @@ class QMix(Mixer):
         q_tot = y.view(bs, -1)
         return q_tot
 
-
-    def summary(self) -> dict[str, ]:
+    def summary(self) -> dict[str,]:
         return {
             **super().summary(),
             "state_shape": self.state_shape,
