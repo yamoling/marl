@@ -28,8 +28,6 @@ class QValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         qvalues = forward(self.qnetwork, batch.obs, batch.extras)
-        qvalues = forward(self.qnetwork, batch.obs, batch.extras)
-        qvalues[batch.available_actions == 0.0] = -torch.inf
         qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
         qvalues = qvalues.squeeze(dim=-1)
         return qvalues
@@ -99,12 +97,19 @@ class Target(Node[torch.Tensor]):
         self.next_qvalues = next_qvalues
         self.batch = batch
 
+    def _mark_for_update(self):
+        return super()._mark_for_update()
+
     def _compute_value(self) -> torch.Tensor:
         """Compute the target qvalues based on the next qvalues and the reward"""
         batch = self.batch.value
         next_qvalues = self.next_qvalues.value
         targets = batch.rewards + self.gamma * next_qvalues * (1 - batch.dones)
         return targets
+
+    @property
+    def value(self):
+        return super().value
 
 
 class TDError(Node[torch.Tensor]):
@@ -119,8 +124,12 @@ class TDError(Node[torch.Tensor]):
         """Compute the target qvalues based on the next qvalues and the reward"""
         predicted = self.predicted.value
         target = self.target.value
+        assert predicted.shape == target.shape
         td_error = target - predicted
         return td_error
+
+    def _mark_for_update(self):
+        return super()._mark_for_update()
 
 
 class MSELoss(Node[torch.Tensor]):
