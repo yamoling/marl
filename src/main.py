@@ -1,7 +1,6 @@
 import os
 from argparse import ArgumentParser, Namespace
 
-import argcomplete
 import marl
 
 
@@ -39,7 +38,6 @@ def parse_args():
     set_new_arguments(new_parser)
     serve_parser = subparsers.add_parser("serve", help="Serve the web interface")
     set_serve_arguments(serve_parser)
-    argcomplete.autocomplete(parser)
     return parser.parse_args()
 
 
