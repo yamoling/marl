@@ -35,6 +35,7 @@ def test_qmix_value():
     memory = marl.models.EpisodeMemory(500)
     mixer = marl.qlearning.QMix(env.state_shape[0], env.n_agents, embed_size=8)
     # mixer = marl.qlearning.VDN(2)
+    device = marl.utils.get_device()
     trainer = marl.training.DQNTrainer(
         qnetwork=qnetwork,
         train_policy=policy,
@@ -53,8 +54,10 @@ def test_qmix_value():
     algo = marl.qlearning.DQN(qnetwork, policy)
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
     runner = exp.create_runner(0)
+    runner.to(device)
     runner.train(0)
 
+    # Expected results shown in the paper
     expected = {
         State.INITIAL: [[6.93, 6.93], [7.92, 7.92]],
         State.STATE_2A: [[7.0, 7.0], [7.0, 7.0]],
@@ -70,8 +73,8 @@ def test_qmix_value():
         payoff_matrix = [[0, 0], [0, 0]]
         for a0 in range(2):
             for a1 in range(2):
-                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0)
-                s = torch.tensor(obs.state, dtype=torch.float32).unsqueeze(0)
+                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0).to(device)
+                s = torch.tensor(obs.state, dtype=torch.float32).unsqueeze(0).to(device)
                 res = mixer.forward(qs, s).detach()
                 payoff_matrix[a0][a1] = res.item()
         assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.1)
