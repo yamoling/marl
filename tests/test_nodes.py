@@ -1,4 +1,3 @@
-from typing import Optional
 import torch
 from marl.training.nodes import ValueNode, Add
 from marl.models.batch import TransitionBatch, Batch
@@ -84,8 +83,8 @@ def test_double_qlearning_node():
 
     # qnetwork outputs [[0, 1, 2, 3, 4]]
     # qtarget outputs [[10, 11, 12, 13, 14]]
-    qnetwork = MockNN(torch.range(0, env.n_actions - 1, dtype=torch.float32).unsqueeze(0))
-    qtarget = MockNN(torch.range(0, env.n_actions - 1, dtype=torch.float32).unsqueeze(0) + 10)
+    qnetwork = MockNN(torch.arange(0, env.n_actions, dtype=torch.float32).unsqueeze(0))
+    qtarget = MockNN(torch.arange(0, env.n_actions, dtype=torch.float32).unsqueeze(0) + 10)
 
     episode = generate_episode(env)
     transitions = list(episode.transitions())
