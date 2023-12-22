@@ -26,9 +26,10 @@ async def send_system_info(websocket: WebSocketServerProtocol):
 
 
 async def main(port: int):
-    async with serve(send_system_info, "0.0.0.0", port):
+    async with serve(send_system_info, port=port):
         await asyncio.Future()  # run forever
 
 
 def run(port: int):
-    Thread(target=lambda: asyncio.run(main(port)), daemon=True).start()
+    t = Thread(target=lambda: asyncio.run(main(port)), daemon=True)
+    t.start()
