@@ -201,7 +201,7 @@ class Experiment:
         return os.path.join(self.logdir, "test")
 
     @staticmethod
-    def compute_datasets(dfs: list[pl.DataFrame]) -> tuple[list[int], list[Dataset]]:
+    def compute_datasets(dfs: list[pl.DataFrame], replace_inf=False) -> tuple[list[int], list[Dataset]]:
         dfs = [d for d in dfs if not d.is_empty()]
         if len(dfs) == 0:
             return [], []
@@ -210,7 +210,7 @@ class Experiment:
             df = df.drop("timestamp_sec")
         except pl.SchemaFieldNotFoundError:
             pass
-        df_stats = stats.stats_by("time_step", df)
+        df_stats = stats.stats_by("time_step", df, replace_inf)
         res = []
         for col in df.columns:
             if col == "time_step":
@@ -228,11 +228,11 @@ class Experiment:
         return df_stats["time_step"].to_list(), res
 
     @staticmethod
-    def get_experiment_results(logdir: str) -> ExperimentResults:
+    def get_experiment_results(logdir: str, replace_inf=False) -> ExperimentResults:
         """Get the test metrics of an experiment."""
         runs = Experiment.get_runs(logdir)
         try:
-            ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs])
+            ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs], replace_inf)
         except ValueError:
             ticks, test_datasets = [], []
         try:
@@ -243,8 +243,8 @@ class Experiment:
                 dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
                 dfs_training_data = [stats.round_col(df, "time_step", test_interval) for df in dfs_training_data]
 
-            ticks2, train_datasets = Experiment.compute_datasets(dfs)
-            _, training_data = Experiment.compute_datasets(dfs_training_data)
+            ticks2, train_datasets = Experiment.compute_datasets(dfs, replace_inf)
+            _, training_data = Experiment.compute_datasets(dfs_training_data, replace_inf)
         except ValueError:
             ticks2, train_datasets, training_data = [], [], []
         if len(ticks) == 0:

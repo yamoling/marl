@@ -8,15 +8,18 @@ export const useSystemStore = defineStore("SystemStore", () => {
 
 
     function updateSystemInfo() {
+        console.log("Connecting to system info websocket")
         const ws = new WebSocket(wsURL(5001));
         ws.onopen = () => {
-            console.info("Connected to system info websocket");
-        }
-        ws.onerror = (event) => {
-            console.error("Error in system info websocket", event);
+            console.log("Connected to system info websocket")
         }
         ws.onmessage = (event) => {
             systemInfo.value = JSON.parse(event.data) as SystemInfo;
+        }
+        ws.onerror = () => {
+            console.error("Error connecting to system info websocket, retrying in 10 seconds")
+            systemInfo.value = null;
+            setTimeout(updateSystemInfo, 10_000);
         }
         ws.onclose = () => {
             console.warn("Lost system info websocket connection, retrying in 5 seconds")

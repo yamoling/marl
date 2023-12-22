@@ -1,4 +1,4 @@
-import { EpsilonGreedy } from "./Policy";
+import { EpsilonGreedy, Policy } from "./Policy";
 
 export interface Algorithm {
     name: string
@@ -14,7 +14,7 @@ export interface DQN extends Algorithm {
         name: string
     }
     train_policy: EpsilonGreedy
-    test_policy: EpsilonGreedy
+    test_policy: Policy | EpsilonGreedy
 }
 
 

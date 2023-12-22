@@ -42,8 +42,8 @@ def create_smac(map_name="8m"):
 
 def create_lle():
     n_steps = 4_000_000
-    # env = LLE.from_file("maps/lvl6-shaping", ObservationType.LAYERED)
     env = LLE.level(6, ObservationType.LAYERED)
+    # env = LLE.from_file("maps/lvl6-gems-everywhere", ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -67,8 +67,8 @@ def create_lle():
         update_interval=5,
         gamma=0.95,
         train_every="step",
-        mixer=marl.qlearning.VDN(env.n_agents),
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        # mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=5,
         # ir_module=marl.intrinsic_reward.RandomNetworkDistillation(
         #     obs_shape=env.observation_shape,
@@ -83,7 +83,7 @@ def create_lle():
     )
 
     # logdir = f"logs/{env.name}-lvl6-shaping-vdn"
-    logdir = f"logs/{env.name}-vdn-4Msteps"
+    logdir = f"logs/{env.name}-lvl6-qmix-4M"
     # logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)

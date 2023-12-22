@@ -16,6 +16,7 @@ def get_system_info():
 
 
 async def send_system_info(websocket: WebSocketServerProtocol):
+    print("Sending system info")
     try:
         while True:
             await asyncio.sleep(1)
@@ -26,7 +27,8 @@ async def send_system_info(websocket: WebSocketServerProtocol):
 
 
 async def main(port: int):
-    async with serve(send_system_info, port=port):
+    print(f"Starting system info server on port {port}")
+    async with serve(send_system_info, "0.0.0.0", port):
         await asyncio.Future()  # run forever
 
 

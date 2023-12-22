@@ -57,7 +57,7 @@ def round_col(df: pl.DataFrame, col_name: str, round_value: int):
         return df
 
 
-def stats_by(col_name: str, df: pl.DataFrame):
+def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
     if len(df) == 0:
         return df
     grouped = df.groupby(col_name)
@@ -88,6 +88,13 @@ def stats_by(col_name: str, df: pl.DataFrame):
         confidence_intervals.append(new_col)
 
     res = res.with_columns(confidence_intervals)
+    if replace_inf:
+        for series in res.select(pl.col(pl.FLOAT_DTYPES)):
+            # Type hinting
+            series: pl.Series
+            mask = series.is_infinite() | series.is_nan()
+            series[mask] = 1e20
+            res.replace(series.name, series)
     return res
 
 
