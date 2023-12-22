@@ -89,14 +89,7 @@ class DQNTrainer(Trainer):
         self.batch.to(device)
 
     def randomize(self):
-        for key, value in self.__dict__.items():
-            match value:
-                case NN():
-                    value.randomize()
-                case IRModule():
-                    value.randomize()
-                case _:
-                    pass
+        self.batch.randomize()
 
     def _make_qvalue_prediction_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
         qvalues = nodes.QValues(self.qnetwork, batch)
@@ -124,6 +117,9 @@ class DQNTrainer(Trainer):
         return target_qvalues
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):
+        assert len(self.parameters) == len(self.target_parameters)
+        for param, target_param in zip(self.parameters, self.target_parameters):
+            assert param.shape == target_param.shape
         match optimiser:
             case "adam":
                 return torch.optim.Adam(self.parameters, lr=self.lr)
@@ -132,7 +128,7 @@ class DQNTrainer(Trainer):
             case other:
                 raise ValueError(f"Unknown optimizer: {other}")
 
-    def _update(self, time_step: int):
+    def _update(self, time_step: int) -> dict[str, float]:
         if len(self.memory) < self.batch_size:
             return {}
         self.update_num += 1
@@ -157,13 +153,13 @@ class DQNTrainer(Trainer):
         self.target_params_updater.update(self.parameters, self.target_parameters)
         return log
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int):
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.update_on_episodes:
             return {}
         self.memory.add(episode)
         return self._update(time_step)
 
-    def update_step(self, transition: Transition, step_num: int):
+    def update_step(self, transition: Transition, step_num: int) -> dict[str, float]:
         if not self.update_on_steps:
             return {}
         self.memory.add(transition)

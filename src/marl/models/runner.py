@@ -51,7 +51,7 @@ class Runner:
             episode.add(transition)
             obs = obs_
         episode = episode.build({"initial_value": initial_value, "time_step": step_num})
-        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
+        training_logs = self._trainer.update_episode(episode, episode_num, step_num) | {"time_step": step_num}
         self._run.log_train_episode(episode, training_logs)
         return episode
 

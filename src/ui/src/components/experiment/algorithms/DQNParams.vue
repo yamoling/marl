@@ -39,18 +39,22 @@
                             <tr>
                                 <th class="align-middle"> Test policy </th>
                                 <td>
-                                    {{ algo.test_policy.epsilon.name.replace("Schedule", "") }}
-                                    <template v-if="algo.test_policy.epsilon.name.startsWith('Constant')">
-                                        ε = {{ algo.test_policy.epsilon.start_value }}
+                                    {{ algo.test_policy.name }}
+                                    <template v-if="'epsilon' in algo.test_policy">
+                                        <!-- Epsilon greedy -->
+                                        <template v-if="algo.test_policy.epsilon.name.startsWith('Constant')">
+                                            ε = {{ algo.test_policy.epsilon.start_value }}
+                                        </template>
+                                        <template v-else>
+                                            ε-greedy<br />
+                                            {{ algo.test_policy.epsilon.start_value }}
+                                            <font-awesome-icon :icon="['fas', 'arrow-right']" />
+                                            {{ algo.train_policy.epsilon.end_value
+                                            }}
+                                            ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
+                                        </template>
                                     </template>
-                                    <template v-else>
-                                        ε-greedy<br />
-                                        {{ algo.test_policy.epsilon.start_value }}
-                                        <font-awesome-icon :icon="['fas', 'arrow-right']" />
-                                        {{ algo.train_policy.epsilon.end_value
-                                        }}
-                                        ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
-                                    </template>
+
 
 
 

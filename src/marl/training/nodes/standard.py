@@ -1,6 +1,7 @@
 import torch
 from marl.nn import LinearNN, RecurrentNN, NN
 from marl.models import Batch
+from marl.models.batch import EpisodeBatch
 from .node import Node
 
 
@@ -27,11 +28,13 @@ class QValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         qvalues = forward(self.qnetwork, batch.obs, batch.extras)
-        qvalues = forward(self.qnetwork, batch.obs, batch.extras)
-        qvalues[batch.available_actions == 0.0] = -torch.inf
         qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
         qvalues = qvalues.squeeze(dim=-1)
         return qvalues
+
+    def randomize(self):
+        self.qnetwork.randomize()
+        return super().randomize()
 
 
 class NextQValues(Node[torch.Tensor]):
@@ -46,12 +49,16 @@ class NextQValues(Node[torch.Tensor]):
         self.qtarget.to(device)
         return super().to(device)
 
+    def randomize(self):
+        self.qtarget.randomize()
+        return super().randomize()
+
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        with torch.no_grad():
-            next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
-        if isinstance(self.qtarget, RecurrentNN):
-            # For recurrent networks, the batch includes the initial observation
+        # with torch.no_grad():
+        next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
+            # For episode batches, the batch includes the initial observation
             # in order to compute the hidden state at t=0 and use it for t=1.
             # We need to remove it when considering the next qvalues.
             next_qvalues = next_qvalues[1:]
@@ -67,6 +74,11 @@ class DoubleQLearning(Node[torch.Tensor]):
         self.qtarget = qtarget
         self.batch = batch
 
+    def randomize(self):
+        self.qnetwork.randomize()
+        self.qtarget.randomize()
+        return super().randomize()
+
     def to(self, device: torch.device):
         self.qnetwork.to(device)
         self.qtarget.to(device)
@@ -74,15 +86,13 @@ class DoubleQLearning(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        with torch.no_grad():
-            target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
-            # Take the indices from the target network and the values from the current network
-            # instead of taking both from the target network
-            current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
-        if isinstance(self.qtarget, RecurrentNN):
-            # For recurrent networks, the batch includes the initial observation
-            # in order to compute the hidden state at t=0 and use it for t=1.
-            # We need to remove it when considering the next qvalues.
+        # with torch.no_grad():
+        target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        # Take the indices from the target network and the values from the current network
+        # instead of taking both from the target network
+        current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
+        if isinstance(batch, EpisodeBatch):
+            # See above comment in NextQValues for an explanation
             target_next_qvalues = target_next_qvalues[1:]
             current_next_qvalues = current_next_qvalues[1:]
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
@@ -118,9 +128,10 @@ class TDError(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         """Compute the target qvalues based on the next qvalues and the reward"""
-        predicted = self.predicted.value
-        target = self.target.value
-        td_error = target - predicted
+        qvalues = self.predicted.value
+        qtargets = self.target.value.detach()
+        assert qvalues.shape == qtargets.shape
+        td_error = qvalues - qtargets
         return td_error
 
 

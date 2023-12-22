@@ -3,6 +3,7 @@ from marl.models import Batch
 import torch
 from .node import Node
 
+
 class IR(Node[Batch]):
     def __init__(self, ir_module: IRModule, batch: Node[Batch]):
         super().__init__([batch])
@@ -15,6 +16,9 @@ class IR(Node[Batch]):
         batch.rewards += ir
         return batch
 
+    def randomize(self):
+        self.ir_module.randomize()
+        return super().randomize()
 
     def to(self, device: torch.device):
         self.ir_module.to(device)

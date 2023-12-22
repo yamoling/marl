@@ -1,29 +1,29 @@
 import torch
 import pickle
+from typing import Optional
 import numpy as np
 from rlenv import Observation, Transition
-from .qlearning import IQLearning
-from marl.models import TransitionMemory
+from marl.models import TransitionMemory, RLAlgo
 from marl.policy import Policy, EpsilonGreedy
 from marl.utils import defaults_to
 
 
-class VanillaQLearning(IQLearning):
+class VanillaQLearning(RLAlgo):
     def __init__(
-        self, 
-        train_policy: Policy=None,
-        test_policy: Policy=None,
+        self,
+        train_policy: Policy,
+        test_policy: Optional[Policy] = None,
         lr=0.1,
         gamma=0.99,
     ):
-        self._train_policy = defaults_to(train_policy, lambda: EpsilonGreedy.linear(1, 0.01, 10_000))
+        self._train_policy = train_policy
         self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy.constant(0.01))
         self.train_policy = train_policy
         self.test_policy = test_policy
         self.policy = train_policy
         self._gamma = gamma
         self.lr = lr
-        self.qtable: dict[int, np.ndarray[np.float32]] = {}
+        self.qtable: dict[int, np.ndarray] = {}
 
     def compute_qvalues(self, obs: Observation):
         qvalues = []
@@ -46,12 +46,12 @@ class VanillaQLearning(IQLearning):
         target_qvalues = transition.reward + self._gamma * next_qvalues
 
         new_qvalues = (1 - self.lr) * qvalues + self.lr * target_qvalues
-        
+
         obs_data = np.concatenate((transition.obs.data, transition.obs.extras), axis=-1)
         for o, a, q in zip(obs_data, transition.action, new_qvalues):
             h = self.hash_ndarray(o)
             self.qtable[h][a] = q
-        return super().after_train_step(transition, time_step)
+        raise NotImplementedError()
 
     @staticmethod
     def hash_ndarray(data: np.ndarray) -> int:
@@ -59,50 +59,37 @@ class VanillaQLearning(IQLearning):
 
     def save(self, to_path: str):
         import os
-        qtable_file = os.path.join(to_path, "qtable.pkl")
-        train_policy_file = os.path.join(to_path, "train_policy")
-        test_policy_file = os.path.join(to_path, "test_policy")
-        self.train_policy.save(train_policy_file)
-        self.test_policy.save(test_policy_file)
+
+        qtable_file = os.path.join(to_path, "qlearning.pkl")
         with open(qtable_file, "wb") as f:
-            pickle.dump(self.qtable, f)
+            pickle.dump(self, f)
 
     def load(self, from_path: str):
         import os
-        qtable_file = os.path.join(from_path, "qtable.pkl")
-        train_policy_file = os.path.join(from_path, "train_policy")
-        test_policy_file = os.path.join(from_path, "test_policy")
-        self.train_policy.load(train_policy_file)
-        self.test_policy.load(test_policy_file)
-        with open(qtable_file, "rb") as f:
-            self.qtable = pickle.load(f)
 
-    def summary(self) -> dict:
-        return {
-            **super().summary(),
-            "train_policy": self.train_policy.__class__.__name__,
-            "test_policy": self.test_policy.__class__.__name__,
-            "gamma": self._gamma,
-            "lr": self.lr
-        }
-
+        file = os.path.join(from_path, "qtable.pkl")
+        with open(file, "rb") as f:
+            loaded: VanillaQLearning = pickle.load(f)
+            self.qtable = loaded.qtable
+            self.train_policy = loaded.train_policy
+            self.test_policy = loaded.test_policy
 
 
 class ReplayTableQLearning(VanillaQLearning):
     def __init__(
-        self, 
-        train_policy: Policy = None, 
-        test_policy: Policy = None, 
-        lr=0.1, 
-        gamma=0.99, 
-        replay_memory: TransitionMemory=None,
-        batch_size=64
+        self,
+        train_policy: Policy,
+        replay_memory: TransitionMemory,
+        test_policy: Optional[Policy] = None,
+        lr=0.1,
+        gamma=0.99,
+        batch_size=64,
     ):
         super().__init__(train_policy, test_policy, lr, gamma)
-        self.memory = defaults_to(replay_memory, lambda: TransitionMemory(50_000))
+        self.memory = replay_memory
         self.batch_size = batch_size
 
-    def batch_get(self, obs_data: np.ndarray, n_actions: int) -> np.ndarray[np.float32]:
+    def batch_get(self, obs_data: np.ndarray, n_actions: int) -> np.ndarray:
         qvalues = []
         for obs in obs_data:
             agent_qvalues = []
@@ -113,7 +100,6 @@ class ReplayTableQLearning(VanillaQLearning):
                 agent_qvalues.append(self.qtable[h])
             qvalues.append(agent_qvalues)
         return np.array(qvalues)
-
 
     def after_train_step(self, transition: Transition, time_step: int):
         self.memory.add(transition)
@@ -132,19 +118,12 @@ class ReplayTableQLearning(VanillaQLearning):
         qtargets = batch.rewards.numpy() + self._gamma * next_qvalues
 
         new_qvalues = (1 - self.lr) * qvalues + self.lr * qtargets
-        
+
         # Setting new qvalues
         actions = np.squeeze(actions, axis=-1)
         for o, a, q in zip(obs_data, actions, new_qvalues):
             for agent_obs, agent_action, agent_q in zip(o, a, q):
                 h = self.hash_ndarray(agent_obs)
                 self.qtable[h][agent_action] = agent_q
-        self.memory.update(batch, qvalues, qtargets)
-
-    def summary(self) -> dict:
-        return {
-            **super().summary(),
-            "memory": self.memory.summary(),
-            "lr": self.lr
-        }
-        
+        td_error = qtargets - qvalues
+        self.memory.update(batch, td_error)

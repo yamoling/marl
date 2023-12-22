@@ -1,7 +1,6 @@
 import os
-import shutil
 from typing import Optional
-from marl.models import Experiment, Run, ReplayEpisode
+from marl.models import Experiment, ReplayEpisode
 
 
 class ServerState:

@@ -28,7 +28,7 @@ class State(IntEnum):
 class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
     def __init__(self):
         self.state = State.INITIAL
-        self._identity = np.identity(self.n_agents, dtype=np.float32)
+        self._identity = np.identity(2, dtype=np.float32)
         super().__init__(
             DiscreteActionSpace(2, 2),
             observation_shape=(self.state.one_hot().shape[0] + 2,),
@@ -76,3 +76,6 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
 
     def force_state(self, state: State):
         self.state = state
+
+    def seed(self, seed):
+        return

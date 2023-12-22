@@ -16,10 +16,16 @@ class QValueMixer(Node[torch.Tensor]):
         return super().to(device)
 
     def _compute_value(self) -> torch.Tensor:
-        return self.mixer.forward(self.qvalues.value, self.batch.value.states)
+        mixed = self.mixer.forward(self.qvalues.value, self.batch.value.states)
+        return mixed.squeeze(dim=-1)
+
+    def randomize(self):
+        self.mixer.randomize()
+        return super().randomize()
 
 
 class TargetQValueMixer(QValueMixer):
     def _compute_value(self) -> torch.Tensor:
-        with torch.no_grad():
-            return self.mixer.forward(self.qvalues.value, self.batch.value.states_)
+        # with torch.no_grad():
+        mixed = self.mixer.forward(self.qvalues.value, self.batch.value.states_)
+        return mixed.squeeze(dim=-1)

@@ -70,6 +70,9 @@ class EpsilonGreedy(Policy):
 class ArgMax(Policy):
     """Exploiting the strategy"""
 
+    def __init__(self):
+        super().__init__()
+
     def get_action(self, qvalues: np.ndarray, available_actions: npt.NDArray[np.float32]) -> np.ndarray:
         qvalues[available_actions == 0.0] = -np.inf
         actions = qvalues.argmax(-1)

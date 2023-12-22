@@ -49,6 +49,11 @@ class Node(Generic[T], ABC):
         for child in self.children:
             child.to(device)
 
+    def randomize(self):
+        """Randomize the node value"""
+        for child in self.children:
+            child.randomize()
+
     @property
     def value(self) -> T:
         """The value of the node"""
