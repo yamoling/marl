@@ -65,12 +65,9 @@ class PPOTrainer(Trainer):
     
     def _compute_normalized_returns(self, batch : Batch, last_obs_next_value):
         returns = torch.zeros_like(batch.rewards)
-        print(batch.actions.shape)
-        print(batch.actions)
         
-        print(returns.shape)
-        print(returns)
         if last_obs_next_value is not None:
+            print(last_obs_next_value)
             returns[-1] = last_obs_next_value
         for i in reversed(range(len(batch))):
             returns[i] = batch.rewards[i] + self.gamma * returns[i + 1] * (1 - batch.dones[i])
@@ -91,25 +88,25 @@ class PPOTrainer(Trainer):
             last_obs_next_value = None
             if batch.dones[-1][0] != 1:
                 _, last_obs_next_value = self.network.forward(batch.obs_[-1], batch.extras[-1])
-                last_obs_next_value = last_obs_next_value.squeeze(-1)
+                last_obs_next_value = last_obs_next_value.squeeze(-1).mean()
             # returns = batch.compute_normalized_returns(self.gamma, last_obs_value=last_obs_next_value)
             returns = self._compute_normalized_returns(batch, last_obs_next_value)
             
             old_logits, predicted_values = self.network.forward(batch.obs, batch.extras)
-            old_logits = old_logits.view(-1, 1, 2)
-            # print(batch.obs[5].shape)
-            # print(batch.extras[5].shape) 
-            # print(batch.actions.shape)
-            # print(predicted_values.shape)
+
             predicted_values = predicted_values.squeeze(-1) # Squeeze last dimension of shape [1]
             advantage = returns.unsqueeze(-1) - predicted_values
-            old_log_probs = torch.distributions.Categorical(logits=old_logits).log_prob(batch.actions)
+            
+            # TODO: not sure if view(-1) is the correct way
+            old_log_probs = torch.distributions.Categorical(logits=old_logits).log_prob(batch.actions.view(-1))
 
         for _ in range(3):
             logits, values = self.network.forward(batch.obs, batch.extras)
             values = values.squeeze(-1)
             dist = torch.distributions.Categorical(logits=logits)
-            log_probs = dist.log_prob(batch.actions)
+            
+            # TODO: not sure if view(-1) is the correct way
+            log_probs = dist.log_prob(batch.actions.view(-1))
 
             # Compute ratio between new and old probabilities in the log space (basically importance sampling)
             rho = torch.exp(log_probs - old_log_probs)
@@ -128,6 +125,7 @@ class PPOTrainer(Trainer):
             loss = -actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
             loss.backward()
             self.optimiser.step()
+        return {}
         
     def to(self, device: torch.device):
         self.device = device
