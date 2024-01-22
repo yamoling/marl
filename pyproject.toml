@@ -10,7 +10,7 @@ python = ">=3.10, <3.13"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 opencv-python = "^4.7.0.68"
-polars = "^0.16.18"
+polars-lts-cpu = "^0.20.2"
 tqdm = "^4.65.0"
 pynvml = "^11.5.0"
 scipy = "^1.11.3"
