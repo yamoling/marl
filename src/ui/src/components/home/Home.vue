@@ -5,7 +5,7 @@
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th class="text-center"> Status </th>
+                            <th> </th>
                             <th class="sortable" @click="() => sortBy('logdir')">
                                 Log directory
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
@@ -29,8 +29,11 @@
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => loadResults(exp.logdir)">
                                 <td class="text-center">
-                                    <font-awesome-icon v-if="exp.runs.every(r => r.pid == null)" :icon="['fas', 'check']" />
-                                    <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
+                                    <template v-if="colours.has(exp.logdir) && experimentResults.has(exp.logdir)">
+                                        <input type="color" :value="colours.get(exp.logdir)" @click.stop
+                                            @change="(e) => setColour(exp.logdir as string, (e.target as HTMLInputElement).value)">
+                                    </template>
+
                                 </td>
                                 <td> {{ exp.logdir }} </td>
                                 <td> {{ exp.env.name }} </td>
@@ -79,15 +82,6 @@
                     style="color: rgba(211, 211, 211, 0.5);" />
             </div>
             <template v-else>
-                <div>
-                    <template v-for="[logdir, colour] in colours">
-                        <span v-if="experimentResults.has(logdir)">
-                            <input type="color" :value="colour"
-                                @change="(e) => setColour(logdir as string, (e.target as HTMLInputElement).value)">
-                            {{ logdir }}
-                        </span>
-                    </template>
-                </div>
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
                     :title="label.replaceAll('_', ' ')" :showLegend="false" :colours="colours" />
             </template>
