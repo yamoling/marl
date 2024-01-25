@@ -88,7 +88,7 @@ def test_double_qlearning_node():
 
     episode = generate_episode(env)
     transitions = list(episode.transitions())
-    batch = TransitionBatch(transitions, list(range(len(transitions))))
+    batch = TransitionBatch(transitions)
     batch_node = ValueNode[Batch](batch)  # type: ignore
     ddqn = DoubleQLearning(qnetwork, qtarget, batch_node)
 

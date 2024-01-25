@@ -7,7 +7,7 @@ from .utils import MockEnv, generate_episode, parameters_equal
 def test_trainer_nodes_vdn():
     env = MockEnv(4)
     trainer = marl.training.DQNTrainer(
-        qnetwork=marl.nn.model_bank.MLP256.from_env(env),
+        qnetwork=marl.nn.model_bank.MLP.from_env(env),
         memory=marl.models.TransitionMemory(50_000),
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
         mixer=marl.qlearning.VDN(env.n_agents),

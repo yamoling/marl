@@ -6,7 +6,7 @@ from .two_steps import TwoSteps, State
 
 
 class QNetwork(marl.nn.LinearNN):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         self.nn = torch.nn.Sequential(
             torch.nn.Linear(input_shape[0], 64),

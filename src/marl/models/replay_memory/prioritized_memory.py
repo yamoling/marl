@@ -38,6 +38,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         self.eps = eps
         self.max_priority = eps  # Initialize the max priority with epsilon
         self.priority_clipping = priority_clipping
+        self.sampled_indices = list[int]()
         match alpha:
             case float():
                 self.alpha = Schedule.constant(alpha)
@@ -58,7 +59,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         self.memory.add(item)
 
     def sample(self, batch_size: int) -> Batch:
-        sample_idxs, priorities = self.tree.sample(batch_size)
+        self.sampled_idxs, priorities = self.tree.sample(batch_size)
 
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
         # where p_i > 0 is the priority of transition i. (Section 3.3)
@@ -81,7 +82,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         # within a reasonable range, avoiding the possibility of extremely large updates. (Appendix B.2.1, Proportional prioritization)
         weights = weights / torch.max(weights)
 
-        batch = self.get_batch(sample_idxs)
+        batch = self.get_batch(self.sampled_idxs)
         batch.importance_sampling_weights = weights
         return batch
 
@@ -108,4 +109,4 @@ class PrioritizedMemory(ReplayMemory[T]):
                 priorities = torch.clip(priorities, max=self.priority_clipping)
             self.max_priority = max(self.max_priority, priorities.max().item())
         priorities = priorities.cpu()
-        self.tree.update_batched(batch.sample_indices, priorities.tolist())
+        self.tree.update_batched(self.sampled_indices, priorities.tolist())
