@@ -1,4 +1,5 @@
 from functools import cached_property
+from typing import Optional
 import torch
 import numpy as np
 from rlenv import Transition
@@ -7,8 +8,8 @@ from .batch import Batch
 
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition], sample_indices: list[int]):
-        super().__init__(len(transitions), transitions[0].n_agents, sample_indices)
+    def __init__(self, transitions: list[Transition]):
+        super().__init__(len(transitions), transitions[0].n_agents)
         self.transitions = transitions
 
     @cached_property

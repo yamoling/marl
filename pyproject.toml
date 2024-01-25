@@ -6,7 +6,7 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.13"
+python = ">=3.10, <3.12"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 opencv-python = "^4.7.0.68"
@@ -38,8 +38,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-# By default, run tests on two cores with xdist
-addopts = "-n 2"
+# The number of cores to run the tests with (xdist extension)
+addopts = "-n 4"
 
 
 [tool.ruff]

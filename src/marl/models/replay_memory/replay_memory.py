@@ -56,7 +56,7 @@ class TransitionMemory(ReplayMemory[Transition]):
 
     def get_batch(self, indices: Iterable[int]):
         transitions = [self._memory[i] for i in indices]
-        return TransitionBatch(transitions, list(indices))
+        return TransitionBatch(transitions)
 
 
 class EpisodeMemory(ReplayMemory[Episode]):
@@ -64,4 +64,4 @@ class EpisodeMemory(ReplayMemory[Episode]):
 
     def get_batch(self, indices: list[int]):
         episodes = [self._memory[i] for i in indices]
-        return EpisodeBatch(episodes, indices)
+        return EpisodeBatch(episodes)

@@ -28,13 +28,10 @@ class NN(torch.nn.Module, ABC, Generic[Output]):
     output_shape: tuple[int, ...]
     name: str
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         torch.nn.Module.__init__(self)
         self.input_shape = tuple(input_shape)
-        if extras_shape is None:
-            self.extras_shape = (0,)
-        else:
-            self.extras_shape = tuple(extras_shape)
+        self.extras_shape = tuple(extras_shape)
         self.output_shape = tuple(output_shape)
         self.name = self.__class__.__name__
 
@@ -75,7 +72,7 @@ class LinearNN(NN[torch.Tensor]):
     """Abstract class defining a linear neural network"""
 
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Forward pass"""
 
 
@@ -84,7 +81,10 @@ class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]]):
 
     @abstractmethod
     def forward(
-        self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None, hidden_states: Optional[torch.Tensor] = None
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        hidden_states: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass.

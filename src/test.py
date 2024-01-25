@@ -64,3 +64,6 @@ def test_rnd_conv():
     env = LLE.level(2, ObservationType.LAYERED)
     target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape, (512,))  # type: ignore
     _test_rnd_no_reward_normalisation(env, target)
+
+
+test_rnd_conv()
