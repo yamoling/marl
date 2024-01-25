@@ -38,17 +38,16 @@ class DQNTrainer(Trainer):
         memory: ReplayMemory,
         gamma: float = 0.99,
         batch_size: int = 64,
-        update_interval: int = 5,
         lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
         mixer: Optional[Mixer] = None,
-        train_every: Literal["step", "episode"] = "step",
+        train_interval: tuple[int, Literal["step", "episode"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_every, update_interval)
+        super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
         self.policy = train_policy
         self.gamma = gamma

@@ -84,6 +84,28 @@ class RNN(RNNQMix):
     pass
 
 
+class DuelingMLP(LinearNN):
+    def __init__(self, nn: LinearNN, output_size: int):
+        assert len(nn.output_shape) == 1
+        super().__init__(nn.input_shape, nn.extras_shape, (output_size,))
+        self.nn = nn
+        self.value = torch.nn.Linear(nn.output_shape[0], 1)
+        self.advantage = torch.nn.Linear(nn.output_shape[0], output_size)
+
+    @classmethod
+    def from_env(cls, env: RLEnv, nn: LinearNN):
+        assert nn.input_shape == env.observation_shape
+        assert nn.extras_shape == env.extra_feature_shape
+        return cls(nn, env.n_actions)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        features = self.nn.forward(obs, extras)
+        features = torch.nn.functional.relu(features)
+        value = self.value.forward(features)
+        advantage = self.advantage.forward(features)
+        return value + advantage - advantage.mean(dim=-1, keepdim=True)
+
+
 class AtariCNN(LinearNN):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
@@ -110,18 +132,20 @@ class CNN(LinearNN):
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
     """
 
-    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
+    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_size: int):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        assert len(extras_shape) == 1, f"CNN can only handle 1D extras shapes ({len(extras_shape)} here)"
-        assert len(output_shape) == 1, f"CNN can only handle 1D input shapes ({len(output_shape)} here)"
-        super().__init__(input_shape, extras_shape, output_shape)
+        super().__init__(input_shape, (extras_size,), (output_size,))
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP(n_features, self.extras_shape[0], (64, 64), output_shape[0])
+        self.linear = MLP(n_features, extras_size, (64, 64), output_size)
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        return cls(env.observation_shape, env.extra_feature_shape[0], env.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # Check that the input has the correct shape (at least 4 dimensions)

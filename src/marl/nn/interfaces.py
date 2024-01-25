@@ -103,6 +103,20 @@ class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]]):
         """
 
 
+class QNetwork(NN):
+    @abstractmethod
+    def qvalues(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Compute the Q-values"""
+
+    def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Compute the value function"""
+        return self.forward(obs, extras).max(dim=-1).values
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
+
+
 class ActorCriticNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
     """Actor critic neural network"""
 

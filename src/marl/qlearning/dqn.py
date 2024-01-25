@@ -87,9 +87,9 @@ class IDQN(RLAlgo, ABC, Generic[N]):
 
 class DQN(IDQN[LinearNN]):
     def compute_qvalues(self, obs: Observation):
-        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
-        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
-        return self.qnetwork.forward(obs_data, obs_extras)
+        obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device, non_blocking=True)
+        return self.qnetwork.forward(obs_data, obs_extras).squeeze(0)
 
 
 class RDQN(IDQN[RecurrentNN]):

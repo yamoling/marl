@@ -42,13 +42,23 @@ def create_smac(map_name="8m"):
 
 def create_lle():
     n_steps = 1_000_000
+    gamma = 0.95
     env = LLE.level(6, ObservationType.LAYERED)
     # env = LLE.from_file("maps/lvl6-gems-everywhere", ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=500_000)
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=500_000,
+    )
+    rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+        target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
+        normalise_rewards=False,
+        # gamma=gamma,
+    )
     # memory = marl.models.PrioritizedMemory(
     #     memory=memory,
     #     alpha=0.6,
@@ -64,16 +74,12 @@ def create_lle():
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         batch_size=64,
-        update_interval=5,
-        gamma=0.95,
-        train_every="step",
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        train_interval=(5, "step"),
+        gamma=gamma,
+        mixer=marl.qlearning.VDN(env.n_agents),
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        # ir_module=marl.intrinsic_reward.RandomNetworkDistillation(
-        #     obs_shape=env.observation_shape,
-        #     extras_shape=env.extra_feature_shape,
-        # ),
+        ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(
@@ -83,7 +89,7 @@ def create_lle():
     )
 
     # logdir = f"logs/{env.name}-lvl6-shaping-vdn"
-    logdir = f"logs/{env.name}-qmix-bnaic"
+    logdir = f"logs/{env.name}-vdn-bnaic"
     # logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)

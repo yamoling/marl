@@ -1,4 +1,3 @@
-from typing import Optional
 import marl
 import torch
 
@@ -22,7 +21,7 @@ class QNetwork(marl.nn.LinearNN):
 
 def test_qmix_value():
     """
-    Demonstration of QMix higher representation capabilities as described in the paper.
+    Demonstration of QMix higher representation capabilities against VDN as described in the paper.
 
     https://arxiv.org/pdf/1803.11485.pdf
     Appendix B.
@@ -42,8 +41,7 @@ def test_qmix_value():
         double_qlearning=True,
         memory=memory,
         batch_size=32,
-        train_every="episode",
-        update_interval=1,
+        train_interval=(1, "episode"),
         mixer=mixer,
         target_updater=marl.training.HardUpdate(100),
         gamma=0.99,
