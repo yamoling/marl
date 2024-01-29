@@ -2,6 +2,21 @@
     <div class="row">
         <div class="col-6">
             <div class="row">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
+                        Filter
+                    </span>
+                    <input class="form-control" type="text" v-model="searchString" />
+                    <!-- Cross icon to delete the search string -->
+                    <button class="btn btn-secondary input-group-btn" @click="searchString = ''">
+                        <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                    <button class="btn btn-primary input-group-btn" @click="refreshExperiments"
+                        :disabled="experimentLoading">
+                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
+                    </button>
+                </div>
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
@@ -35,7 +50,11 @@
                                     </template>
 
                                 </td>
-                                <td> {{ exp.logdir }} </td>
+                                <td>
+                                    <font-awesome-icon v-if="experimentsRunning.has(exp.logdir)" :icon="['fas', 'spinner']"
+                                        spin />
+                                    {{ exp.logdir }}
+                                </td>
                                 <td> {{ exp.env.name }} </td>
                                 <td> {{ exp.algo.name }} </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
@@ -56,17 +75,6 @@
                         </template>
                     </tbody>
                 </table>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text">
-                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
-                        Filter
-                    </span>
-                    <input class="form-control" type="text" v-model="searchString" />
-                    <button class="btn btn-primary input-group-btn" @click="refreshExperiments"
-                        :disabled="experimentLoading">
-                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
-                    </button>
-                </div>
             </div>
             <div class="row">
                 <SettingsPanel class="col-4 mx-auto" :metrics="metrics"
@@ -114,6 +122,7 @@ const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
 const experiments = ref([] as Experiment[]);
 const experimentResults = ref(new Map<string, ExperimentResults>());
+const experimentsRunning = ref(new Set<string>());
 const alignedExperimentResults = computed(() => {
     const res = new Map<string, ExperimentResults>();
     experimentResults.value.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
@@ -157,6 +166,15 @@ async function refreshExperiments() {
     experimentLoading.value = true;
     experiments.value = await experimentStore.getAllExperiments();
     experimentLoading.value = false;
+    for (const exp of experiments.value) {
+        experimentStore.isRunning(exp.logdir).then(running => {
+            if (running) {
+                experimentsRunning.value.add(exp.logdir);
+            } else {
+                experimentsRunning.value.delete(exp.logdir);
+            }
+        });
+    }
 }
 function setColour(logdir: string, newColour: string) {
     console.log(logdir, newColour)
@@ -166,6 +184,13 @@ function setColour(logdir: string, newColour: string) {
 
 async function loadResults(logdir: string) {
     resultsLoading.value.add(logdir);
+    experimentStore.isRunning(logdir).then(running => {
+        if (running) {
+            experimentsRunning.value.add(logdir);
+        } else {
+            experimentsRunning.value.delete(logdir);
+        }
+    });
     const res = await resultsStore.loadExperimentResults(logdir);
     if (!colours.value.has(logdir)) {
         colours.value.set(logdir, stringToRGB(logdir));

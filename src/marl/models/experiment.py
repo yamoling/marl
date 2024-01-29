@@ -154,6 +154,10 @@ class Experiment:
                 except Exception:
                     pass
 
+    def is_running(self) -> bool:
+        """Check if the experiment is running."""
+        return any(run.is_running for run in self.runs)
+
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
         """Check if a directory is an experiment directory."""

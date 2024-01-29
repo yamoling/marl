@@ -78,7 +78,7 @@ def create_lle():
         # mixer=marl.qlearning.VDN(env.n_agents),
         mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        # ir_module=rnd,
+        ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(
@@ -95,6 +95,8 @@ def create_lle():
         logdir += "-iql"
     if trainer.ir_module is not None:
         logdir += f"-{trainer.ir_module.name}"
+    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+        logdir += "-PER"
 
     logdir += "-bnaic"
     # logdir = "logs/test"

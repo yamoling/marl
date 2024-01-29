@@ -7,6 +7,9 @@ import psutil
 from marl.utils.others import list_gpus
 
 
+stop = False
+
+
 def get_system_info():
     return {
         "cpus": psutil.cpu_percent(percpu=True),
@@ -18,7 +21,7 @@ def get_system_info():
 async def send_system_info(websocket: WebSocketServerProtocol):
     print("Sending system info")
     try:
-        while True:
+        while not stop:
             await asyncio.sleep(1)
             data = to_json(get_system_info())
             await websocket.send(data)
@@ -30,6 +33,7 @@ async def main(port: int):
     print(f"Starting system info server on port {port}")
     async with serve(send_system_info, "0.0.0.0", port):
         await asyncio.Future()  # run forever
+    print("System info server stopped")
 
 
 def run(port: int):

@@ -11,7 +11,6 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=5)
     quiet: bool = tap.arg(default=False)
-    loggers: list[Literal["csv", "tensorboard", "web"]] = tap.arg(default=["csv"], nargs="*")
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
 
 

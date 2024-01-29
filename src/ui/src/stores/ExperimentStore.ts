@@ -30,6 +30,18 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    async function isRunning(logdir: string): Promise<boolean> {
+        try {
+            const resp = await fetch(`${HTTP_URL}/experiment/is_running/${logdir}`);
+            if (!resp.ok) {
+                return false
+            }
+            return await resp.json();
+        } catch (e: any) {
+            return false;
+        }
+    }
+
     async function loadExperiment(logdir: string) {
         return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "POST" })
     }
@@ -47,6 +59,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     return {
         getAllExperiments,
         getExperiment,
+        isRunning,
         loadExperiment,
         unloadExperiment,
         getTestEpisodes,
