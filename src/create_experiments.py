@@ -22,9 +22,8 @@ def create_smac(map_name="8m"):
         lr=5e-4,
         optimiser="adam",
         batch_size=64,
-        update_interval=1,
+        train_interval=(1, "episode"),
         gamma=0.99,
-        train_every="episode",
         mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
@@ -89,7 +88,7 @@ def create_lle():
     )
 
     # logdir = f"logs/{env.name}-lvl6-shaping-vdn"
-    logdir = f"logs/{env.name}-vdn-bnaic"
+    logdir = f"logs/{env.name}-vdn-rnd-bnaic"
     # logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
@@ -99,4 +98,4 @@ if __name__ == "__main__":
     # exp = create_smac()
     exp = create_lle()
     print(exp.logdir)
-    # exp.create_runner(seed=0).to("cuda").train(5)
+    exp.create_runner(seed=0).to("cuda").train(5)

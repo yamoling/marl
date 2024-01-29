@@ -19,6 +19,7 @@ pyserde = "^0.12.3"
 networkx = "^3.1"
 sumtree = "^0.2.4"
 laser-learning-environment = "^0.1.10"
+typed-argparse = "^0.3.1"
 
 
 [tool.poetry.group.dev.dependencies]
