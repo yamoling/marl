@@ -149,17 +149,18 @@ class CNN_ActorCritic(ActorCriticNN):
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        print(f'n_features: {n_features}')
         common_input_size = n_features + self.extras_shape[0]
-        print(f'common_input_size: {common_input_size}')
-        print(f'output_shape: {output_shape}')
         self.common = torch.nn.Sequential(
             torch.nn.Linear(common_input_size, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
         )
-        self.policy_network = torch.nn.Linear(128, *output_shape)
+        #self.policy_network = torch.nn.Linear(128, *output_shape)
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(128, *output_shape),
+            torch.nn.Softmax(dim=-1),
+        )
         self.value_network = torch.nn.Linear(128, 1)
 
     def _cnn_forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -169,7 +170,7 @@ class CNN_ActorCritic(ActorCriticNN):
         features = self.cnn.forward(obs)
         return features    
     
-    def policy(self, obs: torch.Tensor):
+    def policy(self, obs: torch.Tensor):        
         return self.policy_network(obs)
 
     def value(self, obs: torch.Tensor):
