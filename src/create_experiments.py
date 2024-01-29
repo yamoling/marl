@@ -58,12 +58,12 @@ def create_lle():
         normalise_rewards=False,
         # gamma=gamma,
     )
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     priority_clipping=5.0,
-    # )
+    memory = marl.models.PrioritizedMemory(
+        memory=memory,
+        alpha=0.6,
+        beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
+        priority_clipping=5.0,
+    )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -99,7 +99,7 @@ def create_lle():
         logdir += "-PER"
 
     logdir += "-bnaic"
-    # logdir = "logs/test"
+    logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -108,4 +108,4 @@ if __name__ == "__main__":
     # exp = create_smac()
     exp = create_lle()
     print(exp.logdir)
-    # exp.create_runner(seed=0).to("cuda").train(5)
+    exp.create_runner(seed=0).to("auto").train(1)
