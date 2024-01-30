@@ -62,7 +62,7 @@ def create_lle():
         memory=memory,
         alpha=0.6,
         beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-        priority_clipping=5.0,
+        td_error_clipping=5.0,
     )
     trainer = DQNTrainer(
         qnetwork,
@@ -78,7 +78,7 @@ def create_lle():
         # mixer=marl.qlearning.VDN(env.n_agents),
         mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=rnd,
+        # ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(
@@ -99,7 +99,7 @@ def create_lle():
         logdir += "-PER"
 
     logdir += "-bnaic"
-    logdir = "logs/test"
+    # logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -108,4 +108,4 @@ if __name__ == "__main__":
     # exp = create_smac()
     exp = create_lle()
     print(exp.logdir)
-    exp.create_runner(seed=0).to("auto").train(1)
+    # exp.create_runner(seed=0).to("auto").train(1)

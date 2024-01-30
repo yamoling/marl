@@ -25,7 +25,8 @@ const router = createRouter(
                 component: Home,
             },
             {
-                path: "/", redirect: "/home"
+                path: "/",
+                redirect: "/home",
             },
             {
                 path: "/inspect/:logdir+",
@@ -36,8 +37,8 @@ const router = createRouter(
 )
 
 
-const app = createApp(App);
-app.component("font-awesome-icon", FontAwesomeIcon)
-app.use(router);
-app.use(createPinia());
-app.mount('#app');
+createApp(App)
+    .component("font-awesome-icon", FontAwesomeIcon)
+    .use(createPinia())
+    .use(router)
+    .mount('#app');

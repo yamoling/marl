@@ -12,7 +12,7 @@
                     <button class="btn btn-secondary input-group-btn" @click="searchString = ''">
                         <font-awesome-icon :icon="['fas', 'times']" />
                     </button>
-                    <button class="btn btn-primary input-group-btn" @click="refreshExperiments"
+                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
                         :disabled="experimentLoading">
                         <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
                     </button>
@@ -51,8 +51,8 @@
 
                                 </td>
                                 <td>
-                                    <font-awesome-icon v-if="experimentsRunning.has(exp.logdir)" :icon="['fas', 'spinner']"
-                                        spin />
+                                    <font-awesome-icon v-if="experimentStore.runningExperiments.has(exp.logdir)"
+                                        :icon="['fas', 'spinner']" spin />
                                     {{ exp.logdir }}
                                 </td>
                                 <td> {{ exp.env.name }} </td>
@@ -120,9 +120,7 @@ const resultsLoading = ref(new Set<string>());
 
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
-const experiments = ref([] as Experiment[]);
 const experimentResults = ref(new Map<string, ExperimentResults>());
-const experimentsRunning = ref(new Set<string>());
 const alignedExperimentResults = computed(() => {
     const res = new Map<string, ExperimentResults>();
     experimentResults.value.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
@@ -137,7 +135,7 @@ const metrics = computed(() => {
 const selectedMetrics = ref(["score"]);
 const colours = ref(initColoursFromLocalStorage());
 
-onMounted(refreshExperiments)
+onMounted(experimentStore.refresh);
 
 /** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
@@ -162,20 +160,6 @@ const datasetPerLabel = computed(() => {
 });
 
 
-async function refreshExperiments() {
-    experimentLoading.value = true;
-    experiments.value = await experimentStore.getAllExperiments();
-    experimentLoading.value = false;
-    for (const exp of experiments.value) {
-        experimentStore.isRunning(exp.logdir).then(running => {
-            if (running) {
-                experimentsRunning.value.add(exp.logdir);
-            } else {
-                experimentsRunning.value.delete(exp.logdir);
-            }
-        });
-    }
-}
 function setColour(logdir: string, newColour: string) {
     console.log(logdir, newColour)
     colours.value.set(logdir, newColour);
@@ -184,13 +168,6 @@ function setColour(logdir: string, newColour: string) {
 
 async function loadResults(logdir: string) {
     resultsLoading.value.add(logdir);
-    experimentStore.isRunning(logdir).then(running => {
-        if (running) {
-            experimentsRunning.value.add(logdir);
-        } else {
-            experimentsRunning.value.delete(logdir);
-        }
-    });
     const res = await resultsStore.loadExperimentResults(logdir);
     if (!colours.value.has(logdir)) {
         colours.value.set(logdir, stringToRGB(logdir));
@@ -212,7 +189,7 @@ const emits = defineEmits<{
 }>();
 
 const sortedExperiments = computed(() => {
-    const entries = [...experiments.value];
+    const entries = [...experimentStore.experiments];
     switch (sortKey.value) {
         case "logdir":
             entries.sort((a, b) => a.logdir.localeCompare(b.logdir));

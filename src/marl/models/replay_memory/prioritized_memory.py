@@ -30,14 +30,14 @@ class PrioritizedMemory(ReplayMemory[T]):
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
         eps: float = 1e-2,
-        priority_clipping: Optional[float] = 1.0,
+        td_error_clipping: Optional[float] = 1.0,
     ):
         super().__init__(memory.max_size)
         self.memory = memory
         self.tree = SumTree(self.max_size)
         self.eps = eps
         self.max_priority = eps  # Initialize the max priority with epsilon
-        self.td_error_clipping = priority_clipping
+        self.td_error_clipping = td_error_clipping
         self.sampled_indices = list[int]()
         match alpha:
             case float():
@@ -60,10 +60,10 @@ class PrioritizedMemory(ReplayMemory[T]):
 
     def sample(self, batch_size: int) -> Batch:
         # Sample the indices from the sumtree, proportional to their priority
-        self.sampled_idxs, priorities = self.tree.sample(batch_size)
+        self.sampled_indices, priorities = self.tree.sample(batch_size)
 
         # Retrieve batch corresponding to the indices from the wrapped memory
-        batch = self.memory.get_batch(self.sampled_idxs)
+        batch = self.memory.get_batch(self.sampled_indices)
 
         # Then do the book-keeping to compute the importance sampling weights
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α

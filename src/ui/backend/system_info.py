@@ -11,11 +11,13 @@ stop = False
 
 
 def get_system_info():
-    return {
+    info = {
         "cpus": psutil.cpu_percent(percpu=True),
         "ram": psutil.virtual_memory().percent,
         "gpus": list_gpus(),
     }
+    print(info)
+    return info
 
 
 async def send_system_info(websocket: WebSocketServerProtocol):

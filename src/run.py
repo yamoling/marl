@@ -40,4 +40,4 @@ def main(args: Arguments):
 
 
 if __name__ == "__main__":
-    tap.Parser(Arguments).bind(create_run).run()
+    tap.Parser(Arguments).bind(main).run()
