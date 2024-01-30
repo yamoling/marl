@@ -19,7 +19,7 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         trainer: Trainer,
-        rundir: str,
+        run: Run,
         test_interval: int,
         n_steps: int,
         test_env: Optional[RLEnv] = None,
@@ -28,7 +28,7 @@ class Runner:
         self._env = env
         self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
-        self._run = Run.create(rundir, 0)
+        self._run = run
         self._test_interval = test_interval
         self._max_step = n_steps
 

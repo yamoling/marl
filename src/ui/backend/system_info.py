@@ -11,17 +11,14 @@ stop = False
 
 
 def get_system_info():
-    info = {
+    return {
         "cpus": psutil.cpu_percent(percpu=True),
         "ram": psutil.virtual_memory().percent,
         "gpus": list_gpus(),
     }
-    print(info)
-    return info
 
 
 async def send_system_info(websocket: WebSocketServerProtocol):
-    print("Sending system info")
     try:
         while not stop:
             await asyncio.sleep(1)
@@ -33,9 +30,8 @@ async def send_system_info(websocket: WebSocketServerProtocol):
 
 async def main(port: int):
     print(f"Starting system info server on port {port}")
-    async with serve(send_system_info, "0.0.0.0", port):
+    async with serve(send_system_info, "", port):
         await asyncio.Future()  # run forever
-    print("System info server stopped")
 
 
 def run(port: int):

@@ -955,13 +955,13 @@ pyserde = "^0.12.3"
 all = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (>=1.22.3,<2.0.0)", "smac @ git+https://github.com/oxwhirl/smac.git"]
 atari = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)"]
 pettingzoo = ["pettingzoo (>=1.22.3,<2.0.0)"]
-smac = ["smac @ git+https://github.com/oxwhirl/smac.git"]
+smac = ["pysc2 @ git+https://github.com/deepmind/pysc2.git", "smac @ git+https://github.com/oxwhirl/smac.git"]
 
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "6136f6a9158ecdaa23ec2ed441729649442b849b"
+resolved_reference = "fe84ccdf0f5a897c96214b9c61dd37abe755b15e"
 
 [[package]]
 name = "scipy"

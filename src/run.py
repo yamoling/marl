@@ -1,7 +1,8 @@
-import os
 from typing import Literal
 import typed_argparse as tap
 
+import os
+import time
 import marl
 
 
@@ -11,6 +12,7 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=5)
     quiet: bool = tap.arg(default=False)
+    delay: float = tap.arg(default=1.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
 
 
@@ -27,15 +29,14 @@ def main(args: Arguments):
     for i in range(1, args.n_runs):
         seed = args.seed + i
         if os.fork() == 0:
-            import time
-
-            # Sleep for some time for each child process to allocated GPUs properly
-            time.sleep(i)
             # Force child processes to be quiet
             args.quiet = True
             args.seed = seed
             create_run(args)
             exit(0)
+
+        # Sleep for some time for each child process to allocated GPUs properly
+        time.sleep(args.delay)
     create_run(args)
 
 

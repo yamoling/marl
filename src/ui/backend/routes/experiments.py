@@ -26,8 +26,8 @@ def list_experiments():
 @app.route("/experiment/is_running/<path:logdir>")
 def list_running_experiments(logdir: str):
     try:
-        return json.dumps(Experiment.load(logdir).is_running())
-    except ModuleNotFoundError:
+        return json.dumps(Experiment.is_running(logdir))
+    except (ModuleNotFoundError, AttributeError):
         return json.dumps(False)
 
 

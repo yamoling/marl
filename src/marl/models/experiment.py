@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import time
+from datetime import datetime
 import pickle
 from copy import deepcopy
 from dataclasses import dataclass
@@ -119,16 +120,22 @@ class Experiment:
             return json.load(f)
 
     @staticmethod
-    def get_runs(logdir: str) -> list[Run]:
+    def get_runs(logdir: str):
         """Get the runs of an experiment."""
-        runs = []
         for run in os.listdir(logdir):
             if run.startswith("run_"):
                 try:
-                    runs.append(Run.load(os.path.join(logdir, run)))
+                    yield Run.load(os.path.join(logdir, run))
                 except Exception as e:
                     print(e)
-        return runs
+
+    @staticmethod
+    def is_running(logdir: str):
+        """Check if an experiment is running."""
+        for run in Experiment.get_runs(logdir):
+            if run.is_running:
+                return True
+        return False
 
     @staticmethod
     def get_tests_at(logdir: str, time_step: int) -> list[ReplayEpisodeSummary]:
@@ -154,10 +161,6 @@ class Experiment:
                 except Exception:
                     pass
 
-    def is_running(self) -> bool:
-        """Check if the experiment is running."""
-        return any(run.is_running for run in self.runs)
-
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
         """Check if a directory is an experiment directory."""
@@ -177,7 +180,8 @@ class Experiment:
         return Experiment.find_experiment_directory(parent)
 
     def create_runner(self, seed: int) -> Runner:
-        rundir = os.path.join(self.logdir, f"run_{time.time()}")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        rundir = os.path.join(self.logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
         import marl
 
@@ -190,7 +194,7 @@ class Experiment:
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            rundir=rundir,
+            run=Run.create(rundir, seed),
             test_interval=self.test_interval,
             n_steps=self.n_steps,
             test_env=deepcopy(self.env),

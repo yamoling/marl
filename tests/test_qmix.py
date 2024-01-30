@@ -48,7 +48,6 @@ def test_qmix_value():
         optimiser="rmsprop",
         lr=5e-4,
     )
-    trainer.show()
     algo = marl.qlearning.DQN(qnetwork, policy)
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
     runner = exp.create_runner(0)
