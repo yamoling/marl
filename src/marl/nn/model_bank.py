@@ -148,13 +148,15 @@ class CNN(LinearNN):
         return cls(env.observation_shape, env.extra_feature_shape[0], env.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        # Check that the input has the correct shape (at least 4 dimensions)
-        batch_size, n_agents, channels, height, width = obs.shape
-        obs = obs.view(-1, channels, height, width)
+        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
+        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
+        *dims, n_agents, channels, height, width = obs.shape
+        # We must use 'reshape' instead of 'view' to handle the case of episodes
+        obs = obs.reshape(-1, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.view(batch_size * n_agents, *self.extras_shape)
+        extras = extras.reshape(-1, *self.extras_shape)
         res = self.linear.forward(features, extras)
-        return res.view(batch_size, n_agents, *self.output_shape)
+        return res.view(*dims, n_agents, *self.output_shape)
 
 
 class CNN_ActorCritic(ActorCriticNN):
