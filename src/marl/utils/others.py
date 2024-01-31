@@ -16,11 +16,6 @@ def seed(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
-<<<<<<< HEAD
-=======
-    # Required for torch.bmm() to be deterministic
-    torch.use_deterministic_algorithms(True)
->>>>>>> db50cbb15d296845231268ab17eb0bf8527aa5cc
 
 
 T = TypeVar("T")
