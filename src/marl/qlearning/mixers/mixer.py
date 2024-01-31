@@ -5,14 +5,15 @@ from marl.nn import NN
 
 import torch
 
+
 @dataclass(eq=False)
 class Mixer(NN[torch.Tensor], ABC):
     n_agents: int
 
-    def __init__(self, n_agents: int) -> None:
-        super().__init__((n_agents, ), (0, ), (1, ))
+    def __init__(self, n_agents: int):
+        super().__init__((n_agents,), (0,), (1,))
         self.n_agents = n_agents
-    
+
     @abstractmethod
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor) -> torch.Tensor:
         """Mix the utiliy values of the agents."""
@@ -24,5 +25,3 @@ class Mixer(NN[torch.Tensor], ABC):
     @abstractmethod
     def load(self, from_directory: str):
         """Load the mixer from a directory."""
-
-  
