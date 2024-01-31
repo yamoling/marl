@@ -9,6 +9,9 @@ import numpy.typing as npt
 from rlenv.models import DiscreteActionSpace
 from rlenv.models.observation import Observation
 
+
+marl.seed(0)
+
 PAYOFF_INITIAL = [[0, 0], [0, 0]]
 
 PAYOFF_2A = [[7, 7], [7, 7]]
@@ -159,5 +162,5 @@ def test_qmix_value(device):
         assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.1)
 
 
-# test_qmix_value("cpu")
-test_qmix_value("cuda")
+test_qmix_value("cpu")
+# test_qmix_value("cuda")

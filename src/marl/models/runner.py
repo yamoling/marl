@@ -52,11 +52,14 @@ class Runner:
             obs = obs_
         episode = episode.build({"initial_value": initial_value, "time_step": step_num})
         training_logs = self._trainer.update_episode(episode, episode_num, step_num) | {"time_step": step_num}
+        if len(training_logs) > 1:
+            self.f.write(str(training_logs["loss"]) + "\n")
         self._run.log_train_episode(episode, training_logs)
         return episode
 
     def train(self, n_tests: int):
         """Start the training loop"""
+        self.f = open("test.txt", "w")
         with open(os.path.join(self._run.rundir, "pid"), "w") as f:
             f.write(str(os.getpid()))
         episode_num = 0
@@ -68,6 +71,8 @@ class Runner:
             episode_num += 1
             step += len(episode)
             pbar.update(len(episode))
+        pbar.close()
+        self.f.close()
 
     def test(self, ntests: int, time_step: int):
         """Test the agent"""
