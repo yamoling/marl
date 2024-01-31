@@ -21,5 +21,5 @@ class Policy:
         Returns the chosen action.
         """
 
-    def update(self) -> None:
+    def update(self, step_num: int) -> None:
         """Update the policy"""

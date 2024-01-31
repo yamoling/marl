@@ -238,7 +238,7 @@ class Experiment:
     @staticmethod
     def get_experiment_results(logdir: str, replace_inf=False) -> ExperimentResults:
         """Get the test metrics of an experiment."""
-        runs = Experiment.get_runs(logdir)
+        runs = list(Experiment.get_runs(logdir))
         try:
             ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs], replace_inf)
         except ValueError:

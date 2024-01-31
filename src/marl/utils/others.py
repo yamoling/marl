@@ -13,9 +13,9 @@ def seed(seed_value: int):
     import random
     import numpy as np
 
-    torch.manual_seed(seed_value)
-    np.random.seed(seed_value)
     random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
 
 
 T = TypeVar("T")

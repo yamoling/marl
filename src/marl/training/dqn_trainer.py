@@ -127,7 +127,7 @@ class DQNTrainer(Trainer):
             case other:
                 raise ValueError(f"Unknown optimizer: {other}")
 
-    def _update(self) -> dict[str, float]:
+    def _update(self, step_num: int) -> dict[str, float]:
         if len(self.memory) < self.batch_size:
             return {}
         self.update_num += 1
@@ -143,7 +143,7 @@ class DQNTrainer(Trainer):
             log["grad_norm"] = torch.nn.utils.clip_grad.clip_grad_norm_(self.parameters, self.grad_norm_clipping).item()
 
         self.optimiser.step()
-        self.policy.update()
+        self.policy.update(step_num)
         if isinstance(self.policy, EpsilonGreedy):
             log["epsilon"] = self.policy.epsilon.value
         if self.ir_module is not None:
@@ -156,13 +156,13 @@ class DQNTrainer(Trainer):
         if not self.update_on_episodes:
             return {}
         self.memory.add(episode)
-        return self._update()
+        return self._update(time_step)
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
         if not self.update_on_steps:
             return {}
         self.memory.add(transition)
-        return self._update()
+        return self._update(time_step)
 
     def show(self, filename: str = "trainer.png"):
         """Display the computation graph"""
