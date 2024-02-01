@@ -45,8 +45,8 @@ def test_qmix_value():
         mixer=mixer,
         target_updater=marl.training.HardUpdate(100),
         gamma=0.99,
-        optimiser="rmsprop",
-        lr=5e-4,
+        optimiser="adam",
+        lr=1e-4,
     )
     algo = marl.qlearning.DQN(qnetwork, policy)
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
