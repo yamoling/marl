@@ -52,10 +52,10 @@ def create_lle():
     gamma = 0.95
     env = LLE.level(6, ObservationType.LAYERED)
     # env = LLE.from_file("maps/lvl6-gems-everywhere", ObservationType.LAYERED)
-    env = rlenv.Builder(env).agent_id().last_action().time_limit(78, add_extra=True).build()
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    memory = marl.models.EpisodeMemory(5_000)
+    memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
@@ -81,10 +81,10 @@ def create_lle():
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         batch_size=64,
-        train_interval=(1, "episode"),
+        train_interval=(5, "step"),
         gamma=gamma,
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        mixer=marl.qlearning.VDN(env.n_agents),
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
         # ir_module=rnd,
     )
@@ -107,7 +107,6 @@ def create_lle():
         logdir += "-PER"
 
     logdir += "-bnaic"
-    logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -116,4 +115,4 @@ if __name__ == "__main__":
     # exp = create_smac()
     exp = create_lle()
     print(exp.logdir)
-    exp.create_runner(seed=0).to("auto").train(1)
+    # exp.create_runner(seed=0).to("auto").train(1)

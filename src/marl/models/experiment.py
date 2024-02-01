@@ -180,7 +180,7 @@ class Experiment:
         return Experiment.find_experiment_directory(parent)
 
     def create_runner(self, seed: int) -> Runner:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
         rundir = os.path.join(self.logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
         import marl

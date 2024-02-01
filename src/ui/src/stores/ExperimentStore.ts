@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
-import { computed, ref } from "vue";
+import { ref } from "vue";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
 
@@ -10,6 +10,22 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     const experiments = ref<Experiment[]>([]);
     const runningExperiments = ref(new Set<string>());
 
+
+    async function startWebsocket() {
+        const ws = new WebSocket(`ws://${location.hostname}/5002`);
+        ws.onopen = () => {
+            console.log("Websocket opened");
+        };
+        ws.onclose = () => {
+            console.log("Websocket closed");
+        };
+        ws.onerror = (e) => {
+            console.log("Websocket error", e);
+        };
+        ws.onmessage = (e) => {
+            console.log("Websocket message", e);
+        };
+    }
 
     async function refresh() {
         try {

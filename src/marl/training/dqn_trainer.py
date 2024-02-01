@@ -147,7 +147,8 @@ class DQNTrainer(Trainer):
         if isinstance(self.policy, EpsilonGreedy):
             log["epsilon"] = self.policy.epsilon.value
         if self.ir_module is not None:
-            self.ir_module.update()
+            log["ir_loss"] = self.ir_module.update()
+            log["ir"] = 0
         self.memory.update(self.batch.value, self.td_error.value.detach())
         self.target_params_updater.update(self.parameters, self.target_parameters)
         return log

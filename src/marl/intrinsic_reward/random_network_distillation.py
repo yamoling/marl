@@ -8,8 +8,7 @@ import os
 
 from marl.models.batch import Batch, EpisodeBatch
 from marl.nn import randomize, LinearNN
-from marl.utils import ConstantSchedule, Schedule, get_device
-
+from marl.utils import ConstantSchedule, Schedule
 from marl.utils.stats import RunningMeanStd
 
 from .ir_module import IRModule
@@ -44,7 +43,6 @@ class RandomNetworkDistillation(IRModule):
         )
         self.target.randomize()
         self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=1e-4)
-        self.device = get_device()
 
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
@@ -97,8 +95,6 @@ class RandomNetworkDistillation(IRModule):
         self._running_obs.to(device)
         self._running_returns.to(device)
         self._running_extras.to(device)
-        self.device = device
-        return self
 
     def update(self):
         self._update_count += 1
@@ -109,6 +105,7 @@ class RandomNetworkDistillation(IRModule):
         loss.backward()
         self.optimizer.step()
         self.ir_weight.update()
+        return loss.item()
 
     def randomize(self):
         self.target.randomize()
