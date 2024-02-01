@@ -22,20 +22,25 @@ class PPO(RLAlgo):
         self.action_probs: np.ndarray = []
         self.is_training = True
 
-
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+        return self.choose_action_extra(observation)[0]
+    
+    
+    def choose_action_extra(self, observation: Observation) -> (np.ndarray[np.int64], float, np.ndarray[np.float32]):
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
-            policy, value = self.network.forward(obs_data, obs_extras)
+            policy, value = self.network.forward(obs_data, obs_extras)  # get action probabilities
             logits = policy
-            logits[torch.tensor(observation.available_actions) == 0] = -torch.inf
+            logits[torch.tensor(observation.available_actions) == 0] = -torch.inf   # mask unavailable actions
             dist = torch.distributions.Categorical(logits=logits)
+            # print(logits)
+            # print(obs_extras)
             action = dist.sample()
             # if self.is_training:
             #     probs = torch.gather(dist.probs, dim=-1, index=action.unsqueeze(-1))
             #     self.action_probs = probs.numpy(force=True)
-            return action.numpy(force=True)
+            return action.numpy(force=True), value, dist.probs.numpy(force=True)
         
     def value(self, obs: Observation) -> float:
         obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)

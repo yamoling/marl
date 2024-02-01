@@ -57,10 +57,12 @@ class TransitionBatch(Batch):
         return torch.from_numpy(np.array([t.obs_.state for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
-    def action_probs(self):
-        raise NotImplementedError()
-        # return torch.from_numpy(np.array([t.action_prob for t in self.transitions], dtype=np.float32)).to(self.device)
+    def value(self):
+        return torch.from_numpy(np.array([t.value.cpu() for t in self.transitions], dtype=np.float32)).to(self.device)
 
+    @cached_property
+    def action_probs(self):
+        return torch.from_numpy(np.array([t.action_probs for t in self.transitions], dtype=np.float32)).to(self.device)
     @cached_property
     def masks(self):
         return torch.ones(self.size).to(self.device)

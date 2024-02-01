@@ -22,6 +22,11 @@ class RLAlgo(ABC):
     def choose_action(self, observation: Observation) -> np.ndarray[np.int32, Any]:
         """Get the action to perform given the input observation"""
 
+    @abstractmethod
+    def choose_action_extra(self, observation: Observation) -> (np.ndarray[np.int32, Any], float, np.ndarray[np.float32, Any]):
+        """Get the action to perform, obs value and actions probs given the input observation"""
+        return self.choose_action(observation), self.value(observation), np.zeros(1)    #TODO : temporary solution not to break everything
+
     def new_episode(self):
         """
         Called when a new episode starts.
