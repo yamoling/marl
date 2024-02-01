@@ -6,7 +6,7 @@ from .mixer import Mixer
 
 @serde
 @dataclass
-class Qplex(Mixer):
+class QPlex(Mixer):
     """Duplex dueling"""
 
     def __init__(self, n_agents: int):

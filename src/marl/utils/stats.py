@@ -63,7 +63,6 @@ class RunningMeanStd:
     def to(self, device: torch.device):
         self.mean = self.mean.to(device)
         self.variance = self.variance.to(device)
-        return self
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):

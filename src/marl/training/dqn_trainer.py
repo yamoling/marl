@@ -38,17 +38,16 @@ class DQNTrainer(Trainer):
         memory: ReplayMemory,
         gamma: float = 0.99,
         batch_size: int = 64,
-        update_interval: int = 5,
         lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
         mixer: Optional[Mixer] = None,
-        train_every: Literal["step", "episode"] = "step",
+        train_interval: tuple[int, Literal["step", "episode"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_every, update_interval)
+        super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
         self.policy = train_policy
         self.gamma = gamma
@@ -128,7 +127,7 @@ class DQNTrainer(Trainer):
             case other:
                 raise ValueError(f"Unknown optimizer: {other}")
 
-    def _update(self, time_step: int) -> dict[str, float]:
+    def _update(self, step_num: int) -> dict[str, float]:
         if len(self.memory) < self.batch_size:
             return {}
         self.update_num += 1
@@ -144,11 +143,12 @@ class DQNTrainer(Trainer):
             log["grad_norm"] = torch.nn.utils.clip_grad.clip_grad_norm_(self.parameters, self.grad_norm_clipping).item()
 
         self.optimiser.step()
-        self.policy.update(time_step)
+        self.policy.update(step_num)
         if isinstance(self.policy, EpsilonGreedy):
             log["epsilon"] = self.policy.epsilon.value
         if self.ir_module is not None:
-            self.ir_module.update()
+            log["ir_loss"] = self.ir_module.update()
+            log["ir"] = 0
         self.memory.update(self.batch.value, self.td_error.value.detach())
         self.target_params_updater.update(self.parameters, self.target_parameters)
         return log
@@ -159,11 +159,11 @@ class DQNTrainer(Trainer):
         self.memory.add(episode)
         return self._update(time_step)
 
-    def update_step(self, transition: Transition, step_num: int) -> dict[str, float]:
+    def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
         if not self.update_on_steps:
             return {}
         self.memory.add(transition)
-        return self._update(step_num)
+        return self._update(time_step)
 
     def show(self, filename: str = "trainer.png"):
         """Display the computation graph"""

@@ -21,8 +21,12 @@ class IRModule(ABC):
     def compute(self, batch: Batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
 
-    def update(self):
-        """Update the IR Module to train it."""
+    def update(self) -> float:
+        """
+        Update the IR Module to train it.
+        Returns the loss.
+        """
+        raise NotImplementedError()
 
     def save(self, to_directory: str):
         """Save the IR Module to the given path."""

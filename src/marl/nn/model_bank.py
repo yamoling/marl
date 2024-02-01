@@ -84,6 +84,28 @@ class RNN(RNNQMix):
     pass
 
 
+class DuelingMLP(LinearNN):
+    def __init__(self, nn: LinearNN, output_size: int):
+        assert len(nn.output_shape) == 1
+        super().__init__(nn.input_shape, nn.extras_shape, (output_size,))
+        self.nn = nn
+        self.value = torch.nn.Linear(nn.output_shape[0], 1)
+        self.advantage = torch.nn.Linear(nn.output_shape[0], output_size)
+
+    @classmethod
+    def from_env(cls, env: RLEnv, nn: LinearNN):
+        assert nn.input_shape == env.observation_shape
+        assert nn.extras_shape == env.extra_feature_shape
+        return cls(nn, env.n_actions)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        features = self.nn.forward(obs, extras)
+        features = torch.nn.functional.relu(features)
+        value = self.value.forward(features)
+        advantage = self.advantage.forward(features)
+        return value + advantage - advantage.mean(dim=-1, keepdim=True)
+
+
 class AtariCNN(LinearNN):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
@@ -110,27 +132,31 @@ class CNN(LinearNN):
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
     """
 
-    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
+    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_size: int):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        assert len(extras_shape) == 1, f"CNN can only handle 1D extras shapes ({len(extras_shape)} here)"
-        assert len(output_shape) == 1, f"CNN can only handle 1D input shapes ({len(output_shape)} here)"
-        super().__init__(input_shape, extras_shape, output_shape)
+        super().__init__(input_shape, (extras_size,), (output_size,))
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP(n_features, self.extras_shape[0], (64, 64), output_shape[0])
+        self.linear = MLP(n_features, extras_size, (64, 64), output_size)
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        return cls(env.observation_shape, env.extra_feature_shape[0], env.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        # Check that the input has the correct shape (at least 4 dimensions)
-        batch_size, n_agents, channels, height, width = obs.shape
-        obs = obs.view(-1, channels, height, width)
+        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
+        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
+        *dims, n_agents, channels, height, width = obs.shape
+        # We must use 'reshape' instead of 'view' to handle the case of episodes
+        obs = obs.reshape(-1, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.view(batch_size * n_agents, *self.extras_shape)
+        extras = extras.reshape(-1, *self.extras_shape)
         res = self.linear.forward(features, extras)
-        return res.view(batch_size, n_agents, *self.output_shape)
+        return res.view(*dims, n_agents, *self.output_shape)
 
 
 class CNN_ActorCritic(ActorCriticNN):
@@ -145,17 +171,18 @@ class CNN_ActorCritic(ActorCriticNN):
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        print(f"n_features: {n_features}")
         common_input_size = n_features + self.extras_shape[0]
-        print(f"common_input_size: {common_input_size}")
-        print(f"output_shape: {output_shape}")
         self.common = torch.nn.Sequential(
             torch.nn.Linear(common_input_size, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
         )
-        self.policy_network = torch.nn.Linear(128, *output_shape)
+        # self.policy_network = torch.nn.Linear(128, *output_shape)
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(128, *output_shape),
+            torch.nn.Softmax(dim=-1),
+        )
         self.value_network = torch.nn.Linear(128, 1)
 
     def _cnn_forward(self, obs: torch.Tensor) -> torch.Tensor:

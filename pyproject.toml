@@ -10,7 +10,6 @@ python = ">=3.10, <3.12"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 opencv-python = "^4.7.0.68"
-polars-lts-cpu = "^0.20.2"
 tqdm = "^4.65.0"
 pynvml = "^11.5.0"
 scipy = "^1.11.3"
@@ -19,6 +18,8 @@ pyserde = "^0.12.3"
 networkx = "^3.1"
 sumtree = "^0.2.4"
 laser-learning-environment = "^0.1.10"
+typed-argparse = "^0.3.1"
+polars = "^0.20.6"
 
 
 [tool.poetry.group.dev.dependencies]

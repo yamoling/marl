@@ -29,8 +29,7 @@ def test_target_network_is_updated():
         memory=marl.models.TransitionMemory(50_000),
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
         target_updater=target_updater,
-        train_every="step",
-        update_interval=1,
+        train_interval=(1, "step"),
         batch_size=batch_size,
     )
     qnetwork_params = deepcopy(trainer.parameters)

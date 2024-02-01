@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Optional
 import torch
 import numpy as np
 from rlenv import Episode

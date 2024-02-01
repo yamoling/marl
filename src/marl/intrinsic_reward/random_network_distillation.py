@@ -8,8 +8,7 @@ import os
 
 from marl.models.batch import Batch, EpisodeBatch
 from marl.nn import randomize, LinearNN
-from marl.utils import ConstantSchedule, Schedule, get_device
-
+from marl.utils import ConstantSchedule, Schedule
 from marl.utils.stats import RunningMeanStd
 
 from .ir_module import IRModule
@@ -44,7 +43,6 @@ class RandomNetworkDistillation(IRModule):
         )
         self.target.randomize()
         self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=1e-4)
-        self.device = get_device()
 
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
@@ -60,7 +58,7 @@ class RandomNetworkDistillation(IRModule):
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_returns = RunningMeanStd(shape=(1,))
         self._running_obs = RunningMeanStd(shape=target.input_shape)
-        self._runnin_extras = RunningMeanStd(shape=target.extras_shape)
+        self._running_extras = RunningMeanStd(shape=target.extras_shape)
 
         # Bookkeeping for update
         # Squared error must be an attribute to be able to update the model in the `update` method
@@ -70,7 +68,7 @@ class RandomNetworkDistillation(IRModule):
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
         obs_ = self._running_obs.normalise(batch.obs_)
-        extras_ = self._runnin_extras.normalise(batch.extras_)
+        extras_ = self._running_extras.normalise(batch.extras_)
 
         # Compute the embedding and the squared error
         with torch.no_grad():
@@ -91,13 +89,12 @@ class RandomNetworkDistillation(IRModule):
         return intrinsic_reward * self.ir_weight
 
     def to(self, device: torch.device):
-        self.target = self.target.to(device, non_blocking=True)
-        self.predictor_head = self.predictor_head.to(device, non_blocking=True)
-        self.predictor_tail = self.predictor_tail.to(device, non_blocking=True)
-        # self._running_obs = self._running_obs.to(device)
-        # self._running_reward = self._running_reward.to(device)
-        self.device = device
-        return self
+        self.target.to(device, non_blocking=True)
+        self.predictor_head.to(device, non_blocking=True)
+        self.predictor_tail.to(device, non_blocking=True)
+        self._running_obs.to(device)
+        self._running_returns.to(device)
+        self._running_extras.to(device)
 
     def update(self):
         self._update_count += 1
@@ -108,6 +105,7 @@ class RandomNetworkDistillation(IRModule):
         loss.backward()
         self.optimizer.step()
         self.ir_weight.update()
+        return loss.item()
 
     def randomize(self):
         self.target.randomize()

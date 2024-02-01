@@ -22,7 +22,7 @@
                                         </td>
                                     </template>
 
-                                    <td v-else></td>
+                                    <td v-else> / </td>
                                 </tr>
                             </template>
                             <tr>
@@ -51,7 +51,6 @@
                                 </td>
                             </tr>
                         </tbody>
-
                     </table>
                 </div>
             </div>
