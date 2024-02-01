@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Optional
 import torch
 import numpy as np
 from rlenv import Transition
@@ -63,6 +62,7 @@ class TransitionBatch(Batch):
     @cached_property
     def action_probs(self):
         return torch.from_numpy(np.array([t.action_probs for t in self.transitions], dtype=np.float32)).to(self.device)
+
     @cached_property
     def masks(self):
         return torch.ones(self.size).to(self.device)

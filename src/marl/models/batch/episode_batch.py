@@ -35,6 +35,10 @@ class EpisodeBatch(Batch):
     #     return normalized_returns
 
     @cached_property
+    def value(self):
+        raise NotImplementedError("TODO")
+
+    @cached_property
     def obs_(self):
         """
         All the observations of the episodes, from 0 to episode_length + 1.
