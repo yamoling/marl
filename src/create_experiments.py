@@ -83,8 +83,8 @@ def create_lle():
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        # mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
         # ir_module=rnd,
     )

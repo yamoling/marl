@@ -105,7 +105,7 @@ class DQNTrainer(Trainer):
         if self.double_qlearning:
             next_qvalues = nodes.DoubleQLearning(self.qnetwork, qtarget, batch)
         else:
-            next_qvalues = nodes.NextQValues(qtarget, batch)
+            next_qvalues = nodes.NextValues(qtarget, batch)
 
         if self.mixer is not None:
             target_mixer = deepcopy(self.mixer)
