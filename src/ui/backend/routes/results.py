@@ -8,8 +8,6 @@ from marl import Experiment
 def get_experiment_results(logdir: str):
     results = Experiment.get_experiment_results(logdir, replace_inf=True)
     json_data = to_json(results)
-    with open("file.json", "w") as f:
-        f.write(json_data)
     return Response(json_data, mimetype="application/json")
 
 

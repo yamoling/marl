@@ -61,8 +61,8 @@ class EpsilonGreedy(Policy):
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 
-    def update(self, time_step: int):
-        self.epsilon.update(time_step)
+    def update(self, step_num: int):
+        self.epsilon.update(step_num)
 
 
 @serde

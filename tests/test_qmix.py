@@ -1,4 +1,3 @@
-from typing import Optional
 import marl
 import torch
 
@@ -6,7 +5,7 @@ from .two_steps import TwoSteps, State
 
 
 class QNetwork(marl.nn.LinearNN):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: Optional[tuple[int, ...]], output_shape: tuple[int, ...]):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         self.nn = torch.nn.Sequential(
             torch.nn.Linear(input_shape[0], 64),
@@ -22,7 +21,7 @@ class QNetwork(marl.nn.LinearNN):
 
 def test_qmix_value():
     """
-    Demonstration of QMix higher representation capabilities as described in the paper.
+    Demonstration of QMix higher representation capabilities against VDN as described in the paper.
 
     https://arxiv.org/pdf/1803.11485.pdf
     Appendix B.
@@ -42,15 +41,13 @@ def test_qmix_value():
         double_qlearning=True,
         memory=memory,
         batch_size=32,
-        train_every="episode",
-        update_interval=1,
+        train_interval=(1, "episode"),
         mixer=mixer,
         target_updater=marl.training.HardUpdate(100),
         gamma=0.99,
         optimiser="rmsprop",
         lr=5e-4,
     )
-    trainer.show()
     algo = marl.qlearning.DQN(qnetwork, policy)
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
     runner = exp.create_runner(0)

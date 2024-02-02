@@ -13,9 +13,9 @@ def seed(seed_value: int):
     import random
     import numpy as np
 
-    torch.manual_seed(seed_value)
-    np.random.seed(seed_value)
     random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
 
 
 T = TypeVar("T")
@@ -58,7 +58,8 @@ def get_device(device: Literal["auto", "cuda", "cpu"] = "auto") -> torch.device:
         for gpu in devices:
             if gpu.memory_usage < 0.85:
                 return gpu.device
-        raise RuntimeError("All GPU are full")
+        # Fallback to CPU if no GPU is available
+        return torch.device("cpu")
     return torch.device(device)
 
 

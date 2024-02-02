@@ -6,7 +6,19 @@ from .mixer import Mixer
 
 
 class QMix(Mixer):
-    def __init__(self, state_shape: int, n_agents: int, embed_size=32, hypernet_embed_size=64):
+    """
+    QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning
+
+    (almost) copy-pasted from https://github.com/oxwhirl/pymarl
+    """
+
+    def __init__(
+        self,
+        state_shape: int,
+        n_agents: int,
+        embed_size=64,
+        hypernet_embed_size=64,
+    ):
         super().__init__(n_agents)
 
         self.state_shape = state_shape

@@ -2,10 +2,25 @@
     <div class="row">
         <div class="col-6">
             <div class="row">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text">
+                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
+                        Filter
+                    </span>
+                    <input class="form-control" type="text" v-model="searchString" />
+                    <!-- Cross icon to delete the search string -->
+                    <button class="btn btn-secondary input-group-btn" @click="searchString = ''">
+                        <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
+                        :disabled="experimentLoading">
+                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
+                    </button>
+                </div>
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th class="text-center"> Status </th>
+                            <th> </th>
                             <th class="sortable" @click="() => sortBy('logdir')">
                                 Log directory
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
@@ -29,10 +44,17 @@
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => loadResults(exp.logdir)">
                                 <td class="text-center">
-                                    <font-awesome-icon v-if="exp.runs.every(r => r.pid == null)" :icon="['fas', 'check']" />
-                                    <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
+                                    <template v-if="colours.has(exp.logdir) && experimentResults.has(exp.logdir)">
+                                        <input type="color" :value="colours.get(exp.logdir)" @click.stop
+                                            @change="(e) => setColour(exp.logdir as string, (e.target as HTMLInputElement).value)">
+                                    </template>
+
                                 </td>
-                                <td> {{ exp.logdir }} </td>
+                                <td>
+                                    <font-awesome-icon v-if="experimentStore.runningExperiments.has(exp.logdir)"
+                                        :icon="['fas', 'spinner']" spin />
+                                    {{ exp.logdir }}
+                                </td>
                                 <td> {{ exp.env.name }} </td>
                                 <td> {{ exp.algo.name }} </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
@@ -53,17 +75,6 @@
                         </template>
                     </tbody>
                 </table>
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text">
-                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
-                        Filter
-                    </span>
-                    <input class="form-control" type="text" v-model="searchString" />
-                    <button class="btn btn-primary input-group-btn" @click="refreshExperiments"
-                        :disabled="experimentLoading">
-                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
-                    </button>
-                </div>
             </div>
             <div class="row">
                 <SettingsPanel class="col-4 mx-auto" :metrics="metrics"
@@ -79,15 +90,6 @@
                     style="color: rgba(211, 211, 211, 0.5);" />
             </div>
             <template v-else>
-                <div>
-                    <template v-for="[logdir, colour] in colours">
-                        <span v-if="experimentResults.has(logdir)">
-                            <input type="color" :value="colour"
-                                @change="(e) => setColour(logdir as string, (e.target as HTMLInputElement).value)">
-                            {{ logdir }}
-                        </span>
-                    </template>
-                </div>
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
                     :title="label.replaceAll('_', ' ')" :showLegend="false" :colours="colours" />
             </template>
@@ -118,7 +120,6 @@ const resultsLoading = ref(new Set<string>());
 
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
-const experiments = ref([] as Experiment[]);
 const experimentResults = ref(new Map<string, ExperimentResults>());
 const alignedExperimentResults = computed(() => {
     const res = new Map<string, ExperimentResults>();
@@ -134,7 +135,7 @@ const metrics = computed(() => {
 const selectedMetrics = ref(["score"]);
 const colours = ref(initColoursFromLocalStorage());
 
-onMounted(refreshExperiments)
+onMounted(experimentStore.refresh);
 
 /** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
@@ -159,11 +160,6 @@ const datasetPerLabel = computed(() => {
 });
 
 
-async function refreshExperiments() {
-    experimentLoading.value = true;
-    experiments.value = await experimentStore.getAllExperiments();
-    experimentLoading.value = false;
-}
 function setColour(logdir: string, newColour: string) {
     console.log(logdir, newColour)
     colours.value.set(logdir, newColour);
@@ -193,7 +189,7 @@ const emits = defineEmits<{
 }>();
 
 const sortedExperiments = computed(() => {
-    const entries = [...experiments.value];
+    const entries = [...experimentStore.experiments];
     switch (sortKey.value) {
         case "logdir":
             entries.sort((a, b) => a.logdir.localeCompare(b.logdir));

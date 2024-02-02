@@ -2,19 +2,52 @@ import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
+import { ref } from "vue";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
 
+    const loading = ref(false);
+    const experiments = ref<Experiment[]>([]);
+    const runningExperiments = ref(new Set<string>());
 
-    async function getAllExperiments(): Promise<Experiment[]> {
+
+    async function startWebsocket() {
+        const ws = new WebSocket(`ws://${location.hostname}/5002`);
+        ws.onopen = () => {
+            console.log("Websocket opened");
+        };
+        ws.onclose = () => {
+            console.log("Websocket closed");
+        };
+        ws.onerror = (e) => {
+            console.log("Websocket error", e);
+        };
+        ws.onmessage = (e) => {
+            console.log("Websocket message", e);
+        };
+    }
+
+    async function refresh() {
         try {
+            loading.value = true;
             const resp = await fetch(`${HTTP_URL}/experiment/list`);
             if (!resp.ok) {
                 throw new Error("Failed to load experiments: " + await resp.text());
             }
-            return await resp.json() as Experiment[];
+            experiments.value = await resp.json() as Experiment[];
+            for (const exp of experiments.value) {
+                refreshRunning(exp.logdir).then((running) => {
+                    if (running) {
+                        runningExperiments.value.add(exp.logdir);
+                    } else {
+                        runningExperiments.value.delete(exp.logdir);
+                    }
+                });
+            }
         } catch (e: any) {
             throw new Error("Failed to load experiments: " + e.message);
+        } finally {
+            loading.value = false;
         }
     }
 
@@ -27,6 +60,18 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             return await resp.json();
         } catch (e: any) {
             throw new Error("Failed to load experiment: " + e.message);
+        }
+    }
+
+    async function refreshRunning(logdir: string): Promise<boolean> {
+        try {
+            const resp = await fetch(`${HTTP_URL}/experiment/is_running/${logdir}`);
+            if (!resp.ok) {
+                return false
+            }
+            return await resp.json();
+        } catch (e: any) {
+            return false;
         }
     }
 
@@ -45,7 +90,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     return {
-        getAllExperiments,
+        experiments,
+        runningExperiments,
+        refresh,
         getExperiment,
         loadExperiment,
         unloadExperiment,

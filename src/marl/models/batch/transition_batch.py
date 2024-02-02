@@ -7,8 +7,8 @@ from .batch import Batch
 
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition], sample_indices: list[int]):
-        super().__init__(len(transitions), transitions[0].n_agents, sample_indices)
+    def __init__(self, transitions: list[Transition]):
+        super().__init__(len(transitions), transitions[0].n_agents)
         self.transitions = transitions
 
     @cached_property
@@ -62,6 +62,7 @@ class TransitionBatch(Batch):
     @cached_property
     def action_probs(self):
         return torch.from_numpy(np.array([t.action_probs for t in self.transitions], dtype=np.float32)).to(self.device)
+
     @cached_property
     def masks(self):
         return torch.ones(self.size).to(self.device)

@@ -1,24 +1,18 @@
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Optional
 from functools import cached_property
 import torch
 
 
-@dataclass
 class Batch(ABC):
     """
     Lazy loaded batch for training.
-    Every field is set to None by default. When the field is accessed, the specific attribute is
-    loaded with the `_get_<attribute>()` method that child classes must implement.
-    (exception for importance sampling weights that are set by the memory)
     """
 
-    def __init__(self, size: int, n_agents: int, sample_indices: list[int]) -> None:
+    def __init__(self, size: int, n_agents: int) -> None:
         super().__init__()
         self.size = size
         self.n_agents = n_agents
-        self.sample_indices = sample_indices
         self.device = torch.device("cpu")
         self.importance_sampling_weights: Optional[torch.Tensor] = None
 

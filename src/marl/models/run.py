@@ -77,6 +77,12 @@ class Run:
     def test_dir(self, time_step: int):
         return os.path.join(self.rundir, "test", f"{time_step}")
 
+    def current_train_step(self):
+        try:
+            return self.train_metrics["time_step"].max()
+        except KeyError:
+            return 0
+
     @property
     def train_metrics(self):
         try:
@@ -119,7 +125,6 @@ class Run:
     def delete(self):
         try:
             shutil.rmtree(self.rundir)
-            return
         except FileNotFoundError:
             raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 

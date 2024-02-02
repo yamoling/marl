@@ -19,7 +19,7 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         trainer: Trainer,
-        rundir: str,
+        run: Run,
         test_interval: int,
         n_steps: int,
         test_env: Optional[RLEnv] = None,
@@ -28,7 +28,7 @@ class Runner:
         self._env = env
         self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
-        self._run = Run.create(rundir, 0)
+        self._run = run
         self._test_interval = test_interval
         self._max_step = n_steps
 
@@ -45,7 +45,7 @@ class Runner:
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
-            transition = Transition(obs, action, reward, done, info, obs_, truncated, value, probs)
+            transition = Transition(obs, action, reward, done, info, obs_, truncated)
             training_metrics = self._trainer.update_step(transition, step_num) | {"time_step": step_num}
             self._run.log_train_step(training_metrics)
             episode.add(transition)
@@ -68,6 +68,7 @@ class Runner:
             episode_num += 1
             step += len(episode)
             pbar.update(len(episode))
+        pbar.close()
 
     def test(self, ntests: int, time_step: int):
         """Test the agent"""
@@ -83,7 +84,7 @@ class Runner:
             while not episode.is_finished:
                 action, value, probs = self._algo.choose_action_extra(obs)
                 new_obs, reward, done, truncated, info = self._test_env.step(action)
-                transition = Transition(obs, action, reward, done, info, new_obs, truncated, value, probs)
+                transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value, "time_step": time_step})
