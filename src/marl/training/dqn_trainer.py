@@ -72,6 +72,14 @@ class DQNTrainer(Trainer):
         self.to(self.device)
 
     def _make_graph(self):
+        """
+        Constructs the computation graph for the DQN trainer.
+
+        Returns:
+            batch (nodes.ValueNode[Batch]): The input batch of samples.
+            td_error (nodes.TDError): The TD error node.
+            loss (nodes.MSELoss): The loss node.
+        """
         batch = nodes.ValueNode[Batch](None)  # type: ignore
         qvalues = self._make_qvalue_prediction_node(batch)
         qtargets_batch = batch
@@ -100,6 +108,9 @@ class DQNTrainer(Trainer):
         return qvalues
 
     def _make_targets_computation_node(self, batch: nodes.Node[Batch]) -> nodes.Node[torch.Tensor]:
+        # The qtarget network does not have to be an attribute of the class
+        # because it is only used to compute the target qvalues and its parameters
+        # are added to the list of target parameters.
         qtarget = deepcopy(self.qnetwork)
         self.target_parameters += list(qtarget.parameters())
         if self.double_qlearning:

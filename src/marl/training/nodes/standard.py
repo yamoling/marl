@@ -90,7 +90,7 @@ class DoubleQLearning(Node[torch.Tensor]):
         # instead of taking both from the target network
         current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):
-            # See above comment in NextQValues for an explanation
+            # See above comment in NextQValues for an explanation on the reasons for this "if"
             target_next_qvalues = target_next_qvalues[1:]
             current_next_qvalues = current_next_qvalues[1:]
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
