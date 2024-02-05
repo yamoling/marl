@@ -6,24 +6,20 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.11"
-torch = "^1.13.1"
+python = ">=3.10, <4"
 numpy = "^1.23.4"
-rlenv = {git = "https://github.com/yamoling/rlenv.git"}
+rlenv = { path = "/home/yann/projects/python/rlenv", develop = true }
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
-laser-env = {git = "https://github.com/raphaelavalos/laser-env.git"}
+laser-env = { path = "/home/yann/projects/python/laser-env" }
 sumtree = "^0.2"
 polars = "^0.16.18"
 tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
-pynvml = "^11.5.0"
-pyserde = "^0.10.6"
+pyserde = "^0.12"
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
-pywebview = {extras = ["qt"], version = "^4.0.1"}
-pycairo = "^1.23.0"
 pygobject = "^3.42.2"
 websockets = "^10.4"
 flask = "^2.2.2"
@@ -41,6 +37,6 @@ pythonpath = ["src"]
 
 
 [tool.pyright]
-typeCheckingMode = "basic" # "strict", "off"
+typeCheckingMode = "basic"       # "strict", "off"
 include = ["src"]
 reportPrivateImportUsage = false
