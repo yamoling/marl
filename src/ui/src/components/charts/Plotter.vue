@@ -53,13 +53,15 @@ const legendContainer = ref({} as HTMLElement);
 const yScaleType = ref("linear" as "linear" | "logarithmic");
 const enablePlusMinus = ref(true);
 const plusMinus = ref("std" as "std" | "ci95");
-const colours = useColourStore();
+const colourStore = useColourStore();
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
     title: string
     showLegend: boolean
 }>();
+
+watch(colourStore.colours, updateChartData);
 
 
 function updateChartData() {
@@ -68,7 +70,7 @@ function updateChartData() {
     }
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
-        const colour = colours.get(ds.logdir);
+        const colour = colourStore.get(ds.logdir);
 
         if (enablePlusMinus.value) {
             let lower;

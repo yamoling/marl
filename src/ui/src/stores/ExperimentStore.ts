@@ -90,6 +90,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     return {
+        loading,
         experiments,
         runningExperiments,
         refresh,

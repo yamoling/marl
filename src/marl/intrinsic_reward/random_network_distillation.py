@@ -96,7 +96,7 @@ class RandomNetworkDistillation(IRModule):
         self._running_returns.to(device)
         self._running_extras.to(device)
 
-    def update(self):
+    def update(self, time_step: int):
         # Randomly mask some of the features and perform the optimization
         masks = torch.rand_like(self._squared_error) < self.update_ratio
         loss = torch.sum(self._squared_error * masks) / torch.sum(masks)

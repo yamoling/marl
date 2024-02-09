@@ -1,9 +1,10 @@
 import { defineStore } from "pinia";
 import { stringToRGB } from "../utils";
+import { ref } from "vue";
 
 export const useColourStore = defineStore("ColourStore", () => {
 
-    const colours = initColoursFromLocalStorage();
+    const colours = ref(initColoursFromLocalStorage());
 
     function initColoursFromLocalStorage() {
         const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
@@ -15,11 +16,11 @@ export const useColourStore = defineStore("ColourStore", () => {
     }
 
     function saveColoursToLocalStorage() {
-        localStorage.setItem("logdirColours", JSON.stringify(Array.from(colours.entries())));
+        localStorage.setItem("logdirColours", JSON.stringify(Array.from(colours.value.entries())));
     }
 
     function get(logdir: string): string {
-        let colour = colours.get(logdir);
+        let colour = colours.value.get(logdir);
         if (colour != null) {
             return colour;
         }
@@ -29,12 +30,13 @@ export const useColourStore = defineStore("ColourStore", () => {
     }
 
     function set(logdir: string, colour: string) {
-        colours.set(logdir, colour);
+        colours.value.set(logdir, colour);
         saveColoursToLocalStorage();
     }
 
 
     return {
+        colours,
         get,
         set
     };

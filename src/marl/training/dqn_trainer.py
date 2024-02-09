@@ -67,10 +67,10 @@ class DQNTrainer(Trainer):
         # Every updatable object should be in this list.
         # Some nodes of the graph also need to be updated, so they are also in this list.
         self.updatables = list[Updatable]([train_policy, target_updater])
+        self.updatables += self._make_graph(qnetwork.device)
+        # IR module must be added after the BackProp node otherwise the IR is not yet computed.
         if self.ir_module is not None:
             self.updatables.append(self.ir_module)
-
-        self._make_graph(qnetwork.device)
         self.update_num = 0
 
     def _make_graph(self, device: torch.device):
@@ -82,9 +82,10 @@ class DQNTrainer(Trainer):
             td_error (nodes.TDError): The TD error node.
             loss (nodes.MSELoss): The loss node.
         """
+        updatables = list[Updatable]()
         if isinstance(self.memory, PrioritizedMemory):
             batch = nodes.PERNode(self.memory, self.batch_size, device)
-            self.updatables.append(batch)
+            updatables.append(batch)
         else:
             batch = nodes.MemoryNode(self.memory, self.batch_size, device)
         self.roots.append(batch)
@@ -104,8 +105,8 @@ class DQNTrainer(Trainer):
             batch.set_td_error_node(td_error)
         loss = nodes.MSELoss(td_error, batch)
         optimiser = self._make_optimiser(parameters, target_parameters)
-        self.updatables.append(nodes.BackpropNode(loss, parameters, optimiser, self.grad_norm_clipping))
-        return batch
+        updatables.append(nodes.BackpropNode(loss, parameters, optimiser, self.grad_norm_clipping))
+        return updatables
 
     def to(self, device: torch.device):
         for root in self.roots:

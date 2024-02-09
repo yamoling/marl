@@ -13,8 +13,8 @@
                         <font-awesome-icon :icon="['fas', 'times']" />
                     </button>
                     <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
-                        :disabled="experimentLoading">
-                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentLoading" />
+                        :disabled="experimentStore.loading">
+                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
                     </button>
                 </div>
                 <table class="table table-striped table-hover">
@@ -48,7 +48,6 @@
                                         <input type="color" :value="colours.get(exp.logdir)" @click.stop
                                             @change="(e) => colours.set(exp.logdir, (e.target as HTMLInputElement).value)">
                                     </template>
-
                                 </td>
                                 <td>
                                     <font-awesome-icon v-if="experimentStore.runningExperiments.has(exp.logdir)"
@@ -64,8 +63,8 @@
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
-                                    <font-awesome-icon v-if="resultsStore.loading.has(exp.logdir)"
-                                        :icon="['fas', 'spinner']" spin />
+                                    <font-awesome-icon v-if="exp.logdir in resultsStore.loading" :icon="['fas', 'spinner']"
+                                        spin />
                                     <button v-else-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
                                         @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
@@ -109,9 +108,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Dataset, ExperimentResults } from '../../models/Experiment';
+import { Dataset, ExperimentResults, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA, stringToRGB } from "../../utils";
+import { EMA, downloadStringAsFile, stringToRGB } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
@@ -126,7 +125,6 @@ const colours = useColourStore();
 const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
-const experimentLoading = ref(false);
 
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
@@ -170,12 +168,12 @@ const datasetPerLabel = computed(() => {
 
 
 function downloadDatasets() {
-    const ds = datasetsByLogdir.value.get(logdirToDownload.value);
-    if (ds === undefined) {
+    const results = resultsStore.results.get(logdirToDownload.value);
+    if (results === undefined) {
         alert("No such logdir to download");
         return;
     }
-    const csv = toCSV(ds, xTicks.value);
+    const csv = toCSV(results.train, ticks.value);
     downloadStringAsFile(csv, `${logdirToDownload.value}.csv`);
 }
 
