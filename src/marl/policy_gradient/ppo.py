@@ -4,8 +4,7 @@ from serde import serde
 import torch
 import numpy as np
 from rlenv import Observation, Episode, Transition
-from marl.models import RLAlgo, TransitionMemory
-from marl import nn
+from marl.models import RLAlgo, TransitionMemory, nn
 from marl.utils import get_device
 
 
@@ -24,15 +23,14 @@ class PPO(RLAlgo):
 
     def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
         return self.choose_action_extra(observation)[0]
-    
-    
+
     def choose_action_extra(self, observation: Observation) -> (np.ndarray[np.int64], float, np.ndarray[np.float32]):
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
             policy, value = self.network.forward(obs_data, obs_extras)  # get action probabilities
             logits = policy
-            logits[torch.tensor(observation.available_actions) == 0] = -torch.inf   # mask unavailable actions
+            logits[torch.tensor(observation.available_actions) == 0] = -torch.inf  # mask unavailable actions
             dist = torch.distributions.Categorical(logits=logits)
             # print(logits)
             # print(obs_extras)
@@ -41,7 +39,7 @@ class PPO(RLAlgo):
             #     probs = torch.gather(dist.probs, dim=-1, index=action.unsqueeze(-1))
             #     self.action_probs = probs.numpy(force=True)
             return action.numpy(force=True), value, dist.probs.numpy(force=True)
-        
+
     def value(self, obs: Observation) -> float:
         obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
         obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
@@ -55,30 +53,30 @@ class PPO(RLAlgo):
 
     def save(self, to_path: str):
         os.makedirs(to_path, exist_ok=True)
-        file_path = os.path.join(to_path, 'ac_network')
+        file_path = os.path.join(to_path, "ac_network")
         torch.save(self.network.state_dict(), file_path)
-    
+
     def load(self, from_path: str):
-        file_path = os.path.join(from_path, 'ac_network')
-        self.network.load_state_dict(torch.load(file_path))    
+        file_path = os.path.join(from_path, "ac_network")
+        self.network.load_state_dict(torch.load(file_path))
 
     def set_testing(self):
         self.is_training = False
-    
+
     def set_training(self):
         self.is_training = True
 
-        
     def randomize(self):
         self.network.randomize()
-    
-    def to(self, device : torch.device):
+
+    def to(self, device: torch.device):
         self.network.to(device)
         self.device = device
-        
+
         # def before_test_episode(self, time_step: int, test_num: int):
+
     #     self.is_training = False
-    
+
     # def after_tests(self, episodes: list[Episode], time_step: int):
     #     self.is_training = True
 
@@ -91,9 +89,9 @@ class PPO(RLAlgo):
 
     # def learn(self):
     #     batch = self.memory.get_batch(range(len(self.memory))).to(self.device)
-    #     self.memory.clear() 
+    #     self.memory.clear()
     #     batch.actions = batch.actions.squeeze(-1)
-        
+
     #     with torch.no_grad():
     #         last_obs_next_value = None
     #         if batch.dones[-1] != 1:

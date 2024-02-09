@@ -1,5 +1,5 @@
 from rlenv import Observation
-from marl import RLAlgo
+from marl.models import RLAlgo
 
 
 class AlgorithmWrapper(RLAlgo):

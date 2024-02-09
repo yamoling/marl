@@ -42,11 +42,11 @@
                     </thead>
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
-                            <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => loadResults(exp.logdir)">
+                            <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => resultsStore.load(exp.logdir)">
                                 <td class="text-center">
-                                    <template v-if="colours.has(exp.logdir) && experimentResults.has(exp.logdir)">
+                                    <template v-if="resultsStore.results.has(exp.logdir)">
                                         <input type="color" :value="colours.get(exp.logdir)" @click.stop
-                                            @change="(e) => setColour(exp.logdir as string, (e.target as HTMLInputElement).value)">
+                                            @change="(e) => colours.set(exp.logdir, (e.target as HTMLInputElement).value)">
                                     </template>
 
                                 </td>
@@ -64,10 +64,10 @@
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
-                                    <font-awesome-icon v-if="resultsLoading.has(exp.logdir)" :icon="['fas', 'spinner']"
-                                        spin />
-                                    <button v-else-if="experimentResults.has(exp.logdir)" class="btn btn-sm btn-danger"
-                                        @click.stop="() => unloadResults(exp.logdir)">
+                                    <font-awesome-icon v-if="resultsStore.loading.has(exp.logdir)"
+                                        :icon="['fas', 'spinner']" spin />
+                                    <button v-else-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
+                                        @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
                                     </button>
                                 </td>
@@ -83,15 +83,24 @@
             </div>
         </div>
         <div class="col-6">
-            <div v-if="experimentResults.size == 0" class="text-center mt-5">
+            <div v-if="resultsStore.results.size == 0" class="text-center mt-5">
                 Click on an experiment to load its results
                 <br>
                 <font-awesome-icon :icon="['fas', 'chart-line']" class="fa-10x mt-5"
                     style="color: rgba(211, 211, 211, 0.5);" />
             </div>
             <template v-else>
+                <div class="input-group mb-3">
+                    <button class="btn btn-outline-primary" @click="downloadDatasets">
+                        <font-awesome-icon :icon="['fas', 'download']" />
+                    </button>
+                    <select v-model="logdirToDownload" class="form-select">
+                        <option v-for="logdir in resultsStore.results.keys()" selected> {{ logdir }}</option>
+                    </select>
+                </div>
+
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
-                    :title="label.replaceAll('_', ' ')" :showLegend="false" :colours="colours" />
+                    :title="label.replaceAll('_', ' ')" :showLegend="false" />
             </template>
 
         </div>
@@ -100,7 +109,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
+import { Dataset, ExperimentResults } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
 import { EMA, stringToRGB } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
@@ -108,32 +117,32 @@ import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { searchMatch, unionXTicks, alignTicks } from '../../utils';
 import { RouterLink } from 'vue-router';
+import { useColourStore } from '../../stores/ColourStore';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
+const colours = useColourStore();
 
 const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 const experimentLoading = ref(false);
-const resultsLoading = ref(new Set<string>());
 
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
-const experimentResults = ref(new Map<string, ExperimentResults>());
 const alignedExperimentResults = computed(() => {
     const res = new Map<string, ExperimentResults>();
-    experimentResults.value.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
+    resultsStore.results.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
     return res;
 });
-const ticks = computed(() => unionXTicks([...experimentResults.value.values()].map(r => r.ticks)));
+const ticks = computed(() => unionXTicks([...resultsStore.results.values()].map(r => r.ticks)));
 const metrics = computed(() => {
     const res = new Set<string>();
-    experimentResults.value.forEach((v, _) => v.train.forEach(d => res.add(d.label)));
+    resultsStore.results.forEach((v, _) => v.train.forEach(d => res.add(d.label)));
     return res;
 });
 const selectedMetrics = ref(["score"]);
-const colours = ref(initColoursFromLocalStorage());
+const logdirToDownload = ref("");
 
 onMounted(experimentStore.refresh);
 
@@ -160,25 +169,14 @@ const datasetPerLabel = computed(() => {
 });
 
 
-function setColour(logdir: string, newColour: string) {
-    console.log(logdir, newColour)
-    colours.value.set(logdir, newColour);
-    localStorage.setItem("logdirColours", JSON.stringify(Array.from(colours.value.entries())));
-}
-
-async function loadResults(logdir: string) {
-    resultsLoading.value.add(logdir);
-    const res = await resultsStore.loadExperimentResults(logdir);
-    if (!colours.value.has(logdir)) {
-        colours.value.set(logdir, stringToRGB(logdir));
+function downloadDatasets() {
+    const ds = datasetsByLogdir.value.get(logdirToDownload.value);
+    if (ds === undefined) {
+        alert("No such logdir to download");
+        return;
     }
-    experimentResults.value.set(logdir, res);
-    resultsLoading.value.delete(logdir);
-}
-
-function unloadResults(logdir: string) {
-    experimentResults.value.delete(logdir);
-    colours.value.delete(logdir);
+    const csv = toCSV(ds, xTicks.value);
+    downloadStringAsFile(csv, `${logdirToDownload.value}.csv`);
 }
 
 const emits = defineEmits<{

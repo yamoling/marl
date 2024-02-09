@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-from .mixer import Mixer
+from marl.models.nn import Mixer
 
 
 class QMix(Mixer):

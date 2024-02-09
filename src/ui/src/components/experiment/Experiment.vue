@@ -47,7 +47,7 @@ onMounted(async () => {
     }
     experiment.value = res;
     const resultsStore = useResultsStore()
-    results.value = await resultsStore.loadExperimentResults(res.logdir);
+    results.value = await resultsStore.load(res.logdir);
 });
 
 window.onclose = () => {

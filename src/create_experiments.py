@@ -48,11 +48,10 @@ def create_smac():
 
 
 def create_lle():
-    n_steps = 1_000_000
+    n_steps = 1_500_000
     gamma = 0.95
-    env = LLE.level(6, ObservationType.LAYERED)
-    # env = LLE.from_file("maps/lvl6-gems-everywhere", ObservationType.LAYERED)
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    env = LLE.level(1, ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -66,12 +65,12 @@ def create_lle():
         normalise_rewards=False,
         # gamma=gamma,
     )
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     td_error_clipping=5.0,
-    # )
+    memory = marl.models.PrioritizedMemory(
+        memory=memory,
+        alpha=0.6,
+        beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
+        td_error_clipping=5.0,
+    )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -86,7 +85,7 @@ def create_lle():
         # mixer=marl.qlearning.VDN(env.n_agents),
         mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        # ir_module=rnd,
+        ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(

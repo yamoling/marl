@@ -2,7 +2,7 @@ from . import app, state
 from http import HTTPStatus
 from serde.json import to_json
 import json
-from marl import Experiment
+from marl.models import Experiment
 from marl.utils.exceptions import ExperimentVersionMismatch
 
 

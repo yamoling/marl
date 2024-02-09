@@ -1,6 +1,4 @@
-import torch 
-
-from .interfaces import NN
+import torch
 
 
 def make_cnn(input_shape: tuple[int, int, int], filters: list[int], kernel_sizes: list[int], strides: list[int]):
@@ -27,4 +25,3 @@ def conv2d_size_out(input_width, input_height, kernel_sizes, strides) -> tuple[i
         width = (width - (kernel_size - 1) - 1) // stride + 1
         height = (height - (kernel_size - 1) - 1) // stride + 1
     return width, height
-

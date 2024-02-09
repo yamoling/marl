@@ -23,9 +23,9 @@ def test_update_marks():
     n2 = ValueNode(40)
     res = Add(n1, n2)
 
-    assert res._needs_update
+    assert res._need_to_recompute
     assert res.value == 65
-    assert not res._needs_update
+    assert not res._need_to_recompute
 
 
 def test_update_marks_complex():
@@ -48,12 +48,12 @@ def test_update_marks_complex():
     res2 = Add(res, n3)
     assert res2.value == 75
 
-    assert not res._needs_update
-    assert not res2._needs_update
+    assert not res._need_to_recompute
+    assert not res2._need_to_recompute
 
     n3.value = -10
-    assert not res._needs_update
-    assert res2._needs_update
+    assert not res._need_to_recompute
+    assert res2._need_to_recompute
     assert res2.value == 55
 
 

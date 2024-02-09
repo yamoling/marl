@@ -13,7 +13,6 @@ from serde import serde
 import polars as pl
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
-from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
 
 from .algo import RLAlgo
@@ -248,9 +247,15 @@ class Experiment:
             dfs_training_data = [run.training_data for run in runs if not run.training_data.is_empty()]
             if len(ticks) >= 2:
                 test_interval = ticks[1] - ticks[0]
-                dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
-                dfs_training_data = [stats.round_col(df, "time_step", test_interval) for df in dfs_training_data]
-
+            else:
+                test_interval = 5000
+            # Round the time step to match the closest test interval
+            dfs = [stats.round_col(df, "time_step", test_interval) for df in dfs]
+            dfs_training_data = [stats.round_col(df, "time_step", test_interval) for df in dfs_training_data]
+            # Compute the mean of the metrics for each time step in each independent dataframe
+            dfs = [df.group_by("time_step").mean() for df in dfs]
+            dfs_training_data = [df.group_by("time_step").mean() for df in dfs_training_data]
+            # Concatenate the dataframes and compute the Datastets
             ticks2, train_datasets = Experiment.compute_datasets(dfs, replace_inf)
             _, training_data = Experiment.compute_datasets(dfs_training_data, replace_inf)
         except ValueError:
@@ -258,22 +263,6 @@ class Experiment:
         if len(ticks) == 0:
             ticks = ticks2
         return ExperimentResults(logdir, ticks, train_datasets + training_data, test_datasets)
-
-    def train_metrics(self):
-        try:
-            # Round the time step to match the closest test interval
-            dfs = [
-                stats.round_col(run.train_metrics, "time_step", self.test_interval) for run in self.runs if not run.train_metrics.is_empty()
-            ]
-            ticks, train_metrics = self.compute_datasets(dfs)
-
-            dfs = [
-                stats.round_col(run.training_data, "time_step", self.test_interval) for run in self.runs if not run.training_data.is_empty()
-            ]
-            _, training_data = self.compute_datasets(dfs)
-            return ticks, train_metrics + training_data
-        except ValueError:
-            return [], []
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         # Actions must be loaded because of the stochasticity of the policy
@@ -293,6 +282,8 @@ class Experiment:
         try:
             for action in actions:
                 values.append(self.algo.value(obs))
+                from marl.qlearning import DQN
+
                 if isinstance(self.algo, DQN):
                     qvalues.append(self.algo.compute_qvalues(obs).tolist())
                 obs_, reward, done, truncated, info = env.step(action)

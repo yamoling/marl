@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Deque, Generic, Iterable, TypeVar
 
 import numpy as np
-import torch
 from rlenv import Episode, Transition
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
@@ -28,9 +27,6 @@ class ReplayMemory(Generic[T], ABC):
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
-
-    def update(self, batch: Batch, td_error: torch.Tensor) -> None:
-        """Update the data in the memory"""
 
     def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
@@ -62,6 +58,6 @@ class TransitionMemory(ReplayMemory[Transition]):
 class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
-    def get_batch(self, indices: list[int]):
+    def get_batch(self, indices: Iterable[int]):
         episodes = [self._memory[i] for i in indices]
         return EpisodeBatch(episodes)

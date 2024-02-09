@@ -1,8 +1,8 @@
+from typing import Optional
 import torch
-from marl.nn import LinearNN, RecurrentNN, NN
-from marl.models import Batch
+from marl.models import Batch, ReplayMemory, PrioritizedMemory, LinearNN, RecurrentNN, NN, Updatable
 from marl.models.batch import EpisodeBatch
-from .node import Node
+from .node import Node, ValueNode
 
 
 def forward(nn: NN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -13,6 +13,37 @@ def forward(nn: NN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
             return nn.forward(obs, extras)[0]
         case other:
             raise NotImplementedError(f"Unknown NN type: {type(other)}")
+
+
+class MemoryNode(Node[Batch]):
+    def __init__(self, memory: ReplayMemory, batch_size: int, device: torch.device):
+        super().__init__([])
+        self.memory = memory
+        self.batch_size = batch_size
+        self.device = device
+
+    def to(self, device: torch.device):
+        self.device = device
+        return super().to(device)
+
+    def _compute_value(self) -> Batch:
+        return self.memory.sample(self.batch_size).to(self.device)
+
+
+class PERNode(MemoryNode, Updatable):
+    def __init__(self, memory: PrioritizedMemory, batch_size: int, device: torch.device):
+        super().__init__(memory, batch_size, device)
+        self.td_error = ValueNode(torch.tensor([]))
+
+        # Type hinting
+        self.memory: PrioritizedMemory
+
+    def set_td_error_node(self, td_error: Node[torch.Tensor]):
+        self.td_error = td_error
+
+    def update(self, time_step: int) -> dict[str, float]:
+        self.memory.update(self.td_error.value.detach())
+        return {"per-alpha": self.memory.alpha.value, "per-beta": self.memory.beta.value}
 
 
 class QValues(Node[torch.Tensor]):
@@ -136,7 +167,11 @@ class TDError(Node[torch.Tensor]):
 class MSELoss(Node[torch.Tensor]):
     """MSE loss node"""
 
-    def __init__(self, td_error: Node[torch.Tensor], batch: Node[Batch]):
+    def __init__(
+        self,
+        td_error: Node[torch.Tensor],
+        batch: Node[Batch],
+    ):
         super().__init__([td_error, batch])
         self.td_error = td_error
         self.batch = batch
@@ -151,3 +186,31 @@ class MSELoss(Node[torch.Tensor]):
             squared_error = squared_error * batch.importance_sampling_weights
         mean_squared_error = squared_error.sum() / batch.masks.sum()
         return mean_squared_error
+
+
+class BackpropNode(Node[None], Updatable):
+    def __init__(
+        self,
+        loss: Node[torch.Tensor],
+        parameters: list[torch.nn.Parameter],
+        optimiser: torch.optim.Optimizer,
+        grad_norm_clipping: Optional[float] = None,
+    ):
+        super().__init__([loss])
+        self.loss = loss
+        self.parameters = parameters
+        self.optimiser = optimiser
+        self.grad_norm_clipping = grad_norm_clipping
+
+    def _compute_value(self):
+        return None
+
+    def update(self, time_step: int) -> dict[str, float]:
+        loss = self.loss.value
+        logs = {"loss": loss.item()}
+        self.optimiser.zero_grad()
+        loss.backward()
+        if self.grad_norm_clipping is not None:
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.parameters, self.grad_norm_clipping).item()
+        self.optimiser.step()
+        return logs

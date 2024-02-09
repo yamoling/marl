@@ -5,12 +5,13 @@ from . import models
 from . import logging
 from . import nn
 from . import intrinsic_reward
-from .models import RLAlgo, Experiment
-
+from . import policy
 from . import training
 from . import qlearning
 from . import policy_gradient
-from . import policy
 
 
 from .utils import seed
+
+
+from .models import Experiment, RLAlgo, Runner, Run, Policy

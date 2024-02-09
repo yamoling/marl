@@ -28,7 +28,7 @@ class Node(Generic[T], ABC):
         self.name = f"{self.__class__.__name__}-{Node.num}"
         Node.num += 1
 
-        self._needs_update = True
+        self._need_to_recompute = True
         # Type hinting. self._cache is initially unbound.
         self._cache: T
 
@@ -36,13 +36,14 @@ class Node(Generic[T], ABC):
     def _compute_value(self) -> T:
         """Compute the node value."""
 
-    def _mark_for_update(self):
+    def invalidate_value(self):
+        """Invalidate the value of the node and its children."""
         # If the current node is already marked for update, so are its children
-        if self._needs_update:
+        if self._need_to_recompute:
             return
         for child in self.children:
-            child._mark_for_update()
-        self._needs_update = True
+            child.invalidate_value()
+        self._need_to_recompute = True
 
     def to(self, device: torch.device):
         """Move the node to the given device"""
@@ -57,9 +58,9 @@ class Node(Generic[T], ABC):
     @property
     def value(self) -> T:
         """The value of the node"""
-        if self._needs_update:
+        if self._need_to_recompute:
             self._cache = self._compute_value()
-            self._needs_update = False
+            self._need_to_recompute = False
         return self._cache
 
     def __hash__(self) -> int:
@@ -141,4 +142,4 @@ class ValueNode(Node[T]):
     def value(self, new_value: T):
         self._cache = new_value
         for child in self.children:
-            child._mark_for_update()
+            child.invalidate_value()

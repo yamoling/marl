@@ -1,7 +1,7 @@
 from flask import Response
 from serde.json import to_json
 from . import app
-from marl import Experiment
+from marl.models import Experiment
 
 
 @app.route("/results/load/<path:logdir>", methods=["GET"])

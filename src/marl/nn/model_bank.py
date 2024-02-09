@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
 
-from .interfaces import LinearNN, RecurrentNN, ActorCriticNN
+from marl.models.nn import LinearNN, RecurrentNN, ActorCriticNN
 
 
 @dataclass(unsafe_hash=True)

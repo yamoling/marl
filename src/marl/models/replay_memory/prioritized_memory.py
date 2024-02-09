@@ -100,7 +100,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, _batch: Batch, td_error: torch.Tensor):
+    def update(self, td_error: torch.Tensor):
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)

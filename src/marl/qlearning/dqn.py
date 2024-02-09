@@ -9,9 +9,7 @@ import numpy as np
 import torch
 from rlenv.models import Observation
 
-from marl.nn import LinearNN, RecurrentNN, NN
-from marl.models import RLAlgo
-from marl.policy import Policy
+from marl.models import RLAlgo, LinearNN, RecurrentNN, NN, Policy
 
 
 N = TypeVar("N", bound=NN)
