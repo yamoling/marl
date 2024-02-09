@@ -13,7 +13,7 @@ class RLAlgo(Summarizable, ABC):
         self.logger = logger
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64, Any]:
+    def choose_action(self, observation: Observation) -> np.ndarray[np.int32, Any]:
         """Get the action to perform given the input observation"""
 
     @abstractmethod
@@ -24,7 +24,7 @@ class RLAlgo(Summarizable, ABC):
     def name(self) -> str:
         """The name of the algorithm"""
         return self.__class__.__name__
-    
+
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
         raise NotImplementedError("Not implemented for this algorithm")
@@ -45,6 +45,7 @@ class RLAlgo(Summarizable, ABC):
         Hook after tests.
         Subclasses should swap from testing back to training policy.
         """
+
     def after_train_step(self, transition: Transition, time_step: int):
         """Hook after every training step."""
 
@@ -57,7 +58,7 @@ class RLAlgo(Summarizable, ABC):
     def before_test_episode(self, time_step: int, test_num: int):
         """
         Hook before each train episode
-        
+
         - time_step: the training step at which the test happens
         - test_num: the test number for this time step
         """

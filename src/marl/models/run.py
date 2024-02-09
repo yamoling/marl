@@ -31,7 +31,7 @@ class Run:
     def load(rundir: str):
         try:
             train_metrics = pl.read_csv(os.path.join(rundir, "train.csv"))
-        except (pl.NoDataError,  FileNotFoundError):
+        except (pl.NoDataError, FileNotFoundError):
             train_metrics = pl.DataFrame()
         try:
             test_metrics = pl.read_csv(os.path.join(rundir, "test.csv"))
@@ -61,15 +61,11 @@ class Run:
             shutil.rmtree(self.rundir)
             return
         except FileNotFoundError:
-            raise CorruptExperimentException(
-                f"Rundir {self.rundir} has already been removed from the file system."
-            )
+            raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         try:
-            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort(
-                "timestamp_sec"
-            )
+            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort("timestamp_sec")
             test_dir = os.path.join(self.rundir, "test", f"{time_step}")
             episodes = []
             for i, row in enumerate(test_metrics.rows()):
@@ -86,12 +82,13 @@ class Run:
         try:
             self.train_metrics = pl.read_csv(os.path.join(self.rundir, "train.csv"))
             max_train = self.train_metrics["time_step"].max()
-        except pl.NoDataError:
+        except (pl.NoDataError, FileNotFoundError):
             max_train = 0
+
         try:
             self.test_metrics = pl.read_csv(os.path.join(self.rundir, "test.csv"))
             max_test = self.test_metrics["time_step"].max()
-        except pl.NoDataError:
+        except (pl.NoDataError, FileNotFoundError):
             max_test = 0
         return max(max_train, max_test)
 
@@ -128,8 +125,8 @@ class Run:
 
     def to_json(self) -> dict[str, str | int | None]:
         return {
-            "rundir": self.rundir, 
-            "port": self.get_port(), 
+            "rundir": self.rundir,
+            "port": self.get_port(),
             "pid": self.get_pid(),
             "current_step": self.current_step,
         }

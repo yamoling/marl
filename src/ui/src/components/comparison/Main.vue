@@ -10,8 +10,18 @@
                         style="color: rgba(211, 211, 211, 0.5);" />
                 </div>
             </template>
-            <Plotter v-else v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks"
-                :title="label.replaceAll('_', ' ')" :showLegend="false" />
+            <template v-else>
+                <button @click="downloadDatasets">
+                    <font-awesome-icon :icon="['fas', 'download']" />
+                </button>
+                <select v-model="logdirToDownload">
+                    <option v-for="exp in experiments" :value="exp.logdir">{{ exp.logdir }}</option>
+                </select>
+                <Plotter v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks" :title="label.replaceAll('_', ' ')"
+                    :showLegend="false" />
+            </template>
+            <!-- <Plotter v-else v-for="[label, ds] in datasets" :datasets="ds" :xTicks="xTicks"
+                :title="label.replaceAll('_', ' ')" :showLegend="false" /> -->
         </div>
         <div class="col-3">
             <RightExperimentTable class="row" @show-experiment="addExperiment" @hide-experiment="removeExperiment"
@@ -33,9 +43,9 @@
  * - RightTable allows to change the colours of the experiments and to hide/show them.
  */
 import { ref, computed } from 'vue';
-import { Dataset, Experiment } from '../../models/Experiment';
+import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA } from "../../utils";
+import { EMA, downloadStringAsFile } from "../../utils";
 import LeftExperimentTable from './LeftExperimentTable.vue';
 import RightExperimentTable from './RightExperimentTable.vue';
 import SettingsPanel from './SettingsPanel.vue';
@@ -46,15 +56,19 @@ const metrics = ref<string[]>([]);
 const testOrTrain = ref("Test" as "Test" | "Train");
 const smoothValue = ref(0.);
 const xTicks = ref([] as number[]);
+const logdirToDownload = ref("");
+const datasetsByLogdir = ref(new Map<string, Dataset[]>());
 
 const datasets = computed(() => {
     const experimentDatasets = experiments.value.map(e => {
-        if (testOrTrain.value === "Train") return e.train_metrics.datasets;
-        return e.test_metrics.datasets;
+        if (testOrTrain.value === "Train") return [e.logdir, e.train_metrics.datasets] as [string, Dataset[]];
+        return [e.logdir, e.test_metrics.datasets] as [string, Dataset[]];
     });
     const allDatasets = new Map<string, Dataset[]>();
-    experimentDatasets.forEach((ds, i) => {
+    datasetsByLogdir.value = new Map<string, Dataset[]>();
+    experimentDatasets.forEach(([logdir, ds], i) => {
         ds.forEach(d => {
+            datasetsByLogdir.value.set(logdir, ds);
             d.colour = experiments.value[i].colour;
             if (metrics.value.includes(d.label)) {
                 if (allDatasets.has(d.label)) {
@@ -80,6 +94,17 @@ const datasets = computed(() => {
 const emits = defineEmits<{
     (event: "loadExperiment", logdir: string): void
 }>();
+
+
+function downloadDatasets() {
+    const ds = datasetsByLogdir.value.get(logdirToDownload.value);
+    if (ds === undefined) {
+        alert("No such logdir to download");
+        return;
+    }
+    const csv = toCSV(ds, xTicks.value);
+    downloadStringAsFile(csv, `${logdirToDownload.value}.csv`);
+}
 
 
 function addExperiment(experiment: Experiment) {

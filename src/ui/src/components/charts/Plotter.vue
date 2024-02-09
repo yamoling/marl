@@ -72,7 +72,7 @@ function updateChart() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         const stdColour = rgbToAlpha(ds.colour, 0.3);
-        const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
+        const std = clippedStd(ds.mean, ds.ci95, ds.min, ds.max);
         datasets.push({
             data: std.lower,
             backgroundColor: stdColour,

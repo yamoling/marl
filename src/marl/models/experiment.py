@@ -28,6 +28,7 @@ class Dataset:
     min: list[float]
     max: list[float]
     std: list[float]
+    ci95: list[float]
 
     def to_json(self) -> dict:
         return {
@@ -36,6 +37,7 @@ class Dataset:
             "std": self.std,
             "min": self.min,
             "max": self.max,
+            "ci95": self.ci95,
         }
 
 
@@ -56,7 +58,7 @@ class Experiment:
         env: RLEnv,
         test_env: RLEnv,
         test_interval: int,
-        n_steps: int
+        n_steps: int,
     ):
         """This constructor should not be called directly. Use Experiment.create() or Experiment.load() instead."""
         self.runs = []
@@ -64,10 +66,9 @@ class Experiment:
             if run.startswith("run_"):
                 try:
                     self.runs.append(Run.load(os.path.join(logdir, run)))
-                except Exception as e:
+                except Exception:
                     pass
-                
-        
+
         self.logdir = logdir
         self.algo = algo
         self.env = env
@@ -118,6 +119,7 @@ class Experiment:
         """Load an existing experiment."""
         try:
             import marl
+
             with open(os.path.join(logdir, "experiment.json"), "r", encoding="utf-8") as f:
                 summary = json.load(f)
             algo = marl.from_summary(summary["algorithm"])
@@ -129,12 +131,18 @@ class Experiment:
                 env=env,
                 test_env=test_env,
                 test_interval=summary["test_interval"],
-                n_steps=summary["n_steps"]
+                n_steps=summary["n_steps"],
             )
         except exceptions.MissingParameterException as e:
             raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}:{e}")
         except json.decoder.JSONDecodeError:
-            raise exceptions.CorruptExperimentException(f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file.")
+            raise exceptions.CorruptExperimentException(
+                f"\n\tUnable to load experiment from {logdir}: experiment.json is not a valid JSON file."
+            )
+        except KeyError:
+            raise exceptions.CorruptExperimentException(
+                f"\n\tUnable to load experiment from {logdir}: experiment.json is missing some fields."
+            )
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -143,7 +151,7 @@ class Experiment:
             return os.path.exists(os.path.join(logdir, "experiment.json"))
         except:
             return False
-        
+
     @staticmethod
     def find_experiment_directory(subdir: str) -> str | None:
         """Find the experiment directory containing a given subdirectory."""
@@ -157,10 +165,7 @@ class Experiment:
     def summary(self) -> dict[str, Any]:
         return {
             "algorithm": self.algo.summary(),
-            "env": {
-                **self.env.summary(),
-                "action_meanings": self.env.action_meanings
-            },
+            "env": {**self.env.summary(), "action_meanings": self.env.action_meanings},
             "test_env": self.test_env.summary(),
             "logdir": self.logdir,
             "n_steps": self.n_steps,
@@ -202,14 +207,14 @@ class Experiment:
         algo = deepcopy(self.algo)
         algo.logger = logger
         env = deepcopy(self.env)
-        
+
         runner = Runner(
             env=env,
             algo=algo,
             logger=logger,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
-            test_env=self.test_env
+            test_env=self.test_env,
         )
         self.runs.append(Run.create(rundir))
         return runner
@@ -263,33 +268,44 @@ class Experiment:
     def _metrics(df: pl.DataFrame) -> tuple[list[int], list[Dataset]]:
         if len(df) == 0:
             return [], []
-        df = df.drop("timestamp_sec")
+        # df = df.drop("timestamp_sec")
         df_stats = stats.stats_by("time_step", df)
         res = []
-        for col in df.columns:
-            if col == "time_step":
-                continue
-            res.append(Dataset(
-                label=col, 
-                mean=df_stats[f"mean_{col}"].to_list(), 
-                std=df_stats[f"std_{col}"].to_list(),
-                min=df_stats[f"min_{col}"].to_list(),
-                max=df_stats[f"max_{col}"].to_list(),
-            ))
+        columns = [col for col in df.columns if col not in ["time_step", "timestamp_sec"]]
+        if "in_elevator" in columns:
+            columns.append("exit_rate")
+        for col in columns:
+            res.append(
+                Dataset(
+                    label=col,
+                    mean=df_stats[f"mean_{col}"].to_list(),
+                    std=df_stats[f"std_{col}"].to_list(),
+                    min=df_stats[f"min_{col}"].to_list(),
+                    max=df_stats[f"max_{col}"].to_list(),
+                    ci95=df_stats[f"ci95_{col}"].to_list(),
+                )
+            )
         return df_stats["time_step"].to_list(), res
 
     def test_metrics(self) -> tuple[list[int], list[Dataset]]:
         try:
-            df = pl.concat(run.test_metrics for run in self.runs if not run.test_metrics.is_empty())
+            dfs = [run.test_metrics for run in self.runs if not run.test_metrics.is_empty()]
+            dfs = [df.unique(subset=["time_step"]) for df in dfs]
+            df = pl.concat(dfs)
+            # df = pl.concat(run.test_metrics.unique() for run in self.runs if not run.test_metrics.is_empty())
             return self._metrics(df)
         except ValueError:
             return [], []
 
     def train_metrics(self):
         try:
-            df = pl.concat(run.train_metrics for run in self.runs if not run.train_metrics.is_empty())
+            dfs = [run.train_metrics for run in self.runs if not run.train_metrics.is_empty()]
             # Round the time step to match the closest test interval
-            df = stats.round_col(df, "time_step", self.test_interval)
+            dfs = [stats.round_col(df, "time_step", self.test_interval) for df in dfs]
+            # Compute the mean of the metrics for each time step
+            dfs = [df.group_by("time_step").mean() for df in dfs]
+            df = pl.concat(dfs)
+            # Then finally get the metrics averag
             ticks, train_metrics = self._metrics(df)
 
             df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())
@@ -298,7 +314,7 @@ class Experiment:
             return ticks, train_metrics + training_data
         except ValueError:
             return [], []
-        
+
     # def training_data(self):
     #     try:
     #         df = pl.concat(run.training_data for run in self.runs if not run.training_data.is_empty())

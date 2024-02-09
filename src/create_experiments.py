@@ -2,7 +2,6 @@ import rlenv
 import marl
 from laser_env import ObservationType, StaticLaserEnv
 from marl import Experiment
-from marl.utils.schedule import Schedule
 
 
 def create_experiments():
@@ -25,32 +24,44 @@ def create_experiments():
     mixer = marl.qlearning.mixers.VDN(env.n_agents)
     # mixer = marl.qlearning.mixers.QMix(env.state_shape[0], env.n_agents)
     memory = marl.models.TransitionMemory(memory_size)
-    # memory = marl.models.NStepMemory(memory_size, n, gamma)
+    # memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=0.5, eps=1e-2, beta_anneal_steps=200_000)
+    # memory = marl.models.NStepMemory(memory_size, 3, gamma)
 
-    ir = marl.intrinsic_reward.RandomNetworkDistillation(
-        env.observation_shape,
-        env.extra_feature_shape,
-        update_ratio=0.25,
-        clip_value=1,
-        ir_weight=Schedule.linear(2.0, 0, 300_000),
-    )
+    # ir = marl.intrinsic_reward.RandomNetworkDistillation(
+    #     obs_shape=env.observation_shape,
+    #     extras_shape=env.extra_feature_shape,
+    #     update_ratio=0.25,
+    #     ir_weight=marl.utils.Schedule.linear(2.0, 0, 300_000),
+    # )
 
-    algo = marl.qlearning.LinearMixedDQN(
+    algo = marl.qlearning.DQN(
         qnetwork=qnetwork,
         batch_size=batch_size,
         train_policy=train_policy,
         test_policy=test_policy,
         gamma=gamma,
         memory=memory,
-        mixer=mixer,
         train_interval=5,
-        # ir_module=ir,
     )
+
+    # algo = marl.qlearning.LinearMixedDQN(
+    #     qnetwork=qnetwork,
+    #     batch_size=batch_size,
+    #     train_policy=train_policy,
+    #     test_policy=test_policy,
+    #     gamma=gamma,
+    #     memory=memory,
+    #     mixer=mixer,
+    #     train_interval=5,
+    #     # ir_module=ir,
+    # )
 
     name = level
     if level.startswith("maps/"):
         name = level[-4:]
-    logdir = f"logs/bnaic-{name}-{mixer.name}"
+    logdir = f"logs/bnaic-{name}-DQN"
+    # logdir = "logs/test"
+
     # logdir = "test"
     exp = Experiment.create(
         logdir,

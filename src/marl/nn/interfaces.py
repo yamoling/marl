@@ -12,7 +12,7 @@ class NN(torch.nn.Module, Summarizable, ABC, Generic[O]):
     """Parent class of all neural networks"""
     is_recurrent: bool
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]|None, output_shape: tuple[int, ...]) -> None:
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__()
         self.input_shape = input_shape
         self.extras_shape = extras_shape

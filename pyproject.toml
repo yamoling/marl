@@ -8,19 +8,17 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.10, <4"
 numpy = "^1.23.4"
-rlenv = { path = "/home/yann/projects/python/rlenv", develop = true }
+rlenv = { path = "/home/yamoling/rlenv", develop = true }
 tensorboard = "^2.11.2"
 opencv-python = "^4.7.0.68"
-laser-env = { path = "/home/yann/projects/python/laser-env" }
+laser-env = { path = "/home/yamoling/laser-env" }
 sumtree = "^0.2"
-polars = "^0.16.18"
+polars = "^0.20"
 tqdm = "^4.65.0"
 argcomplete = "^3.0.8"
 pyserde = "^0.12"
 
 [tool.poetry.group.dev.dependencies]
-matplotlib = "^3.6.3"
-pygobject = "^3.42.2"
 websockets = "^10.4"
 flask = "^2.2.2"
 flask-cors = "^3.0.10"
@@ -40,3 +38,8 @@ pythonpath = ["src"]
 typeCheckingMode = "basic"       # "strict", "off"
 include = ["src"]
 reportPrivateImportUsage = false
+
+
+[tool.ruff]
+# Line length is 120 characters
+line-length = 120
