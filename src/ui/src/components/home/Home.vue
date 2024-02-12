@@ -142,8 +142,6 @@ const metrics = computed(() => {
 const selectedMetrics = ref(["score"]);
 const logdirToDownload = ref("");
 
-onMounted(experimentStore.refresh);
-
 /** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();

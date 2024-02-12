@@ -5,27 +5,10 @@ import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
-
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
     const runningExperiments = ref(new Set<string>());
-
-
-    async function startWebsocket() {
-        const ws = new WebSocket(`ws://${location.hostname}/5002`);
-        ws.onopen = () => {
-            console.log("Websocket opened");
-        };
-        ws.onclose = () => {
-            console.log("Websocket closed");
-        };
-        ws.onerror = (e) => {
-            console.log("Websocket error", e);
-        };
-        ws.onmessage = (e) => {
-            console.log("Websocket message", e);
-        };
-    }
+    refresh();
 
     async function refresh() {
         try {

@@ -50,7 +50,7 @@ def create_smac():
 def create_lle():
     n_steps = 1_500_000
     gamma = 0.95
-    env = LLE.level(1, ObservationType.LAYERED)
+    env = LLE.level(6, ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -60,17 +60,18 @@ def create_lle():
         0.05,
         n_steps=500_000,
     )
-    rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-        target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
-        normalise_rewards=False,
-        # gamma=gamma,
-    )
-    memory = marl.models.PrioritizedMemory(
-        memory=memory,
-        alpha=0.6,
-        beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-        td_error_clipping=5.0,
-    )
+    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
+    #     normalise_rewards=False,
+    #     # gamma=gamma,
+    # )
+    rnd = None
+    # memory = marl.models.PrioritizedMemory(
+    #     memory=memory,
+    #     alpha=0.6,
+    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
+    #     td_error_clipping=5.0,
+    # )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -94,8 +95,7 @@ def create_lle():
         test_policy=marl.policy.ArgMax(),
     )
 
-    # logdir = f"logs/{env.name}-lvl6-shaping-vdn"
-    logdir = f"logs/{env.name}"
+    logdir = f"logs/reproduce-{env.name}"
     if trainer.mixer is not None:
         logdir += f"-{trainer.mixer.name}"
     else:
@@ -104,8 +104,6 @@ def create_lle():
         logdir += f"-{trainer.ir_module.name}"
     if isinstance(trainer.memory, marl.models.PrioritizedMemory):
         logdir += "-PER"
-
-    logdir += "-bnaic"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
