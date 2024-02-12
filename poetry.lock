@@ -408,6 +408,27 @@ files = [
 ]
 
 [[package]]
+name = "laser-env"
+version = "0.4.1"
+description = "A reinforcement learning environment with lasers"
+optional = false
+python-versions = ">=3.10,<4"
+files = []
+develop = false
+
+[package.dependencies]
+networkx = "^3.1"
+numpy = "^1.23.4"
+opencv-python = "^4.6.0"
+rlenv = {git = "https://github.com/yamoling/rlenv.git"}
+
+[package.source]
+type = "git"
+url = "https://github.com/raphaelavalos/laser-env.git"
+reference = "HEAD"
+resolved_reference = "7265699158cc3b1f95ee8fbcdc83447047549573"
+
+[[package]]
 name = "laser-learning-environment"
 version = "0.1.11"
 description = "A fast Multi-Agent Reinforcement Learning Environment"
@@ -942,7 +963,7 @@ name = "rlenv"
 version = "0.4.6"
 description = "A strongly typed Multi-Agent Reinforcement Learning framework"
 optional = false
-python-versions = ">=3.10,<3.13"
+python-versions = ">=3.10,<4"
 files = []
 develop = false
 
@@ -961,7 +982,7 @@ smac = ["pysc2 @ git+https://github.com/deepmind/pysc2.git", "smac @ git+https:/
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "a60cec8a3f8700ae4c593f7f9444756fd4a4adf2"
+resolved_reference = "0960904a71a1e241255933568b99eb42a444279a"
 
 [[package]]
 name = "scipy"
@@ -1102,13 +1123,13 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.66.1"
+version = "4.66.2"
 description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tqdm-4.66.1-py3-none-any.whl", hash = "sha256:d302b3c5b53d47bce91fea46679d9c3c6508cf6332229aa1e7d8653723793386"},
-    {file = "tqdm-4.66.1.tar.gz", hash = "sha256:d88e651f9db8d8551a62556d3cff9e3034274ca5d66e93197cf2490e2dcb69c7"},
+    {file = "tqdm-4.66.2-py3-none-any.whl", hash = "sha256:1ee4f8a893eb9bef51c6e35730cebf234d5d0b6bd112b0271e10ed7c24a02bd9"},
+    {file = "tqdm-4.66.2.tar.gz", hash = "sha256:6cd52cdf0fef0e0f543299cfc96fec90d7b8a7e88745f411ec33eb44d5ed3531"},
 ]
 
 [package.dependencies]
@@ -1258,4 +1279,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.12"
-content-hash = "328b82046cecec7c3544e7af2a58001b0153aaf56e95554ef8c71b17a466d70c"
+content-hash = "7be5853fac71d7226ea8b0f7da72ebb05de08bcaff929c5f7ed133e40077da14"
