@@ -191,3 +191,4 @@ files/
 saved/
 .ruff_cache
 src/ui/bun.lockb
+poetry.lock

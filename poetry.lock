@@ -982,7 +982,7 @@ smac = ["pysc2 @ git+https://github.com/deepmind/pysc2.git", "smac @ git+https:/
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "0960904a71a1e241255933568b99eb42a444279a"
+resolved_reference = "c3cebb78b790aba9fd4b6c7cad7d9ce3117bf7d2"
 
 [[package]]
 name = "scipy"
