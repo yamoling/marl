@@ -178,7 +178,7 @@ class CNN_ActorCritic(ActorCriticNN):
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
         )
-        # self.policy_network = torch.nn.Linear(128, *output_shape)
+        
         self.policy_network = torch.nn.Sequential(
             torch.nn.Linear(128, *output_shape),
             # torch.nn.Softmax(dim=-1), use logits to mask invalid actions
@@ -197,10 +197,6 @@ class CNN_ActorCritic(ActorCriticNN):
 
     def value(self, obs: torch.Tensor):
         return self.value_network(obs)
-
-    # def value(self, obs : torch.Tensor):
-    #     policy, value = self.forward(obs.obs, obs_extras)
-    #     return torch.mean(value).item()
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         features = self._cnn_forward(obs)
