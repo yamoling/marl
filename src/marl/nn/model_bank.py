@@ -181,7 +181,7 @@ class CNN_ActorCritic(ActorCriticNN):
         # self.policy_network = torch.nn.Linear(128, *output_shape)
         self.policy_network = torch.nn.Sequential(
             torch.nn.Linear(128, *output_shape),
-            torch.nn.Softmax(dim=-1),
+            # torch.nn.Softmax(dim=-1), use logits to mask invalid actions
         )
         self.value_network = torch.nn.Linear(128, 1)
 

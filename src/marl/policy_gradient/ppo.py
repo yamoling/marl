@@ -40,7 +40,8 @@ class PPO(RLAlgo):
             # if self.is_training:
             #     probs = torch.gather(dist.probs, dim=-1, index=action.unsqueeze(-1))
             #     self.action_probs = probs.numpy(force=True)
-            return action.numpy(force=True), value, dist.probs.numpy(force=True)
+            #print(dist.log_prob(action).numpy(force=True))
+            return action.numpy(force=True), value, dist.log_prob(action).numpy(force=True)
         
     def value(self, obs: Observation) -> float:
         obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)

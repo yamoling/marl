@@ -98,10 +98,10 @@ class PPOTrainer(Trainer):
             for k in range(t, mem_len - 1):
                 a_t += discount * (batch.rewards[k] + self.gamma * batch.value[k + 1] * (1 - batch.dones[k]) - batch.value[k])
                 discount *= self.gamma
-            print(a_t)
+            #print(a_t)
             advantages[t] = a_t.cpu().squeeze()
         advantages = torch.from_numpy(advantages).to(self.device)
-        
+
         # with torch.no_grad():
             
             
@@ -132,30 +132,56 @@ class PPOTrainer(Trainer):
                 obs = batch.obs[b]
                 extras = batch.extras[b]
                 actions = batch.actions[b]
+                available_actions = batch.available_actions[b]
                 old_log_probs = batch.action_probs[b]
                 values = batch.value[b]
-            
+                                
                 new_logits, new_values = self.network.forward(obs, extras)
+                # new_logits[torch.tensor(obs.available_actions) == 0] = -torch.inf   # mask unavailable actions
                 # new_logits = new_logits.squeeze(-1)
                 # new_values = new_values.squeeze(-1)
-                dist = torch.distributions.Categorical(logits=new_logits)
-                new_log_probs = dist.log_prob(actions)  
-                print(new_log_probs)
-                print()
-                print(old_log_probs)
-                new_log_probs = new_log_probs.view_as(old_log_probs)
                 
-                print(new_log_probs.shape, old_log_probs.shape)
+                # print(available_actions)
+                
+                # print(obs[0])
+                # for i in range(len(new_logits)):
+                #     new_logits[i][torch.tensor(obs[i].available_actions) == 0] = -torch.inf
+                
+                # new_logits[torch.tensor(available_actions.reshape(new_logits.shape)) == 0] = -torch.inf  # mask unavailable actions
+                
+                
+                dist = torch.distributions.Categorical(logits=new_logits)
+                new_log_probs = dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
+
                 # Compute ratio between new and old probabilities in the log space (basically importance sampling)  
                 rho = torch.exp(new_log_probs - old_log_probs)
                 # Actor surrogate loss
+                
+                # print("rho")
+                # print(rho)
+                # print("advantages")
+                # print(advantages[b])
                 surrogate_1 = rho * advantages[b]
                 surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
                 actore_loss = torch.min(surrogate_1, surrogate_2).mean()
                 
                 # Value estimation loss
-                returns = advantages[b] + values
-                critic_loss = torch.mean((new_values - returns) ** 2)
+                
+                # print("advantages")
+                # print(advantages[b])
+                # print("values")
+                # print(values)
+                # print("values 2")
+                # print(values.reshape(advantages[b].shape))
+                # advantages = torch.reshape(advantages, batch.value.shape)
+                returns = advantages[b] + values.reshape(advantages[b].shape)
+                # print("new values")
+                # print(new_values.reshape(returns.shape))
+                # print("returns")
+                # print(returns)
+                # print("actore_loss")
+                # print(actore_loss)
+                critic_loss = torch.mean((new_values.reshape(returns.shape) - returns) ** 2)
                 
                 # Entropy loss
                 entropy_loss: torch.Tensor = torch.mean(dist.entropy())

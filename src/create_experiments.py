@@ -50,7 +50,7 @@ def create_smac():
 
 
 def create_ppo_lle():
-    n_steps = 4_000
+    n_steps = 1_000_000
     env = LLE.level(2, ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
