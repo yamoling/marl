@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "bun run make-typecheck && vue-tsc && vite build",
-    "make-typecheck": "rimraf src/models/*-ti.ts && ts-interface-builder src/models/*.ts",
+    "build": "vue-tsc && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,7 +18,6 @@
     "chart.js": "^4",
     "pinia": "^2.1.7",
     "rainbowvis.js": "^1.1.1",
-    "rimraf": "^5.0.5",
     "vue": "^3.2.45",
     "vue-router": "4"
   },

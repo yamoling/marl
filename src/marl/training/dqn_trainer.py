@@ -7,7 +7,7 @@ import torch
 from rlenv import Episode, Transition
 
 from marl.intrinsic_reward import IRModule
-from marl.models import Updatable, Batch, ReplayMemory, PrioritizedMemory, LinearNN, RecurrentNN, NN, Policy, Mixer
+from marl.models import Updatable, Batch, ReplayMemory, PrioritizedMemory, LinearNN, RecurrentNN, Policy, Mixer, QNetwork
 from marl.models.trainer import Trainer
 from marl.training import nodes
 from marl.training.nodes import Node
@@ -18,7 +18,7 @@ from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 @serialize
 @dataclass
 class DQNTrainer(Trainer):
-    qnetwork: NN
+    qnetwork: QNetwork
     policy: Policy
     memory: ReplayMemory
     gamma: float
@@ -33,7 +33,7 @@ class DQNTrainer(Trainer):
 
     def __init__(
         self,
-        qnetwork: LinearNN | RecurrentNN,
+        qnetwork: QNetwork,
         train_policy: Policy,
         memory: ReplayMemory,
         gamma: float = 0.99,

@@ -1,18 +1,8 @@
 from typing import Optional
 import torch
-from marl.models import Batch, ReplayMemory, PrioritizedMemory, LinearNN, RecurrentNN, NN, Updatable
+from marl.models import Batch, ReplayMemory, PrioritizedMemory, NN, Updatable, QNetwork
 from marl.models.batch import EpisodeBatch
 from .node import Node, ValueNode
-
-
-def forward(nn: NN, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-    match nn:
-        case LinearNN():
-            return nn.forward(obs, extras)
-        case RecurrentNN():
-            return nn.forward(obs, extras)[0]
-        case other:
-            raise NotImplementedError(f"Unknown NN type: {type(other)}")
 
 
 class MemoryNode(Node[Batch]):
@@ -47,7 +37,7 @@ class PERNode(MemoryNode, Updatable):
 
 
 class QValues(Node[torch.Tensor]):
-    def __init__(self, qnetwork: NN, batch: Node[Batch]):
+    def __init__(self, qnetwork: QNetwork, batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
         self.batch = batch
@@ -58,7 +48,7 @@ class QValues(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        qvalues = forward(self.qnetwork, batch.obs, batch.extras)
+        qvalues = self.qnetwork.forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
         qvalues = qvalues.squeeze(dim=-1)
         return qvalues
@@ -71,7 +61,7 @@ class QValues(Node[torch.Tensor]):
 class NextValues(Node[torch.Tensor]):
     """Compute the value of the next observation (max over qvalues)"""
 
-    def __init__(self, qtarget: NN, batch: Node[Batch]):
+    def __init__(self, qtarget: QNetwork, batch: Node[Batch]):
         super().__init__([batch])
         self.qtarget = qtarget
         self.batch = batch
@@ -87,7 +77,7 @@ class NextValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         # with torch.no_grad():
-        next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
             # For episode batches, the batch includes the initial observation
             # in order to compute the hidden state at t=0 and use it for t=1.
@@ -98,7 +88,7 @@ class NextValues(Node[torch.Tensor]):
 
 
 class DoubleQLearning(Node[torch.Tensor]):
-    def __init__(self, qnetwork: NN, qtarget: NN, batch: Node[Batch]):
+    def __init__(self, qnetwork: QNetwork, qtarget: QNetwork, batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
         self.qtarget = qtarget
@@ -114,12 +104,12 @@ class DoubleQLearning(Node[torch.Tensor]):
         self.qtarget.to(device)
         return super().to(device)
 
-    def _compute_value(self) -> torch.Tensor:
+    def _compute_value(self):
         batch = self.batch.value
-        target_next_qvalues = forward(self.qtarget, batch.obs_, batch.extras_)
+        target_next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
         # Take the indices from the target network and the values from the current network
         # instead of taking both from the target network
-        current_next_qvalues = forward(self.qnetwork, batch.obs_, batch.extras_)
+        current_next_qvalues = self.qnetwork.forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):
             # See above comment in NextQValues for an explanation on the reasons for this "if"
             target_next_qvalues = target_next_qvalues[1:]

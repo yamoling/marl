@@ -3,18 +3,24 @@ from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
 
-from marl.models.nn import LinearNN, RecurrentNN, ActorCriticNN
+from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, LinearNN
 
 
 @dataclass(unsafe_hash=True)
-class MLP(LinearNN):
+class MLP(QNetwork):
     """
     Multi layer perceptron
     """
 
     layer_sizes: tuple[int, ...]
 
-    def __init__(self, input_size: int, extras_size: int, hidden_sizes: tuple[int, ...], output_size: int):
+    def __init__(
+        self,
+        input_size: int,
+        extras_size: int,
+        hidden_sizes: tuple[int, ...],
+        output_size: int,
+    ):
         super().__init__((input_size,), (extras_size,), (output_size,))
         self.layer_sizes = (input_size + extras_size, *hidden_sizes, output_size)
         layers = [torch.nn.Linear(input_size + extras_size, hidden_sizes[0]), torch.nn.ReLU()]
@@ -40,7 +46,7 @@ class MLP(LinearNN):
         return self.nn(obs)
 
 
-class RNNQMix(RecurrentNN):
+class RNNQMix(RecurrentQNetwork):
     """RNN used in the QMix paper:
     - linear 64
     - relu
@@ -59,9 +65,7 @@ class RNNQMix(RecurrentNN):
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, n_outputs)
 
-    def forward(
-        self, obs: torch.Tensor, extras: torch.Tensor | None = None, hidden_states: torch.Tensor | None = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor | None = None):
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
@@ -73,27 +77,27 @@ class RNNQMix(RecurrentNN):
             extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
             obs = torch.concat((obs, extras), dim=-1)
         x = self.fc1.forward(obs)
-        x, hidden_state = self.gru.forward(x, hidden_states)
+        x, self.hidden_state = self.gru.forward(x, self.hidden_states)
         x = self.fc2.forward(x)
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_agents, *self.output_shape)
-        return x, hidden_state
+        return x
 
 
 class RNN(RNNQMix):
     pass
 
 
-class DuelingMLP(LinearNN):
-    def __init__(self, nn: LinearNN, output_size: int):
+class DuelingMLP(QNetwork):
+    def __init__(self, nn: QNetwork, output_size: int):
         assert len(nn.output_shape) == 1
         super().__init__(nn.input_shape, nn.extras_shape, (output_size,))
         self.nn = nn
-        self.value = torch.nn.Linear(nn.output_shape[0], 1)
+        self.value_head = torch.nn.Linear(nn.output_shape[0], 1)
         self.advantage = torch.nn.Linear(nn.output_shape[0], output_size)
 
     @classmethod
-    def from_env(cls, env: RLEnv, nn: LinearNN):
+    def from_env(cls, env: RLEnv, nn: QNetwork):
         assert nn.input_shape == env.observation_shape
         assert nn.extras_shape == env.extra_feature_shape
         return cls(nn, env.n_actions)
@@ -101,12 +105,12 @@ class DuelingMLP(LinearNN):
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         features = self.nn.forward(obs, extras)
         features = torch.nn.functional.relu(features)
-        value = self.value.forward(features)
+        value = self.value_head.forward(features)
         advantage = self.advantage.forward(features)
         return value + advantage - advantage.mean(dim=-1, keepdim=True)
 
 
-class AtariCNN(LinearNN):
+class AtariCNN(QNetwork):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
@@ -126,7 +130,7 @@ class AtariCNN(LinearNN):
         return qvalues.view(batch_size, n_agents, -1)
 
 
-class CNN(LinearNN):
+class CNN(QNetwork):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
@@ -178,7 +182,7 @@ class CNN_ActorCritic(ActorCriticNN):
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
         )
-        
+
         self.policy_network = torch.nn.Sequential(
             torch.nn.Linear(128, *output_shape),
             # torch.nn.Softmax(dim=-1), use logits to mask invalid actions

@@ -35,10 +35,6 @@ class EpisodeBatch(Batch):
     #     return normalized_returns
 
     @cached_property
-    def value(self):
-        raise NotImplementedError("TODO")
-
-    @cached_property
     def obs_(self):
         """
         All the observations of the episodes, from 0 to episode_length + 1.
@@ -90,10 +86,6 @@ class EpisodeBatch(Batch):
     @cached_property
     def states_(self):
         return torch.from_numpy(np.array([e.states[1:] for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-
-    @cached_property
-    def action_probs(self):
-        return torch.from_numpy(np.array([e.actions_probs for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
     def masks(self):

@@ -51,13 +51,13 @@ class PPOTrainer(Trainer):
 
         self.to(self.device)
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[Any]:
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.update_on_episodes:
             return {}
         self.memory.add(episode)
         return self._update(time_step)
 
-    def update_step(self, transition: Transition, step_num: int) -> dict[Any]:
+    def update_step(self, transition: Transition, step_num: int) -> dict[str, float]:
         if not self.update_on_steps:
             return {}
         self.memory.add(transition)
@@ -147,7 +147,7 @@ class PPOTrainer(Trainer):
         self.batch.randomize()
 
     def _make_graph(self):
-        batch = nodes.ValueNode[Batch](None)
+        batch = nodes.ValueNode[Batch](None)  # type: ignore
         return batch
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):

@@ -49,10 +49,9 @@ def create_smac():
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-
 def create_ppo_lle():
     n_steps = 1_000_000
-    env = LLE.level(2, ObservationType.LAYERED)
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -71,15 +70,13 @@ def create_ppo_lle():
         clip_eps=0.2,
         c1=0.5,
         c2=0,
-    )       
-
-    algo = marl.policy_gradient.PPO(
-        ac_network=ac_network
     )
-    #logdir = f"logs/{env.name}-TEST_PPO"
+
+    algo = marl.policy_gradient.PPO(ac_network=ac_network)
+    # logdir = f"logs/{env.name}-TEST_PPO"
     logdir = f"logs/{env.name}-TEST-PPO"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=1000, n_steps=n_steps)
-    
+
 
 def create_lle():
     n_steps = 1_500_000
@@ -138,6 +135,8 @@ def create_lle():
         logdir += f"-{trainer.ir_module.name}"
     if isinstance(trainer.memory, marl.models.PrioritizedMemory):
         logdir += "-PER"
+
+    logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -210,4 +209,4 @@ if __name__ == "__main__":
     exp = create_lle()
     # exp = create_laser_env()
     print(exp.logdir)
-    # exp.create_runner(seed=0).to("auto").train(1)
+    exp.create_runner(seed=0).to("auto").train(1)

@@ -1,13 +1,12 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Generic, Literal, TypeVar
+from rlenv import Observation
 from abc import ABC, abstractmethod
 import torch
 from serde import serde
 
 from rlenv.models import RLEnv
-
-Output = TypeVar("Output")
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -20,7 +19,7 @@ def randomize(init_fn, nn: torch.nn.Module):
 
 @serde
 @dataclass
-class NN(torch.nn.Module, ABC, Generic[Output]):
+class NN(torch.nn.Module, ABC):
     """Parent class of all neural networks"""
 
     input_shape: tuple[int, ...]
@@ -36,7 +35,7 @@ class NN(torch.nn.Module, ABC, Generic[Output]):
         self.name = self.__class__.__name__
 
     @abstractmethod
-    def forward(self, x: torch.Tensor, *args) -> Output:
+    def forward(self, *args):
         """Forward pass"""
 
     @property
@@ -68,56 +67,76 @@ class NN(torch.nn.Module, ABC, Generic[Output]):
         return hash(self.__class__.__name__)
 
 
-class LinearNN(NN[torch.Tensor]):
-    """Abstract class defining a linear neural network"""
+class RecurrentNN(NN):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.hidden_states: Optional[torch.Tensor] = None
 
-    @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Forward pass"""
+    def reset_hidden_states(self):
+        """Reset the hidden states"""
+        self.hidden_states = None
 
 
-class RecurrentNN(NN[tuple[torch.Tensor, torch.Tensor]]):
-    """Abstract class representing a recurrent neural network"""
+class LinearNN(NN):
+    pass
 
-    @abstractmethod
-    def forward(
-        self,
-        obs: torch.Tensor,
-        extras: torch.Tensor,
-        hidden_states: Optional[torch.Tensor] = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        Forward pass.
-        All the inputs must have the shape [Episode length, Number of agents, *data_shape]
 
-        Arguments:
-            - (torch.Tensor) obs: the observation(s)
-            - (torch.Tensor) extras: the extra features (agent ID, ...)
-            - (torch.Tensor) hidden_states: the hidden states
+# class RecurrentNN(NN):
+#     """Abstract class representing a recurrent neural network"""
 
-        Note that obs, extras and hidden shapes must have the same number of dimensions
+#     @abstractmethod
+#     def forward(
+#         self,
+#         obs: torch.Tensor,
+#         extras: torch.Tensor,
+#         hidden_states: Optional[torch.Tensor] = None,
+#     ) -> tuple[torch.Tensor, torch.Tensor]:
+#         """
+#         Forward pass.
+#         All the inputs must have the shape [Episode length, Number of agents, *data_shape]
 
-        Returns:
-            - (torch.Tensor) The NN output
-            - (torch.Tensor) The hidden states
-        """
+#         Arguments:
+#             - (torch.Tensor) obs: the observation(s)
+#             - (torch.Tensor) extras: the extra features (agent ID, ...)
+#             - (torch.Tensor) hidden_states: the hidden states
+
+#         Note that obs, extras and hidden shapes must have the same number of dimensions
+
+#         Returns:
+#             - (torch.Tensor) The NN output
+#             - (torch.Tensor) The hidden states
+#         """
 
 
 class QNetwork(NN):
-    @abstractmethod
-    def qvalues(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Compute the Q-values"""
+    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        return obs_tensor, extras
 
-    def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def qvalues(self, obs: Observation) -> torch.Tensor:
+        """Compute the Q-values"""
+        return self.forward(*self.to_tensor(obs)).squeeze(0)
+
+    def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function"""
-        return self.forward(obs, extras).max(dim=-1).values
+        agent_values = self.qvalues(obs).max(dim=-1).values
+        return agent_values.mean(dim=-1)
+
+    @abstractmethod
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Compute the Q-values"""
 
     @classmethod
     def from_env(cls, env: RLEnv):
         return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
 
 
-class ActorCriticNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
+class RecurrentQNetwork(QNetwork, RecurrentNN):
+    pass
+
+
+class ActorCriticNN(NN, ABC):
     """Actor critic neural network"""
 
     @property
@@ -144,7 +163,7 @@ class ActorCriticNN(NN[tuple[torch.Tensor, torch.Tensor]], ABC):
 
 
 @dataclass(eq=False)
-class Mixer(NN[torch.Tensor], ABC):
+class Mixer(LinearNN, ABC):
     n_agents: int
 
     def __init__(self, n_agents: int):
