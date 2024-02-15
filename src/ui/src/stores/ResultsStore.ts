@@ -33,6 +33,16 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         return await resp.json();
     }
 
+    async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
+        const resp = await fetch(`${HTTP_URL}/results/load-by-run/${logdir}`);
+        const results = await resp.json() as ExperimentResults[];
+        results.forEach(res => {
+            res.test.forEach(ds => ds.logdir = res.logdir);
+            res.train.forEach(ds => ds.logdir = res.logdir);
+        });
+        return results;
+    }
+
     function isLoaded(logdir: string): boolean {
         return results.value.has(logdir);
     }
@@ -43,6 +53,7 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         load,
         unload,
         isLoaded,
-        getTestsResultsAt
+        getTestsResultsAt,
+        getResultsByRun
     };
 });

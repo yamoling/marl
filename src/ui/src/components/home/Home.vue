@@ -44,6 +44,8 @@
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => resultsStore.load(exp.logdir)">
                                 <td class="text-center">
+                                    <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
+                                        :icon="['fas', 'spinner']" spin />
                                     <template v-if="resultsStore.results.has(exp.logdir)">
                                         <input type="color" :value="colours.get(exp.logdir)" @click.stop
                                             @change="(e) => colours.set(exp.logdir, (e.target as HTMLInputElement).value)">
@@ -63,9 +65,7 @@
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
-                                    <font-awesome-icon v-if="exp.logdir in resultsStore.loading" :icon="['fas', 'spinner']"
-                                        spin />
-                                    <button v-else-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
+                                    <button v-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
                                         @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
                                     </button>

@@ -8,3 +8,13 @@ from . import replay_memory
 from . import prioritized_memory
 from . import nstep_memory
 
+__all__ = [
+    "ReplayMemory",
+    "TransitionMemory",
+    "EpisodeMemory",
+    "PrioritizedMemory",
+    "NStepMemory",
+    "replay_memory",
+    "prioritized_memory",
+    "nstep_memory",
+]

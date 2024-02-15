@@ -10,7 +10,29 @@
             <EnvironmentParams :env="experiment.env" />
         </div>
         <div class="col" v-if="results != null">
-            <MetricsTable :experiment="experiment" :results="results" @view-episode="viewer.viewEpisode" />
+            <div class="input-group mb-2">
+                <label class="btn" :class="plotOrTable == 'plot' ? 'btn-success' : 'btn-outline-dark'">
+                    Plot
+                    <input type="radio" value="plot" class="btn-check" v-model="plotOrTable">
+                </label>
+                <label class="btn" :class="plotOrTable == 'table' ? 'btn-success' : 'btn-outline-dark'">
+                    Table
+                    <input type="radio" value="table" class="btn-check" v-model="plotOrTable">
+                </label>
+            </div>
+            <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
+                @view-episode="viewer.viewEpisode" />
+            <div v-show="plotOrTable == 'plot'">
+                <Plotter :xTicks="ticks" :datasets="datasets" title="All runs" :showLegend="false"></Plotter>
+                <div>
+                    <template v-for="ds in datasets">
+                        <div>
+                            <input type="color" :value="colourStore.get(ds.logdir)">
+                            <label>{{ ds.logdir.split("/").at(-1) }}</label>
+                        </div>
+                    </template>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -18,7 +40,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import DQNParams from "./algorithms/DQNParams.vue";
-import { Experiment, ExperimentResults } from '../../models/Experiment';
+import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
 import MetricsTable from './MetricsTable.vue';
 import EpisodeViewer from '../visualisation/EpisodeViewer.vue';
 import { useRoute } from 'vue-router';
@@ -26,13 +48,18 @@ import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { DQN } from '../../models/Algorithm';
 import EnvironmentParams from './EnvironmentParams.vue';
-
-
+import Plotter from '../charts/Plotter.vue';
+import { useColourStore } from '../../stores/ColourStore';
 
 const experiment = ref(null as Experiment | null);
 const viewer = ref({} as typeof EpisodeViewer);
 const results = ref(null as ExperimentResults | null);
 const experimentStore = useExperimentStore()
+const plotOrTable = ref("plot" as "plot" | "table");
+const runResults = ref([] as ExperimentResults[]);
+const ticks = ref([] as number[]);
+const datasets = ref([] as Dataset[]);
+const colourStore = useColourStore();
 
 
 onMounted(async () => {
@@ -46,15 +73,13 @@ onMounted(async () => {
         return;
     }
     experiment.value = res;
-    const resultsStore = useResultsStore()
+    const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
+    runResults.value = await resultsStore.getResultsByRun(res.logdir);
+    ticks.value = runResults.value[0].ticks;
+    const trainDatasets = runResults.value.map(r => r.train).flat().filter(d => d.label == "score");
+    datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
-
-window.onclose = () => {
-    if (experiment.value) {
-        experimentStore.unloadExperiment(experiment.value.logdir)
-    }
-};
 
 const emits = defineEmits(["close-experiment"]);
 

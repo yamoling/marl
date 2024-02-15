@@ -51,7 +51,7 @@ def create_smac():
 def create_lle():
     n_steps = 1_500_000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -96,7 +96,7 @@ def create_lle():
         test_policy=marl.policy.ArgMax(),
     )
 
-    logdir = f"logs/reproduce-{env.name}"
+    logdir = f"logs/flattened-state-{env.name}"
     if trainer.mixer is not None:
         logdir += f"-{trainer.mixer.name}"
     else:
@@ -110,10 +110,11 @@ def create_lle():
 
 
 def create_laser_env():
-    n_steps = 1_500_000
+    n_steps = 1_000_000
     gamma = 0.95
-    env = lenv.StaticLaserEnv("lvl6", lenv.ObservationType.LAYERED)
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+    # env = lenv.StaticLaserEnv("lvl6", lenv.ObservationType.LAYERED)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(round(env.width * env.height / 2), add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -157,7 +158,7 @@ def create_laser_env():
         test_policy=marl.policy.ArgMax(),
     )
 
-    logdir = f"logs/{env.name}"
+    logdir = f"logs/flattened-state-{env.name}"
     if trainer.mixer is not None:
         logdir += f"-{trainer.mixer.name}"
     else:
@@ -166,13 +167,13 @@ def create_laser_env():
         logdir += f"-{trainer.ir_module.name}"
     if isinstance(trainer.memory, marl.models.PrioritizedMemory):
         logdir += "-PER"
-    logdir = "logs/test"
+    # logdir = "logs/test"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 if __name__ == "__main__":
     # exp = create_smac()
-    # exp = create_lle()
-    exp = create_laser_env()
+    exp = create_lle()
+    # exp = create_laser_env()
     print(exp.logdir)
-    exp.create_runner(seed=0).to("auto").train(1)
+    # exp.create_runner(seed=0).to("auto").train(1)

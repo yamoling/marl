@@ -28,7 +28,7 @@
             </label>
             <label class="me-2">
                 standard deviation
-                <input type="radio" value="std" name="plusMinus" v-model="plusMinus">
+                <input type="radio" value="std" name="plusMinus" v-model="plusMinus" checked>
             </label>
             <label>
                 95% confidence interval
@@ -133,6 +133,10 @@ function initialiseChart(): Chart {
             datasets: []
         },
         options: {
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {

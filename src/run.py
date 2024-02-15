@@ -26,7 +26,7 @@ def create_run(args: Arguments):
 def main(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    for i in range(1, args.n_runs):
+    for i in range(args.n_runs - 1):
         seed = args.seed + i
         if os.fork() == 0:
             # Force child processes to be quiet
@@ -35,8 +35,9 @@ def main(args: Arguments):
             create_run(args)
             exit(0)
 
-        # Sleep for some time for each child process to allocated GPUs properly
+        # Sleep for some time for each child process to allocate GPUs properly
         time.sleep(args.delay)
+    seed = args.seed + args.n_runs - 1
     create_run(args)
 
 

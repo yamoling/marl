@@ -430,37 +430,37 @@ resolved_reference = "7265699158cc3b1f95ee8fbcdc83447047549573"
 
 [[package]]
 name = "laser-learning-environment"
-version = "0.1.11"
+version = "0.1.12"
 description = "A fast Multi-Agent Reinforcement Learning Environment"
 optional = false
 python-versions = ">=3.10, <4.0"
 files = [
-    {file = "laser_learning_environment-0.1.11-cp310-cp310-macosx_10_7_x86_64.whl", hash = "sha256:d0429f625ec49c7894634ee44de211ff46e8ed659a94869c1e778c30c924e1c8"},
-    {file = "laser_learning_environment-0.1.11-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:bf4c42fa37fbb0d79d29964f497433389acd706da41a68b38567fbe64456e815"},
-    {file = "laser_learning_environment-0.1.11-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:810de726673954d5d91d8fd52495c3432e8115abb11f0d2545b417fd9a34ea18"},
-    {file = "laser_learning_environment-0.1.11-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:71ef23e2d79fbad32e6b76ee5ac021ce6dfabcd72031c53026b9caff26add962"},
-    {file = "laser_learning_environment-0.1.11-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5db198ca5ab51dd0c9a660984f5890d5376aee9a0b1ee2a7169efba96c4f1905"},
-    {file = "laser_learning_environment-0.1.11-cp310-none-win32.whl", hash = "sha256:5f7863402b0d91638b499003eb34703298a5b0b55f56ea61d05c6401734f518b"},
-    {file = "laser_learning_environment-0.1.11-cp310-none-win_amd64.whl", hash = "sha256:51e299d2eb3c92e3ba46e73195b35825c23b807b15909ecde11e544344449111"},
-    {file = "laser_learning_environment-0.1.11-cp311-cp311-macosx_10_7_x86_64.whl", hash = "sha256:f5af8ec4e969a1ecb971213646fe897e3ae6d95e62df5aa42a7a8d5fb5823114"},
-    {file = "laser_learning_environment-0.1.11-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:c3743d8d62e52dca6cca9d533839e52a54b3e866bc11664a3aa4ec6ac2326879"},
-    {file = "laser_learning_environment-0.1.11-cp311-cp311-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:a9aa70af7a746d45219402e29a23c4df2b3259a076ae99ee73050c1eba348afa"},
-    {file = "laser_learning_environment-0.1.11-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:8eab36a9d322ad01bf5b29d8b405f41ef79c094039362191da081e64174192b9"},
-    {file = "laser_learning_environment-0.1.11-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:27a6b58f63d901bf2f89574050b6b88b58620e8ca17d2fffc0e7f2681e2971f6"},
-    {file = "laser_learning_environment-0.1.11-cp311-none-win32.whl", hash = "sha256:5a0e60bc2073063aaaaaaf32349bc4c57bf56573088d78f9ece534df6f4b2490"},
-    {file = "laser_learning_environment-0.1.11-cp311-none-win_amd64.whl", hash = "sha256:b554a359b1481b97e3195a5b5e7f91d9497e33b481af18e00705057802cbc335"},
-    {file = "laser_learning_environment-0.1.11-cp312-cp312-macosx_10_7_x86_64.whl", hash = "sha256:6d98f2ef5cd3a5c7e8e5834aa16e2700f4f38a77676e5c29dd7dde3fa207af3d"},
-    {file = "laser_learning_environment-0.1.11-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:64e8697ce758ff0ae489fbfdc686846cb7723f54ce423b1cb7c5f9ac950706ea"},
-    {file = "laser_learning_environment-0.1.11-cp312-cp312-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:d3741404ea3957650f53cc41c89dfd005aa988b23634822aa6b3ac76339de685"},
-    {file = "laser_learning_environment-0.1.11-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3682c6a569e436aebec81a2d6a0a2e73a1fa9f0913e8b474ebc0240cc98674e9"},
-    {file = "laser_learning_environment-0.1.11-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6a90680f2a763697b5d3edc2f082a90226550b24b8c0df5c388ffab1df18460b"},
-    {file = "laser_learning_environment-0.1.11-cp312-none-win32.whl", hash = "sha256:cb0f9cafbdb787e1f843ffcfb2b59e071e31011806409a70a5844d18f15399b3"},
-    {file = "laser_learning_environment-0.1.11-cp312-none-win_amd64.whl", hash = "sha256:cd05ecb086235abffbbeea5277245249bdc5ce02a6a4e37b12e4209a15e6c7c9"},
-    {file = "laser_learning_environment-0.1.11-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:93c591e71f84e85ad16e428f013c7d9a1e3e6acf5873225d02a0f2620a8fa3dc"},
-    {file = "laser_learning_environment-0.1.11-pp310-pypy310_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:011d3609954c8e9ee48e3e01a213dc4047a2b12ae65fac29a60017ec165f6932"},
-    {file = "laser_learning_environment-0.1.11-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9adca05bb6fd3a5f1570f0635f8f4d829ae4797b379b07a2f0e803d7cebda8f4"},
-    {file = "laser_learning_environment-0.1.11-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:43588b28ddfe9c7dde4765d97c711870b3560fc0a6f4788533b6620c58fb3590"},
-    {file = "laser_learning_environment-0.1.11.tar.gz", hash = "sha256:9c320f02acde6174b68676531c97bcf4f615a8d7671500d3917349290dd870db"},
+    {file = "laser_learning_environment-0.1.12-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:bc530bcbe5a5d52a277f5f74211620731322c025b5973bcc75ee272a0d4074b9"},
+    {file = "laser_learning_environment-0.1.12-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:8af0cd8f6d05ee18aae4bd34e318735a780a9cb343c3652d67d5275801121338"},
+    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:d44c4c6155c24976f5a7469d6c761522deff8ee5469ff8c59105339d8ba20891"},
+    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:61c5ac73034cc6975602efee50392bd387e469a0b6e64e4f2c572eb2d4b89b02"},
+    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f557c51b719a3c898a84e4e8527d9deac660e8496eaede46354cecf9f180a67a"},
+    {file = "laser_learning_environment-0.1.12-cp310-none-win32.whl", hash = "sha256:ea055a17fbeab3fdc119ebbf685fb4974ba07b1e357d91178e2c630e888b0d5a"},
+    {file = "laser_learning_environment-0.1.12-cp310-none-win_amd64.whl", hash = "sha256:46c0b30727a1348c390c2e1f409f6b7ddb30a55a60a18c8b9713aaa75dd20450"},
+    {file = "laser_learning_environment-0.1.12-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:80c2f60bf2b58f171d56a14f0eb5c4655e36e76f316f884214e9cee36252a8b6"},
+    {file = "laser_learning_environment-0.1.12-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d5ddd28050073e008c7cda774fa32946c82e451f8fbc5af61ed67366ec0aabd1"},
+    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:2972c8089b55d02407c457eb9d3c0a14846eccc9693b7ca16309b74196718a51"},
+    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c9f7e456f9d7c5d22df12ad9a68d36dab4ab0e2d408d74355105b2792806154"},
+    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fc12b83ae205106e55c33d1e2b4748d3866cd86a622ae41c22b9e1de37619810"},
+    {file = "laser_learning_environment-0.1.12-cp311-none-win32.whl", hash = "sha256:1b7ef8b342de57574bef3fea67091d03c98c91befe863e5f8fa041cd5d4dddf7"},
+    {file = "laser_learning_environment-0.1.12-cp311-none-win_amd64.whl", hash = "sha256:9cae8706b69a67bef310b1df42b8bb630da1992596fc83dbdbef43eb749b1a74"},
+    {file = "laser_learning_environment-0.1.12-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:f651b6423aa4e44c8df67264133ec8ddd4e53dcf226f65492e29e9007bb46869"},
+    {file = "laser_learning_environment-0.1.12-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:c5fe3b8b4f88714ad09147d30c0e1065b39025a1de0c5f6afc7cc8e506360cfc"},
+    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:3b7f7cebe56180ffbe53950eb095c160a0c1f320b2ebd0da6605c195e182a7ac"},
+    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c2d3f9b25af91a38d858c8a69825ea9a119ff25f19164be65714b9e368fe2f4"},
+    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:afc1a2374582bf7ef1c9e643fdd06fb6f88b651422e2bffb9cc8242bd7cc007a"},
+    {file = "laser_learning_environment-0.1.12-cp312-none-win32.whl", hash = "sha256:f453b471c81b044004c9383c5113fba4aa513e50240d38e124404cfd6db63892"},
+    {file = "laser_learning_environment-0.1.12-cp312-none-win_amd64.whl", hash = "sha256:bed334a48feb8e0bd49b192ff1986dbafd32d19c6940753ba328bc9c70190bc8"},
+    {file = "laser_learning_environment-0.1.12-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9e97c2c8b4e0f3201fc8e5fd2f321bcd12fae869bc28d7e2163650a2ae1bbdd4"},
+    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:5eda2e29756903eaa064636d6f822e6f1b6fa3f4311072396925e51c9a5735c9"},
+    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a0688b77ff159cce796bd518a3e0e2256f1bf4caa6999727d58395df98dd6903"},
+    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b2a817d105e39e3bfd272c3c3f9a9dcb95387497053c923583506bc80fe98ca0"},
+    {file = "laser_learning_environment-0.1.12.tar.gz", hash = "sha256:a43df82ff15b357b89983de147211c99d3ea3868ad0784625668c260a0ff24c9"},
 ]
 
 [[package]]
@@ -534,39 +534,39 @@ files = [
 
 [[package]]
 name = "matplotlib"
-version = "3.8.2"
+version = "3.8.3"
 description = "Python plotting package"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "matplotlib-3.8.2-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:09796f89fb71a0c0e1e2f4bdaf63fb2cefc84446bb963ecdeb40dfee7dfa98c7"},
-    {file = "matplotlib-3.8.2-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:6f9c6976748a25e8b9be51ea028df49b8e561eed7809146da7a47dbecebab367"},
-    {file = "matplotlib-3.8.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b78e4f2cedf303869b782071b55fdde5987fda3038e9d09e58c91cc261b5ad18"},
-    {file = "matplotlib-3.8.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:4e208f46cf6576a7624195aa047cb344a7f802e113bb1a06cfd4bee431de5e31"},
-    {file = "matplotlib-3.8.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:46a569130ff53798ea5f50afce7406e91fdc471ca1e0e26ba976a8c734c9427a"},
-    {file = "matplotlib-3.8.2-cp310-cp310-win_amd64.whl", hash = "sha256:830f00640c965c5b7f6bc32f0d4ce0c36dfe0379f7dd65b07a00c801713ec40a"},
-    {file = "matplotlib-3.8.2-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:d86593ccf546223eb75a39b44c32788e6f6440d13cfc4750c1c15d0fcb850b63"},
-    {file = "matplotlib-3.8.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:9a5430836811b7652991939012f43d2808a2db9b64ee240387e8c43e2e5578c8"},
-    {file = "matplotlib-3.8.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b9576723858a78751d5aacd2497b8aef29ffea6d1c95981505877f7ac28215c6"},
-    {file = "matplotlib-3.8.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5ba9cbd8ac6cf422f3102622b20f8552d601bf8837e49a3afed188d560152788"},
-    {file = "matplotlib-3.8.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:03f9d160a29e0b65c0790bb07f4f45d6a181b1ac33eb1bb0dd225986450148f0"},
-    {file = "matplotlib-3.8.2-cp311-cp311-win_amd64.whl", hash = "sha256:3773002da767f0a9323ba1a9b9b5d00d6257dbd2a93107233167cfb581f64717"},
-    {file = "matplotlib-3.8.2-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:4c318c1e95e2f5926fba326f68177dee364aa791d6df022ceb91b8221bd0a627"},
-    {file = "matplotlib-3.8.2-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:091275d18d942cf1ee9609c830a1bc36610607d8223b1b981c37d5c9fc3e46a4"},
-    {file = "matplotlib-3.8.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1b0f3b8ea0e99e233a4bcc44590f01604840d833c280ebb8fe5554fd3e6cfe8d"},
-    {file = "matplotlib-3.8.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d7b1704a530395aaf73912be741c04d181f82ca78084fbd80bc737be04848331"},
-    {file = "matplotlib-3.8.2-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:533b0e3b0c6768eef8cbe4b583731ce25a91ab54a22f830db2b031e83cca9213"},
-    {file = "matplotlib-3.8.2-cp312-cp312-win_amd64.whl", hash = "sha256:0f4fc5d72b75e2c18e55eb32292659cf731d9d5b312a6eb036506304f4675630"},
-    {file = "matplotlib-3.8.2-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:deaed9ad4da0b1aea77fe0aa0cebb9ef611c70b3177be936a95e5d01fa05094f"},
-    {file = "matplotlib-3.8.2-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:172f4d0fbac3383d39164c6caafd3255ce6fa58f08fc392513a0b1d3b89c4f89"},
-    {file = "matplotlib-3.8.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c7d36c2209d9136cd8e02fab1c0ddc185ce79bc914c45054a9f514e44c787917"},
-    {file = "matplotlib-3.8.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5864bdd7da445e4e5e011b199bb67168cdad10b501750367c496420f2ad00843"},
-    {file = "matplotlib-3.8.2-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:ef8345b48e95cee45ff25192ed1f4857273117917a4dcd48e3905619bcd9c9b8"},
-    {file = "matplotlib-3.8.2-cp39-cp39-win_amd64.whl", hash = "sha256:7c48d9e221b637c017232e3760ed30b4e8d5dfd081daf327e829bf2a72c731b4"},
-    {file = "matplotlib-3.8.2-pp39-pypy39_pp73-macosx_10_12_x86_64.whl", hash = "sha256:aa11b3c6928a1e496c1a79917d51d4cd5d04f8a2e75f21df4949eeefdf697f4b"},
-    {file = "matplotlib-3.8.2-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d1095fecf99eeb7384dabad4bf44b965f929a5f6079654b681193edf7169ec20"},
-    {file = "matplotlib-3.8.2-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:bddfb1db89bfaa855912261c805bd0e10218923cc262b9159a49c29a7a1c1afa"},
-    {file = "matplotlib-3.8.2.tar.gz", hash = "sha256:01a978b871b881ee76017152f1f1a0cbf6bd5f7b8ff8c96df0df1bd57d8755a1"},
+    {file = "matplotlib-3.8.3-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:cf60138ccc8004f117ab2a2bad513cc4d122e55864b4fe7adf4db20ca68a078f"},
+    {file = "matplotlib-3.8.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:5f557156f7116be3340cdeef7f128fa99b0d5d287d5f41a16e169819dcf22357"},
+    {file = "matplotlib-3.8.3-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f386cf162b059809ecfac3bcc491a9ea17da69fa35c8ded8ad154cd4b933d5ec"},
+    {file = "matplotlib-3.8.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b3c5f96f57b0369c288bf6f9b5274ba45787f7e0589a34d24bdbaf6d3344632f"},
+    {file = "matplotlib-3.8.3-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:83e0f72e2c116ca7e571c57aa29b0fe697d4c6425c4e87c6e994159e0c008635"},
+    {file = "matplotlib-3.8.3-cp310-cp310-win_amd64.whl", hash = "sha256:1c5c8290074ba31a41db1dc332dc2b62def469ff33766cbe325d32a3ee291aea"},
+    {file = "matplotlib-3.8.3-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:5184e07c7e1d6d1481862ee361905b7059f7fe065fc837f7c3dc11eeb3f2f900"},
+    {file = "matplotlib-3.8.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d7e7e0993d0758933b1a241a432b42c2db22dfa37d4108342ab4afb9557cbe3e"},
+    {file = "matplotlib-3.8.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:04b36ad07eac9740fc76c2aa16edf94e50b297d6eb4c081e3add863de4bb19a7"},
+    {file = "matplotlib-3.8.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7c42dae72a62f14982f1474f7e5c9959fc4bc70c9de11cc5244c6e766200ba65"},
+    {file = "matplotlib-3.8.3-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:bf5932eee0d428192c40b7eac1399d608f5d995f975cdb9d1e6b48539a5ad8d0"},
+    {file = "matplotlib-3.8.3-cp311-cp311-win_amd64.whl", hash = "sha256:40321634e3a05ed02abf7c7b47a50be50b53ef3eaa3a573847431a545585b407"},
+    {file = "matplotlib-3.8.3-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:09074f8057917d17ab52c242fdf4916f30e99959c1908958b1fc6032e2d0f6d4"},
+    {file = "matplotlib-3.8.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:5745f6d0fb5acfabbb2790318db03809a253096e98c91b9a31969df28ee604aa"},
+    {file = "matplotlib-3.8.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b97653d869a71721b639714b42d87cda4cfee0ee74b47c569e4874c7590c55c5"},
+    {file = "matplotlib-3.8.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:242489efdb75b690c9c2e70bb5c6550727058c8a614e4c7716f363c27e10bba1"},
+    {file = "matplotlib-3.8.3-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:83c0653c64b73926730bd9ea14aa0f50f202ba187c307a881673bad4985967b7"},
+    {file = "matplotlib-3.8.3-cp312-cp312-win_amd64.whl", hash = "sha256:ef6c1025a570354297d6c15f7d0f296d95f88bd3850066b7f1e7b4f2f4c13a39"},
+    {file = "matplotlib-3.8.3-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:c4af3f7317f8a1009bbb2d0bf23dfaba859eb7dd4ccbd604eba146dccaaaf0a4"},
+    {file = "matplotlib-3.8.3-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:4c6e00a65d017d26009bac6808f637b75ceade3e1ff91a138576f6b3065eeeba"},
+    {file = "matplotlib-3.8.3-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e7b49ab49a3bea17802df6872f8d44f664ba8f9be0632a60c99b20b6db2165b7"},
+    {file = "matplotlib-3.8.3-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6728dde0a3997396b053602dbd907a9bd64ec7d5cf99e728b404083698d3ca01"},
+    {file = "matplotlib-3.8.3-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:813925d08fb86aba139f2d31864928d67511f64e5945ca909ad5bc09a96189bb"},
+    {file = "matplotlib-3.8.3-cp39-cp39-win_amd64.whl", hash = "sha256:cd3a0c2be76f4e7be03d34a14d49ded6acf22ef61f88da600a18a5cd8b3c5f3c"},
+    {file = "matplotlib-3.8.3-pp39-pypy39_pp73-macosx_10_12_x86_64.whl", hash = "sha256:fa93695d5c08544f4a0dfd0965f378e7afc410d8672816aff1e81be1f45dbf2e"},
+    {file = "matplotlib-3.8.3-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e9764df0e8778f06414b9d281a75235c1e85071f64bb5d71564b97c1306a2afc"},
+    {file = "matplotlib-3.8.3-pp39-pypy39_pp73-win_amd64.whl", hash = "sha256:5e431a09e6fab4012b01fc155db0ce6dccacdbabe8198197f523a4ef4805eb26"},
+    {file = "matplotlib-3.8.3.tar.gz", hash = "sha256:7b416239e9ae38be54b028abbf9048aff5054a9aba5416bef0bd17f9162ce161"},
 ]
 
 [package.dependencies]
@@ -790,17 +790,17 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.20.7"
+version = "0.20.8"
 description = "Blazingly fast DataFrame library"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "polars-0.20.7-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:fd6100df0ca53614c3fa7136251e030fb70dee8833023edf7a3ac380f8e2dce5"},
-    {file = "polars-0.20.7-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:359d556fafcb533bb0caa34ddfbd5161ee23b8a43817c7a2b80189720a1f42f6"},
-    {file = "polars-0.20.7-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3cfc71d4569818548c9bf4285c497d62a3a542363c86940593a41dd731e69d7f"},
-    {file = "polars-0.20.7-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:ddff2fa419f15aa64ee23a94655fcb24b3e1b5c3eb30d124e3315deca2039a92"},
-    {file = "polars-0.20.7-cp38-abi3-win_amd64.whl", hash = "sha256:f0928576a52eca47e14a8b98f4da22025b4b2fa32549f80f4d92c5187fd3f461"},
-    {file = "polars-0.20.7.tar.gz", hash = "sha256:ec742fdf41e16ff699c043259ba94a11bbc2f7dcb978d768495db1ff2b3c5c20"},
+    {file = "polars-0.20.8-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:73f1d369aeddda5f11411b6497f697f2471bbe6ae55fd936677a10a40995c83c"},
+    {file = "polars-0.20.8-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:dc3a446fe606095b3ad6df3cf3dddd8ad54be7745f255fedb29f8bdf71a60760"},
+    {file = "polars-0.20.8-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d3d58ebc7a24d26930535d06b8772e125038a87a6abab4c5dfd87ea19bba61f3"},
+    {file = "polars-0.20.8-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:5b733816ac61156c12bd0edd6d7c1a5e63859830ce0e425b6450b335024f0cd5"},
+    {file = "polars-0.20.8-cp38-abi3-win_amd64.whl", hash = "sha256:2300f48ff7120eefe2cac2113990d0b0b5beedad93266b9fedfc8df133e7b13b"},
+    {file = "polars-0.20.8.tar.gz", hash = "sha256:a34f6ce1c5469872b291aaf90467e632e81f92dec6c2e18136bc40cd92877411"},
 ]
 
 [package.extras]
@@ -982,7 +982,7 @@ smac = ["pysc2 @ git+https://github.com/deepmind/pysc2.git", "smac @ git+https:/
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "HEAD"
-resolved_reference = "c3cebb78b790aba9fd4b6c7cad7d9ce3117bf7d2"
+resolved_reference = "41d6d25e6df43107e5139848ae5b1287c04c7e27"
 
 [[package]]
 name = "scipy"

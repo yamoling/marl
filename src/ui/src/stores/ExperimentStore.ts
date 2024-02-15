@@ -58,6 +58,12 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    /**
+     * Ask the backend to load an experiment, which is required to 
+     * replay an episode.
+     * @param logdir 
+     * @returns 
+     */
     async function loadExperiment(logdir: string) {
         return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "POST" })
     }
