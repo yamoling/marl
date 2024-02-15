@@ -134,10 +134,7 @@ venv.bak/
 
 # Spyder project settings
 .spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
+.spyproject.show
 
 # mkdocs documentation
 /site
@@ -192,3 +189,6 @@ config/
 nohup*
 files/
 saved/
+.ruff_cache
+src/ui/bun.lockb
+poetry.lock

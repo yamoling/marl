@@ -1,4 +1,17 @@
+import { ExperimentResults } from "./models/Experiment";
 
+/**
+ * Compute the shape of a multi-dimensional array.
+ */
+export function computeShape(array: any[]): number[] {
+    const result = [];
+    let a = array;
+    while (Array.isArray(a)) {
+        result.push(a.length);
+        a = a[0];
+    }
+    return result;
+}
 
 /**
  * Exponential moving average
@@ -39,7 +52,7 @@ export function searchMatch(search: string, matchWith: string): boolean {
 }
 
 function hashString(s: string) {
-    let hash = 17;
+    let hash = 31;
     for (let i = 0; i < s.length; i++) {
         const chr = s.charCodeAt(i);
         hash = ((hash << 5) - hash) + chr;
@@ -57,4 +70,113 @@ export function stringToRGB(s: string) {
         colour += value.toString(16).padStart(2, '0');
     }
     return colour;
+}
+
+
+export function downloadStringAsFile(textToSave: string, fileName: string) {
+    const hiddenElement = document.createElement('a');
+    hiddenElement.href = 'data:attachment/text,' + encodeURI(textToSave);
+    hiddenElement.target = '_blank';
+    hiddenElement.download = fileName;
+    hiddenElement.click();
+}
+
+
+
+
+export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
+    const sqrtN = Math.sqrt(nSamples);
+    const lower = Array<number>(std.length);
+    const upper = Array<number>(std.length);
+    for (let i = 0; i < std.length; i++) {
+        upper[i] = mean[i] + confidence * std[i] / sqrtN;
+        lower[i] = mean[i] - confidence * std[i] / sqrtN;
+    }
+    return { lower, upper };
+}
+
+export function clip(values: number[], min: number[], max: number[]) {
+    const result = new Array(values.length);
+    for (let i = 0; i < values.length; i++) {
+        result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
+    }
+    return result;
+}
+
+
+
+export function unionXTicks(allXTicks: number[][]) {
+    const resTicks = new Set<number>();
+    for (const ticks of allXTicks) {
+        for (const tick of ticks) {
+            resTicks.add(tick);
+        }
+    }
+    return Array.from(resTicks).sort((a, b) => a - b);
+}
+
+
+function interpolate(data: number[], ticks: number[], desiredTicks: number[]) {
+    const maxTick = ticks[ticks.length - 1]
+    let originIndex = 0;
+    let index = 0;
+    const res = [];
+    while (index < desiredTicks.length && desiredTicks[index] <= maxTick) {
+        const desiredTick = desiredTicks[index];
+        // Find the closest origin tick that is smaller than the desired tick
+        while (ticks[originIndex + 1] <= desiredTick) {
+            originIndex++;
+        }
+
+        // Easy case: when the tick is the same as the current tick, then push the exact value
+        if (ticks[originIndex] === desiredTick) {
+            res.push(data[originIndex]);
+        }
+        // More complicated case: when the required tick does not exist
+        else {
+            if (originIndex == 0) {
+                res.push(data[0]);
+            }
+            // More complicated case: when the required tick does not exist, then interpolate
+            else {
+                const prevTick = ticks[originIndex];
+                const nextTick = ticks[originIndex + 1];
+                const ratio = (desiredTick - prevTick) / (nextTick - prevTick);
+                res.push(data[originIndex] + ratio * (data[originIndex] - data[originIndex + 1]));
+            }
+        }
+        index++;
+    }
+    return res;
+}
+
+
+export function alignTicks(experimentResults: ExperimentResults, desiredTicks: number[]): ExperimentResults {
+    // Filter train datasets based on the filtered ticks
+    const filteredTrain = experimentResults.train.map(dataset => ({
+        ...dataset,
+        mean: interpolate(dataset.mean, experimentResults.ticks, desiredTicks),
+        std: interpolate(dataset.std, experimentResults.ticks, desiredTicks),
+        min: interpolate(dataset.min, experimentResults.ticks, desiredTicks),
+        max: interpolate(dataset.max, experimentResults.ticks, desiredTicks),
+        ci95: interpolate(dataset.ci95, experimentResults.ticks, desiredTicks),
+    }));
+
+    // Filter test datasets based on the filtered ticks
+    const filteredTest = experimentResults.test.map(dataset => ({
+        ...dataset,
+        mean: interpolate(dataset.mean, experimentResults.ticks, desiredTicks),
+        std: interpolate(dataset.std, experimentResults.ticks, desiredTicks),
+        min: interpolate(dataset.min, experimentResults.ticks, desiredTicks),
+        max: interpolate(dataset.max, experimentResults.ticks, desiredTicks),
+        ci95: interpolate(dataset.ci95, experimentResults.ticks, desiredTicks),
+    }));
+
+    // Return a new ExperimentResults with filtered data
+    return {
+        ...experimentResults,
+        ticks: [...desiredTicks],
+        train: filteredTrain,
+        test: filteredTest,
+    };
 }

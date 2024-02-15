@@ -1,8 +1,7 @@
 import torch
 import numpy as np
-from typing_extensions import Self
 from rlenv import Observation, Episode
-from marl import nn
+from marl.models import nn
 from marl.models import EpisodeMemory
 from marl.models.algo import RLAlgo
 from marl.utils import get_device
@@ -10,12 +9,8 @@ from marl.utils import get_device
 
 class ACER(RLAlgo):
     """Actor-Critic with Experience Replay algorithm (ACER)."""
-    def __init__(
-            self,
-            alpha: float,
-            gamma: float,
-            ac_network: nn.ActorCriticNN
-    ):
+
+    def __init__(self, alpha: float, gamma: float, ac_network: nn.ActorCriticNN):
         self.device = get_device()
         self.gamma = gamma
         self.network = ac_network.to(self.device)
@@ -26,7 +21,7 @@ class ACER(RLAlgo):
         self.is_training = True
         self.action_probs = []
 
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+    def choose_action(self, observation: Observation) -> np.ndarray:
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             logits = self.network.policy(obs_data)
@@ -34,25 +29,23 @@ class ACER(RLAlgo):
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample()
             if self.is_training:
-                probs = torch.gather(dist.probs, dim=-1, index=action)
+                probs = torch.gather(dist.probs, dim=-1, index=action)  # type: ignore
                 self.action_probs.append(probs.numpy(force=True))
             return action.numpy(force=True)
-        
-    def before_test_episode(self, time_step: int, test_num: int):
-        self.is_training = False
-        return super().before_test_episode(time_step, test_num)
-    
-    def after_tests(self, episodes: list[Episode], time_step: int):
-        self.is_training = True
-        return super().after_tests(episodes, time_step)
 
-    def after_train_episode(self, episode_num: int, episode: Episode):
+    def set_testing(self):
+        self.is_training = False
+
+    def set_training(self):
+        self.is_training = True
+
+    def train(self, episode_num: int, episode: Episode):
         episode.actions_probs = np.array(self.action_probs, dtype=np.float32)
         self.action_probs = []
         self.memory.add(episode)
         if len(self.memory) < self.batch_size:
             return
-        
+
         batch = self.memory.sample(self.batch_size).to(self.device)
         batch = batch.for_individual_learners()
         returns = batch.compute_normalized_returns(self.gamma)
@@ -60,7 +53,7 @@ class ACER(RLAlgo):
         # Values have last dimension [1] -> squeeze it
         predicted_values = predicted_values.squeeze(-1)
         advantages = (returns - predicted_values) * batch.masks
-        
+
         dist = torch.distributions.Categorical(logits=logits)
         log_probs = dist.log_prob(batch.actions.squeeze(-1))
 
@@ -74,30 +67,16 @@ class ACER(RLAlgo):
         n_elements = torch.sum(batch.masks)
         weighted_log_probs = log_probs * rho * advantages
         actor_loss = -torch.sum(weighted_log_probs) / n_elements
-        critic_loss = torch.sum(advantages ** 2) / n_elements
+        critic_loss = torch.sum(advantages**2) / n_elements
 
         self.optimizer.zero_grad()
         loss = actor_loss + critic_loss
         loss.backward()
         self.optimizer.step()
         return super().after_train_episode(episode_num, episode)
-    
+
     def save(self, to_path: str):
         torch.save(self.network.state_dict(), to_path)
-    
+
     def load(self, from_path: str):
         self.network.load_state_dict(torch.load(from_path))
-
-    def summary(self) -> dict:
-        return {
-            **super().summary(),
-            "policy_network": self.network.summary(),
-            "alpha": self.optimizer.param_groups[0]["lr"],
-            "gamma": self.gamma
-        }
-    
-    @classmethod
-    def from_summary(cls, summary: dict) -> Self:
-        policy_network = nn.from_summary(summary.pop("policy_network"))
-        return ACER(ac_network=policy_network, **summary)
-    

@@ -1,6 +1,6 @@
 import numpy as np
 
-from .policy import Policy
+from marl.models import Policy
 
 
 class RandomPolicy(Policy):

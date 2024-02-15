@@ -1,38 +1,41 @@
 import os
 from dataclasses import dataclass
-from rlenv.models import Metrics, Episode
+from rlenv.models import Episode
+from serde import serde
 
 
+@serde
 @dataclass
 class ReplayEpisodeSummary:
+    name: str
     directory: str
-    metrics: Metrics
+    metrics: dict[str, float]
 
-    @property
-    def name(self) -> str:
-        return os.path.basename(self.directory)
+    def __init__(self, directory: str, metrics: dict[str, float]):
+        self.directory = directory
+        self.metrics = metrics
+        self.name = os.path.basename(directory)
 
-    def to_json(self) -> dict:
-        return {
-            "name": self.name,
-            "directory": self.directory,
-            "metrics": self.metrics.to_json(),
-        }
 
+@serde
 @dataclass
 class ReplayEpisode(ReplayEpisodeSummary):
     episode: Episode
     qvalues: list[list[list[float]]]
+    state_values: list[float]
     frames: list[str]
 
-    @property
-    def name(self) -> str:
-        return os.path.basename(self.directory)
-
-    def to_json(self) -> dict:
-        return {
-            **super().to_json(),
-            "episode": self.episode.to_json(),
-            "qvalues": self.qvalues,
-            "frames": self.frames,
-        }
+    def __init__(
+        self,
+        directory: str,
+        metrics: dict[str, float],
+        episode: Episode,
+        qvalues: list[list[list[float]]],
+        state_values: list[float],
+        frames: list[str],
+    ):
+        super().__init__(directory, metrics)
+        self.episode = episode
+        self.qvalues = qvalues
+        self.state_values = state_values
+        self.frames = frames

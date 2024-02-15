@@ -1,6 +1,14 @@
 from .table_qlearning import VanillaQLearning, ReplayTableQLearning
-from .qlearning import DeepQLearning, QLearning, IDeepQLearning, IQLearning
-from .vdn import LinearVDN, RecurrentVDN
-from .dqn import DQN
-from .rdqn import RDQN
-from .builder import DeepQBuilder
+
+from .mixers import QMix, VDN
+from .dqn import DQN, RDQN
+
+
+__all__ = [
+    "VanillaQLearning",
+    "ReplayTableQLearning",
+    "QMix",
+    "VDN",
+    "DQN",
+    "RDQN",
+]

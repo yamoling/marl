@@ -1,76 +1,67 @@
-from typing_extensions import Self
 from abc import ABC, abstractmethod
-import torch
+from typing import Any
+
 import numpy as np
-from rlenv.models import Episode, Transition, Observation
+from dataclasses import dataclass
+import torch
+from rlenv.models import Observation
 
 
+@dataclass
 class RLAlgo(ABC):
+    name: str
+
     def __init__(self):
-        super().__init__()
+        self.name = self.__class__.__name__
+
+    def randomize(self):
+        """Randomize the algorithm parameters"""
+        raise NotImplementedError("Not implemented for this algorithm")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+    def choose_action(self, observation: Observation) -> np.ndarray[np.int32, Any]:
         """Get the action to perform given the input observation"""
 
-    @property
-    def name(self) -> str:
-        """The name of the algorithm"""
-        return self.__class__.__name__
-    
-    def summary(self) -> dict:
-        """Dictionary of the relevant algorithm parameters for experiment logging purposes"""
-        return {
-            "name": self.name
-        }
-    
+    # @abstractmethod
+    def choose_action_extra(self, observation: Observation) -> tuple[np.ndarray, float, np.ndarray]:
+        """Get the action to perform, obs value and actions probs given the input observation"""
+        return self.choose_action(observation), self.value(observation), np.zeros(1)  # TODO : temporary solution not to break everything
+
+    def new_episode(self):
+        """
+        Called when a new episode starts.
+
+        This is required for recurrent algorithms, such as R-DQN, that need to reset their hidden states.
+        """
+
+    @abstractmethod
+    def value(self, observation: Observation) -> float:
+        """Get the value of the input observation"""
+
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
         raise NotImplementedError("Not implemented for this algorithm")
 
-    def save(self, to_path: str):
-        """Save the algorithm state to the specified file."""
-        raise NotImplementedError("Not implemented for this algorithm")
-
-    def load(self, from_path: str):
-        """Load the algorithm state from the specified file."""
-        raise NotImplementedError("Not implemented for this algorithm")
-
-    @classmethod
-    def from_summary(cls, summary: dict) -> Self:
-        """Instantiate the algorithm from its summary"""
-        raise NotImplementedError(f"From summary not implemented for {cls.__name__}")
-
-    def before_tests(self, time_step: int):
-        """Hook before tests, for instance to swap from training to testing policy."""
-
-    def after_tests(self, episodes: list[Episode], time_step: int):
+    @abstractmethod
+    def set_training(self):
         """
-        Hook after tests.
-        Subclasses should swap from testing back to training policy.
-        """
-    def after_train_step(self, transition: Transition, time_step: int):
-        """Hook after every training step."""
-
-    def before_train_episode(self, episode_num: int):
-        """Hook before every training episode."""
-
-    def after_train_episode(self, episode_num: int, episode: Episode):
-        """Hook after every training episode."""
-
-    def before_test_episode(self, time_step: int, test_num: int):
-        """
-        Hook before each train episode
-        
-        - time_step: the training step at which the test happens
-        - test_num: the test number for this time step
+        Set the algorithm to training mode.
+        This is useful for algorithms that have different behavior during training and testing,
+        such as Dropout, BathNorm, or have different exploration strategies.
         """
 
-    def after_test_episode(self, time_step: int, test_num: int, episode: Episode):
+    @abstractmethod
+    def set_testing(self):
         """
-        Hook after each test episode.
+        Set the algorithm to testing mode.
+        This is useful for algorithms that have different behavior during training and testing,
+        such as Dropout, BathNorm, or have different exploration strategies.
+        """
 
-        - time_step: the training step at which the tests occurs
-        - test_num: the test number for this time step
-        - episode: the actual episode
-        """
+    @abstractmethod
+    def save(self, to_directory: str):
+        """Save the algorithm to the specified directory"""
+
+    @abstractmethod
+    def load(self, from_directory: str):
+        """Load the algorithm parameters from the specified directory"""

@@ -18,3 +18,16 @@ class ExperimentAlreadyExistsException(Exception):
     def __init__(self, logdir: str):
         super().__init__(f"The experiment {logdir} already exists: impossible to create a new one in the same directory!")
         
+
+class MissingParameterException(Exception):
+    """An exception for when a parameter is missing."""
+    def __init__(self, type_error: TypeError, class_name: str) -> None:
+        super().__init__()
+        self.type_error_message = str(type_error)
+        self.class_name = class_name
+
+    def __str__(self) -> str:
+        return f"""
+            Error in {self.class_name}.from_summary(...):
+            {self.type_error_message}
+            Did you save the appropriate fields in the summary? """

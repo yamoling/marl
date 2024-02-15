@@ -1,88 +1,76 @@
-import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
-import { ExperimentInfo } from "../models/Infos";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
-import { stringToRGB } from "../utils";
+import { ref } from "vue";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
-
-    const experimentInfos = ref([] as ExperimentInfo[]);
-    const experiments = ref([] as Experiment[]);
-    const loading = ref([] as boolean[]);
-    const anyLoading = computed(() => loading.value.some(l => l));
-
-    async function refresh() {
-        loading.value = [true];
-        try {
-            const resp = await fetch(`${HTTP_URL}/experiment/list`);
-            if (!resp.ok) {
-                alert(await resp.text());
-                return;
-            }
-            const infos = await resp.json();
-            experimentInfos.value = infos;
-        } catch (e: any) {
-            alert(e.message);
-        } finally {
-            loading.value = experimentInfos.value.map(() => false);
-        }
-    }
+    const loading = ref(false);
+    const experiments = ref<Experiment[]>([]);
+    const runningExperiments = ref(new Set<string>());
     refresh();
 
-    async function deleteExperiment(logdir: string) {
-        await deleteExperiments([logdir]);
-    }
-
-    async function deleteExperiments(logdirs: string[]) {
-        await Promise.all(logdirs.map(async logdir => {
-            const index = experimentInfos.value.findIndex(info => info.logdir === logdir);
-            loading.value[index] = true;
-            try {
-                await fetch(`${HTTP_URL}/experiment/delete/${logdir}`, { method: "DELETE" });
-                // Remove the experiment from the list
-                experimentInfos.value = experimentInfos.value.filter(info => info.logdir !== logdir);
-            } catch (e: any) {
-                alert(e.message);
+    async function refresh() {
+        try {
+            loading.value = true;
+            const resp = await fetch(`${HTTP_URL}/experiment/list`);
+            if (!resp.ok) {
+                throw new Error("Failed to load experiments: " + await resp.text());
             }
-            loading.value[index] = false;
-        }));
+            experiments.value = await resp.json() as Experiment[];
+            for (const exp of experiments.value) {
+                refreshRunning(exp.logdir).then((running) => {
+                    if (running) {
+                        runningExperiments.value.add(exp.logdir);
+                    } else {
+                        runningExperiments.value.delete(exp.logdir);
+                    }
+                });
+            }
+        } catch (e: any) {
+            throw new Error("Failed to load experiments: " + e.message);
+        } finally {
+            loading.value = false;
+        }
     }
 
-    async function loadExperiment(logdir: string): Promise<Experiment> {
-        const index = experimentInfos.value.findIndex(info => info.logdir === logdir);
-        loading.value[index] = true;
-        const resp = await fetch(`${HTTP_URL}/experiment/load/${logdir}`);
-        if (!resp.ok) {
-            loading.value[index] = false;
-            throw new Error(await resp.text());
+    async function getExperiment(logdir: string): Promise<Experiment | null> {
+        try {
+            const resp = await fetch(`${HTTP_URL}/experiment/${logdir}`);
+            if (!resp.ok) {
+                throw new Error("Failed to load experiment: " + await resp.text());
+            }
+            return await resp.json();
+        } catch (e: any) {
+            throw new Error("Failed to load experiment: " + e.message);
         }
-        const experiment = await resp.json() as Experiment;
-        const experimentColour = stringToRGB(experiment.logdir);
-        experiment.test_metrics.datasets.forEach(dataset => {
-            dataset.colour = experimentColour;
-        });
-        experiment.train_metrics.datasets.forEach(dataset => {
-            dataset.colour = experimentColour;
-        });
-        // Get experiment index based on the logdir
-        const experimentIndex = experiments.value.findIndex(e => e.logdir === logdir);
-        if (experimentIndex >= 0) {
-            experiments.value[experimentIndex] = experiment;
-        } else {
-            experiments.value = [experiment, ...experiments.value];
+    }
+
+    async function refreshRunning(logdir: string): Promise<boolean> {
+        try {
+            const resp = await fetch(`${HTTP_URL}/experiment/is_running/${logdir}`);
+            if (!resp.ok) {
+                return false
+            }
+            return await resp.json();
+        } catch (e: any) {
+            return false;
         }
-        loading.value[index] = false;
-        return experiment;
+    }
+
+    /**
+     * Ask the backend to load an experiment, which is required to 
+     * replay an episode.
+     * @param logdir 
+     * @returns 
+     */
+    async function loadExperiment(logdir: string) {
+        return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "POST" })
     }
 
     async function unloadExperiment(logdir: string) {
-        // Remove the experiment from "experiments"
-        experiments.value = experiments.value.filter(e => e.logdir !== logdir);
-        await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "DELETE" });
+        return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "DELETE" })
     }
-
 
 
     async function getTestEpisodes(logdir: string, time_step: number): Promise<ReplayEpisodeSummary[]> {
@@ -90,20 +78,14 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return await resp.json();
     }
 
-    function isLoaded(logdir: string): boolean {
-        return experiments.value.some(e => e.logdir === logdir);
-    }
-
     return {
-        experimentInfos,
-        experiments,
         loading,
-        anyLoading,
+        experiments,
+        runningExperiments,
         refresh,
-        deleteExperiment,
+        getExperiment,
         loadExperiment,
         unloadExperiment,
         getTestEpisodes,
-        isLoaded
     };
 });

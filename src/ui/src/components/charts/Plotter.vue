@@ -1,8 +1,40 @@
 <template>
     <div>
-        <h3 class="text-center text-capitalize" v-if="title.length > 0"> {{ title }}</h3>
+        <h3 class="text-center title" v-if="title.length > 0">
+            {{ title }}
+            <!-- <button class="btn btn-outline-info" @click="downloadDatasets">
+                <font-awesome-icon :icon="['fa', 'download']" />
+            </button> -->
+        </h3>
         <div ref="legendContainer" class="row"></div>
-        <canvas v-show="datasets.length > 0" ref="canvas"></canvas>
+        <div v-show="datasets.length > 0">
+            <canvas ref="canvas"></canvas>
+        </div>
+        <div>
+            <b class="me-1">Y axis type:</b>
+            <label class="me-2">
+                linear
+                <input type="radio" value="linear" name="y-scale" v-model="yScaleType">
+            </label>
+            <label>
+                logarithmic
+                <input type="radio" value="logarithmic" name="y-scale" v-model="yScaleType">
+            </label>
+            <br>
+
+            <label>
+                <input type="checkbox" v-model="enablePlusMinus">
+                <b class="me-1">Show</b>
+            </label>
+            <label class="me-2">
+                standard deviation
+                <input type="radio" value="std" name="plusMinus" v-model="plusMinus" checked>
+            </label>
+            <label>
+                95% confidence interval
+                <input type="radio" value="ci95" name="plusMinus" v-model="plusMinus">
+            </label>
+        </div>
         <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
 </template>
@@ -11,11 +43,17 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
+import { clip } from "../../utils";
+import { useColourStore } from '../../stores/ColourStore';
 
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
 const canvas = ref({} as HTMLCanvasElement);
 const legendContainer = ref({} as HTMLElement);
+const yScaleType = ref("linear" as "linear" | "logarithmic");
+const enablePlusMinus = ref(true);
+const plusMinus = ref("std" as "std" | "ci95");
+const colourStore = useColourStore();
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
@@ -23,81 +61,82 @@ const props = defineProps<{
     showLegend: boolean
 }>();
 
-// const DEFAULT_COLOURS = [
-//     "#EE5060",
-//     "#36a2eb",
-//     "#cc65fe",
-//     "#ffce56",
-//     "#4bc0c0",
-//     "#9966ff",
-//     "#ff9f40",
-// ];
-
-function clippedStd(mean: number[], std: number[], min: number[], max: number[]) {
-    const lowerStd = std.map((s, i) => {
-        const value = mean[i] - s;
-        if (value < min[i]) {
-            return min[i];
-        }
-        return value;
-    });
-    const upperStd = std.map((s, i) => {
-        const value = mean[i] + s;
-        if (value > max[i]) {
-            return max[i];
-        }
-        return value;
-    });
-    return { lower: lowerStd, upper: upperStd };
-}
+watch(colourStore.colours, updateChartData);
 
 
-
-function updateChart() {
+function updateChartData() {
     if (props.datasets.length == 0) {
         return;
     }
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach((ds, i) => {
-        // if (ds.colour == null) {
-        //     ds.colour = DEFAULT_COLOURS[i % DEFAULT_COLOURS.length];
-        // }
-        const stdColour = rgbToAlpha(ds.colour || "#000000", 0.3);
-        const std = clippedStd(ds.mean, ds.std, ds.min, ds.max);
+    props.datasets.forEach(ds => {
+        const colour = colourStore.get(ds.logdir);
+
+        if (enablePlusMinus.value) {
+            let lower;
+            if (plusMinus.value == "std") {
+                lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+            } else {
+                lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+            }
+            const lowerColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: lower,
+                backgroundColor: lowerColour,
+                fill: "+1"
+            });
+        }
         datasets.push({
-            data: std.lower,
-            backgroundColor: stdColour,
-            fill: "+1",
-            label: "-std"
-        });
-        datasets.push({
-            label: ds.label,
+            label: "",
             data: ds.mean,
-            borderColor: ds.colour,
-            backgroundColor: ds.colour,
+            borderColor: colour,
+            backgroundColor: colour,
         });
-        datasets.push({
-            data: std.upper,
-            backgroundColor: stdColour,
-            fill: "-1",
-            label: "+std"
-        });
+        if (enablePlusMinus.value) {
+            let upper;
+            if (plusMinus.value == "std") {
+                upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+            } else {
+                upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+            }
+            const upperColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: upper,
+                backgroundColor: upperColour,
+                fill: "-1",
+            });
+        }
     });
+    // Take the dataset with the longes ticks
     chart.data = { labels: props.xTicks, datasets };
     chart.update();
 }
 
-watch(props, () => updateChart());
-
+watch(props, updateChartData);
+watch(yScaleType, () => {
+    chart.options!.scales!.y!.type = yScaleType.value;
+    chart.update()
+});
+watch(enablePlusMinus, updateChartData)
+watch(plusMinus, updateChartData);
 
 onMounted(() => {
-    chart = new Chart(canvas.value, {
+    chart = initialiseChart();
+    updateChartData();
+})
+
+function initialiseChart(): Chart {
+    return new Chart(canvas.value, {
         type: 'line',
         data: {
             labels: [],
             datasets: []
         },
         options: {
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {
@@ -108,12 +147,17 @@ onMounted(() => {
                 legend: {
                     display: props.showLegend,
                 }
+            },
+            scales: {
+                y: {
+                    display: true,
+                    type: yScaleType.value,
+                }
             }
         },
         // plugins: [htmlLegendPlugin]
     });
-    updateChart();
-})
+}
 
 function rgbToAlpha(rgb: string, alpha: number) {
     let R = parseInt(rgb.substring(1, 3), 16);
@@ -197,5 +241,9 @@ div.legend-item>span.legend-box {
     height: 20px;
     width: 20px;
     margin-right: 10px;
+}
+
+.title:first-letter {
+    text-transform: uppercase;
 }
 </style>

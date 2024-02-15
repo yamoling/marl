@@ -53,7 +53,7 @@ import Rainbow from "rainbowvis.js";
 import AgentInfo from './AgentInfo.vue';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Modal } from 'bootstrap';
-import { ExperimentInfo } from '../../models/Infos';
+import { Experiment } from '../../models/Experiment';
 
 
 const replayStore = useReplayStore();
@@ -64,7 +64,7 @@ const modal = ref({} as HTMLElement);
 const rainbow = new Rainbow();
 rainbow.setSpectrum("red", "yellow", "olivedrab")
 defineProps<{
-    experiment: ExperimentInfo
+    experiment: Experiment
 }>();
 
 const nAgents = computed(() => (episode.value?.episode.actions[0].length) || 0);
@@ -107,7 +107,9 @@ async function viewEpisode(episodeDirectory: string) {
     episode.value = null;
     loading.value = true;
     (new Modal("#" + modal.value.id)).show()
-    episode.value = await replayStore.getEpisode(episodeDirectory);
+    const replay = await replayStore.getEpisode(episodeDirectory);
+    console.log(replay)
+    episode.value = replay;
     currentStep.value = 0;
     if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
         const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
