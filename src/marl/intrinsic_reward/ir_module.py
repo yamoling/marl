@@ -1,15 +1,15 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing_extensions import Self
 import torch
 from dataclasses import dataclass
 from serde import serde
 
-from marl.models import Batch
+from marl.models import Batch, Updatable
 
 
 @serde
 @dataclass
-class IRModule(ABC):
+class IRModule(Updatable):
     """Intrinsic Reward Module."""
 
     name: str
@@ -20,13 +20,6 @@ class IRModule(ABC):
     @abstractmethod
     def compute(self, batch: Batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
-
-    def update(self) -> float:
-        """
-        Update the IR Module to train it.
-        Returns the loss.
-        """
-        raise NotImplementedError()
 
     def save(self, to_directory: str):
         """Save the IR Module to the given path."""

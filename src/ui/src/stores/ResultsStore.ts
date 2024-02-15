@@ -2,16 +2,27 @@ import { defineStore } from "pinia";
 import { ExperimentResults } from "../models/Experiment";
 import { HTTP_URL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
+import { ref } from "vue";
 
 export const useResultsStore = defineStore("ResultsStore", () => {
 
+    const results = ref(new Map<string, ExperimentResults>());
+    const loading = ref(new Map<string, boolean>());
 
-    async function loadExperimentResults(logdir: string): Promise<ExperimentResults> {
+
+    async function load(logdir: string): Promise<ExperimentResults> {
+        loading.value.set(logdir, true);
         const resp = await fetch(`${HTTP_URL}/results/load/${logdir}`);
-        const results = await resp.json() as ExperimentResults;
-        results.test.forEach(ds => ds.logdir = logdir);
-        results.train.forEach(ds => ds.logdir = logdir);
-        return results;
+        const response = await resp.json() as ExperimentResults;
+        response.test.forEach(ds => ds.logdir = logdir);
+        response.train.forEach(ds => ds.logdir = logdir);
+        results.value.set(logdir, response);
+        loading.value.set(logdir, false);
+        return response;
+    }
+
+    function unload(logdir: string) {
+        results.value.delete(logdir);
     }
 
     /**
@@ -22,8 +33,27 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         return await resp.json();
     }
 
+    async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
+        const resp = await fetch(`${HTTP_URL}/results/load-by-run/${logdir}`);
+        const results = await resp.json() as ExperimentResults[];
+        results.forEach(res => {
+            res.test.forEach(ds => ds.logdir = res.logdir);
+            res.train.forEach(ds => ds.logdir = res.logdir);
+        });
+        return results;
+    }
+
+    function isLoaded(logdir: string): boolean {
+        return results.value.has(logdir);
+    }
+
     return {
-        loadExperimentResults,
-        getTestsResultsAt
+        results,
+        loading,
+        load,
+        unload,
+        isLoaded,
+        getTestsResultsAt,
+        getResultsByRun
     };
 });

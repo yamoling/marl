@@ -1,5 +1,5 @@
 import torch
-from .mixer import Mixer
+from marl.models.nn import Mixer
 
 
 class QTRANBaseNet(torch.nn.Module):

@@ -42,8 +42,11 @@ class Run:
 
     @staticmethod
     def load(rundir: str):
-        with open(os.path.join(rundir, "run.json"), "r") as f:
-            seed = json.load(f)["seed"]
+        try:
+            with open(os.path.join(rundir, "run.json"), "r") as f:
+                seed = json.load(f)["seed"]
+        except FileNotFoundError:
+            seed = -1
         return Run(rundir, seed)
 
     def log_tests(self, episodes: list[Episode], time_step: int):

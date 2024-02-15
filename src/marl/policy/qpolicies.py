@@ -5,8 +5,7 @@ from dataclasses import dataclass
 from serde import serde
 
 from marl.utils import schedule
-
-from .policy import Policy
+from marl.models import Policy
 
 
 @serde
@@ -63,6 +62,7 @@ class EpsilonGreedy(Policy):
 
     def update(self, step_num: int):
         self.epsilon.update(step_num)
+        return {"epsilon": self.epsilon.value}
 
 
 @serde
@@ -77,3 +77,6 @@ class ArgMax(Policy):
         qvalues[available_actions == 0.0] = -np.inf
         actions = qvalues.argmax(-1)
         return actions
+
+    def update(self, step_num: int):
+        return {}

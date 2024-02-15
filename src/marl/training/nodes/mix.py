@@ -1,6 +1,5 @@
 import torch
-from marl.qlearning.mixers import Mixer
-from marl.models import Batch
+from marl.models import Mixer, Batch
 from .node import Node
 
 

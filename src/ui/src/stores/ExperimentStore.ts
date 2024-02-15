@@ -5,27 +5,10 @@ import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
-
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
     const runningExperiments = ref(new Set<string>());
-
-
-    async function startWebsocket() {
-        const ws = new WebSocket(`ws://${location.hostname}/5002`);
-        ws.onopen = () => {
-            console.log("Websocket opened");
-        };
-        ws.onclose = () => {
-            console.log("Websocket closed");
-        };
-        ws.onerror = (e) => {
-            console.log("Websocket error", e);
-        };
-        ws.onmessage = (e) => {
-            console.log("Websocket message", e);
-        };
-    }
+    refresh();
 
     async function refresh() {
         try {
@@ -75,6 +58,12 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    /**
+     * Ask the backend to load an experiment, which is required to 
+     * replay an episode.
+     * @param logdir 
+     * @returns 
+     */
     async function loadExperiment(logdir: string) {
         return await fetch(`${HTTP_URL}/experiment/load/${logdir}`, { method: "POST" })
     }
@@ -90,6 +79,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     return {
+        loading,
         experiments,
         runningExperiments,
         refresh,

@@ -1,8 +1,5 @@
-import marl
 import torch
-import numpy as np
-from marl.models.batch import TransitionBatch, EpisodeBatch
-from rlenv import Transition
+from marl.models.batch import EpisodeBatch
 from rlenv.wrappers import TimeLimit
 from .utils import generate_episode, MockEnv
 

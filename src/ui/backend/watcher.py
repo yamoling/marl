@@ -1,6 +1,6 @@
 import psutil
 from psutil import Process
-from marl import Experiment
+from marl.models import Experiment
 from threading import Thread
 import asyncio
 from websockets.server import serve, WebSocketServerProtocol

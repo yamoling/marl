@@ -2,7 +2,7 @@ from . import app, state
 from http import HTTPStatus
 from serde.json import to_json
 import json
-from marl import Experiment
+from marl.models import Experiment
 from marl.utils.exceptions import ExperimentVersionMismatch
 
 
@@ -38,6 +38,11 @@ def get_experiment(logdir: str):
 
 @app.route("/experiment/load/<path:logdir>", methods=["POST"])
 def load_experiment(logdir: str):
+    """
+    Load an experiment into the state.
+    This does not return anything but make the backend gain time if the user wants to
+    replay an episode in the future.
+    """
     state.load_experiment(logdir)
     return ("", HTTPStatus.NO_CONTENT)
 

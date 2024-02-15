@@ -23,6 +23,7 @@ CORS(app)
 
 
 def run(port: int, debug=False):
+    # Required to import these files without using them to register the flask routes.
     from . import runners
     from . import results
     from . import experiments

@@ -1,6 +1,7 @@
+import torch
 from marl.intrinsic_reward import IRModule
 from marl.models import Batch
-import torch
+
 from .node import Node
 
 
@@ -12,8 +13,7 @@ class IR(Node[Batch]):
 
     def _compute_value(self) -> Batch:
         batch = self.batch.value
-        ir = self.ir_module.compute(batch)
-        batch.rewards += ir
+        batch.rewards += self.ir_module.compute(batch)
         return batch
 
     def randomize(self):

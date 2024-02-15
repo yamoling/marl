@@ -1,19 +1,28 @@
 from dataclasses import dataclass
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from marl.models import Updatable
 
 import torch
 
 
 @dataclass
-class TargetParametersUpdater(ABC):
+class TargetParametersUpdater(Updatable):
     name: str
 
     def __init__(self):
         self.name = self.__class__.__name__
+        self.parameters = list[torch.nn.Parameter]()
+        self.target_params = list[torch.nn.Parameter]()
+
+    def add_parameters(self, parameters: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
+        for param, target in zip(parameters, target_params):
+            assert param.shape == target.shape, "Parameter and target parameter shapes must match"
+        self.parameters.extend(parameters)
+        self.target_params.extend(target_params)
 
     @abstractmethod
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]) -> None:
-        """Update the target network parameters based on the current network parameters"""
+    def update(self, time_step: int) -> dict[str, float]:
+        """Update the target network parameters based on the current network parameters and return the logs."""
 
 
 @dataclass
@@ -26,11 +35,12 @@ class HardUpdate(TargetParametersUpdater):
         self.update_period = update_period
         self.update_num = 0
 
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
+    def update(self, step_num: int) -> dict[str, float]:
         self.update_num += 1
         if self.update_num % self.update_period == 0:
-            for param, target in zip(current_params, target_params):
+            for param, target in zip(self.parameters, self.target_params):
                 target.data.copy_(param.data, non_blocking=True)
+        return {}
 
 
 @dataclass
@@ -42,7 +52,8 @@ class SoftUpdate(TargetParametersUpdater):
         assert 0 < tau < 1, "Soft update ratio must be between 0 and 1"
         self.tau = tau
 
-    def update(self, current_params: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
-        for param, target in zip(current_params, target_params):
+    def update(self, time_step: int) -> dict[str, float]:
+        for param, target in zip(self.parameters, self.target_params):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
+        return {"tau": self.tau}

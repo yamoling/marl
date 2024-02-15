@@ -28,7 +28,7 @@
             </label>
             <label class="me-2">
                 standard deviation
-                <input type="radio" value="std" name="plusMinus" v-model="plusMinus">
+                <input type="radio" value="std" name="plusMinus" v-model="plusMinus" checked>
             </label>
             <label>
                 95% confidence interval
@@ -44,6 +44,7 @@ import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
 import { clip } from "../../utils";
+import { useColourStore } from '../../stores/ColourStore';
 
 let chart: Chart;
 const emits = defineEmits(["episode-selected"]);
@@ -52,13 +53,15 @@ const legendContainer = ref({} as HTMLElement);
 const yScaleType = ref("linear" as "linear" | "logarithmic");
 const enablePlusMinus = ref(true);
 const plusMinus = ref("std" as "std" | "ci95");
+const colourStore = useColourStore();
 const props = defineProps<{
     datasets: readonly Dataset[]
     xTicks: number[]
     title: string
     showLegend: boolean
-    colours: Map<string, string>
 }>();
+
+watch(colourStore.colours, updateChartData);
 
 
 function updateChartData() {
@@ -67,7 +70,7 @@ function updateChartData() {
     }
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
-        const colour = props.colours.get(ds.logdir) ?? "#000000";
+        const colour = colourStore.get(ds.logdir);
 
         if (enablePlusMinus.value) {
             let lower;
@@ -130,6 +133,10 @@ function initialiseChart(): Chart {
             datasets: []
         },
         options: {
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
             animation: false,
             onClick: (event, datasetElement) => {
                 if (datasetElement.length > 0) {

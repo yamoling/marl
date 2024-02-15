@@ -1,7 +1,7 @@
 import torch
 from dataclasses import dataclass
 from serde import serde
-from .mixer import Mixer
+from marl.models.nn import Mixer
 
 
 @serde

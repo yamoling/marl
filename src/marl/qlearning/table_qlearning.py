@@ -3,8 +3,8 @@ import pickle
 from typing import Optional
 import numpy as np
 from rlenv import Observation, Transition
-from marl.models import TransitionMemory, RLAlgo
-from marl.policy import Policy, EpsilonGreedy
+from marl.models import TransitionMemory, RLAlgo, Policy
+from marl.policy.qpolicies import EpsilonGreedy
 from marl.utils import defaults_to
 
 

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc && vite build",
+    "build": "bun run make-typecheck && vue-tsc && vite build",
+    "make-typecheck": "rimraf src/models/*-ti.ts && ts-interface-builder src/models/*.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -15,9 +16,10 @@
     "@fortawesome/free-solid-svg-icons": "^6.2.1",
     "@fortawesome/vue-fontawesome": "^3.0.3",
     "bootstrap": "^5",
-    "chart.js": "^4.2.0",
+    "chart.js": "^4",
     "pinia": "^2.1.7",
     "rainbowvis.js": "^1.1.1",
+    "rimraf": "^5.0.5",
     "vue": "^3.2.45",
     "vue-router": "4"
   },

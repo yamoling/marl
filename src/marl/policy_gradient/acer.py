@@ -1,8 +1,7 @@
 import torch
 import numpy as np
-from typing_extensions import Self
 from rlenv import Observation, Episode
-from marl import nn
+from marl.models import nn
 from marl.models import EpisodeMemory
 from marl.models.algo import RLAlgo
 from marl.utils import get_device
