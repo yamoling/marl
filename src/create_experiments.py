@@ -3,6 +3,7 @@ import laser_env as lenv
 import lle
 import rlenv
 from marl.training import DQNTrainer
+from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 
 
@@ -47,6 +48,38 @@ def create_smac():
     # logdir = "logs/test"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
+
+
+def create_ppo_lle():
+    n_steps = 1_000_000
+    env = LLE.level(2, ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+
+    ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
+    memory = marl.models.TransitionMemory(20)
+
+    trainer = PPOTrainer(
+        network=ac_network,
+        memory=memory,
+        gamma=0.99,
+        batch_size=5,
+        lr_critic=1e-4,
+        lr_actor=1e-4,
+        optimiser="adam",
+        train_every="step",
+        update_interval=20,
+        clip_eps=0.2,
+        c1=0.5,
+        c2=0,
+    )       
+
+    algo = marl.policy_gradient.PPO(
+        ac_network=ac_network
+    )
+    #logdir = f"logs/{env.name}-TEST_PPO"
+    logdir = f"logs/{env.name}-TEST-PPO"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=1000, n_steps=n_steps)
+    
 
 def create_lle():
     n_steps = 1_500_000
@@ -173,6 +206,7 @@ def create_laser_env():
 
 if __name__ == "__main__":
     # exp = create_smac()
+    # exp = create_ppo_lle()
     exp = create_lle()
     # exp = create_laser_env()
     print(exp.logdir)
