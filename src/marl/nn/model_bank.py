@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
 
-from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, LinearNN
+from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN
 
 
 @dataclass(unsafe_hash=True)
@@ -77,7 +77,7 @@ class RNNQMix(RecurrentQNetwork):
             extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
             obs = torch.concat((obs, extras), dim=-1)
         x = self.fc1.forward(obs)
-        x, self.hidden_state = self.gru.forward(x, self.hidden_states)
+        x, self.hidden_states = self.gru.forward(x, self.hidden_states)
         x = self.fc2.forward(x)
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_agents, *self.output_shape)
@@ -218,7 +218,7 @@ class CNN_ActorCritic(ActorCriticNN):
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
 
-class PolicyNetworkMLP(LinearNN):
+class PolicyNetworkMLP(NN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         assert len(self.extras_shape) == 1 and len(output_shape) == 1 and len(input_shape) == 1

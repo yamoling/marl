@@ -79,7 +79,7 @@ def create_ppo_lle():
 
 
 def create_lle():
-    n_steps = 1_500_000
+    n_steps = 1_000_000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
@@ -114,10 +114,10 @@ def create_lle():
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        mixer=marl.qlearning.VDN(env.n_agents),
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=rnd,
+        ir_module=None,
     )
 
     algo = marl.qlearning.DQN(
@@ -126,7 +126,7 @@ def create_lle():
         test_policy=marl.policy.ArgMax(),
     )
 
-    logdir = f"logs/flattened-state-{env.name}"
+    logdir = f"logs/new-qnetworks-{env.name}"
     if trainer.mixer is not None:
         logdir += f"-{trainer.mixer.name}"
     else:
@@ -136,7 +136,7 @@ def create_lle():
     if isinstance(trainer.memory, marl.models.PrioritizedMemory):
         logdir += "-PER"
 
-    logdir = "logs/test"
+    #  logdir = "logs/test"
 
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -209,4 +209,4 @@ if __name__ == "__main__":
     exp = create_lle()
     # exp = create_laser_env()
     print(exp.logdir)
-    exp.create_runner(seed=0).to("auto").train(1)
+    #  exp.create_runner(seed=0).to("auto").train(1)

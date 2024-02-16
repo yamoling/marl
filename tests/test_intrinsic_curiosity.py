@@ -4,11 +4,11 @@ import numpy as np
 from rlenv import Transition
 from lle import LLE, Action, ObservationType
 from marl.models.batch import TransitionBatch
-from marl.nn import LinearNN
+from marl.models import NN
 from marl.intrinsic_reward import RandomNetworkDistillation
 
 
-def _test_rnd_no_reward_normalisation(env: LLE, target: LinearNN):
+def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
     rnd = RandomNetworkDistillation(target, normalise_rewards=False)
     transitions = []
     obs = env.reset()
@@ -41,7 +41,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: LinearNN):
         ir = rnd.compute(train_batch).mean().item()
         irs.append(ir)
         assert ir >= 0
-        rnd.update()
+        rnd.update(_)
     initial_ir = sum(irs[0:100]) / 100
     ir_train_set = rnd.compute(train_batch).mean().item()
     ir_test_set = rnd.compute(test_batch).mean().item()
@@ -62,5 +62,5 @@ def test_rnd_linear():
 
 def test_rnd_conv():
     env = LLE.level(2, ObservationType.LAYERED)
-    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape, (512,))  # type: ignore
+    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512)
     _test_rnd_no_reward_normalisation(env, target)

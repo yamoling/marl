@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 from rlenv import Episode, Observation
-from marl.models import RLAlgo, Batch, LinearNN
+from marl.models import RLAlgo, Batch, NN
 from marl.utils import defaults_to, get_device
 
 
@@ -10,7 +10,7 @@ class Reinforce(RLAlgo):
     def __init__(
         self,
         gamma: float,
-        policy_network: LinearNN,
+        policy_network: NN,
         lr=5e-4,
         device: torch.device = None,
     ):
@@ -57,15 +57,3 @@ class Reinforce(RLAlgo):
     def load(self, from_path: str):
         state_dict = torch.load(from_path)
         self.policy_network.load_state_dict(state_dict)
-
-    def summary(self) -> dict:
-        return {
-            **super().summary(),
-            "gamma": self.gamma,
-            "alpha": self.optimizer.param_groups[0]["lr"],
-        }
-
-    @classmethod
-    def from_summary(cls, summary: dict) -> "Reinforce":
-        policy_network = LinearNN.from_summary(summary.pop("policy_network"))
-        return Reinforce(policy_network=policy_network, **summary)

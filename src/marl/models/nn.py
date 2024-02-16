@@ -1,6 +1,6 @@
 from typing import Optional
 from dataclasses import dataclass
-from typing import Generic, Literal, TypeVar
+from typing import Literal
 from rlenv import Observation
 from abc import ABC, abstractmethod
 import torch
@@ -75,10 +75,6 @@ class RecurrentNN(NN):
     def reset_hidden_states(self):
         """Reset the hidden states"""
         self.hidden_states = None
-
-
-class LinearNN(NN):
-    pass
 
 
 # class RecurrentNN(NN):
@@ -163,7 +159,7 @@ class ActorCriticNN(NN, ABC):
 
 
 @dataclass(eq=False)
-class Mixer(LinearNN, ABC):
+class Mixer(NN, ABC):
     n_agents: int
 
     def __init__(self, n_agents: int):

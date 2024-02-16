@@ -1,10 +1,12 @@
 import marl
 import torch
 
+from marl.models import QNetwork
+
 from .two_steps import TwoSteps, State
 
 
-class QNetwork(marl.nn.LinearNN):
+class QNetworkTest(QNetwork):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         self.nn = torch.nn.Sequential(
@@ -29,7 +31,7 @@ def test_qmix_value():
     env = TwoSteps()
     env.reset()
 
-    qnetwork = QNetwork.from_env(env)
+    qnetwork = QNetworkTest.from_env(env)
     policy = marl.policy.EpsilonGreedy.constant(1.0)
     memory = marl.models.EpisodeMemory(500)
     mixer = marl.qlearning.QMix(env.state_shape[0], env.n_agents, embed_size=8)

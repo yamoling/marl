@@ -7,7 +7,7 @@ import torch
 from rlenv import Episode, Transition
 
 from marl.intrinsic_reward import IRModule
-from marl.models import Updatable, Batch, ReplayMemory, PrioritizedMemory, LinearNN, RecurrentNN, Policy, Mixer, QNetwork
+from marl.models import Updatable, Batch, ReplayMemory, PrioritizedMemory, Policy, Mixer, QNetwork
 from marl.models.trainer import Trainer
 from marl.training import nodes
 from marl.training.nodes import Node

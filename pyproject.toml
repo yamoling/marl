@@ -40,7 +40,14 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-# The number of cores to run the tests with (xdist extension)
+filterwarnings = [
+    # Ignore deprecation warnings related to Pysc2 (smac)
+    "ignore:Call to deprecated create function Descriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function FieldDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function EnumValueDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function EnumDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function FileDescriptor().*:DeprecationWarning",
+]
 addopts = "-n 4"
 
 
