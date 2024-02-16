@@ -6,7 +6,7 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.12"
+python = ">=3.10, <4"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 laser-env = { git = "https://github.com/raphaelavalos/laser-env.git" }
@@ -21,6 +21,7 @@ sumtree = "^0.2.4"
 laser-learning-environment = "^0.1.10"
 typed-argparse = "^0.3.1"
 polars = "^0.20.6"
+protobuf = "3.20"
 
 
 [tool.poetry.group.dev.dependencies]

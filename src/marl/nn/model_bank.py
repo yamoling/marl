@@ -2,6 +2,7 @@ from typing import Optional
 from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
+import math
 
 from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN
 
@@ -154,13 +155,14 @@ class CNN(QNetwork):
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-        *dims, n_agents, channels, height, width = obs.shape
+        *dims, channels, height, width = obs.shape
+        leading_dims_size = math.prod(dims)
         # We must use 'reshape' instead of 'view' to handle the case of episodes
-        obs = obs.reshape(-1, channels, height, width)
+        obs = obs.view(leading_dims_size, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.reshape(-1, *self.extras_shape)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
         res = self.linear.forward(features, extras)
-        return res.view(*dims, n_agents, *self.output_shape)
+        return res.view(*dims, *self.output_shape)
 
 
 class CNN_ActorCritic(ActorCriticNN):

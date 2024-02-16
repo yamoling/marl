@@ -66,8 +66,10 @@ class DQNTrainer(Trainer):
         self.roots = list[nodes.Node]()
         # Every updatable object should be in this list.
         # Some nodes of the graph also need to be updated, so they are also in this list.
-        self.updatables = list[Updatable]([train_policy, target_updater])
+        self.updatables = list[Updatable]([train_policy])
         self.updatables += self._make_graph(qnetwork.device)
+        # Target updater must be added after the BackProp node otherwise the target parameters are not updated.
+        self.updatables.append(target_updater)
         # IR module must be added after the BackProp node otherwise the IR is not yet computed.
         if self.ir_module is not None:
             self.updatables.append(self.ir_module)

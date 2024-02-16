@@ -32,10 +32,10 @@ def test_target_network_is_updated():
         train_interval=(1, "step"),
         batch_size=batch_size,
     )
-    prev_qnetwork_params = deepcopy(target_updater.parameters)
-    prev_qtarget_params = deepcopy(target_updater.target_params)
     # Randomize the parameters
     trainer.qnetwork.randomize()
+    prev_qnetwork_params = deepcopy(target_updater.parameters)
+    prev_qtarget_params = deepcopy(target_updater.target_params)
     episode = generate_episode(env)
     assert len(episode) > batch_size + target_updater.update_period
     for time_step, transition in enumerate(episode):  # type: ignore
