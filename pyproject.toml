@@ -22,6 +22,8 @@ laser-learning-environment = "^0.1.10"
 typed-argparse = "^0.3.1"
 polars = "^0.20.6"
 protobuf = "3.20"
+neptune = "^1.9.1"
+python-dotenv = "^1.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
