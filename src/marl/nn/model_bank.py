@@ -85,8 +85,7 @@ class RNNQMix(RecurrentQNetwork):
         return x
 
 
-class RNN(RNNQMix):
-    pass
+RNN = RNNQMix
 
 
 class DuelingMLP(QNetwork):

@@ -795,27 +795,6 @@ files = [
 ]
 
 [[package]]
-name = "laser-env"
-version = "0.4.1"
-description = "A reinforcement learning environment with lasers"
-optional = false
-python-versions = ">=3.10,<4"
-files = []
-develop = false
-
-[package.dependencies]
-networkx = "^3.1"
-numpy = "^1.23.4"
-opencv-python = "^4.6.0"
-rlenv = {git = "https://github.com/yamoling/rlenv.git"}
-
-[package.source]
-type = "git"
-url = "https://github.com/raphaelavalos/laser-env.git"
-reference = "HEAD"
-resolved_reference = "7265699158cc3b1f95ee8fbcdc83447047549573"
-
-[[package]]
 name = "laser-learning-environment"
 version = "0.1.12"
 description = "A fast Multi-Agent Reinforcement Learning Environment"
@@ -2439,4 +2418,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <4"
-content-hash = "a24ade1346e26e13f8c50ab42608e61630672bfb2c4f3aa4d940a05a93cfbca6"
+content-hash = "41004cb622f63db33f615123a04723f9c6be66842325bbd678bab1d61b04e7fb"

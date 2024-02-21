@@ -45,9 +45,11 @@ class DQN(RLAlgo):
 
     def set_testing(self):
         self.policy = self.test_policy
+        self.qnetwork.eval()
 
     def set_training(self):
         self.policy = self.train_policy
+        self.qnetwork.train()
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)
@@ -76,24 +78,14 @@ class DQN(RLAlgo):
 
 class RDQN(DQN):
     """
-    Recurrent DQN
+    Recurrent DQN.
 
-    Essentially the same as DQN, but we have to manage the hidden states.
+    Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
     """
 
     def __init__(self, qnetwork: RecurrentQNetwork, train_policy: Policy, test_policy: Policy | None = None):
         super().__init__(qnetwork, train_policy, test_policy)
         self.qnetwork: RecurrentQNetwork
-        self._saved_hidden_states = None
 
     def new_episode(self):
         self.qnetwork.reset_hidden_states()
-
-    def set_testing(self):
-        super().set_testing()
-        self._saved_hidden_states = self.qnetwork.hidden_states
-        self.qnetwork.reset_hidden_states()
-
-    def set_training(self):
-        super().set_training()
-        self.qnetwork.hidden_states = self._saved_hidden_states

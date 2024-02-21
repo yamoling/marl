@@ -48,7 +48,7 @@ class QValues(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        qvalues = self.qnetwork.forward(batch.obs, batch.extras)
+        qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
         qvalues = qvalues.squeeze(dim=-1)
         return qvalues
@@ -77,7 +77,7 @@ class NextValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         # with torch.no_grad():
-        next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
+        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
             # For episode batches, the batch includes the initial observation
             # in order to compute the hidden state at t=0 and use it for t=1.
@@ -106,10 +106,10 @@ class DoubleQLearning(Node[torch.Tensor]):
 
     def _compute_value(self):
         batch = self.batch.value
-        target_next_qvalues = self.qtarget.forward(batch.obs_, batch.extras_)
+        target_next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
         # Take the indices from the target network and the values from the current network
         # instead of taking both from the target network
-        current_next_qvalues = self.qnetwork.forward(batch.obs_, batch.extras_)
+        current_next_qvalues = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):
             # See above comment in NextQValues for an explanation on the reasons for this "if"
             target_next_qvalues = target_next_qvalues[1:]

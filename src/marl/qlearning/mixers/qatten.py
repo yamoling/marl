@@ -11,8 +11,8 @@ class Qatten(Mixer):
         n_actions: int,
         state_size: int,
         agent_state_size: int,
-        embedding_dim: int = 32,
-        hypernetwork_embed_size: int = 32,
+        mixer_embedding_dim: int = 32,
+        hypernetwork_embed_size: int = 64,
         n_heads: int = 4,
         weighted_head: bool = False,
         nonlinear: bool = False,
@@ -24,16 +24,16 @@ class Qatten(Mixer):
         self.unit_dim = agent_state_size
         self.weighted_head = weighted_head
 
-        self.V = nn.Sequential(
-            nn.Linear(state_size, embedding_dim),
+        self.value = nn.Sequential(
+            nn.Linear(state_size, mixer_embedding_dim),
             nn.ReLU(),
-            nn.Linear(embedding_dim, 1),
+            nn.Linear(mixer_embedding_dim, 1),
         )
 
         self.hyper_w_head = nn.Sequential(
-            nn.Linear(state_size, embedding_dim),
+            nn.Linear(state_size, mixer_embedding_dim),
             nn.ReLU(),
-            nn.Linear(embedding_dim, n_heads),
+            nn.Linear(mixer_embedding_dim, n_heads),
             AbsLayer(),
         )
 
@@ -44,21 +44,21 @@ class Qatten(Mixer):
                 nn.Sequential(
                     nn.Linear(state_size, hypernetwork_embed_size),
                     nn.ReLU(),
-                    nn.Linear(hypernetwork_embed_size, embedding_dim, bias=False),
+                    nn.Linear(hypernetwork_embed_size, mixer_embedding_dim, bias=False),
                 )
             )
             if nonlinear:  # add qs
-                self.key_extractors.append(nn.Linear(agent_state_size + 1, embedding_dim, bias=False))  # key
+                self.key_extractors.append(nn.Linear(agent_state_size + 1, mixer_embedding_dim, bias=False))  # key
                 raise NotImplementedError("TODO: currently not implemented. Refer to the original code for implementation.")
             else:
-                self.key_extractors.append(nn.Linear(agent_state_size, embedding_dim, bias=False))  # key
+                self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
 
     def forward(
         self,
         qvalues: torch.Tensor,
         states: torch.Tensor,
     ):
-        *dims, state_size = qvalues.shape
+        *dims, state_size = states.shape
         states = states.reshape(-1, state_size)
         unit_states = states[:, : self.unit_dim * self.n_agents]  # get agent own features from state
         unit_states = unit_states.view(-1, self.n_agents, self.unit_dim)
@@ -81,13 +81,13 @@ class Qatten(Mixer):
         q_h = torch.sum(attentioned_qvalues, dim=-1)
 
         # If we use weighted heads (right path of the figure), then compute them from the states and apply them to q_h.
-        if self.args.weighted_head:
+        if self.weighted_head:
             w_head = self.hyper_w_head.forward(states)  # w_head: (bs, head_num)
             w_head = w_head.view(-1, self.n_head, 1).repeat(1, 1, self.n_agents)  # w_head: (bs, head_num, self.n_agents)
             q_h = q_h * w_head
 
         # Top side of the figure: add c(s), which is V(s) in practice.
-        v = torch.squeeze(self.V.forward(states))
+        v = torch.squeeze(self.value.forward(states))
         q_sum = torch.sum(q_h, dim=1)
         q_tot = q_sum + v
         return q_tot.view(*dims)

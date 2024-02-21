@@ -9,7 +9,6 @@ license = "MIT"
 python = ">=3.10, <4"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
-laser-env = { git = "https://github.com/raphaelavalos/laser-env.git" }
 opencv-python = "^4.7.0.68"
 tqdm = "^4.65.0"
 pynvml = "^11.5.0"

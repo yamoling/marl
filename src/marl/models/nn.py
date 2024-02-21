@@ -51,11 +51,6 @@ class NN(torch.nn.Module, ABC):
                 randomize(torch.nn.init.orthogonal_, self)
             case _:
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
-        # for param in self.parameters():
-        #     if len(param.data.shape) < 2:
-        #         init(param.data.view(1, -1))
-        #     else:
-        #         init(param.data)
 
     @classmethod
     def from_env(cls, env: RLEnv):
@@ -71,37 +66,23 @@ class RecurrentNN(NN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         self.hidden_states: Optional[torch.Tensor] = None
+        self.saved_hidden_states = None
 
     def reset_hidden_states(self):
         """Reset the hidden states"""
         self.hidden_states = None
 
-
-# class RecurrentNN(NN):
-#     """Abstract class representing a recurrent neural network"""
-
-#     @abstractmethod
-#     def forward(
-#         self,
-#         obs: torch.Tensor,
-#         extras: torch.Tensor,
-#         hidden_states: Optional[torch.Tensor] = None,
-#     ) -> tuple[torch.Tensor, torch.Tensor]:
-#         """
-#         Forward pass.
-#         All the inputs must have the shape [Episode length, Number of agents, *data_shape]
-
-#         Arguments:
-#             - (torch.Tensor) obs: the observation(s)
-#             - (torch.Tensor) extras: the extra features (agent ID, ...)
-#             - (torch.Tensor) hidden_states: the hidden states
-
-#         Note that obs, extras and hidden shapes must have the same number of dimensions
-
-#         Returns:
-#             - (torch.Tensor) The NN output
-#             - (torch.Tensor) The hidden states
-#         """
+    def train(self, mode: bool = True):
+        if not mode:
+            # Set test mode: save training hidden states
+            self.saved_hidden_states = self.hidden_states
+            self.hidden_states = None
+        else:
+            # Set train mode
+            if not self.training:
+                # if not already in train mode, restore hidden states
+                self.hidden_states = self.saved_hidden_states
+        return super().train(mode)
 
 
 class QNetwork(NN):
@@ -123,13 +104,27 @@ class QNetwork(NN):
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Compute the Q-values"""
 
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Compute the Q-values for a batch of observations during training"""
+        return self.forward(obs, extras)
+
     @classmethod
     def from_env(cls, env: RLEnv):
         return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
 
 
 class RecurrentQNetwork(QNetwork, RecurrentNN):
-    pass
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the Q-values for a batch of observations (multiple episodes) during training.
+
+        In this case, the RNN considers hidden states=None.
+        """
+        saved_hidden_states = self.hidden_states
+        self.hidden_states = None
+        qvalues = self.forward(obs, extras)
+        self.hidden_states = saved_hidden_states
+        return qvalues
 
 
 class ActorCriticNN(NN, ABC):
@@ -170,10 +165,12 @@ class Mixer(NN, ABC):
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor) -> torch.Tensor:
         """Mix the utiliy values of the agents."""
 
-    @abstractmethod
     def save(self, to_directory: str):
         """Save the mixer to a directory."""
+        filename = f"{to_directory}/mixer.weights"
+        torch.save(self.state_dict(), filename)
 
-    @abstractmethod
     def load(self, from_directory: str):
         """Load the mixer from a directory."""
+        filename = f"{from_directory}/mixer.weights"
+        self.load_state_dict(torch.load(filename))
