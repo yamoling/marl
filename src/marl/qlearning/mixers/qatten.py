@@ -48,8 +48,8 @@ class Qatten(Mixer):
                 )
             )
             if nonlinear:  # add qs
-                self.key_extractors.append(nn.Linear(agent_state_size + 1, mixer_embedding_dim, bias=False))  # key
                 raise NotImplementedError("TODO: currently not implemented. Refer to the original code for implementation.")
+                self.key_extractors.append(nn.Linear(agent_state_size + 1, mixer_embedding_dim, bias=False))  # key
             else:
                 self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
 
@@ -82,8 +82,7 @@ class Qatten(Mixer):
 
         # If we use weighted heads (right path of the figure), then compute them from the states and apply them to q_h.
         if self.weighted_head:
-            w_head = self.hyper_w_head.forward(states)  # w_head: (bs, head_num)
-            w_head = w_head.view(-1, self.n_head, 1).repeat(1, 1, self.n_agents)  # w_head: (bs, head_num, self.n_agents)
+            w_head = self.hyper_w_head.forward(states)
             q_h = q_h * w_head
 
         # Top side of the figure: add c(s), which is V(s) in practice.

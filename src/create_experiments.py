@@ -1,14 +1,20 @@
 import marl
 import lle
 import rlenv
+import typed_argparse as tap
 from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 
 
-def create_smac():
+class Arguments(tap.TypedArgs):
+    run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
+    debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
+
+
+def create_smac(args: Arguments):
     n_steps = 2_000_000
-    env = rlenv.adapters.SMAC("3m")
+    env = rlenv.adapters.SMAC("3s_vs_5z")
     smac = env._env
     env = rlenv.Builder(env).agent_id().last_action().build()
     qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
@@ -27,7 +33,13 @@ def create_smac():
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.qlearning.Qatten(env.n_agents, env.n_actions, env.state_shape[0], smac_unit_state_size),
+        mixer=marl.qlearning.Qatten(
+            env.n_agents,
+            env.n_actions,
+            env.state_shape[0],
+            smac_unit_state_size,
+            weighted_head=True,
+        ),
         grad_norm_clipping=10,
     )
 
@@ -36,16 +48,18 @@ def create_smac():
         train_policy=train_policy,
         test_policy=test_policy,
     )
-    logdir = f"logs/{env.name}"
-    if trainer.mixer is not None:
-        logdir += f"-{trainer.mixer.name}"
+    if args.debug:
+        logdir = "logs/debug"
     else:
-        logdir += "-iql"
-    if trainer.ir_module is not None:
-        logdir += f"-{trainer.ir_module.name}"
-    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        logdir += "-PER"
-    logdir = "logs/test"
+        logdir = f"logs/{env.name}"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}-weighted-head"
+        else:
+            logdir += "-iql"
+        if trainer.ir_module is not None:
+            logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
@@ -78,7 +92,7 @@ def create_ppo_lle():
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=1000, n_steps=n_steps)
 
 
-def create_lle():
+def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
@@ -126,24 +140,29 @@ def create_lle():
         test_policy=marl.policy.ArgMax(),
     )
 
-    logdir = f"logs/new-qnetworks-{env.name}"
-    if trainer.mixer is not None:
-        logdir += f"-{trainer.mixer.name}"
+    if args.debug:
+        logdir = "logs/debug"
     else:
-        logdir += "-iql"
-    if trainer.ir_module is not None:
-        logdir += f"-{trainer.ir_module.name}"
-    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        logdir += "-PER"
-
-    #  logdir = "logs/test"
-
+        logdir = f"logs/new-qnetworks-{env.name}"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if trainer.ir_module is not None:
+            logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-if __name__ == "__main__":
-    exp = create_smac()
+def main(args: Arguments):
+    exp = create_smac(args)
     # exp = create_ppo_lle()
-    # exp = create_lle()
+    # exp = create_lle(args)
     print(exp.logdir)
-    exp.create_runner(seed=0).to("auto").train(1)
+    if args.run:
+        exp.create_runner(seed=0).to("auto").train(1)
+
+
+if __name__ == "__main__":
+    tap.Parser(Arguments).bind(main).run()
