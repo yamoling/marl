@@ -1,5 +1,4 @@
 import marl
-import laser_env as lenv
 import lle
 import rlenv
 from marl.training import DQNTrainer
@@ -51,8 +50,8 @@ def create_smac():
 
 
 def create_ppo_lle():
-    n_steps = 1_000_000
-    env = LLE.level(2, ObservationType.LAYERED)
+    n_steps = 300_000
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -76,9 +75,8 @@ def create_ppo_lle():
     algo = marl.policy_gradient.PPO(
         ac_network=ac_network
     )
-    #logdir = f"logs/{env.name}-TEST_PPO"
     logdir = f"logs/{env.name}-TEST-PPO"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=1000, n_steps=n_steps)
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
     
 
 def create_lle():

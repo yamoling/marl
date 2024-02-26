@@ -79,16 +79,6 @@ class Batch(ABC):
     @cached_property
     def states_(self) -> torch.Tensor:
         """Next environment states"""
-        
-    @abstractmethod  # type: ignore
-    @cached_property
-    def value(self) -> torch.Tensor:
-        """Value function"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def action_probs(self) -> torch.Tensor:
-        """Probabilities of the taken action"""
 
     @abstractmethod  # type: ignore
     @cached_property

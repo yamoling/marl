@@ -92,9 +92,5 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(np.array([e.states[1:] for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
-    def action_probs(self):
-        return torch.from_numpy(np.array([e.actions_probs for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-
-    @cached_property
     def masks(self):
         return torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
