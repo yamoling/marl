@@ -28,10 +28,13 @@ class PPO(RLAlgo):
             logits, value = self.network.forward(obs_data, obs_extras)  # get action probabilities
             logits[torch.tensor(observation.available_actions) == 0] = -torch.inf  # mask unavailable actions
             dist = torch.distributions.Categorical(logits=logits)
-            action = dist.sample()
+            
+            if self.is_training:
+                action = dist.sample()
+            else:
+                action = torch.argmax(logits, dim=1)
 
             return action.numpy(force=True)
-
 
 
     def value(self, obs: Observation) -> float:

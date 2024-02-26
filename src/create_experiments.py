@@ -68,8 +68,8 @@ def create_ppo_lle():
         train_every="step",
         update_interval=20,
         clip_eps=0.2,
-        c1=0.5,
-        c2=0,
+        c1=1,
+        c2=0.01,
     )       
 
     algo = marl.policy_gradient.PPO(
