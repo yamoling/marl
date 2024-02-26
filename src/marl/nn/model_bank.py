@@ -213,6 +213,40 @@ class CNN_ActorCritic(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
+class SimpleActorCritic(ActorCriticNN):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.common = torch.nn.Sequential(
+            torch.nn.Linear(*input_shape, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 256),
+            torch.nn.ReLU(),
+        )
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(256, *output_shape),
+            torch.nn.Softmax(dim=-1),
+        )
+
+        self.value_network = torch.nn.Linear(256, 1)
+    
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+        obs = torch.cat((obs, extras), dim=-1)
+        x = self.common(obs)
+        return self.policy_network(x), self.value_network(x)
+    
+    def policy(self, obs: torch.Tensor):
+        return self.policy_network(obs)
+    
+    def value(self, obs: torch.Tensor):
+        return self.value_network(obs)
+    
+    @property
+    def value_parameters(self):
+        return list(self.common.parameters()) + list(self.value_network.parameters())
+
+    @property
+    def policy_parameters(self):
+        return list(self.common.parameters()) + list(self.policy_network.parameters())
 
 class PolicyNetworkMLP(LinearNN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
