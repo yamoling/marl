@@ -108,6 +108,8 @@ class PPOTrainer(Trainer):
             a_t = 0
             for k in range(t, mem_len - 1):
                 a_t += discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
+                if (batch.dones[k] == 1):
+                    break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()
         advantages = torch.from_numpy(advantages).to(self.device)
