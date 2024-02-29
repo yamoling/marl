@@ -33,7 +33,7 @@ class IDQN(RLAlgo, ABC, Generic[N]):
         self.train_policy = train_policy
         if test_policy is None:
             test_policy = self.train_policy
-        self.test_policy = test_policy
+        self.test_policy = test_policy 
         self.policy = self.train_policy
 
     def choose_action(self, obs: Observation) -> np.ndarray:
@@ -118,3 +118,27 @@ class RDQN(IDQN[RecurrentNN]):
     def set_training(self):
         super().set_training()
         self._hidden_states = self._saved_train_hidden_states
+
+
+class RIAL(IDQN[LinearNN]): # RIAL uses DRQN but for lle Linear is good
+
+    com_qnetwork: N
+    com_policy: Policy
+
+    def __init__(self, qnetwork: LinearNN, com_qnetwork: LinearNN, com_policy: Policy, train_policy: Policy, test_policy: Policy | None = None):
+        super().__init__(qnetwork, train_policy, test_policy)
+        self.com_qnetwork = com_qnetwork
+        self.com_policy = com_policy
+
+    def choose_action(self, obs: Observation) -> np.ndarray:
+        with torch.no_grad():
+            # TODO: compute qvalues for messages + add messages in extra of the obs
+            obs.extras += 2.0
+            qvalues = self.compute_qvalues(obs)
+        qvalues = qvalues.cpu().numpy()
+        return self.policy.get_action(qvalues, obs.available_actions)
+
+    def compute_qvalues(self, obs: Observation):
+        obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device, non_blocking=True)
+        return self.qnetwork.forward(obs_data, obs_extras).squeeze(0)

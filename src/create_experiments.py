@@ -142,6 +142,69 @@ def create_lle():
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
+def create_lle_rial():
+    n_steps = 1_500_000
+    gamma = 0.95
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    memory = marl.models.TransitionMemory(50_000)
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=500_000,
+    )
+    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
+    #     normalise_rewards=False,
+    #     # gamma=gamma,
+    # )
+    rnd = None
+    # memory = marl.models.PrioritizedMemory(
+    #     memory=memory,
+    #     alpha=0.6,
+    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
+    #     td_error_clipping=5.0,
+    # )
+    trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=64,
+        train_interval=(5, "step"),
+        gamma=gamma,
+        # mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        grad_norm_clipping=10,
+        ir_module=rnd,
+    )
+
+    # TODO add parameter for the lenght of the message
+    algo = marl.qlearning.RIAL(
+        qnetwork=qnetwork,
+        com_qnetwork=qnetwork, # TODO create a qnetwork for communication
+        com_policy=train_policy, # TODO create a policy for communication
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    logdir = f"logs/flattened-state-{env.name}"
+    if trainer.mixer is not None:
+        logdir += f"-{trainer.mixer.name}"
+    else:
+        logdir += "-iql"
+    if trainer.ir_module is not None:
+        logdir += f"-{trainer.ir_module.name}"
+    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+        logdir += "-PER"
+
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+
 def create_laser_env():
     n_steps = 1_000_000
     gamma = 0.95
@@ -207,7 +270,8 @@ def create_laser_env():
 if __name__ == "__main__":
     # exp = create_smac()
     # exp = create_ppo_lle()
-    exp = create_lle()
+    # exp = create_lle()
+    exp = create_lle_rial()
     # exp = create_laser_env()
     print(exp.logdir)
     # exp.create_runner(seed=0).to("auto").train(1)

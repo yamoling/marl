@@ -1,7 +1,7 @@
 from .table_qlearning import VanillaQLearning, ReplayTableQLearning
 
 from .mixers import QMix, VDN
-from .dqn import DQN, RDQN
+from .dqn import DQN, RDQN, RIAL
 
 
 __all__ = [
@@ -11,4 +11,5 @@ __all__ = [
     "VDN",
     "DQN",
     "RDQN",
+    "RIAL"
 ]
