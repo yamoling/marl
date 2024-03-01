@@ -27,6 +27,9 @@ class SoftmaxPolicy(Policy):
         chosen_actions = [np.random.choice(self.actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)
 
+    def update(self, _: int) -> dict[str, float]:
+        return {"softmax-tau": self.tau}
+
 
 @serde
 @dataclass

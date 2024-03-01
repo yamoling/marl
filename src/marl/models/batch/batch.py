@@ -9,7 +9,7 @@ class Batch(ABC):
     Lazy loaded batch for training.
     """
 
-    def __init__(self, size: int, n_agents: int) -> None:
+    def __init__(self, size: int, n_agents: int):
         super().__init__()
         self.size = size
         self.n_agents = n_agents
@@ -47,8 +47,14 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def actions(self) -> torch.LongTensor:
+    def actions(self) -> torch.Tensor:
         """Actions"""
+
+    @cached_property
+    def one_hot_actions(self) -> torch.Tensor:
+        """One hot encoded actions"""
+        n_actions = self.available_actions.shape[-1]
+        return torch.nn.functional.one_hot(self.actions, n_actions)
 
     @abstractmethod  # type: ignore
     @cached_property
@@ -62,12 +68,12 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def available_actions_(self) -> torch.LongTensor:
+    def available_actions_(self) -> torch.Tensor:
         """Next available actions"""
 
     @abstractmethod  # type: ignore
     @cached_property
-    def available_actions(self) -> torch.LongTensor:
+    def available_actions(self) -> torch.Tensor:
         """Available actions"""
 
     @abstractmethod  # type: ignore
@@ -79,20 +85,10 @@ class Batch(ABC):
     @cached_property
     def states_(self) -> torch.Tensor:
         """Next environment states"""
-        
-    @abstractmethod  # type: ignore
-    @cached_property
-    def value(self) -> torch.Tensor:
-        """Value function"""
 
     @abstractmethod  # type: ignore
     @cached_property
-    def action_probs(self) -> torch.Tensor:
-        """Probabilities of the taken action"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def masks(self) -> torch.LongTensor:
+    def masks(self) -> torch.Tensor:
         """Masks (for padded episodes)"""
 
     def to(self, device: torch.device):

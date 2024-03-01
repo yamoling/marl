@@ -1,5 +1,5 @@
 from typing import Any, Literal
-from rlenv import Episode, Transition
+from rlenv import Episode, Transition, Observation
 
 import torch
 from marl.models import Batch
@@ -34,7 +34,6 @@ class PPOTrainer(Trainer):
         self.batch_size = batch_size
         self.lr_critic = lr_critic
         self.lr_actor = lr_actor
-        self.optimiser = optimiser
         self.clip_eps = clip_eps
         self.clip_low = 1 - clip_eps
         self.clip_high = 1 + clip_eps
@@ -51,13 +50,13 @@ class PPOTrainer(Trainer):
 
         self.to(self.device)
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[Any]:
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.update_on_episodes:
             return {}
         self.memory.add(episode)
         return self._update(time_step)
 
-    def update_step(self, transition: Transition, step_num: int) -> dict[Any]:
+    def update_step(self, transition: Transition, step_num: int) -> dict[str, float]:
         if not self.update_on_steps:
             return {}
         self.memory.add(transition)
@@ -72,6 +71,14 @@ class PPOTrainer(Trainer):
             returns[i] = batch.rewards[i] + self.gamma * returns[i + 1] * (1 - batch.dones[i])
         return returns
 
+    def get_value_and_action_probs(self, observation, extras, available_actions, actions) -> tuple[torch.Tensor, np.ndarray]:
+        with torch.no_grad():
+            logits, value = self.network.forward(observation, extras)
+            logits[available_actions == 0] = -torch.inf
+            dist = torch.distributions.Categorical(logits=logits)
+
+            return value, dist.log_prob(actions).numpy(force=True)
+
     def _update(self, time_step: int):
         self.update_num += 1
         if (self.update_num % self.update_interval) != 0:
@@ -83,15 +90,26 @@ class PPOTrainer(Trainer):
         self.memory.clear()
         batch.actions = batch.actions.squeeze(-1)
 
+        # recompute observations values and action probabilities
+        batch_values = []
+        batch_log_probs = []
+        for i in range(mem_len):
+            value, prob = self.get_value_and_action_probs(batch.obs[i], batch.extras[i], batch.available_actions[i], batch.actions[i])
+            batch_values.append(value)
+            batch_log_probs.append(prob)
+        batch_values = torch.stack(batch_values).to(self.device)
+        batch_log_probs = torch.tensor(np.array(batch_log_probs)).to(self.device)
+
         # compute advantages
-        advantages = np.zeros((batch.value.shape[0], batch.value.shape[1]), dtype=np.float32)
+        advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
         for t in range(mem_len - 1):
             discount = 1
-            a_t = 0
+            a_t = torch.tensor(0)
             for k in range(t, mem_len - 1):
-                a_t += discount * (batch.rewards[k] + self.gamma * batch.value[k + 1] * (1 - batch.dones[k]) - batch.value[k])
+                a_t += discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
+                if batch.dones[k] == 1:
+                    break
                 discount *= self.gamma
-            # print(a_t)
             advantages[t] = a_t.cpu().squeeze()
         advantages = torch.from_numpy(advantages).to(self.device)
 
@@ -107,12 +125,12 @@ class PPOTrainer(Trainer):
                 extras = batch.extras[b]
                 actions = batch.actions[b]
                 available_actions = batch.available_actions[b]
-                old_log_probs = batch.action_probs[b]
-                values = batch.value[b]
+                old_log_probs = batch_log_probs[b]
+                values = batch_values[b]
 
                 new_logits, new_values = self.network.forward(obs, extras)
 
-                # new_logits[torch.tensor(available_actions.reshape(new_logits.shape)) == 0] = -torch.inf  # mask unavailable actions
+                new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
 
                 dist = torch.distributions.Categorical(logits=new_logits)
                 new_log_probs = dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
@@ -147,7 +165,7 @@ class PPOTrainer(Trainer):
         self.batch.randomize()
 
     def _make_graph(self):
-        batch = nodes.ValueNode[Batch](None)
+        batch = nodes.ValueNode[Batch](None)  # type: ignore
         return batch
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):

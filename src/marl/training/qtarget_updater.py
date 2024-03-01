@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from abc import abstractmethod
 from marl.models import Updatable
+from typing import Iterable
 
 import torch
 
@@ -14,7 +15,9 @@ class TargetParametersUpdater(Updatable):
         self.parameters = list[torch.nn.Parameter]()
         self.target_params = list[torch.nn.Parameter]()
 
-    def add_parameters(self, parameters: list[torch.nn.Parameter], target_params: list[torch.nn.Parameter]):
+    def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
+        parameters = list(parameters)
+        target_params = list(target_params)
         for param, target in zip(parameters, target_params):
             assert param.shape == target.shape, "Parameter and target parameter shapes must match"
         self.parameters.extend(parameters)

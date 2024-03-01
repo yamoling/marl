@@ -1,35 +1,30 @@
 import os
 import pickle
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional, Generic, TypeVar
+from typing import Optional
 from serde import serde
 
 import numpy as np
 import torch
 from rlenv.models import Observation
 
-from marl.models import RLAlgo, LinearNN, RecurrentNN, NN, Policy
-
-
-N = TypeVar("N", bound=NN)
+from marl.models import RLAlgo, Policy, QNetwork, RecurrentQNetwork
 
 
 @serde
 @dataclass
-class IDQN(RLAlgo, ABC, Generic[N]):
+class DQN(RLAlgo):
     """
     Deep Q-Network Interface with shared QNetwork.
     """
 
-    qnetwork: N
+    qnetwork: QNetwork
     train_policy: Policy
     test_policy: Policy
 
-    def __init__(self, qnetwork: N, train_policy: Policy, test_policy: Optional[Policy] = None):
+    def __init__(self, qnetwork: QNetwork, train_policy: Policy, test_policy: Optional[Policy] = None):
         super().__init__()
         self.qnetwork = qnetwork
-        self.device = self.qnetwork.device
         self.train_policy = train_policy
         if test_policy is None:
             test_policy = self.train_policy
@@ -43,19 +38,18 @@ class IDQN(RLAlgo, ABC, Generic[N]):
         return self.policy.get_action(qvalues, obs.available_actions)
 
     def value(self, obs: Observation) -> float:
-        qvalues = self.compute_qvalues(obs)
-        max_qvalues = torch.max(qvalues, dim=-1).values
-        return torch.mean(max_qvalues).item()
+        return self.qnetwork.value(obs).item()
 
-    @abstractmethod
     def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        pass
+        return self.qnetwork.qvalues(obs)
 
     def set_testing(self):
         self.policy = self.test_policy
+        self.qnetwork.eval()
 
     def set_training(self):
         self.policy = self.train_policy
+        self.qnetwork.train()
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)
@@ -80,14 +74,21 @@ class IDQN(RLAlgo, ABC, Generic[N]):
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)
-        self.device = device
 
 
-class DQN(IDQN[LinearNN]):
-    def compute_qvalues(self, obs: Observation):
-        obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)
-        obs_extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device, non_blocking=True)
-        return self.qnetwork.forward(obs_data, obs_extras).squeeze(0)
+class RDQN(DQN):
+    """
+    Recurrent DQN.
+
+    Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
+    """
+
+    def __init__(self, qnetwork: RecurrentQNetwork, train_policy: Policy, test_policy: Policy | None = None):
+        super().__init__(qnetwork, train_policy, test_policy)
+        self.qnetwork: RecurrentQNetwork
+
+    def new_episode(self):
+        self.qnetwork.reset_hidden_states()
 
 
 class RDQN(IDQN[RecurrentNN]):
@@ -97,10 +98,18 @@ class RDQN(IDQN[RecurrentNN]):
     Essentially the same as DQN, but we have to manage the hidden states.
     """
 
-    def __init__(self, qnetwork: RecurrentNN, train_policy: Policy, test_policy: Policy | None = None):
+    def __init__(self, qnetwork: LinearNN, com_qnetwork: LinearNN, com_policy: Policy, train_policy: Policy, test_policy: Policy | None = None):
         super().__init__(qnetwork, train_policy, test_policy)
-        self._hidden_states = None
-        self._saved_train_hidden_states = None
+        self.com_qnetwork = com_qnetwork
+        self.com_policy = com_policy
+
+    def choose_action(self, obs: Observation) -> np.ndarray:
+        with torch.no_grad():
+            # TODO: compute qvalues for messages + add messages in extra of the obs
+            obs.extras += 2.0
+            qvalues = self.compute_qvalues(obs)
+        qvalues = qvalues.cpu().numpy()
+        return self.policy.get_action(qvalues, obs.available_actions)
 
     def compute_qvalues(self, obs: Observation):
         obs_data = torch.from_numpy(obs.data).unsqueeze(0).to(self.device, non_blocking=True)

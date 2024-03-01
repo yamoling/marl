@@ -20,7 +20,7 @@
                                     <font-awesome-icon :icon="['fas', 'play']" />
                                 </button>
                                 <button v-else-if="runStatus[i] == 'running'" class="btn btn-sm btn-outline-warning"
-                                    @click="() => pauseRun(i, run.rundir)" :disabled="pausing[i]">
+                                    :disabled="pausing[i]">
                                     <font-awesome-icon v-if="!pausing[i]" :icon="['fas', 'pause']" />
                                     <font-awesome-icon v-else :icon="['fas', 'spinner']" spin />
                                 </button>
@@ -48,7 +48,7 @@
                     </template>
                     <tr>
                         <td colspan="3" class="text-center">
-                            <button class="btn btn-sm btn-outline-success ms-4 px-3" @click="createNewRunner">
+                            <button class="btn btn-sm btn-outline-success ms-4 px-3">
                                 <font-awesome-icon :icon="['fas', 'plus']" />
                             </button>
                         </td>
@@ -60,16 +60,13 @@
 </template>
 <script setup lang="ts">
 import { Modal } from 'bootstrap';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { ReplayEpisodeSummary } from '../../models/Episode';
 import { Experiment } from '../../models/Experiment';
 import { Run } from '../../models/Experiment';
-import { useRunStore } from '../../stores/RunStore';
 
-let runConfigModal = {} as Modal;
 let restartRunModal = {} as Modal;
 const runToRestart = ref(null as null | Run);
-const store = useRunStore();
 // Map rundir to run.time_step.
 const progresses = ref(new Map<string, number>());
 const runStatus = computed(() => {
@@ -96,7 +93,8 @@ async function deleteRun(index: number, run: Run) {
     if (confirm(`Are you sure you want to delete ${run.rundir}?`)) {
         deleting.value[index] = true;
         try {
-            await store.deleteRun(run.rundir);
+            alert("Not implemented !");
+            return
             props.experiment.runs.splice(index, 1);
         } catch (e) {
             alert(`Failed to delete ${run.rundir}: ${e}`);
@@ -110,47 +108,9 @@ async function restartRun(index: number, run: Run) {
     restartRunModal.show()
 }
 
-async function onRunRestart() {
-    restartRunModal.hide();
-    let port = await store.getRunnerPort(runToRestart.value!.rundir);
-    while (port == null) {
-        port = await store.getRunnerPort(runToRestart.value!.rundir);
-    }
-    emits("reload-requested")
-}
-
 function onTrainUpdate(rundir: string, data: ReplayEpisodeSummary) {
     const step = Number.parseInt(data.name);
     progresses.value.set(rundir, step);
-}
-
-async function pauseRun(runNum: number, rundir: string) {
-    if (confirm(`Are you sure you want to pause ${rundir}?`)) {
-        pausing.value[runNum] = true;
-        await store.stopRunner(rundir);
-        pausing.value[runNum] = false;
-
-    }
-}
-
-
-async function createNewRunner() {
-    store.createRunner({
-        logdir: props.experiment.logdir,
-        num_tests: 5,
-        seed: null
-    });
-    return
-    // const runConfig = {
-    //     checkpoint: null,
-    //     logdir: props.experiment.logdir,
-    //     num_runs: nRuns.value,
-    //     num_tests: nTests.value,
-    //     test_interval: testInterval.value,
-    //     num_steps: nSteps.value,
-    //     use_seed: useSeed.value,
-    // } as RunConfig;
-    // store.createRunner(runConfig)
 }
 
 
