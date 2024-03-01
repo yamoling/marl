@@ -41,7 +41,7 @@ class Runner:
             step_num += 1
             if self._test_interval != 0 and step_num % self._test_interval == 0:
                 self.test(n_tests, step_num)
-            action, value, probs = self._algo.choose_action_extra(obs)
+            action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
@@ -82,7 +82,7 @@ class Runner:
             self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
-                action, value, probs = self._algo.choose_action_extra(obs)
+                action = self._algo.choose_action(obs)
                 new_obs, reward, done, truncated, info = self._test_env.step(action)
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
