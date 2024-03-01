@@ -22,7 +22,7 @@ class PPO(RLAlgo):
         self.action_probs: np.ndarray = np.array([])
         self.is_training = True
 
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int64]:
+    def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)

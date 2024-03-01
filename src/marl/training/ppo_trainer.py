@@ -9,6 +9,7 @@ from marl.models.nn import ActorCriticNN
 from marl.training import nodes
 import numpy as np
 
+
 class PPOTrainer(Trainer):
     def __init__(
         self,
@@ -33,7 +34,6 @@ class PPOTrainer(Trainer):
         self.batch_size = batch_size
         self.lr_critic = lr_critic
         self.lr_actor = lr_actor
-        self.optimiser = optimiser
         self.clip_eps = clip_eps
         self.clip_low = 1 - clip_eps
         self.clip_high = 1 + clip_eps
@@ -71,7 +71,7 @@ class PPOTrainer(Trainer):
             returns[i] = batch.rewards[i] + self.gamma * returns[i + 1] * (1 - batch.dones[i])
         return returns
 
-    def get_value_and_action_probs(self, observation, extras, available_actions, actions) -> (float, np.ndarray[np.float32]):
+    def get_value_and_action_probs(self, observation, extras, available_actions, actions) -> tuple[torch.Tensor, np.ndarray]:
         with torch.no_grad():
             logits, value = self.network.forward(observation, extras)
             logits[available_actions == 0] = -torch.inf
@@ -100,15 +100,14 @@ class PPOTrainer(Trainer):
         batch_values = torch.stack(batch_values).to(self.device)
         batch_log_probs = torch.tensor(np.array(batch_log_probs)).to(self.device)
 
-
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
         for t in range(mem_len - 1):
             discount = 1
-            a_t = 0
+            a_t = torch.tensor(0)
             for k in range(t, mem_len - 1):
                 a_t += discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
-                if (batch.dones[k] == 1):
+                if batch.dones[k] == 1:
                     break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()

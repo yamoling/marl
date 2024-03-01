@@ -47,7 +47,7 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def actions(self) -> torch.LongTensor:
+    def actions(self) -> torch.Tensor:
         """Actions"""
 
     @cached_property
@@ -68,12 +68,12 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def available_actions_(self) -> torch.LongTensor:
+    def available_actions_(self) -> torch.Tensor:
         """Next available actions"""
 
     @abstractmethod  # type: ignore
     @cached_property
-    def available_actions(self) -> torch.LongTensor:
+    def available_actions(self) -> torch.Tensor:
         """Available actions"""
 
     @abstractmethod  # type: ignore
@@ -88,7 +88,7 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def masks(self) -> torch.LongTensor:
+    def masks(self) -> torch.Tensor:
         """Masks (for padded episodes)"""
 
     def to(self, device: torch.device):
