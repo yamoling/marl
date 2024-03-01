@@ -66,10 +66,10 @@ def test_double_qlearning_node():
     Therefore, the predicted values should be [[10, 11, 12, 13, 14]], indexed by the max action of [[0, 1, 2, 3, 4]],
     i.e. 4.
     """
-    from marl.nn import LinearNN
+    from marl.models import QNetwork
     from marl.training.nodes import DoubleQLearning
 
-    class MockNN(LinearNN):
+    class MockNN(QNetwork):
         """Always returns the same qvalues for each agent: [1, 0, 0, 0, ..., 0]"""
 
         def __init__(self, output: torch.Tensor):

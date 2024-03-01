@@ -75,7 +75,7 @@ class QTRAN(Mixer):
         loss = (loss_value + loss_constraint1 + loss_constraint2).mean()
         self.optimizer.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.parameters, self.clip_norm)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip_norm)
         self.optimizer.step()
         return (0, 0)
 

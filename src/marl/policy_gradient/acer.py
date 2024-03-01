@@ -48,7 +48,7 @@ class ACER(RLAlgo):
 
         batch = self.memory.sample(self.batch_size).to(self.device)
         batch = batch.for_individual_learners()
-        returns = batch.compute_normalized_returns(self.gamma)
+        returns = batch.compute_normalized_returns(self.gamma)  # type: ignore
         logits, predicted_values = self.network.forward(batch.obs)
         # Values have last dimension [1] -> squeeze it
         predicted_values = predicted_values.squeeze(-1)
@@ -58,9 +58,9 @@ class ACER(RLAlgo):
         log_probs = dist.log_prob(batch.actions.squeeze(-1))
 
         # Computation of the importance sampling weights 'rho' (equation 3 in the paper)
-        action_probs = torch.detach(torch.gather(dist.probs, -1, batch.actions))
+        action_probs = torch.detach(torch.gather(dist.probs, -1, batch.actions))  # type: ignore
         action_probs = action_probs.squeeze(-1)
-        old_action_probs = batch.actions_probs.gather(-1, batch.actions).squeeze(-1)
+        old_action_probs = batch.actions_probs.gather(-1, batch.actions).squeeze(-1)  # type: ignore
         rho = action_probs / old_action_probs
 
         # Multiply by -1 because of gradient ascent
@@ -73,7 +73,7 @@ class ACER(RLAlgo):
         loss = actor_loss + critic_loss
         loss.backward()
         self.optimizer.step()
-        return super().after_train_episode(episode_num, episode)
+        return super().after_train_episode(episode_num, episode)  # type: ignore
 
     def save(self, to_path: str):
         torch.save(self.network.state_dict(), to_path)

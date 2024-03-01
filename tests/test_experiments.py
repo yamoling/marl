@@ -1,5 +1,5 @@
 from .utils import MockEnv
-from marl.training import DQNTrainer
+from marl.training import DQNNodeTrainer
 import marl
 import pickle
 import torch
@@ -18,7 +18,7 @@ def test_unpickle_experiment_and_update_network():
         exp = marl.Experiment.create(
             "test",
             algo=marl.qlearning.DQN(qnetwork=qnetwork, train_policy=policy),
-            trainer=DQNTrainer(
+            trainer=DQNNodeTrainer(
                 qnetwork,
                 policy,
                 mixer=marl.qlearning.VDN(env.n_agents),

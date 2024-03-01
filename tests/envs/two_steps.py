@@ -13,7 +13,7 @@ PAYOFF_2A = [[7, 7], [7, 7]]
 PAYOFF_2B = [[0, 1], [1, 8]]
 
 
-class State(IntEnum):
+class TwoStepsState(IntEnum):
     INITIAL = 0
     STATE_2A = 1
     STATE_2B = 2
@@ -26,8 +26,13 @@ class State(IntEnum):
 
 
 class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
+    """
+    Two-steps game used in QMix paper (https://arxiv.org/pdf/1803.11485.pdf, section 5)
+    to demonstrate is superior representationability compared to VDN.
+    """
+
     def __init__(self):
-        self.state = State.INITIAL
+        self.state = TwoStepsState.INITIAL
         self._identity = np.identity(2, dtype=np.float32)
         super().__init__(
             DiscreteActionSpace(2, 2),
@@ -36,31 +41,31 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
         )
 
     def reset(self) -> Observation:
-        self.state = State.INITIAL
+        self.state = TwoStepsState.INITIAL
         return self.observation()
 
     def step(self, actions: npt.NDArray[np.int32]):
         match self.state:
-            case State.INITIAL:
+            case TwoStepsState.INITIAL:
                 # In the initial step, only agent 0's actions have an influence on the state
                 payoffs = PAYOFF_INITIAL
                 if actions[0] == 0:
-                    self.state = State.STATE_2A
+                    self.state = TwoStepsState.STATE_2A
                 elif actions[0] == 1:
-                    self.state = State.STATE_2B
+                    self.state = TwoStepsState.STATE_2B
                 else:
                     raise ValueError(f"Invalid action: {actions[0]}")
-            case State.STATE_2A:
+            case TwoStepsState.STATE_2A:
                 payoffs = PAYOFF_2A
-                self.state = State.END
-            case State.STATE_2B:
+                self.state = TwoStepsState.END
+            case TwoStepsState.STATE_2B:
                 payoffs = PAYOFF_2B
-                self.state = State.END
-            case State.END:
+                self.state = TwoStepsState.END
+            case TwoStepsState.END:
                 raise ValueError("Episode is already over")
         obs = self.observation()
         reward = payoffs[actions[0]][actions[1]]
-        done = self.state == State.END
+        done = self.state == TwoStepsState.END
         return obs, reward, done, False, {}
 
     def get_state(self):
@@ -74,7 +79,7 @@ class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         print(self.state)
 
-    def force_state(self, state: State):
+    def force_state(self, state: TwoStepsState):
         self.state = state
 
     def seed(self, seed):

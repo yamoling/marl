@@ -7,7 +7,7 @@ import torch
 import os
 
 from marl.models.batch import Batch, EpisodeBatch
-from marl.models.nn import randomize, LinearNN
+from marl.models.nn import randomize, NN
 from marl.utils import Schedule
 from marl.utils.stats import RunningMeanStd
 
@@ -17,13 +17,13 @@ from .ir_module import IRModule
 @serde
 @dataclass
 class RandomNetworkDistillation(IRModule):
-    target: LinearNN
+    target: NN
     update_ratio: float
     normalise_rewards: bool
 
     def __init__(
         self,
-        target: LinearNN,
+        target: NN,
         update_ratio: float = 0.25,
         normalise_rewards=True,
         ir_weight: Optional[Schedule] = None,
