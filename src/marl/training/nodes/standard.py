@@ -1,8 +1,9 @@
 from typing import Optional
 import torch
-from marl.models import Batch, ReplayMemory, PrioritizedMemory, NN, Updatable, QNetwork
+from marl.models import Batch, ReplayMemory, PrioritizedMemory, Updatable, QNetwork
 from marl.models.batch import EpisodeBatch
 from .node import Node, ValueNode
+from .intrinsic_rewards import IR
 
 
 class MemoryNode(Node[Batch]):
@@ -37,6 +38,10 @@ class PERNode(MemoryNode, Updatable):
 
 
 class QValues(Node[torch.Tensor]):
+    """
+    Compute the qvalues of all actions for the given batch of observations and extras.
+    """
+
     def __init__(self, qnetwork: QNetwork, batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
@@ -49,8 +54,6 @@ class QValues(Node[torch.Tensor]):
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, index=batch.actions, dim=-1)
-        qvalues = qvalues.squeeze(dim=-1)
         return qvalues
 
     def randomize(self):
@@ -58,8 +61,21 @@ class QValues(Node[torch.Tensor]):
         return super().randomize()
 
 
-class NextValues(Node[torch.Tensor]):
-    """Compute the value of the next observation (max over qvalues)"""
+class SelectedActionQValues(Node[torch.Tensor]):
+    """Compute the qvalues of the selected actions"""
+
+    def __init__(self, qvalues: Node[torch.Tensor], batch: Node[Batch]):
+        super().__init__([qvalues, batch])
+        self.qvalues = qvalues
+        self.batch = batch
+
+    def _compute_value(self) -> torch.Tensor:
+        qvalues = torch.gather(self.qvalues.value, index=self.batch.value.actions, dim=-1)
+        return qvalues.squeeze(dim=-1)
+
+
+class NextQValues(Node[torch.Tensor]):
+    """Compute the qvalues of the next observation"""
 
     def __init__(self, qtarget: QNetwork, batch: Node[Batch]):
         super().__init__([batch])
@@ -76,7 +92,6 @@ class NextValues(Node[torch.Tensor]):
 
     def _compute_value(self) -> torch.Tensor:
         batch = self.batch.value
-        # with torch.no_grad():
         next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):  # isinstance(self.qtarget, RecurrentNN):
             # For episode batches, the batch includes the initial observation
@@ -84,35 +99,45 @@ class NextValues(Node[torch.Tensor]):
             # We need to remove it when considering the next qvalues.
             next_qvalues = next_qvalues[1:]
         next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
-        return torch.max(next_qvalues, dim=-1)[0]
+        return next_qvalues
+
+
+class NextValues(Node[torch.Tensor]):
+    """Compute the value of the next observation (max over next qvalues)"""
+
+    def __init__(self, next_qvalues: Node[torch.Tensor]):
+        super().__init__([next_qvalues])
+        self.next_qvalues = next_qvalues
+
+    def _compute_value(self) -> torch.Tensor:
+        return torch.max(self.next_qvalues.value, dim=-1)[0]
 
 
 class DoubleQLearning(Node[torch.Tensor]):
-    def __init__(self, qnetwork: QNetwork, qtarget: QNetwork, batch: Node[Batch]):
+    """Compute the value of the next observation with double q-learning"""
+
+    def __init__(self, qnetwork: QNetwork, target_next_qvalues: Node[torch.Tensor], batch: Node[Batch]):
         super().__init__([batch])
         self.qnetwork = qnetwork
-        self.qtarget = qtarget
+        self.target_next_qvalues = target_next_qvalues
         self.batch = batch
 
     def randomize(self):
         self.qnetwork.randomize()
-        self.qtarget.randomize()
         return super().randomize()
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)
-        self.qtarget.to(device)
         return super().to(device)
 
     def _compute_value(self):
         batch = self.batch.value
-        target_next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
+        target_next_qvalues = self.target_next_qvalues.value
         # Take the indices from the target network and the values from the current network
         # instead of taking both from the target network
         current_next_qvalues = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
         if isinstance(batch, EpisodeBatch):
             # See above comment in NextQValues for an explanation on the reasons for this "if"
-            target_next_qvalues = target_next_qvalues[1:]
             current_next_qvalues = current_next_qvalues[1:]
         current_next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(current_next_qvalues, dim=-1, keepdim=True)
@@ -138,16 +163,27 @@ class Target(Node[torch.Tensor]):
 
 
 class TDError(Node[torch.Tensor]):
-    """Compute the TD error"""
+    """Compute the Temporal-Difference error."""
 
-    def __init__(self, predicted: Node[torch.Tensor], target: Node[torch.Tensor]):
+    def __init__(
+        self,
+        predicted: Node[torch.Tensor],
+        target: Node[torch.Tensor],
+        memory: PERNode | MemoryNode | IR,
+    ):
+        """We take the memory node as parameter in order to set the TD-error in case of PER."""
         super().__init__([predicted, target])
-        self.predicted = predicted
+        self.qvalues = predicted
         self.target = target
+        if isinstance(memory, IR):
+            if not isinstance(memory.batch, (MemoryNode, PERNode)):
+                raise ValueError("Unhandled case: batch in IR is not a MemoryNode nor a PERNode.")
+            memory = memory.batch
+        if isinstance(memory, PERNode):
+            memory.set_td_error_node(self)
 
     def _compute_value(self) -> torch.Tensor:
-        """Compute the target qvalues based on the next qvalues and the reward"""
-        qvalues = self.predicted.value
+        qvalues = self.qvalues.value
         qtargets = self.target.value.detach()
         assert qvalues.shape == qtargets.shape
         td_error = qvalues - qtargets

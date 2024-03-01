@@ -4,9 +4,10 @@ from .node import Node
 
 
 class QValueMixer(Node[torch.Tensor]):
-    def __init__(self, mixer: Mixer, qvalues: Node[torch.Tensor], batch: Node[Batch]):
-        super().__init__([qvalues, batch])
-        self.qvalues = qvalues
+    def __init__(self, mixer: Mixer, selected_qvalues: Node[torch.Tensor], all_qvalues: Node[torch.Tensor], batch: Node[Batch]):
+        super().__init__([selected_qvalues, batch])
+        self.selected_qvalues = selected_qvalues
+        self.all_qvalues = all_qvalues
         self.mixer = mixer
         self.batch = batch
 
@@ -15,7 +16,12 @@ class QValueMixer(Node[torch.Tensor]):
         return super().to(device)
 
     def _compute_value(self) -> torch.Tensor:
-        mixed = self.mixer.forward(self.qvalues.value, self.batch.value.states)
+        mixed = self.mixer.forward(
+            self.selected_qvalues.value,
+            self.batch.value.states,
+            self.batch.value.one_hot_actions,
+            self.all_qvalues.value,
+        )
         return mixed.squeeze(dim=-1)
 
     def randomize(self):
@@ -25,6 +31,10 @@ class QValueMixer(Node[torch.Tensor]):
 
 class TargetQValueMixer(QValueMixer):
     def _compute_value(self) -> torch.Tensor:
-        # with torch.no_grad():
-        mixed = self.mixer.forward(self.qvalues.value, self.batch.value.states_)
+        mixed = self.mixer.forward(
+            self.selected_qvalues.value,
+            self.batch.value.states_,
+            self.batch.value.one_hot_actions,
+            self.all_qvalues.value,
+        )
         return mixed.squeeze(dim=-1)

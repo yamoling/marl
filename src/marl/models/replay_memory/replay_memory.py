@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Generic, Iterable, TypeVar
+from typing import Deque, Generic, Iterable, Literal, TypeVar
 
 import numpy as np
 from rlenv import Episode, Transition
@@ -18,11 +18,13 @@ class ReplayMemory(Generic[T], ABC):
 
     max_size: int
     name: str
+    update_on_transitions: bool
 
-    def __init__(self, max_size: int):
+    def __init__(self, max_size: int, update_on: Literal["transition", "episode"]):
         self._memory: Deque[T] = deque(maxlen=max_size)
         self.max_size = max_size
         self.name = self.__class__.__name__
+        self.update_on_transitions = update_on == "transition"
 
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""
@@ -50,6 +52,9 @@ class ReplayMemory(Generic[T], ABC):
 class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
+    def __init__(self, max_size: int):
+        super().__init__(max_size, "transition")
+
     def get_batch(self, indices: Iterable[int]):
         transitions = [self._memory[i] for i in indices]
         return TransitionBatch(transitions)
@@ -57,6 +62,9 @@ class TransitionMemory(ReplayMemory[Transition]):
 
 class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
+
+    def __init__(self, max_size: int):
+        super().__init__(max_size, "episode")
 
     def get_batch(self, indices: Iterable[int]):
         episodes = [self._memory[i] for i in indices]

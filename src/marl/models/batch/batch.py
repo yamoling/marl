@@ -9,7 +9,7 @@ class Batch(ABC):
     Lazy loaded batch for training.
     """
 
-    def __init__(self, size: int, n_agents: int) -> None:
+    def __init__(self, size: int, n_agents: int):
         super().__init__()
         self.size = size
         self.n_agents = n_agents
@@ -49,6 +49,12 @@ class Batch(ABC):
     @cached_property
     def actions(self) -> torch.LongTensor:
         """Actions"""
+
+    @cached_property
+    def one_hot_actions(self) -> torch.Tensor:
+        """One hot encoded actions"""
+        n_actions = self.available_actions.shape[-1]
+        return torch.nn.functional.one_hot(self.actions, n_actions)
 
     @abstractmethod  # type: ignore
     @cached_property

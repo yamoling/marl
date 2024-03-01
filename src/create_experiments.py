@@ -2,7 +2,7 @@ import marl
 import lle
 import rlenv
 import typed_argparse as tap
-from marl.training import DQNTrainer
+from marl.training import DQNNodeTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 
@@ -10,6 +10,7 @@ from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 class Arguments(tap.TypedArgs):
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
+    n_tests: int = tap.arg(default=0, help="Number of tests to run")
 
 
 def create_smac(args: Arguments):
@@ -22,7 +23,7 @@ def create_smac(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     test_policy = train_policy
     smac_unit_state_size: int = 4 + smac.shield_bits_ally + smac.unit_type_bits
-    trainer = DQNTrainer(
+    trainer = DQNNodeTrainer(
         qnetwork,
         train_policy=train_policy,
         memory=memory,
@@ -38,7 +39,7 @@ def create_smac(args: Arguments):
             env.n_actions,
             env.state_shape[0],
             smac_unit_state_size,
-            weighted_head=True,
+            weighted_head=False,
         ),
         grad_norm_clipping=10,
     )
@@ -117,7 +118,7 @@ def create_lle(args: Arguments):
     #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
     #     td_error_clipping=5.0,
     # )
-    trainer = DQNTrainer(
+    trainer = DQNNodeTrainer(
         qnetwork,
         train_policy=train_policy,
         memory=memory,
@@ -161,7 +162,7 @@ def main(args: Arguments):
     # exp = create_lle(args)
     print(exp.logdir)
     if args.run:
-        exp.create_runner(seed=0).to("auto").train(1)
+        exp.create_runner(seed=0).to("auto").train(args.n_tests)
 
 
 if __name__ == "__main__":

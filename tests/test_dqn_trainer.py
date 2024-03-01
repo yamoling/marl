@@ -6,7 +6,7 @@ from .utils import MockEnv, generate_episode, parameters_equal
 
 def test_trainer_nodes_vdn():
     env = MockEnv(4)
-    trainer = marl.training.DQNTrainer(
+    trainer = marl.training.DQNNodeTrainer(
         qnetwork=marl.nn.model_bank.MLP.from_env(env),
         memory=marl.models.TransitionMemory(50_000),
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),
@@ -24,7 +24,7 @@ def test_target_network_is_updated():
     batch_size = 4
     target_updater = HardUpdate(5)
     qnetwork = marl.nn.model_bank.MLP.from_env(env)
-    trainer = marl.training.DQNTrainer(
+    trainer = marl.training.DQNNodeTrainer(
         qnetwork=qnetwork,
         memory=marl.models.TransitionMemory(50_000),
         train_policy=marl.policy.EpsilonGreedy.linear(1, 0.01, n_steps=20_000),

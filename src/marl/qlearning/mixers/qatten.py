@@ -8,19 +8,16 @@ class Qatten(Mixer):
     def __init__(
         self,
         n_agents: int,
-        n_actions: int,
         state_size: int,
         agent_state_size: int,
         mixer_embedding_dim: int = 32,
         hypernetwork_embed_size: int = 64,
         n_heads: int = 4,
         weighted_head: bool = False,
-        nonlinear: bool = False,
     ):
         super().__init__(n_agents)
 
         self.n_agents = n_agents
-        self.action_dim = n_agents * n_actions
         self.unit_dim = agent_state_size
         self.weighted_head = weighted_head
 
@@ -36,7 +33,6 @@ class Qatten(Mixer):
             nn.Linear(mixer_embedding_dim, n_heads),
             AbsLayer(),
         )
-
         self.key_extractors = nn.ModuleList()
         self.query_extractors = nn.ModuleList()
         for _ in range(n_heads):  # Manual implementation of multi-head attention
@@ -47,11 +43,7 @@ class Qatten(Mixer):
                     nn.Linear(hypernetwork_embed_size, mixer_embedding_dim, bias=False),
                 )
             )
-            if nonlinear:  # add qs
-                raise NotImplementedError("TODO: currently not implemented. Refer to the original code for implementation.")
-                self.key_extractors.append(nn.Linear(agent_state_size + 1, mixer_embedding_dim, bias=False))  # key
-            else:
-                self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
+            self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
 
     def forward(
         self,
@@ -72,9 +64,9 @@ class Qatten(Mixer):
         for key_extractor, query_extractor in zip(self.key_extractors, self.query_extractors):
             keys = key_extractor(unit_states)  # shape (batch, n_agents, embed_dim)
             queries = query_extractor(states)  # shape (batch, embed_dim)
-            queries = queries.unsqueeze(-2)  # Appropriate shape for scaled dot product attention
+            queries = queries.unsqueeze(-2)  # Appropriate shape for dot product
             head_output = torch.nn.functional.scaled_dot_product_attention(queries, keys, values)
-            attentioned_qvalues.append(head_output.squeeze())
+            attentioned_qvalues.append(head_output.squeeze(1))
         attentioned_qvalues = torch.stack(attentioned_qvalues, dim=1)
 
         # Sum over the agents to get the final $q^h$ as shown in the paper schematic.

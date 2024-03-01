@@ -162,8 +162,22 @@ class Mixer(NN, ABC):
         self.n_agents = n_agents
 
     @abstractmethod
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor) -> torch.Tensor:
-        """Mix the utiliy values of the agents."""
+    def forward(
+        self,
+        qvalues: torch.Tensor,
+        states: torch.Tensor,
+        one_hot_actions: torch.Tensor,
+        all_qvalues: torch.Tensor,
+    ) -> torch.Tensor:
+        """
+        Mix the utiliy values of the agents.
+
+        To englobe every possible mixer, the signature of the forward method is quite complex.
+        - qvalues: the Q-values of the action take by each agent. (batch, n_agents)
+        - states: the state of the environment. (batch, state_size)
+        - one_hot_actions: the action taken by each agent. (batch, n_agents, 1)
+        - all_qvalues: all Q-values of the agents. (batch, n_agents, n_actions)
+        """
 
     def save(self, to_directory: str):
         """Save the mixer to a directory."""

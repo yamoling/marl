@@ -32,7 +32,8 @@ class PrioritizedMemory(ReplayMemory[T]):
         eps: float = 1e-2,
         td_error_clipping: Optional[float] = 1.0,
     ):
-        super().__init__(memory.max_size)
+        update_on = "transition" if memory.update_on_transitions else "episode"
+        super().__init__(memory.max_size, update_on)
         self.memory = memory
         self.tree = SumTree(self.max_size)
         self.eps = eps
