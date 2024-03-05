@@ -12,6 +12,13 @@ class Arguments(tap.TypedArgs):
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
     n_tests: int = tap.arg(default=0, help="Number of tests to run")
 
+class Args:
+    def __init__(self):
+        self.latent_dim = 64
+        self.hidden_size = 128
+        self.rnn_hidden_dim = 256
+        self.attention_dim = 64
+        self.var_floor = 1e-6
 
 def create_smac(args: Arguments):
     n_steps = 2_000_000
@@ -152,22 +159,16 @@ def create_lle(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-        logdir += "-iql"
-    if trainer.ir_module is not None:
-        logdir += f"-{trainer.ir_module.name}"
-    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        logdir += "-PER"
-
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
-
-def create_lle_rial():
-    n_steps = 1_500_000
+def create_lle_maic(args: Arguments):
+    n_steps = 1_000_000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    maic_args = Args()
+    qnetwork = marl.nn.model_bank.MAICNetwork.from_env(env, maic_args)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -186,7 +187,7 @@ def create_lle_rial():
     #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
     #     td_error_clipping=5.0,
     # )
-    trainer = DQNTrainer(
+    trainer = DQNNodeTrainer(
         qnetwork,
         train_policy=train_policy,
         memory=memory,
@@ -197,101 +198,38 @@ def create_lle_rial():
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        mixer=marl.qlearning.VDN(env.n_agents),
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=rnd,
+        ir_module=None,
     )
 
-    # TODO add parameter for the lenght of the message
-    algo = marl.qlearning.RIAL(
-        qnetwork=qnetwork,
-        com_qnetwork=qnetwork, # TODO create a qnetwork for communication
-        com_policy=train_policy, # TODO create a policy for communication
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    logdir = f"logs/flattened-state-{env.name}"
-    if trainer.mixer is not None:
-        logdir += f"-{trainer.mixer.name}"
-    else:
-        logdir += "-iql"
-    if trainer.ir_module is not None:
-        logdir += f"-{trainer.ir_module.name}"
-    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        logdir += "-PER"
-
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
-
-def create_laser_env():
-    n_steps = 1_000_000
-    gamma = 0.95
-    # env = lenv.StaticLaserEnv("lvl6", lenv.ObservationType.LAYERED)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED)
-    env = rlenv.Builder(env).agent_id().time_limit(round(env.width * env.height / 2), add_extra=False).build()
-
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=500_000,
-    )
-    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
-    #     normalise_rewards=False,
-    #     # gamma=gamma,
-    # )
-    rnd = None
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     td_error_clipping=5.0,
-    # )
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=64,
-        train_interval=(5, "step"),
-        gamma=gamma,
-        # mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=rnd,
-    )
-
-    algo = marl.qlearning.DQN(
+    algo = marl.qlearning.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
     )
 
-    logdir = f"logs/flattened-state-{env.name}"
-    if trainer.mixer is not None:
-        logdir += f"-{trainer.mixer.name}"
+    if args.debug:
+        logdir = "logs/debug"
     else:
-        logdir += "-iql"
-    if trainer.ir_module is not None:
-        logdir += f"-{trainer.ir_module.name}"
-    if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        logdir += "-PER"
-    # logdir = "logs/test"
+        logdir = f"logs/new-maic_network-{env.name}"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if trainer.ir_module is not None:
+            logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 def main(args: Arguments):
-    exp = create_smac(args)
+    # exp = create_smac(args)
     # exp = create_ppo_lle()
-    # exp = create_lle()
-    exp = create_lle_rial()
-    # exp = create_laser_env()
+    exp = create_lle_maic(args)
+    #exp = create_lle(args)
     print(exp.logdir)
     if args.run:
         exp.create_runner(seed=0).to("auto").train(args.n_tests)

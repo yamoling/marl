@@ -2,6 +2,10 @@ from typing import Optional
 from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.distributions as D
+from torch.distributions import kl_divergence
 import math
 
 from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN
@@ -373,3 +377,108 @@ class ACNetwork2(ActorCriticNN):
     @property
     def policy_parameters(self):
         return self.policy_network.parameters()
+
+
+class MAICNetwork(RecurrentQNetwork):
+    def __init__(
+        self,
+        input_size: int,
+        extras_size: int,
+        output_size: int,
+        n_agent: int,
+        args
+    ):
+        super().__init__((input_size,), (extras_size,), (output_size,))
+        self.args = args
+        self.n_agents = n_agent
+        self.latent_dim = args.latent_dim
+        self.n_actions = output_size[0]
+
+        NN_HIDDEN_SIZE = args.hidden_size
+        activation_func = nn.LeakyReLU()
+
+        self.embed_net = nn.Sequential(
+            nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+            nn.BatchNorm1d(NN_HIDDEN_SIZE),
+            activation_func,
+            nn.Linear(NN_HIDDEN_SIZE, self.n_agents * args.latent_dim * 2)
+        )
+
+        self.inference_net = nn.Sequential(
+            nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+            nn.BatchNorm1d(NN_HIDDEN_SIZE),
+            activation_func,
+            nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2)
+        )
+
+        self.fc1 = nn.Linear(*input_size, args.rnn_hidden_dim)
+        self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
+        
+        self.msg_net = nn.Sequential(
+            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE),
+            activation_func,
+            nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+        )
+
+        self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+        self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, test_mode=False) -> torch.Tensor:        
+        combined_input = torch.cat([obs, extras], dim=-1)
+        x = F.relu(self.fc1(combined_input))
+        h_in = self.hidden_states
+        h = self.rnn(x, h_in)
+        q = self.fc2(h)
+
+        latent_parameters = self.embed_net(h)
+        latent_parameters[:, -self.n_agents * self.latent_dim:] = torch.clamp(
+            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim:]),
+            min=self.args.var_floor
+        )
+
+        latent_embed = latent_parameters.reshape(-1, self.n_agents * self.latent_dim * 2)
+
+        if test_mode:
+            latent = latent_embed[:, :self.n_agents * self.latent_dim]
+        else:
+            gaussian_embed = D(latent_embed[:, :self.n_agents * self.latent_dim],
+                            (latent_embed[:, self.n_agents * self.latent_dim:]) ** (1 / 2))
+            latent = gaussian_embed.rsample()
+        latent = latent.reshape(-1, self.n_agents * self.latent_dim)
+
+        h_repeat = h.unsqueeze(1).repeat(1, self.n_agents, 1).view(-1, self.rnn.hidden_size)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(-1, self.n_agents, self.n_agents, self.n_actions)
+        query = self.w_query(h).unsqueeze(1)
+        key = self.w_key(latent).reshape(-1, self.n_agents, -1).transpose(1, 2)
+
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1/2)), key).view(-1, self.n_agents, self.n_agents)
+        for i in range(self.n_agents):
+            alpha[:, i, i] = -1e9
+        alpha = F.softmax(alpha, dim=-1).reshape(-1, self.n_agents, self.n_agents, 1)
+        if test_mode:
+            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+        gated_msg = alpha * msg
+
+        return_q = q + torch.sum(gated_msg, dim=1).view(-1, self.n_agents * self.n_actions)
+
+        self.hidden_states = h  
+
+        return return_q
+    
+    def reset_hidden_states(self):
+        """Reset the hidden states"""
+        self.hidden_states = None
+
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Compute the Q-values for a batch of observations during training"""
+        saved_hidden_states = self.hidden_states
+        self.hidden_states = None
+        qvalues = self.forward(obs, extras)
+        self.hidden_states = saved_hidden_states
+        return qvalues
+
+    @classmethod
+    def from_env(cls, env: RLEnv, args):
+        return cls(input_size=env.observation_shape, extras_size=env.extra_feature_shape,
+                   output_size=(env.n_actions,), n_agent=env.n_agents, args=args)
