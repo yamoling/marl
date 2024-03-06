@@ -45,16 +45,16 @@ class QMix(Mixer):
         # V(s) instead of a bias for the last layers
         self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
 
-    def forward(self, agent_qs: torch.Tensor, states: torch.Tensor) -> torch.Tensor:
-        bs = agent_qs.size(0)
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        bs = qvalues.size(0)
         states = states.reshape(-1, self.state_dim)
-        agent_qs = agent_qs.view(-1, 1, self.n_agents)
+        qvalues = qvalues.view(-1, 1, self.n_agents)
         # First layer
         w1 = torch.abs(self.hyper_w_1(states))
         b1 = self.hyper_b_1.forward(states)
         w1 = w1.view(-1, self.n_agents, self.embed_size)
         b1 = b1.view(-1, 1, self.embed_size)
-        hidden = F.elu(torch.bmm(agent_qs, w1) + b1)
+        hidden = F.elu(torch.bmm(qvalues, w1) + b1)
         # Second layer
         w_final = torch.abs(self.hyper_w_final(states))
         w_final = w_final.view(-1, self.embed_size, 1)

@@ -85,11 +85,12 @@ class DQNNodeTrainer(Trainer):
             loss (nodes.MSELoss): The loss node.
         """
         updatables = list[Updatable]()
+        individual_learners = self.mixer is None
         if isinstance(self.memory, PrioritizedMemory):
-            batch = nodes.PERNode(self.memory, self.batch_size, device)
+            batch = nodes.PERNode(self.memory, self.batch_size, device, individual_learners)
             updatables.append(batch)
         else:
-            batch = nodes.MemoryNode(self.memory, self.batch_size, device)
+            batch = nodes.MemoryNode(self.memory, self.batch_size, device, individual_learners)
         self.roots.append(batch)
         qvalues, parameters = self._make_qvalue_prediction_node(batch)
 
@@ -145,10 +146,10 @@ class DQNNodeTrainer(Trainer):
 
         if self.mixer is not None:
             target_mixer = deepcopy(self.mixer)
-            next_qvalues = nodes.TargetQValueMixer(target_mixer, next_value, next_qvalues, batch)
+            next_value = nodes.TargetQValueMixer(target_mixer, next_value, next_qvalues, batch)
             target_parameters += list(target_mixer.parameters())
 
-        target_qvalues = nodes.Target(self.gamma, next_qvalues, batch)
+        target_qvalues = nodes.Target(self.gamma, next_value, batch)
         return target_qvalues, target_parameters
 
     def _make_optimiser(
