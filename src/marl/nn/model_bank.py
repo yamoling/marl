@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Iterable
 from dataclasses import dataclass
 from rlenv.models import RLEnv
 import torch
@@ -32,13 +32,13 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env(cls, env: RLEnv, hidden_sizes: Optional[tuple[int, ...]] = None):
+    def from_env(cls, env: RLEnv, hidden_sizes: Optional[Iterable[int]] = None):
         if hidden_sizes is None:
             hidden_sizes = (64,)
         return MLP(
             env.observation_shape[0],
             env.extra_feature_shape[0],
-            hidden_sizes,
+            tuple(hidden_sizes),
             env.n_actions,
         )
 
@@ -66,23 +66,29 @@ class RNNQMix(RecurrentQNetwork):
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, n_outputs)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor | None = None):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
         # This shape is not supported by the GRU layer, so we merge the batch_size and n_agents dimensions
         # while keeping the episode_length dimension.
-        episode_length, *batch_agents, obs_size = obs.shape
-        obs = torch.reshape(obs, (episode_length, -1, obs_size))
-        if extras is not None:
-            extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-            obs = torch.concat((obs, extras), dim=-1)
-        x = self.fc1.forward(obs)
-        x, self.hidden_states = self.gru.forward(x, self.hidden_states)
-        x = self.fc2.forward(x)
-        # Restore the original shape of the batch
-        x = x.view(episode_length, *batch_agents, *self.output_shape)
-        return x
+        try:
+            episode_length, *batch_agents, obs_size = obs.shape
+            obs = obs.reshape(episode_length, -1, obs_size)
+            extras = torch.reshape(extras, (*obs.shape[:-1], -1))
+            x = torch.concat((obs, extras), dim=-1)
+            # print(x)
+            x = self.fc1.forward(x)
+            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
+            x = self.fc2.forward(x)
+            # Restore the original shape of the batch
+            x = x.view(episode_length, *batch_agents, *self.output_shape)
+            return x
+        except RuntimeError as e:
+            error_message = str(e)
+            if "shape" in error_message:
+                error_message += "\nDid you use a TransitionMemory instead of an EpisodeMemory alongside an RNN ?"
+            raise RuntimeError(error_message)
 
 
 RNN = RNNQMix

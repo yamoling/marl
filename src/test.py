@@ -1,9 +1,13 @@
+import pickle
 import marl
-from rlenv.wrappers import AgentId
+from rlenv.wrappers import AgentId, LastAction
+from rlenv import Transition
+from rlenv.models import EpisodeBuilder
 import torch
-from marl.models import QNetwork, Mixer, EpisodeMemory, TransitionMemory
-from marl.training import DQNNodeTrainer, DQNTrainer
+from marl.models import QNetwork, Mixer, EpisodeMemory, TransitionMemory, NN, RecurrentQNetwork
+from marl.training import DQNTrainer
 from marl.utils import get_device
+from marl.nn import model_bank
 
 import numpy as np
 from rlenv import RLEnv, DiscreteActionSpace, Observation
@@ -18,9 +22,9 @@ class MatrixGame(RLEnv[DiscreteActionSpace]):
     STATE_SIZE = UNIT_DIM * N_AGENTS
 
     QPLEX_PAYOFF_MATRIX = [
-        [8.0, -12, -12],
-        [-12, 0, 0],
-        [-12, 0, 0],
+        [8.0, -12.0, -12.0],
+        [-12.0, 0.0, 0.0],
+        [-12.0, 0.0, 0.0],
     ]
 
     def __init__(self, payoff_matrix: list[list[float]]):
@@ -58,92 +62,72 @@ class MatrixGame(RLEnv[DiscreteActionSpace]):
         return
 
 
-class QNetworkTest(QNetwork):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.nn = torch.nn.Sequential(
-            torch.nn.Linear(input_shape[0] + extras_shape[0], 64),
-            torch.nn.ReLU(),
-            torch.nn.Linear(64, output_shape[0]),
-        )
-
-    def forward(self, obs, extras):
-        if extras is not None:
-            obs = torch.concatenate([obs, extras], dim=-1)
-        return self.nn(obs)
-
-
-def test_mixer_matrix_game(mixer: Mixer, payoff_matrix: list[list[float]], expected: list[list[float]]):
-    # env = AgentId(MatrixGame(payoff_matrix))
-    env = AgentId(MatrixGame(payoff_matrix))
-    qnetwork = QNetworkTest.from_env(env)
-    env.reset()
-    policy = marl.policy.EpsilonGreedy.constant(1.0)
-    trainer = DQNTrainer(
-        qnetwork=qnetwork,
-        train_policy=policy,
-        double_qlearning=True,
-        memory=EpisodeMemory(500),
-        batch_size=32,
-        train_interval=(1, "episode"),
-        mixer=mixer,
-        target_updater=marl.training.HardUpdate(50),
-        gamma=0.99,
-        optimiser="adam",
-        lr=5e-4,
-    ).to(get_device())
-    algo = marl.qlearning.DQN(qnetwork, policy)
-    exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
-    runner = exp.create_runner(0)
-    runner.train(0)
-
-    qvalues = qnetwork.qvalues(env.reset())
+def show_matrix(env: RLEnv, qnetwork: QNetwork, mixer: Mixer):
+    obs = env.reset()
+    if isinstance(qnetwork, RecurrentQNetwork):
+        qnetwork.reset_hidden_states()
+    qvalues = qnetwork.qvalues(obs)
+    matrix_to_print = "A0\\A1\t  0\t  1\t  2\n"
     for a0 in range(3):
+        matrix_to_print += f"{a0}\t"
         for a1 in range(3):
             qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0)
             s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0)
             actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0)
             res = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
-            diff = res - expected[a0][a1]
-            print(f"{a0}/{a1}: {res} vs {expected[a0][a1]}")
+            matrix_to_print += f"{res:.2f}\t"
+        matrix_to_print += "\n"
+    print(matrix_to_print)
 
 
-def test_qmix():
-    """Matrix game used in QPLEX and QTRAN papers."""
-    mixer = marl.qlearning.QMix(1, 2, embed_size=32)
-    # Expected results shown in the QPLEX paper
-    expected_qmix = [
-        [-8.0, -8.0, -8.0],
-        [-8.0, 0.0, 0.0],
-        [-8.0, 0.0, 0.0],
-    ]
-    test_mixer_matrix_game(mixer, MatrixGame.QPLEX_PAYOFF_MATRIX, expected_qmix)
+def test_mixer_matrix_game(mixer: Mixer, payoff_matrix: list[list[float]], expected: list[list[float]]):
+    env = LastAction(AgentId(MatrixGame(payoff_matrix)))
+    # qnetwork = model_bank.MLP.from_env(env, [64, 64])
+    qnetwork = model_bank.MLP.from_env(env)
+    policy = marl.policy.EpsilonGreedy.constant(1.0)
+    trainer = DQNTrainer(
+        qnetwork=qnetwork,
+        train_policy=policy,
+        double_qlearning=True,
+        memory=all_interactions(env),
+        batch_size=32,
+        train_interval=(1, "step"),
+        mixer=mixer,
+        target_updater=marl.training.HardUpdate(200),
+        grad_norm_clipping=10,
+        gamma=0.99,
+        optimiser="rmsprop",
+        lr=5e-4,
+    ).to(get_device())
 
+    import torch
 
-def test_qatten():
-    mixer = marl.qlearning.Qatten(
-        2,
-        MatrixGame.STATE_SIZE,
-        MatrixGame.UNIT_DIM,
-    )
-    # Expected results shown in the paper
-    expected = [
-        [-6.2, -4.9, -4.9],
-        [-4.9, -3.5, -3.5],
-        [-4.9, -3.5, -3.5],
-    ]
-    test_mixer_matrix_game(mixer, MatrixGame.QPLEX_PAYOFF_MATRIX, expected)
+    def show(nn: NN):
+        print(next(nn.parameters()))
+        for i, p in enumerate(nn.parameters()):
+            print(i, p.shape)
 
+    torch.manual_seed(0)
+    trainer.qnetwork.randomize()
+    show(trainer.qnetwork)
+    torch.manual_seed(0)
+    trainer.qtarget.randomize()
+    show(trainer.qtarget)
+    torch.manual_seed(0)
+    trainer.mixer.randomize()
+    show(trainer.mixer)
+    torch.manual_seed(0)
+    trainer.target_mixer.randomize()
+    show(trainer.target_mixer)
+    # for group in trainer.optimiser.param_groups:
+    #     for key, value in group.items():
+    #         print(key, len(value))
 
-def test_vdn():
-    mixer = marl.qlearning.VDN(2)
-    # Expected results shown in the paper
-    expected = [
-        [-6.2, -4.9, -4.9],
-        [-4.9, 3.6, 3.6],
-        [-4.9, 3.6, 3.6],
-    ]
-    test_mixer_matrix_game(mixer, MatrixGame.QPLEX_PAYOFF_MATRIX, expected)
+    for t in range(10_000):
+        if t % 500 == 0:
+            show_matrix(env, qnetwork, mixer)
+        trainer._update(t)
+    exit()
 
 
 def test_qplex():
@@ -152,7 +136,7 @@ def test_qplex():
         3,
         10,
         MatrixGame.STATE_SIZE,
-        32,
+        64,
     )
     # Expected results shown in the paper
     expected = [
@@ -161,6 +145,59 @@ def test_qplex():
         [-12.1, 0, 0],
     ]
     test_mixer_matrix_game(mixer, MatrixGame.QPLEX_PAYOFF_MATRIX, expected)
+
+
+def all_interactions(env: RLEnv):
+    memory = EpisodeMemory(32)
+
+    actions_to_perform = [
+        [0, 0],
+        [1, 1],
+        [1, 2],
+        [2, 0],
+        [2, 1],
+        [2, 2],
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [1, 0],
+        [1, 1],
+        [1, 2],
+        [2, 0],
+        [2, 1],
+        [2, 2],
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [1, 0],
+        [1, 1],
+        [1, 2],
+        [2, 0],
+        [2, 1],
+        [2, 2],
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [1, 0],
+        [1, 1],
+        [1, 2],
+        [2, 0],
+        [2, 1],
+    ]
+    i = 0
+    while not memory.is_full:
+        episode = EpisodeBuilder()
+        obs = env.reset()
+        actions = np.array(actions_to_perform[i])
+        obs_, reward, done, truncated, info = env.step(actions)
+        episode.add(Transition(obs, actions, reward, done, info, obs_, truncated))
+        assert episode.is_finished and done
+        memory.add(episode.build())
+        i += 1
+
+    with open("memory.pkl", "wb") as f:
+        pickle.dump(memory, f)
+    return memory
 
 
 test_qplex()

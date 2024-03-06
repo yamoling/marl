@@ -19,12 +19,14 @@ class ReplayMemory(Generic[T], ABC):
     max_size: int
     name: str
     update_on_transitions: bool
+    update_on_episodes: bool
 
     def __init__(self, max_size: int, update_on: Literal["transition", "episode"]):
         self._memory: Deque[T] = deque(maxlen=max_size)
         self.max_size = max_size
         self.name = self.__class__.__name__
         self.update_on_transitions = update_on == "transition"
+        self.update_on_episodes = update_on == "episode"
 
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""
@@ -32,11 +34,18 @@ class ReplayMemory(Generic[T], ABC):
 
     def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
+        if len(self) == batch_size:
+            # TODO: remove this 'if' statement
+            return self.get_batch(range(batch_size))
         indices = np.random.randint(0, len(self), batch_size)
         return self.get_batch(indices)
 
     def clear(self):
         self._memory.clear()
+
+    @property
+    def is_full(self):
+        return len(self) == self.max_size
 
     @abstractmethod
     def get_batch(self, indices: Iterable[int]) -> Batch:

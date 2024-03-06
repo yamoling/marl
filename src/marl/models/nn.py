@@ -114,6 +114,13 @@ class QNetwork(NN):
 
 
 class RecurrentQNetwork(QNetwork, RecurrentNN):
+    def value(self, obs: Observation) -> torch.Tensor:
+        """Compute the value function. Does not update the hidden states."""
+        hidden_states = self.hidden_states
+        agent_values = self.qvalues(obs).max(dim=-1).values
+        self.hidden_states = hidden_states
+        return agent_values.mean(dim=-1)
+
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
