@@ -1,3 +1,4 @@
+from marl.models import TransitionMemory
 import numpy as np
 from rlenv import Transition
 import marl
@@ -14,14 +15,14 @@ def test_nstep_n_equals_end():
         obs.data[0] = i
         t = Transition(obs, np.array([1]), 1, i == 4, {}, obs, False)
         memory.add(t)
-        expected_nstep_reward_t0 += t.reward * gamma ** i
+        expected_nstep_reward_t0 += t.reward * gamma**i
 
     t = memory[0]
     assert t.reward == expected_nstep_reward_t0
     for i in range(5):
         t = memory[i]
         assert np.all(t.obs_.data[0] == 4)
-    
+
 
 def test_3steps():
     gamma = 0.99
@@ -34,10 +35,11 @@ def test_3steps():
         t = Transition(obs, np.array([1]), 1, i == 4, {}, obs, False)
         memory.add(t)
         if i < n:
-            expected_nstep_reward_t0 += t.reward * gamma ** i
+            expected_nstep_reward_t0 += t.reward * gamma**i
 
     t = memory[0]
     assert t.reward == expected_nstep_reward_t0
+
 
 def test_3steps_truncated():
     gamma = 0.99
@@ -50,14 +52,14 @@ def test_3steps_truncated():
         t = Transition(obs, np.array([1]), 1, False, {}, obs, i == 4)
         memory.add(t)
         if i < n:
-            expected_nstep_reward_t0 += t.reward * gamma ** i
+            expected_nstep_reward_t0 += t.reward * gamma**i
 
     for i in range(3):
         t = memory[i]
         assert t.reward == expected_nstep_reward_t0
         assert not t.done
         assert t.truncated == (i == 2)
-   
+
     t3 = memory[3]
     assert t3.reward == 1.99
     assert not t3.done
@@ -80,15 +82,15 @@ def test_episode_shorter_than_n():
         memory.add(t)
 
     t0 = memory[0]
-    assert abs(t0.reward - (1 + 0.99 + 0.99 **2 + 0.99 ** 3)) < 1e-6
+    assert abs(t0.reward - (1 + 0.99 + 0.99**2 + 0.99**3)) < 1e-6
     assert t0.done
     assert not t0.truncated
 
     t1 = memory[1]
-    assert abs(t1.reward - (1 + 0.99 + 0.99 **2)) < 1e-6
+    assert abs(t1.reward - (1 + 0.99 + 0.99**2)) < 1e-6
     assert t1.done
     assert not t1.truncated
-    
+
     t2 = memory[2]
     assert abs(t2.reward - (1 + 0.99)) < 1e-6
     assert t2.done
@@ -98,3 +100,22 @@ def test_episode_shorter_than_n():
     assert t3.reward == 1
     assert t3.done
     assert not t3.truncated
+
+
+def test_memory_sizes():
+    MAX_SIZE = 10
+    memory = TransitionMemory(MAX_SIZE)
+    assert memory.max_size == MAX_SIZE
+    assert len(memory) == 0
+    env = MockEnv(2)
+    obs = env.reset()
+
+    for i in range(MAX_SIZE):
+        assert not memory.is_full
+        memory.add(Transition(obs, np.array([1, 1]), 1, False, {}, obs, False))
+        assert len(memory) == i + 1
+    assert memory.is_full
+    for i in range(10):
+        assert memory.is_full
+        memory.add(Transition(obs, np.array([1, 1]), 1, False, {}, obs, False))
+        assert len(memory) == MAX_SIZE

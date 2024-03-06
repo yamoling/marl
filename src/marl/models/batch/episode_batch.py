@@ -9,8 +9,7 @@ class EpisodeBatch(Batch):
     def __init__(self, episodes: list[Episode]):
         super().__init__(len(episodes), episodes[0].n_agents)
         self._max_episode_len = max(len(e) for e in episodes)
-        self._n_actions = episodes[0].n_actions
-        self._base_episides = episodes
+        self._base_episodes = episodes
         self.episodes = [e.padded(self._max_episode_len) for e in episodes]
 
     def for_individual_learners(self):
@@ -33,10 +32,6 @@ class EpisodeBatch(Batch):
     #     # Add 1e-8 to the std to avoid dividing by 0 in case all the returns are equal to 0
     #     normalized_returns = (returns - returns.mean()) / (returns.std() + 1e-8)
     #     return normalized_returns
-
-    @cached_property
-    def value(self):
-        raise NotImplementedError("TODO")
 
     @cached_property
     def obs_(self):
@@ -90,10 +85,6 @@ class EpisodeBatch(Batch):
     @cached_property
     def states_(self):
         return torch.from_numpy(np.array([e.states[1:] for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
-
-    @cached_property
-    def action_probs(self):
-        return torch.from_numpy(np.array([e.actions_probs for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
     def masks(self):

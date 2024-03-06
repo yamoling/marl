@@ -11,7 +11,20 @@ $ poetry shell
 (your-venv) $ python src/main.py
 ```
 
-## Building the project
+## Web UI to inspect your experiments
+After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed.
+
+Serve the files in production mode:
 ```bash
-$ poetry build
+$ cd src/ui
+$ bun intall
+$ bun run build # Build the sources to src/ui/dist.
+$ cd ../..      # Go back to the root of the marl.
+$ python src/serve.py
+```
+
+To serve the files in development mode, you need two terminals.
+```bash
+$ cd src/ui && bun run serve  # In one terminal
+$ python src/serve.py         # In an other terminal
 ```

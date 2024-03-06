@@ -1,5 +1,5 @@
 import torch
-from marl.training.nodes import ValueNode, Add
+from marl.training.nodes import ValueNode, Add, NextQValues
 from marl.models.batch import TransitionBatch, Batch
 from .utils import MockEnv, generate_episode
 
@@ -32,12 +32,12 @@ def test_update_marks_complex():
     """
     When updating n3, only res2 should be marked as needing an update.
     n1   n2   n3
-     \\   /    |
+     \\   /   |
       Add     |
      (res)    |
-         \\    |
-          \\   |
-           \\  |
+         \\   |
+          \\  |
+           \\ |
             Add
            (res2)
     """
@@ -66,10 +66,10 @@ def test_double_qlearning_node():
     Therefore, the predicted values should be [[10, 11, 12, 13, 14]], indexed by the max action of [[0, 1, 2, 3, 4]],
     i.e. 4.
     """
-    from marl.nn import LinearNN
+    from marl.models import QNetwork
     from marl.training.nodes import DoubleQLearning
 
-    class MockNN(LinearNN):
+    class MockNN(QNetwork):
         """Always returns the same qvalues for each agent: [1, 0, 0, 0, ..., 0]"""
 
         def __init__(self, output: torch.Tensor):
@@ -89,8 +89,9 @@ def test_double_qlearning_node():
     episode = generate_episode(env)
     transitions = list(episode.transitions())
     batch = TransitionBatch(transitions)
-    batch_node = ValueNode[Batch](batch)  # type: ignore
-    ddqn = DoubleQLearning(qnetwork, qtarget, batch_node)
+    batch_node = ValueNode[Batch](batch)
+    next_qvalues = NextQValues(qtarget, batch_node)
+    ddqn = DoubleQLearning(qnetwork, next_qvalues, batch_node)
 
     predicted = ddqn.value.squeeze()
     assert torch.all(predicted == qtarget.output[0, -1])

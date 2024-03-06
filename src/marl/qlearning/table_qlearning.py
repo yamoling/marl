@@ -125,5 +125,3 @@ class ReplayTableQLearning(VanillaQLearning):
             for agent_obs, agent_action, agent_q in zip(o, a, q):
                 h = self.hash_ndarray(agent_obs)
                 self.qtable[h][agent_action] = agent_q
-        td_error = qtargets - qvalues
-        self.memory.update(batch, td_error)

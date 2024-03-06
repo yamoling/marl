@@ -6,10 +6,9 @@ authors = ["Yannick Molinghen <yannick.molinghen@ulb.be>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.10, <3.12"
+python = ">=3.10, <4"
 numpy = "^1.23.4"
 rlenv = { git = "https://github.com/yamoling/rlenv.git" }
-laser-env = { git = "https://github.com/raphaelavalos/laser-env.git" }
 opencv-python = "^4.7.0.68"
 tqdm = "^4.65.0"
 pynvml = "^11.5.0"
@@ -21,6 +20,9 @@ sumtree = "^0.2.4"
 laser-learning-environment = "^0.1.10"
 typed-argparse = "^0.3.1"
 polars = "^0.20.6"
+protobuf = "3.20"
+neptune = "^1.9.1"
+python-dotenv = "^1.0.1"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -40,7 +42,14 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
-# The number of cores to run the tests with (xdist extension)
+filterwarnings = [
+    # Ignore deprecation warnings related to Pysc2 (smac)
+    "ignore:Call to deprecated create function Descriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function FieldDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function EnumValueDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function EnumDescriptor().*:DeprecationWarning",
+    "ignore:Call to deprecated create function FileDescriptor().*:DeprecationWarning",
+]
 addopts = "-n 4"
 
 

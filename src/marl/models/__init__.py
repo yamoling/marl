@@ -1,4 +1,4 @@
-from .nn import NN, LinearNN, RecurrentNN, Mixer
+from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork
 from .algo import RLAlgo
 from .updatable import Updatable
 from .policy import Policy
@@ -17,9 +17,10 @@ from .trainer import Trainer
 
 __all__ = [
     "NN",
-    "LinearNN",
     "RecurrentNN",
     "Mixer",
+    "RecurrentQNetwork",
+    "QNetwork",
     "RLAlgo",
     "Updatable",
     "Policy",
