@@ -34,11 +34,12 @@ class ReplayMemory(Generic[T], ABC):
 
     def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
-        if len(self) == batch_size:
-            # TODO: remove this 'if' statement
-            return self.get_batch(range(batch_size))
         indices = np.random.randint(0, len(self), batch_size)
         return self.get_batch(indices)
+
+    def can_sample(self, batch_size: int) -> bool:
+        """Return whether the memory contains enough items to sample a batch of the given size"""
+        return len(self) >= batch_size
 
     def clear(self):
         self._memory.clear()

@@ -73,6 +73,9 @@ class DQNTrainer(Trainer):
         self.i = 0
 
     def _update(self, time_step: int):
+        self.update_num += 1
+        if self.update_num % self.update_interval != 0:
+            return {}
         logs, td_error = self.optimise_qnetwork()
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
@@ -104,6 +107,8 @@ class DQNTrainer(Trainer):
         return next_values
 
     def optimise_qnetwork(self):
+        if not self.memory.can_sample(self.batch_size):
+            return {}, torch.tensor(0.0)
         batch = self.memory.sample(self.batch_size)
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
@@ -120,7 +125,7 @@ class DQNTrainer(Trainer):
         qvalues = all_qvalues[:-1]
         qvalues_ = all_qvalues[1:]
         target_qvalues_ = all_target_qvalues_[1:]
-        # Drop all_qvalues and all_target_qvalues_ to prevent using these variables by mistake
+        # Drop these variables to prevent using them by mistake
         del all_qvalues
         del all_target_qvalues_
 
@@ -166,17 +171,16 @@ class DQNTrainer(Trainer):
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         if self.memory.update_on_transitions:
             self.memory.add(transition)
-        if len(self.memory) < self.batch_size:
-            return {}
-        self.update_num += 1
-        if self.update_num % self.update_interval != 0:
+        if not self.update_on_steps:
             return {}
         return self._update(time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         if self.memory.update_on_episodes:
             self.memory.add(episode)
-        raise NotImplementedError("DQNTrainer does not support episode updates.")
+        if not self.update_on_episodes:
+            return {}
+        return self._update(time_step)
 
     def to(self, device: torch.device):
         if self.mixer is not None:

@@ -91,7 +91,7 @@ def test_mixer_matrix_game(mixer: Mixer, payoff_matrix: list[list[float]], expec
         double_qlearning=True,
         memory=all_interactions(env),
         batch_size=32,
-        train_interval=(1, "step"),
+        train_interval=(1, "episode"),
         mixer=mixer,
         target_updater=marl.training.HardUpdate(200),
         grad_norm_clipping=10,
