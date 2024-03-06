@@ -1,5 +1,5 @@
 import torch
-from marl.training.nodes import ValueNode, Add
+from marl.training.nodes import ValueNode, Add, NextQValues
 from marl.models.batch import TransitionBatch, Batch
 from .utils import MockEnv, generate_episode
 
@@ -89,8 +89,9 @@ def test_double_qlearning_node():
     episode = generate_episode(env)
     transitions = list(episode.transitions())
     batch = TransitionBatch(transitions)
-    batch_node = ValueNode[Batch](batch)  # type: ignore
-    ddqn = DoubleQLearning(qnetwork, qtarget, batch_node)
+    batch_node = ValueNode[Batch](batch)
+    next_qvalues = NextQValues(qtarget, batch_node)
+    ddqn = DoubleQLearning(qnetwork, next_qvalues, batch_node)
 
     predicted = ddqn.value.squeeze()
     assert torch.all(predicted == qtarget.output[0, -1])

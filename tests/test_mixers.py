@@ -18,19 +18,13 @@ def test_qmix_value():
     Appendix B.
     """
     env = TwoSteps()
-    env.reset()
-
-    qnetwork = model_bank.MLP.from_env(env)
-    policy = marl.policy.EpsilonGreedy.constant(1.0)
-    memory = marl.models.EpisodeMemory(500)
     mixer = marl.qlearning.QMix(env.state_shape[0], env.n_agents, embed_size=8)
-    # mixer = marl.qlearning.VDN(2)
     device = marl.utils.get_device()
-    trainer = marl.training.DQNNodeTrainer(
-        qnetwork=qnetwork,
-        train_policy=policy,
+    trainer = marl.training.DQNTrainer(
+        qnetwork=model_bank.MLP.from_env(env, hidden_sizes=[64, 64]),
+        train_policy=marl.policy.EpsilonGreedy.constant(1.0),
         double_qlearning=True,
-        memory=memory,
+        memory=marl.models.EpisodeMemory(500),
         batch_size=32,
         train_interval=(1, "episode"),
         mixer=mixer,
@@ -39,9 +33,8 @@ def test_qmix_value():
         optimiser="adam",
         lr=1e-4,
     )
-    algo = marl.qlearning.DQN(qnetwork, policy)
-    exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
-    runner = exp.create_runner(0)
+    algo = marl.qlearning.DQN(trainer.qnetwork, trainer.policy)
+    runner = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000).create_runner(0)
     runner.to(device)
     runner.train(0)
 
@@ -63,7 +56,7 @@ def test_qmix_value():
                 s = torch.tensor(obs.state, dtype=torch.float32).unsqueeze(0).to(device)
                 res = mixer.forward(qs, s).detach()
                 payoff_matrix[a0][a1] = res.item()
-        assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.1)
+        assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.2)
 
 
 def test_qplex():

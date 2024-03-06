@@ -7,23 +7,27 @@ from .intrinsic_rewards import IR
 
 
 class MemoryNode(Node[Batch]):
-    def __init__(self, memory: ReplayMemory, batch_size: int, device: torch.device):
+    def __init__(self, memory: ReplayMemory, batch_size: int, device: torch.device, individual_learners: bool):
         super().__init__([])
         self.memory = memory
         self.batch_size = batch_size
         self.device = device
+        self.individual_learners = individual_learners
 
     def to(self, device: torch.device):
         self.device = device
         return super().to(device)
 
     def _compute_value(self) -> Batch:
-        return self.memory.sample(self.batch_size).to(self.device)
+        batch = self.memory.sample(self.batch_size).to(self.device)
+        if self.individual_learners:
+            batch = batch.for_individual_learners()
+        return batch
 
 
 class PERNode(MemoryNode, Updatable):
-    def __init__(self, memory: PrioritizedMemory, batch_size: int, device: torch.device):
-        super().__init__(memory, batch_size, device)
+    def __init__(self, memory: PrioritizedMemory, batch_size: int, device: torch.device, individual_learners: bool):
+        super().__init__(memory, batch_size, device, individual_learners)
         self.td_error = ValueNode(torch.tensor([]))
 
         # Type hinting
@@ -148,10 +152,10 @@ class DoubleQLearning(Node[torch.Tensor]):
 class Target(Node[torch.Tensor]):
     """Compute the target qvalues based on the next qvalues and the reward"""
 
-    def __init__(self, gamma: float, next_qvalues: Node[torch.Tensor], batch: Node[Batch]):
-        super().__init__([next_qvalues, batch])
+    def __init__(self, gamma: float, next_values: Node[torch.Tensor], batch: Node[Batch]):
+        super().__init__([next_values, batch])
         self.gamma = gamma
-        self.next_state_value = next_qvalues
+        self.next_state_value = next_values
         self.batch = batch
 
     def _compute_value(self) -> torch.Tensor:

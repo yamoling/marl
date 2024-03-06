@@ -17,6 +17,7 @@ After cloning the repo, you can serve the files either in development mode with 
 Serve the files in production mode:
 ```bash
 $ cd src/ui
+$ bun intall
 $ bun run build # Build the sources to src/ui/dist.
 $ cd ../..      # Go back to the root of the marl.
 $ python src/serve.py
