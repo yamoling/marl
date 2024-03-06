@@ -11,12 +11,12 @@ class MatrixGame(RLEnv[DiscreteActionSpace]):
     STATE_SIZE = UNIT_DIM * N_AGENTS
 
     QPLEX_PAYOFF_MATRIX = [
-        [8, -12, -12],
-        [-12, 0, 0],
-        [-12, 0, 0],
+        [8.0, -12.0, -12.0],
+        [-12.0, 0.0, 0.0],
+        [-12.0, 0.0, 0.0],
     ]
 
-    def __init__(self, payoff_matrix: list[list[int]]):
+    def __init__(self, payoff_matrix: list[list[float]]):
         action_names = [chr(ord("A") + i) for i in range(len(payoff_matrix[0]))]
         super().__init__(
             action_space=DiscreteActionSpace(2, len(payoff_matrix[0]), action_names),
@@ -32,7 +32,7 @@ class MatrixGame(RLEnv[DiscreteActionSpace]):
 
     def observation(self):
         return Observation(
-            np.array([self.current_step] * MatrixGame.N_AGENTS, np.float32),
+            np.array([[self.current_step]] * MatrixGame.N_AGENTS, np.float32),
             self.available_actions(),
             self.get_state(),
         )

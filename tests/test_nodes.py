@@ -32,12 +32,12 @@ def test_update_marks_complex():
     """
     When updating n3, only res2 should be marked as needing an update.
     n1   n2   n3
-     \\   /    |
+     \\   /   |
       Add     |
      (res)    |
-         \\    |
-          \\   |
-           \\  |
+         \\   |
+          \\  |
+           \\ |
             Add
            (res2)
     """

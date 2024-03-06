@@ -27,9 +27,9 @@ class Run:
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
         self.seed = seed
-        self.train_logger = None
-        self.test_logger = None
-        self.training_data_logger = None
+        self.train_logger: Optional[logging.CSVLogger] = None
+        self.test_logger: Optional[logging.CSVLogger] = None
+        self.training_data_logger: Optional[logging.CSVLogger] = None
         self.pid = self.get_pid()
 
     @staticmethod
