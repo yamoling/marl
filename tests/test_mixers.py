@@ -74,6 +74,7 @@ def test_qplex():
         10,
         env.state_shape[0],
         64,
+        weighted_head=True,
     )
     trainer = DQNTrainer(
         qnetwork=qnetwork,
@@ -97,7 +98,8 @@ def test_qplex():
         500,
         0,
     ).create_runner(0)
-    runner.to(marl.utils.get_device())
+    device = marl.utils.get_device()
+    runner.to(device)
 
     for _epoch in range(10):
         # Train the model for 500 time steps.
@@ -108,13 +110,13 @@ def test_qplex():
         # Then check if the learned Q-function matches the expected qvalues
         obs = env.reset()
         qnetwork.reset_hidden_states()
-        qvalues = qnetwork.qvalues(obs)
+        qvalues = qnetwork.qvalues(obs).to(device)
         success = True
         for a0 in range(3):
             for a1 in range(3):
-                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0)
-                s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0)
-                actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0)
+                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0).to(device)
+                s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0).to(device)
+                actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0).to(device)
                 res = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
                 difference = abs(res - MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1])
                 if difference > 1:

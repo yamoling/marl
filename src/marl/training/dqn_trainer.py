@@ -47,7 +47,7 @@ class DQNTrainer(Trainer):
         super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
-
+        self.device = qnetwork.device
         self.policy = train_policy
         self.memory = memory
         self.gamma = gamma
@@ -109,7 +109,7 @@ class DQNTrainer(Trainer):
     def optimise_qnetwork(self):
         if not self.memory.can_sample(self.batch_size):
             return {}, torch.tensor(0.0)
-        batch = self.memory.sample(self.batch_size)
+        batch = self.memory.sample(self.batch_size).to(self.device)
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
@@ -183,12 +183,13 @@ class DQNTrainer(Trainer):
         return self._update(time_step)
 
     def to(self, device: torch.device):
-        if self.mixer is not None:
-            self.mixer.to(device)
-        if self.target_mixer is not None:
-            self.target_mixer.to(device)
         self.qnetwork.to(device)
         self.qtarget.to(device)
+        self.mixer.to(device)
+        self.target_mixer.to(device)
+        if self.ir_module is not None:
+            self.ir_module.to(device)
+        self.device = device
         return self
 
     def randomize(self):
