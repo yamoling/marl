@@ -64,7 +64,7 @@ def create_smac(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def create_ppo_lle():
+def create_ppo_lle(args: Arguments):
     n_steps = 300_000
     env = lle.LLE.level(2, lle.ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
@@ -156,8 +156,8 @@ def create_lle(args: Arguments):
 
 
 def main(args: Arguments):
-    exp = create_smac(args)
-    # exp = create_ppo_lle()
+    # exp = create_smac(args)
+    exp = create_ppo_lle(args)
     # exp = create_lle(args)
     print(exp.logdir)
     if args.run:

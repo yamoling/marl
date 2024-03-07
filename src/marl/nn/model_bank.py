@@ -193,7 +193,8 @@ class CNN_ActorCritic(ActorCriticNN):
     def _cnn_forward(self, obs: torch.Tensor) -> torch.Tensor:
         # Check that the input has the correct shape (at least 4 dimensions)
         *dims, channels, height, width = obs.shape
-        obs = obs.view(-1, channels, height, width)
+        leading_dims_size = math.prod(dims)
+        obs = obs.view(leading_dims_size, channels, height, width)
         features = self.cnn.forward(obs)
         return features
 
