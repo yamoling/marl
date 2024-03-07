@@ -57,9 +57,13 @@ class NN(torch.nn.Module, ABC):
         # Required for deserialization (in torch.nn.module)
         return hash(self.__class__.__name__)
 
-    def to(self, device: torch.device, dtype: Optional[torch.dtype] = None):
+    def to(self, device: torch.device | Literal["cpu", "cuda"], dtype: Optional[torch.dtype] = None, non_blocking=True):
+        if isinstance(device, str):
+            from marl.utils import get_device
+
+            device = get_device(device)
         self.device = device
-        return super().to(device, dtype, non_blocking=True)
+        return super().to(device, dtype, non_blocking)
 
 
 class RecurrentNN(NN):

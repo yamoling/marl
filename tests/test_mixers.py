@@ -68,13 +68,13 @@ def test_qplex():
     env = LastAction(AgentId(MatrixGame(MatrixGame.QPLEX_PAYOFF_MATRIX)))
     qnetwork = model_bank.RNN.from_env(env)
     policy = marl.policy.EpsilonGreedy.constant(1.0)
-    mixer = marl.qlearning.QPlex(
+    mixer = marl.qlearning.mixers.QPlex(
         env.n_agents,
         env.n_actions,
         10,
         env.state_shape[0],
         64,
-        weighted_head=True,
+        # transformation=True,
     )
     trainer = DQNTrainer(
         qnetwork=qnetwork,
@@ -111,19 +111,15 @@ def test_qplex():
         obs = env.reset()
         qnetwork.reset_hidden_states()
         qvalues = qnetwork.qvalues(obs).to(device)
-        success = True
+        predicted = np.zeros((3, 3))
         for a0 in range(3):
             for a1 in range(3):
                 qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0).to(device)
                 s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0).to(device)
                 actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0).to(device)
-                res = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
-                difference = abs(res - MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1])
-                if difference > 1:
-                    print(f"{a0}/{a1}: {res} vs {MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1]}")
-                    success = False
-            if success:
-                return
+                predicted[a0, a1] = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
+        if np.allclose(predicted, MatrixGame.QPLEX_PAYOFF_MATRIX, atol=1):
+            return
     assert False, "The QPLEX mixer did not converge to the expected values."
 
 

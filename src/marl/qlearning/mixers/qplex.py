@@ -15,7 +15,7 @@ class QPlex(Mixer):
         n_heads: int,
         state_size: int,
         adv_hypernet_embed: int,
-        weighted_head: bool,
+        weighted_head: bool = True,
     ):
         super().__init__(n_agents)
         self.n_heads = n_heads
