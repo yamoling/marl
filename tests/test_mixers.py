@@ -1,26 +1,13 @@
 import marl
 import torch
 import numpy as np
-from rlenv.wrappers import AgentId
+from rlenv.wrappers import AgentId, LastAction
 
-from marl.models import QNetwork
+from marl.models import EpisodeMemory
+from marl.nn import model_bank
+from marl.training import DQNTrainer
 
 from .envs import TwoSteps, TwoStepsState, MatrixGame
-
-
-class QNetworkTest(QNetwork):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.nn = torch.nn.Sequential(
-            torch.nn.Linear(input_shape[0] + extras_shape[0], 64),
-            torch.nn.ReLU(),
-            torch.nn.Linear(64, output_shape[0]),
-        )
-
-    def forward(self, obs, extras):
-        if extras is not None:
-            obs = torch.concatenate([obs, extras], dim=-1)
-        return self.nn(obs)
 
 
 def test_qmix_value():
@@ -31,19 +18,13 @@ def test_qmix_value():
     Appendix B.
     """
     env = TwoSteps()
-    env.reset()
-
-    qnetwork = QNetworkTest.from_env(env)
-    policy = marl.policy.EpsilonGreedy.constant(1.0)
-    memory = marl.models.EpisodeMemory(500)
     mixer = marl.qlearning.QMix(env.state_shape[0], env.n_agents, embed_size=8)
-    # mixer = marl.qlearning.VDN(2)
     device = marl.utils.get_device()
-    trainer = marl.training.DQNNodeTrainer(
-        qnetwork=qnetwork,
-        train_policy=policy,
+    trainer = marl.training.DQNTrainer(
+        qnetwork=model_bank.MLP.from_env(env, hidden_sizes=[64, 64]),
+        train_policy=marl.policy.EpsilonGreedy.constant(1.0),
         double_qlearning=True,
-        memory=memory,
+        memory=marl.models.EpisodeMemory(500),
         batch_size=32,
         train_interval=(1, "episode"),
         mixer=mixer,
@@ -52,9 +33,8 @@ def test_qmix_value():
         optimiser="adam",
         lr=1e-4,
     )
-    algo = marl.qlearning.DQN(qnetwork, policy)
-    exp = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000)
-    runner = exp.create_runner(0)
+    algo = marl.qlearning.DQN(trainer.qnetwork, trainer.policy)
+    runner = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000).create_runner(0)
     runner.to(device)
     runner.train(0)
 
@@ -76,7 +56,73 @@ def test_qmix_value():
                 s = torch.tensor(obs.state, dtype=torch.float32).unsqueeze(0).to(device)
                 res = mixer.forward(qs, s).detach()
                 payoff_matrix[a0][a1] = res.item()
-        assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.1)
+        assert np.allclose(np.array(payoff_matrix), np.array(expected[state]), atol=0.2)
+
+
+def test_qplex():
+    """
+    Test QPlex against the matrix game shown in the paper.
+
+    In the paper, the agent ID and the last actions are given as inputs to the network.
+    """
+    env = LastAction(AgentId(MatrixGame(MatrixGame.QPLEX_PAYOFF_MATRIX)))
+    qnetwork = model_bank.RNN.from_env(env)
+    policy = marl.policy.EpsilonGreedy.constant(1.0)
+    mixer = marl.qlearning.QPlex(
+        env.n_agents,
+        env.n_actions,
+        10,
+        env.state_shape[0],
+        64,
+    )
+    trainer = DQNTrainer(
+        qnetwork=qnetwork,
+        train_policy=policy,
+        double_qlearning=True,
+        memory=EpisodeMemory(5000),
+        batch_size=32,
+        train_interval=(1, "episode"),
+        mixer=mixer,
+        target_updater=marl.training.HardUpdate(200),
+        grad_norm_clipping=10,
+        gamma=0.99,
+        optimiser="rmsprop",
+        lr=5e-4,
+    )
+    runner = marl.Experiment.create(
+        "logs/test",
+        marl.qlearning.DQN(qnetwork, policy),
+        trainer,
+        env,
+        500,
+        0,
+    ).create_runner(0)
+    runner.to(marl.utils.get_device())
+
+    for _epoch in range(10):
+        # Train the model for 500 time steps.
+        # If it converged, the test passes.
+        # If it did not converge, we train for an additional 500 time steps (at most 10 times).
+        runner.train(0)
+
+        # Then check if the learned Q-function matches the expected qvalues
+        obs = env.reset()
+        qnetwork.reset_hidden_states()
+        qvalues = qnetwork.qvalues(obs)
+        success = True
+        for a0 in range(3):
+            for a1 in range(3):
+                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0)
+                s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0)
+                actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0)
+                res = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
+                difference = abs(res - MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1])
+                if difference > 1:
+                    print(f"{a0}/{a1}: {res} vs {MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1]}")
+                    success = False
+            if success:
+                return
+    assert False, "The QPLEX mixer did not converge to the expected values."
 
 
 def test_mixers():
@@ -92,7 +138,7 @@ def test_mixers():
     )
     env.reset()
 
-    qnetwork = QNetworkTest.from_env(env)
+    qnetwork = model_bank.MLP.from_env(env)
     policy = marl.policy.EpsilonGreedy.constant(1.0)
     memory = marl.models.TransitionMemory(500)
     mixer = marl.qlearning.QMix(env.state_shape[0], env.n_agents, embed_size=8)

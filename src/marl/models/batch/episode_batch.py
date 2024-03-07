@@ -9,8 +9,7 @@ class EpisodeBatch(Batch):
     def __init__(self, episodes: list[Episode]):
         super().__init__(len(episodes), episodes[0].n_agents)
         self._max_episode_len = max(len(e) for e in episodes)
-        self._n_actions = episodes[0].n_actions
-        self._base_episides = episodes
+        self._base_episodes = episodes
         self.episodes = [e.padded(self._max_episode_len) for e in episodes]
 
     def for_individual_learners(self):

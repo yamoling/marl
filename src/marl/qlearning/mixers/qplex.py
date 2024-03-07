@@ -1,5 +1,4 @@
 import torch
-import math
 
 from torch import nn
 from marl.models.nn import Mixer
@@ -57,44 +56,77 @@ class QPlex(Mixer):
                 )
             )  # action
 
-    # def _transformation(self, qvalues: torch.Tensor, states: torch.Tensor):
-    #     """First step described in the paper is called 'transformation'"""
-    #     w, b = self._get_weights_and_biases(states)
-    #     qvalues = qvalues * w + b
-    #     values = torch.max(qvalues, dim=-1, keepdim=True).values
-    #     advantages = qvalues - values
-    #     return values, advantages
-
-    # def _duelling_mixing(self, values: torch.Tensor, advantages: torch.Tensor, states: torch.Tensor):
-    #     lambdas = self._get_lambdas(states)
-    #     values = torch.sum(values, dim=-1)
-    #     total_advantages = torch.dot(advantages, lambdas)
-    #     return values + total_advantages
-
     def forward(
         self,
         qvalues: torch.Tensor,
         states: torch.Tensor,
         one_hot_actions: torch.Tensor,
         all_qvalues: torch.Tensor,
+        *_args,
+        **_kwargs,
     ) -> torch.Tensor:
+        *dims, _ = qvalues.shape
+        states = states.view(-1, self.state_size)
+        one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
+        qvalues = qvalues.view(-1, self.n_agents)
+        # max_qvalues = max_qvalues.view(-1, self.n_agents, self.n_actions)
+        state_actions = torch.cat([states, one_hot_actions], dim=-1)
+
+        # Compute advantage for the action taken by each agent
+        qmax_i = all_qvalues.max(dim=-1).values
+        qmax_i = qmax_i.view(-1, self.n_agents)
+        # max_qvalues.view(-1, self.n_agents)  # torch.max(max_qvalues, dim=-1).values
+        # I don't know why we need to detach the values here but they do it in the original code
+        advantage = (qvalues - qmax_i).detach()
+
+        # Compute attention weights
+        agents = torch.stack([k_ext(states) for k_ext in self.agents_extractors], dim=1)
+        actions = torch.stack([sel_ext(state_actions) for sel_ext in self.action_extractors], dim=1)
+        keys = torch.stack([k_ext(states) for k_ext in self.key_extractors], dim=1)
+        keys = keys.repeat(1, 1, self.n_agents)
+        attention = keys * agents * actions
+        attention = torch.sum(attention, dim=1)  # sum over heads
+        attention = attention - 1  # Don't know why they do this but they do it in the original code
+
+        # Weight the advantage with the attention
+        advantage = advantage * attention
+        a_tot = torch.sum(advantage, dim=-1)
+        v_tot = torch.sum(qvalues, dim=-1)
+        q_tot = v_tot + a_tot
+        return q_tot.view(*dims)
+
+    def forward_old(
+        self,
+        qvalues: torch.Tensor,
+        states: torch.Tensor,
+        one_hot_actions: torch.Tensor,
+        all_qvalues: torch.Tensor,
+    ) -> torch.Tensor:
+        *dims, _ = qvalues.shape
         states = states.view(-1, self.state_size)
         one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
         qvalues = qvalues.view(-1, self.n_agents)
         all_qvalues = all_qvalues.view(-1, self.n_agents, self.n_actions)
         state_actions = torch.cat([states, one_hot_actions], dim=-1)
 
+        # Compute advantage for the action taken by each agent
+        qmax_i = torch.max(all_qvalues, dim=-1).values
+        # I don't know why we need to detach the values here but they do it in the original code
+        # In my tests, QPlex loses its superior representational capanility if we don't detach the advantage
+        advantage = (qvalues - qmax_i).detach()
+
+        # Compute attention weights
         agents = torch.stack([k_ext(states) for k_ext in self.agents_extractors], dim=1)
         actions = torch.stack([sel_ext(state_actions) for sel_ext in self.action_extractors], dim=1)
         keys = torch.stack([k_ext(states) for k_ext in self.key_extractors], dim=1)
         keys = keys.repeat(1, 1, self.n_agents)
-
         attention = keys * agents * actions
         attention = torch.sum(attention, dim=1)  # sum over heads
+        attention = attention - 1  # Don't know why they do this but they do it in the original code
 
-        values = torch.max(all_qvalues, dim=-1).values
-        advantage = qvalues - values
+        # Weight the advantage with the attention
         advantage = advantage * attention
-        advantage = torch.sum(advantage, dim=-1)
+        a_tot = torch.sum(advantage, dim=-1)
         v_tot = torch.sum(qvalues, dim=-1)
-        return v_tot + advantage
+        q_tot = v_tot + a_tot
+        return q_tot.view(*dims)
