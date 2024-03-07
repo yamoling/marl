@@ -33,15 +33,11 @@ class NN(torch.nn.Module, ABC):
         self.extras_shape = tuple(extras_shape)
         self.output_shape = tuple(output_shape)
         self.name = self.__class__.__name__
+        self.device = torch.device("cpu")
 
     @abstractmethod
     def forward(self, *args):
         """Forward pass"""
-
-    @property
-    def device(self) -> torch.device:
-        """Returns the device of the model"""
-        return next(self.parameters()).device
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         match method:
@@ -60,6 +56,10 @@ class NN(torch.nn.Module, ABC):
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
         return hash(self.__class__.__name__)
+
+    def to(self, device: torch.device, dtype: Optional[torch.dtype] = None):
+        self.device = device
+        return super().to(device, dtype, non_blocking=True)
 
 
 class RecurrentNN(NN):
@@ -161,7 +161,7 @@ class ActorCriticNN(NN, ABC):
 
 
 @dataclass(eq=False)
-class Mixer(NN, ABC):
+class Mixer(NN):
     n_agents: int
 
     def __init__(self, n_agents: int):

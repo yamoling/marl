@@ -79,7 +79,8 @@ class QPlex(Mixer):
         **_kwargs,
     ) -> torch.Tensor:
         *dims, _ = qvalues.shape
-        states = states.view(-1, self.state_size)
+        # TODO: attention, j'ai dû changer view en reshape pour que ça marche
+        states = states.reshape(-1, self.state_size)
         one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
         qvalues = qvalues.view(-1, self.n_agents)
         # max_qvalues = max_qvalues.view(-1, self.n_agents, self.n_actions)

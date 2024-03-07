@@ -70,7 +70,6 @@ class DQNTrainer(Trainer):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
-        self.i = 0
 
     def _update(self, time_step: int):
         self.update_num += 1
@@ -157,8 +156,6 @@ class DQNTrainer(Trainer):
 
         # Optimize
         logs = {"loss": float(loss.item())}
-        print(self.i, logs["loss"])
-        self.i += 1
         self.optimiser.zero_grad()
         loss.backward()
         if self.grad_norm_clipping is not None:
