@@ -1,4 +1,9 @@
 # MARL
+This repository contains a variety of Multi-Agent Reinforcement Learning (MARL) algorithms. Its purpose is to develop new algorithms and it is not (yet) intended to be a library to include from an other project.
+
+`marl` is strongly typed and has high code quality standards. Any contribution to this repository is expected to exhibit a similar quality.
+`marl` comes with a web interface to visualise the results of your experiments (more info down below).
+
 ## Requirements
 - poetry
 - python >=  3.10

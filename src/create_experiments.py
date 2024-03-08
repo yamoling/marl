@@ -146,7 +146,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/new-qnetworks-{env.name}"
+        logdir = f"logs/{env.name}-centralised"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:

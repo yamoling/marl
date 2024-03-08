@@ -1,12 +1,11 @@
 import torch
 
-from torch import nn
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
 class QPlex2(Mixer):
-    """Duplex dueling"""
+    """Duplex dueling without attention mechanism (this differs from the original paper)."""
 
     def __init__(
         self,

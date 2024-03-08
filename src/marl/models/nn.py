@@ -97,7 +97,9 @@ class QNetwork(NN):
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """Compute the Q-values"""
-        return self.forward(*self.to_tensor(obs)).squeeze(0)
+        obs_tensor, extra_tensor = self.to_tensor(obs)
+        qvalues = self.forward(obs_tensor, extra_tensor)
+        return qvalues.squeeze(0)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function"""

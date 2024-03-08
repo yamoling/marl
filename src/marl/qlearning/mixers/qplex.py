@@ -69,37 +69,22 @@ class QPlex(Mixer):
             nn.Linear(adv_hypernet_embed, n_agents),
         )
 
-    def forward(
+    def transformation(self, states: torch.Tensor, qvalues: torch.Tensor, values: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        weights = self.weights_generator(states) + 1e-10
+        states_value = self.V(states)
+        qvalues = qvalues * weights + states_value
+        values = values * weights + states_value
+        advantages = qvalues - values
+        return values, advantages
+
+    def dueling_mixing(
         self,
-        qvalues: torch.Tensor,
+        advantages: torch.Tensor,
+        values: torch.Tensor,
         states: torch.Tensor,
         one_hot_actions: torch.Tensor,
-        all_qvalues: torch.Tensor,
-        *_args,
-        **_kwargs,
     ) -> torch.Tensor:
-        *dims, _ = qvalues.shape
-        # TODO: attention, j'ai dû changer view en reshape pour que ça marche
-        states = states.reshape(-1, self.state_size)
-        one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
-        qvalues = qvalues.view(-1, self.n_agents)
-        # max_qvalues = max_qvalues.view(-1, self.n_agents, self.n_actions)
         state_actions = torch.cat([states, one_hot_actions], dim=-1)
-
-        qmax_i = all_qvalues.max(dim=-1).values
-        qmax_i = qmax_i.view(-1, self.n_agents)
-
-        # Weighted heads
-        if self.weighted_head:
-            weights = self.weights_generator(states) + 1e-10
-            states_value = self.V(states)
-            qvalues = qvalues * weights + states_value
-            qmax_i = qmax_i * weights + states_value
-
-        # max_qvalues.view(-1, self.n_agents)  # torch.max(max_qvalues, dim=-1).values
-        # I don't know why we need to detach the values here but they do it in the original code
-        advantage = (qvalues - qmax_i).detach()
-
         # Compute attention weights
         agents = torch.stack([k_ext(states) for k_ext in self.agents_extractors], dim=1)
         actions = torch.stack([sel_ext(state_actions) for sel_ext in self.action_extractors], dim=1)
@@ -110,8 +95,37 @@ class QPlex(Mixer):
         attention = attention - 1  # Don't know why they do this but they do it in the original code
 
         # Weight the advantage with the attention
-        advantage = advantage * attention
+        advantage = advantages * attention
         a_tot = torch.sum(advantage, dim=-1)
-        v_tot = torch.sum(qvalues, dim=-1)
+        v_tot = torch.sum(values, dim=-1)
         q_tot = v_tot + a_tot
+        return q_tot
+
+    def forward(
+        self,
+        qvalues: torch.Tensor,
+        states: torch.Tensor,
+        one_hot_actions: torch.Tensor,
+        all_qvalues: torch.Tensor,
+        *_args,
+        **_kwargs,
+    ) -> torch.Tensor:
+        *dims, _ = qvalues.shape
+        states = states.reshape(-1, self.state_size)
+        one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
+        qvalues = qvalues.view(-1, self.n_agents)
+
+        # Value of a state is the maximal qvalue
+        values = all_qvalues.max(dim=-1).values
+        values = values.view(-1, self.n_agents)
+
+        # Weighted heads
+        if self.weighted_head:
+            values, advantages = self.transformation(states, qvalues, values)
+        else:
+            advantages = qvalues - values
+        # I don't know why we need to detach the advantages here but they do it in the original code
+        # and it does not work without it.
+        advantages = advantages.detach()
+        q_tot = self.dueling_mixing(advantages, values, states, one_hot_actions)
         return q_tot.view(*dims)
