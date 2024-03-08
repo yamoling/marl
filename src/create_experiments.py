@@ -1,3 +1,4 @@
+import shutil
 import marl
 import lle
 import rlenv
@@ -5,6 +6,7 @@ import typed_argparse as tap
 from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
+from marl.utils import ExperimentAlreadyExistsException
 
 
 class Arguments(tap.TypedArgs):
@@ -34,13 +36,13 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.qlearning.QPlex(
+        mixer=marl.qlearning.mixers.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
-            n_heads=10,
             state_size=env.state_shape[0],
             adv_hypernet_embed=64,
-            weighted_head=False,
+            n_heads=10,
+            weighted_head=True,
         ),
         grad_norm_clipping=10,
     )
@@ -55,7 +57,7 @@ def create_smac(args: Arguments):
     else:
         logdir = f"logs/{env.name}"
         if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}-weighted-head"
+            logdir += f"-{trainer.mixer.name}-validation"
         else:
             logdir += "-iql"
         if trainer.ir_module is not None:
@@ -97,7 +99,7 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+    env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).centralised().build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -129,7 +131,7 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.qlearning.VDN(env.n_agents),  # VDN in centralised setup is the same as IQL
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
@@ -157,12 +159,21 @@ def create_lle(args: Arguments):
 
 
 def main(args: Arguments):
-    exp = create_smac(args)
-    # exp = create_ppo_lle()
-    # exp = create_lle(args)
-    print(exp.logdir)
-    if args.run:
-        exp.create_runner(seed=0).to("auto").train(args.n_tests)
+    try:
+        # exp = create_smac(args)
+        # exp = create_ppo_lle()
+        exp = create_lle(args)
+        print(exp.logdir)
+        if args.run:
+            exp.create_runner(seed=0).to("auto").train(args.n_tests)
+    except ExperimentAlreadyExistsException as e:
+        response = ""
+        response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
+        if response.lower() != "y":
+            print("Experiment not created.")
+            return
+        shutil.rmtree(e.logdir)
+        return main(args)
 
 
 if __name__ == "__main__":

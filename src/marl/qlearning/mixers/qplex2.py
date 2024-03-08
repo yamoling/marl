@@ -12,13 +12,11 @@ class QPlex2(Mixer):
         self,
         n_agents: int,
         n_actions: int,
-        n_heads: int,
         state_size: int,
         adv_hypernet_embed: int,
         transformation=True,
     ):
         super().__init__(n_agents)
-        self.n_heads = n_heads
         self.n_actions = n_actions
         self.state_size = state_size
         self.do_transformation = transformation
@@ -90,7 +88,7 @@ class QPlex2(Mixer):
     ) -> torch.Tensor:
         *dims, _ = qvalues.shape
         qvalues = qvalues.view(-1, self.n_agents)
-        states = states.view(-1, self.state_size)
+        states = states.reshape(-1, self.state_size)
         one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
         # State value is the maximal qvalue
         values = all_qvalues.view(-1, self.n_agents, self.n_actions).max(dim=-1).values
