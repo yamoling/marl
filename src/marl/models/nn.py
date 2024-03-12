@@ -36,7 +36,7 @@ class NN(torch.nn.Module, ABC):
         self.device = torch.device("cpu")
 
     @abstractmethod
-    def forward(self, *args):
+    def forward(self, *args) -> torch.Tensor:
         """Forward pass"""
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):

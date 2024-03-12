@@ -7,6 +7,7 @@ from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
+from marl.nn import model_bank
 
 
 class Arguments(tap.TypedArgs):
@@ -101,25 +102,19 @@ def create_lle(args: Arguments):
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).agent_id().build()
 
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    qnetwork = model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=500_000,
     )
-    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
-    #     normalise_rewards=False,
-    #     # gamma=gamma,
-    # )
-    rnd = None
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     td_error_clipping=5.0,
-    # )
+    rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+        target=model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
+        reward_size=env.reward_size,
+        normalise_rewards=False,
+        # gamma=gamma,
+    )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -128,13 +123,13 @@ def create_lle(args: Arguments):
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
-        batch_size=16,
+        batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),  # VDN in centralised setup is the same as IQL
+        mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=None,
+        ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(

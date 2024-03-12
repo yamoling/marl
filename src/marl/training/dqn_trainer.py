@@ -73,41 +73,21 @@ class DQNTrainer(Trainer):
 
     def _update(self, time_step: int):
         self.update_num += 1
-        if self.update_num % self.update_interval != 0:
+        if self.update_num % self.update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_qnetwork()
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
         if isinstance(self.memory, PrioritizedMemory):
-            self.memory.update(td_error)
-            logs["per-alpha"] = self.memory.alpha.value
-            logs["per-beta"] = self.memory.beta.value
+            logs = logs | self.memory.update(td_error)
+        if self.ir_module is not None:
+            logs = logs | self.ir_module.update(time_step)
         return logs
 
-    def _next_state_value(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_).detach()
-        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
-        if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_).detach()
-        else:
-            qvalues_for_index = next_qvalues
-        # For episode batches, the batch includes the initial observation in order to compute the
-        # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
-        if isinstance(batch, EpisodeBatch):
-            next_qvalues = next_qvalues[1:]
-            qvalues_for_index = qvalues_for_index[1:]
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
-        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
-        if self.target_mixer is not None:
-            # We have to compute the best action of the next state from the indices since it is not present in the batch information
-            one_hot_actions_ = F.one_hot(indices, batch.n_actions)
-            next_values = self.target_mixer.forward(next_values, batch.states_, one_hot_actions_, next_qvalues)
-        return next_values
+    def _can_update(self):
+        return self.memory.can_sample(self.batch_size)
 
     def optimise_qnetwork(self):
-        if not self.memory.can_sample(self.batch_size):
-            return {}, torch.tensor(0.0)
         batch = self.memory.sample(self.batch_size).to(self.device)
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
