@@ -51,17 +51,17 @@ files = [
 
 [[package]]
 name = "boto3"
-version = "1.34.58"
+version = "1.34.60"
 description = "The AWS SDK for Python"
 optional = false
 python-versions = ">= 3.8"
 files = [
-    {file = "boto3-1.34.58-py3-none-any.whl", hash = "sha256:d213a6fea9db6d537b1e65924133d8279ada79a40bc840d4930e1b64be869d4c"},
-    {file = "boto3-1.34.58.tar.gz", hash = "sha256:09e3d17c718bc938a76774f31bc557b20733c0f5f9135a3e7782b55f3459cbdd"},
+    {file = "boto3-1.34.60-py3-none-any.whl", hash = "sha256:199f11518b370e2ec1f6d5ec0c647eca967b6eb2cf6a332d9fc01a2144ea3690"},
+    {file = "boto3-1.34.60.tar.gz", hash = "sha256:f78f30f4d6b1d5839ec20da9ffe0f3b36c1b404a415d208459a0b88c202a05e9"},
 ]
 
 [package.dependencies]
-botocore = ">=1.34.58,<1.35.0"
+botocore = ">=1.34.60,<1.35.0"
 jmespath = ">=0.7.1,<2.0.0"
 s3transfer = ">=0.10.0,<0.11.0"
 
@@ -70,13 +70,13 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.34.58"
+version = "1.34.60"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">= 3.8"
 files = [
-    {file = "botocore-1.34.58-py3-none-any.whl", hash = "sha256:8086a6ea27d0f658505ac81e6d7314e013561469c40db9b5a4692127eb5c97cf"},
-    {file = "botocore-1.34.58.tar.gz", hash = "sha256:d75216952886dc513ea1b5e2979a6af08feed2f537e3fc102e4a0a2ead563a35"},
+    {file = "botocore-1.34.60-py3-none-any.whl", hash = "sha256:6e5317aab5dea19579e7c33528d53761bfb02f3fac5da2de01d1686a25f116a5"},
+    {file = "botocore-1.34.60.tar.gz", hash = "sha256:4101494f0b692c95c592cba2719a61854e1c2923d89c60eaddf0e0d986442562"},
 ]
 
 [package.dependencies]
@@ -860,39 +860,25 @@ files = [
 ]
 
 [[package]]
-name = "laser-learning-environment"
-version = "0.1.12"
-description = "A fast Multi-Agent Reinforcement Learning Environment"
+name = "lle"
+version = "0.1.13"
+description = "Laser Learning Environment (LLE) for Multi-Agent Reinforcement Learning"
 optional = false
-python-versions = ">=3.10, <4.0"
-files = [
-    {file = "laser_learning_environment-0.1.12-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:bc530bcbe5a5d52a277f5f74211620731322c025b5973bcc75ee272a0d4074b9"},
-    {file = "laser_learning_environment-0.1.12-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:8af0cd8f6d05ee18aae4bd34e318735a780a9cb343c3652d67d5275801121338"},
-    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:d44c4c6155c24976f5a7469d6c761522deff8ee5469ff8c59105339d8ba20891"},
-    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:61c5ac73034cc6975602efee50392bd387e469a0b6e64e4f2c572eb2d4b89b02"},
-    {file = "laser_learning_environment-0.1.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f557c51b719a3c898a84e4e8527d9deac660e8496eaede46354cecf9f180a67a"},
-    {file = "laser_learning_environment-0.1.12-cp310-none-win32.whl", hash = "sha256:ea055a17fbeab3fdc119ebbf685fb4974ba07b1e357d91178e2c630e888b0d5a"},
-    {file = "laser_learning_environment-0.1.12-cp310-none-win_amd64.whl", hash = "sha256:46c0b30727a1348c390c2e1f409f6b7ddb30a55a60a18c8b9713aaa75dd20450"},
-    {file = "laser_learning_environment-0.1.12-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:80c2f60bf2b58f171d56a14f0eb5c4655e36e76f316f884214e9cee36252a8b6"},
-    {file = "laser_learning_environment-0.1.12-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:d5ddd28050073e008c7cda774fa32946c82e451f8fbc5af61ed67366ec0aabd1"},
-    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:2972c8089b55d02407c457eb9d3c0a14846eccc9693b7ca16309b74196718a51"},
-    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c9f7e456f9d7c5d22df12ad9a68d36dab4ab0e2d408d74355105b2792806154"},
-    {file = "laser_learning_environment-0.1.12-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:fc12b83ae205106e55c33d1e2b4748d3866cd86a622ae41c22b9e1de37619810"},
-    {file = "laser_learning_environment-0.1.12-cp311-none-win32.whl", hash = "sha256:1b7ef8b342de57574bef3fea67091d03c98c91befe863e5f8fa041cd5d4dddf7"},
-    {file = "laser_learning_environment-0.1.12-cp311-none-win_amd64.whl", hash = "sha256:9cae8706b69a67bef310b1df42b8bb630da1992596fc83dbdbef43eb749b1a74"},
-    {file = "laser_learning_environment-0.1.12-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:f651b6423aa4e44c8df67264133ec8ddd4e53dcf226f65492e29e9007bb46869"},
-    {file = "laser_learning_environment-0.1.12-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:c5fe3b8b4f88714ad09147d30c0e1065b39025a1de0c5f6afc7cc8e506360cfc"},
-    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:3b7f7cebe56180ffbe53950eb095c160a0c1f320b2ebd0da6605c195e182a7ac"},
-    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7c2d3f9b25af91a38d858c8a69825ea9a119ff25f19164be65714b9e368fe2f4"},
-    {file = "laser_learning_environment-0.1.12-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:afc1a2374582bf7ef1c9e643fdd06fb6f88b651422e2bffb9cc8242bd7cc007a"},
-    {file = "laser_learning_environment-0.1.12-cp312-none-win32.whl", hash = "sha256:f453b471c81b044004c9383c5113fba4aa513e50240d38e124404cfd6db63892"},
-    {file = "laser_learning_environment-0.1.12-cp312-none-win_amd64.whl", hash = "sha256:bed334a48feb8e0bd49b192ff1986dbafd32d19c6940753ba328bc9c70190bc8"},
-    {file = "laser_learning_environment-0.1.12-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:9e97c2c8b4e0f3201fc8e5fd2f321bcd12fae869bc28d7e2163650a2ae1bbdd4"},
-    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:5eda2e29756903eaa064636d6f822e6f1b6fa3f4311072396925e51c9a5735c9"},
-    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a0688b77ff159cce796bd518a3e0e2256f1bf4caa6999727d58395df98dd6903"},
-    {file = "laser_learning_environment-0.1.12-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b2a817d105e39e3bfd272c3c3f9a9dcb95387497053c923583506bc80fe98ca0"},
-    {file = "laser_learning_environment-0.1.12.tar.gz", hash = "sha256:a43df82ff15b357b89983de147211c99d3ea3868ad0784625668c260a0ff24c9"},
-]
+python-versions = ">=3.10,<3.13"
+files = []
+develop = false
+
+[package.dependencies]
+numpy = "^1.25.0"
+opencv-python = "^4.8.1.78"
+pyserde = "^0.12.3"
+rlenv = {git = "https://github.com/yamoling/rlenv.git", branch = "dev"}
+
+[package.source]
+type = "git"
+url = "https://github.com/yamoling/lle.git"
+reference = "dev"
+resolved_reference = "7bdf36731e55dd8c6d047f8d796b105e9e6cb538"
 
 [[package]]
 name = "markupsafe"
@@ -1246,21 +1232,21 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
-    {version = ">=1.23.5", markers = "python_version >= \"3.11\" and python_version < \"3.12\""},
     {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\" and python_version < \"3.11\""},
     {version = ">=1.21.2", markers = "platform_system != \"Darwin\" and python_version >= \"3.10\" and python_version < \"3.11\""},
+    {version = ">=1.23.5", markers = "python_version >= \"3.11\" and python_version < \"3.12\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
 ]
 
 [[package]]
 name = "packaging"
-version = "23.2"
+version = "24.0"
 description = "Core utilities for Python packages"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "packaging-23.2-py3-none-any.whl", hash = "sha256:8c491190033a9af7e1d931d0b5dacc2ef47509b34dd0de67ed209b5203fc88c7"},
-    {file = "packaging-23.2.tar.gz", hash = "sha256:048fb0e9405036518eaaf48a55953c750c11e1a1b68e0dd1a9d62ed0c092cfc5"},
+    {file = "packaging-24.0-py3-none-any.whl", hash = "sha256:2ddfb553fdf02fb784c234c7ba6ccc288296ceabec964ad2eae3777778130bc5"},
+    {file = "packaging-24.0.tar.gz", hash = "sha256:eb82c5e3e56209074766e6885bb04b8c38a0c015d0a30036ebe7ece34c9989e9"},
 ]
 
 [[package]]
@@ -1303,9 +1289,9 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.26.0,<2", markers = "python_version >= \"3.12\""},
-    {version = ">=1.23.2,<2", markers = "python_version == \"3.11\""},
     {version = ">=1.22.4,<2", markers = "python_version < \"3.11\""},
+    {version = ">=1.23.2,<2", markers = "python_version == \"3.11\""},
+    {version = ">=1.26.0,<2", markers = "python_version >= \"3.12\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1438,25 +1424,26 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.20.14"
+version = "0.20.15"
 description = "Blazingly fast DataFrame library"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "polars-0.20.14-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ed6184584fd43db73098ab6dcac636c540016e7620a2647b0ab93703fc5dfa2d"},
-    {file = "polars-0.20.14-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:7c23fee3b9838530dd5c39c189d8ba142601b46a66a70f5fbcda4a7adca26709"},
-    {file = "polars-0.20.14-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1d4ba27827c037f03bca1b81cac3e191f4b89522d2de532ab38d3ba5d2f02d9c"},
-    {file = "polars-0.20.14-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:04096fe285aea2adbb783969993494e4997426f7ac5586c76623fd41a86b531f"},
-    {file = "polars-0.20.14-cp38-abi3-win_amd64.whl", hash = "sha256:a46b6c78b58358ff15fbdf623abe8816cb806a01932e6a564375ceaaa8094479"},
-    {file = "polars-0.20.14.tar.gz", hash = "sha256:ce32c2cd2382bc42a0955005235020200d87c044ea0639bc1d5ba3a8faa69b80"},
+    {file = "polars-0.20.15-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d528acc0b0900cb8363f065cbf65325571eeb4b245e4b68679beae75287451c9"},
+    {file = "polars-0.20.15-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:3adc68bd1400c651da826e66ad735c07dafd5f1811f369f394f8d8fb71f1178b"},
+    {file = "polars-0.20.15-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:be613e4640a607040e3361622a254f88ac99bd92b212d6f580a3f4b74b6617ed"},
+    {file = "polars-0.20.15-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:a1936ec8de4262ce68dd5c4f43b74c996184a36012bdd0ff9454c33132bd4d28"},
+    {file = "polars-0.20.15-cp38-abi3-win_amd64.whl", hash = "sha256:00b5687d1fdcb09f7c2babdf88f63b3238284bf9f6cddd2ea60aea07b711172e"},
+    {file = "polars-0.20.15.tar.gz", hash = "sha256:88ad0c3e1f92185b86041d68783f9862ec21adc92a33001818697644dd0794ee"},
 ]
 
 [package.extras]
-adbc = ["adbc-driver-sqlite"]
-all = ["polars[adbc,cloudpickle,connectorx,deltalake,fsspec,gevent,numpy,pandas,plot,pyarrow,pydantic,pyiceberg,sqlalchemy,timezone,xlsx2csv,xlsxwriter]"]
+adbc = ["adbc-driver-manager", "adbc-driver-sqlite"]
+all = ["polars[adbc,cloudpickle,connectorx,deltalake,fastexcel,fsspec,gevent,numpy,pandas,plot,pyarrow,pydantic,pyiceberg,sqlalchemy,timezone,xlsx2csv,xlsxwriter]"]
 cloudpickle = ["cloudpickle"]
 connectorx = ["connectorx (>=0.3.2)"]
 deltalake = ["deltalake (>=0.14.0)"]
+fastexcel = ["fastexcel (>=0.9)"]
 fsspec = ["fsspec"]
 gevent = ["gevent"]
 matplotlib = ["matplotlib"]
@@ -1927,13 +1914,13 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
 name = "requests-oauthlib"
-version = "1.3.1"
+version = "1.4.0"
 description = "OAuthlib authentication support for Requests."
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 files = [
-    {file = "requests-oauthlib-1.3.1.tar.gz", hash = "sha256:75beac4a47881eeb94d5ea5d6ad31ef88856affe2332b9aafb52c6452ccf0d7a"},
-    {file = "requests_oauthlib-1.3.1-py2.py3-none-any.whl", hash = "sha256:2577c501a2fb8d05a304c09d090d6e47c306fef15809d102b327cf8364bddab5"},
+    {file = "requests-oauthlib-1.4.0.tar.gz", hash = "sha256:acee623221e4a39abcbb919312c8ff04bd44e7e417087fb4bd5e2a2f53d5e79a"},
+    {file = "requests_oauthlib-1.4.0-py2.py3-none-any.whl", hash = "sha256:7a3130d94a17520169e38db6c8d75f2c974643788465ecc2e4b36d288bf13033"},
 ]
 
 [package.dependencies]
@@ -1970,7 +1957,7 @@ files = [
 
 [[package]]
 name = "rlenv"
-version = "0.4.6"
+version = "0.5.2"
 description = "A strongly typed Multi-Agent Reinforcement Learning framework"
 optional = false
 python-versions = ">=3.10,<4"
@@ -1995,8 +1982,8 @@ tests = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (
 [package.source]
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
-reference = "HEAD"
-resolved_reference = "72d99ebc913e3fc61f7b76b95bbc98bc1698a673"
+reference = "dev"
+resolved_reference = "65ae43dbaeff697daaa150a61d9276462c9704a8"
 
 [[package]]
 name = "rpds-py"
@@ -2430,13 +2417,13 @@ typing-extensions = "*"
 
 [[package]]
 name = "types-python-dateutil"
-version = "2.8.19.20240106"
+version = "2.8.19.20240311"
 description = "Typing stubs for python-dateutil"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-python-dateutil-2.8.19.20240106.tar.gz", hash = "sha256:1f8db221c3b98e6ca02ea83a58371b22c374f42ae5bbdf186db9c9a76581459f"},
-    {file = "types_python_dateutil-2.8.19.20240106-py3-none-any.whl", hash = "sha256:efbbdc54590d0f16152fa103c9879c7d4a00e82078f6e2cf01769042165acaa2"},
+    {file = "types-python-dateutil-2.8.19.20240311.tar.gz", hash = "sha256:51178227bbd4cbec35dc9adffbf59d832f20e09842d7dcb8c73b169b8780b7cb"},
+    {file = "types_python_dateutil-2.8.19.20240311-py3-none-any.whl", hash = "sha256:ef813da0809aca76472ca88807addbeea98b19339aebe56159ae2f4b4f70857a"},
 ]
 
 [[package]]
@@ -2635,5 +2622,5 @@ watchdog = ["watchdog (>=2.3)"]
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.10, <4"
-content-hash = "41004cb622f63db33f615123a04723f9c6be66842325bbd678bab1d61b04e7fb"
+python-versions = ">=3.10, <3.13"
+content-hash = "3020368f3150adde79138a8de946a4c66f84582560abbc4061ca8f7f82e2d623"

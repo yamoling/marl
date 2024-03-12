@@ -90,25 +90,35 @@ class RecurrentNN(NN):
 
 
 class QNetwork(NN):
+    """
+    Takes as input observations of the environment and outputs Q-values for each action.
+    """
+
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
-        """Compute the Q-values"""
+        """Compute the Q-values (one per objective)."""
         obs_tensor, extra_tensor = self.to_tensor(obs)
-        qvalues = self.forward(obs_tensor, extra_tensor)
-        return qvalues.squeeze(0)
+        objective_qvalues = self.forward(obs_tensor, extra_tensor)
+        objective_qvalues = objective_qvalues.squeeze(0)
+        return torch.sum(objective_qvalues, dim=-1)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function"""
-        agent_values = self.qvalues(obs).max(dim=-1).values
+        qvalues = self.qvalues(obs)
+        agent_values = qvalues.max(dim=-1).values
         return agent_values.mean(dim=-1)
 
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Compute the Q-values"""
+        """
+        Compute the Q-values.
+
+        This function should output qvalues of shape (batch_size, n_actions, n_objectives).
+        """
 
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
@@ -116,7 +126,11 @@ class QNetwork(NN):
 
     @classmethod
     def from_env(cls, env: RLEnv):
-        return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
+        return cls(
+            input_shape=env.observation_shape,
+            extras_shape=env.extra_feature_shape,
+            output_shape=(env.n_actions, env.reward_size),
+        )
 
 
 class RecurrentQNetwork(QNetwork, RecurrentNN):

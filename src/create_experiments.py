@@ -98,8 +98,8 @@ def create_ppo_lle():
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
-    env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).centralised().build()
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
+    env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).agent_id().build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -128,7 +128,7 @@ def create_lle(args: Arguments):
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
-        batch_size=64,
+        batch_size=16,
         train_interval=(5, "step"),
         gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),  # VDN in centralised setup is the same as IQL
@@ -146,7 +146,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/{env.name}-centralised"
+        logdir = f"logs/{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:

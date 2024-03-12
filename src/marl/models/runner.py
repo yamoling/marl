@@ -32,7 +32,7 @@ class Runner:
         self._test_interval = test_interval
         self._max_step = n_steps
 
-    def _train_episode(self, step_num: int, episode_num: int, n_tests: int):
+    def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool):
         episode = EpisodeBuilder()
         obs = self._env.reset()
         self._algo.new_episode()
@@ -40,43 +40,43 @@ class Runner:
         while not episode.is_finished and step_num < self._max_step:
             step_num += 1
             if self._test_interval != 0 and step_num % self._test_interval == 0:
-                self.test(n_tests, step_num)
+                self.test(n_tests, step_num, quiet)
             action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
             transition = Transition(obs, action, reward, done, info, obs_, truncated)
-            training_metrics = self._trainer.update_step(transition, step_num) | {"time_step": step_num}
-            self._run.log_train_step(training_metrics)
+            training_metrics = self._trainer.update_step(transition, step_num)
+            self._run.log_train_step(training_metrics, step_num)
             episode.add(transition)
             obs = obs_
-        episode = episode.build({"initial_value": initial_value, "time_step": step_num})
-        training_logs = self._trainer.update_episode(episode, episode_num, step_num) | {"time_step": step_num}
-        self._run.log_train_episode(episode, training_logs)
+        episode = episode.build({"initial_value": initial_value})
+        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
+        self._run.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def train(self, n_tests: int):
+    def train(self, n_tests: int, quiet: bool = False):
         """Start the training loop"""
         with open(os.path.join(self._run.rundir, "pid"), "w") as f:
             f.write(str(os.getpid()))
         episode_num = 0
         step = 0
-        pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True)
-        self.test(n_tests, 0)
+        pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
+        self.test(n_tests, 0, quiet)
         while step < self._max_step:
-            episode = self._train_episode(step, episode_num, n_tests)
+            episode = self._train_episode(step, episode_num, n_tests, quiet)
             episode_num += 1
             step += len(episode)
             pbar.update(len(episode))
         pbar.close()
 
-    def test(self, ntests: int, time_step: int):
+    def test(self, ntests: int, time_step: int, quiet: bool):
         """Test the agent"""
         self._algo.set_testing()
         test_dir = self._run.test_dir(time_step)
         self._algo.save(test_dir)
         episodes = list[Episode]()
-        for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True):
+        for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
             self._algo.new_episode()

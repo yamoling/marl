@@ -13,12 +13,12 @@ def test_nstep_n_equals_end():
     expected_nstep_reward_t0 = 0
     for i in range(5):
         obs.data[0] = i
-        t = Transition(obs, np.array([1]), 1, i == 4, {}, obs, False)
+        t = Transition(obs, np.array([1]), [1], i == 4, {}, obs, False)
         memory.add(t)
         expected_nstep_reward_t0 += t.reward * gamma**i
 
     t = memory[0]
-    assert t.reward == expected_nstep_reward_t0
+    assert np.allclose(t.reward, expected_nstep_reward_t0)
     for i in range(5):
         t = memory[i]
         assert np.all(t.obs_.data[0] == 4)
@@ -32,7 +32,7 @@ def test_3steps():
     obs = env.reset()
     expected_nstep_reward_t0 = 0
     for i in range(5):
-        t = Transition(obs, np.array([1]), 1, i == 4, {}, obs, False)
+        t = Transition(obs, np.array([1]), [1], i == 4, {}, obs, False)
         memory.add(t)
         if i < n:
             expected_nstep_reward_t0 += t.reward * gamma**i
@@ -49,7 +49,7 @@ def test_3steps_truncated():
     obs = env.reset()
     expected_nstep_reward_t0 = 0
     for i in range(5):
-        t = Transition(obs, np.array([1]), 1, False, {}, obs, i == 4)
+        t = Transition(obs, np.array([1]), [1], False, {}, obs, i == 4)
         memory.add(t)
         if i < n:
             expected_nstep_reward_t0 += t.reward * gamma**i
@@ -78,7 +78,7 @@ def test_episode_shorter_than_n():
     env = MockEnv(2)
     obs = env.reset()
     for i in range(4):
-        t = Transition(obs, np.array([1]), 1, i == 3, {}, obs, False)
+        t = Transition(obs, np.array([1]), [1], i == 3, {}, obs, False)
         memory.add(t)
 
     t0 = memory[0]
@@ -112,10 +112,10 @@ def test_memory_sizes():
 
     for i in range(MAX_SIZE):
         assert not memory.is_full
-        memory.add(Transition(obs, np.array([1, 1]), 1, False, {}, obs, False))
+        memory.add(Transition(obs, np.array([1, 1]), [1], False, {}, obs, False))
         assert len(memory) == i + 1
     assert memory.is_full
     for i in range(10):
         assert memory.is_full
-        memory.add(Transition(obs, np.array([1, 1]), 1, False, {}, obs, False))
+        memory.add(Transition(obs, np.array([1, 1]), [1], False, {}, obs, False))
         assert len(memory) == MAX_SIZE

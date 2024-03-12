@@ -31,6 +31,11 @@ class Batch(ABC):
         return self.available_actions.shape[-1]
 
     @cached_property
+    def reward_size(self) -> int:
+        """Shape of the reward tensor"""
+        return self.rewards.shape[-1]
+
+    @cached_property
     def all_obs(self) -> torch.Tensor:
         """All observations from t=0 up to episode_length + 1."""
         obs = self.obs

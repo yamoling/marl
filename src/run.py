@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 import typed_argparse as tap
 
 import os
@@ -11,16 +11,18 @@ class Arguments(tap.TypedArgs):
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=5)
-    quiet: bool = tap.arg(default=False)
+    quiet: Optional[bool] = tap.arg(
+        default=None, help="Run the experiment quietly. If 'None' and n_runs > 1, all runs are quiet except one."
+    )
     delay: float = tap.arg(default=1.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
 
 
-def create_run(args: Arguments):
-    experiment = marl.Experiment.load(args.logdir)
-    runner = experiment.create_runner(seed=args.seed)
-    runner.to(args.device)
-    runner.train(n_tests=args.n_tests)
+def create_run(logdir: str, seed: int, n_tests: int, quiet: bool, device: Literal["auto", "cpu", "cuda"]):
+    experiment = marl.Experiment.load(logdir)
+    runner = experiment.create_runner(seed)
+    runner.to(device)
+    runner.train(n_tests=n_tests, quiet=quiet)
 
 
 def main(args: Arguments):
@@ -29,16 +31,19 @@ def main(args: Arguments):
     for i in range(args.n_runs - 1):
         seed = args.seed + i
         if os.fork() == 0:
-            # Force child processes to be quiet
-            args.quiet = True
+            # Child processes are quiet if not specified otherwise
+            if args.quiet is None:
+                args.quiet = True
             args.seed = seed
-            create_run(args)
+            create_run(args.logdir, args.seed, args.n_tests, args.quiet, args.device)
             exit(0)
 
         # Sleep for some time for each child process to allocate GPUs properly
         time.sleep(args.delay)
     seed = args.seed + args.n_runs - 1
-    create_run(args)
+    if args.quiet is None:
+        args.quiet = False
+    create_run(args.logdir, seed, args.n_tests, args.quiet, args.device)
 
 
 if __name__ == "__main__":

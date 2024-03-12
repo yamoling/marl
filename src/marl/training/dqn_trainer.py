@@ -128,31 +128,41 @@ class DQNTrainer(Trainer):
         del all_qvalues
         del all_target_qvalues_
 
-        chosen_qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        repeats = [1 for _ in batch.actions.shape] + [batch.reward_size]
+        indices = batch.actions.unsqueeze(-1).repeat(repeats)
+        chosen_qvalues = torch.gather(qvalues, dim=-2, index=indices).squeeze(-2)
         predicted_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
 
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            best_next_action_indices = torch.argmax(qvalues_, dim=-1, keepdim=True)
+            tmp = torch.sum(qvalues_, dim=-1)
+            best_next_action_indices = torch.argmax(tmp, dim=-1, keepdim=True)
         else:
-            best_next_action_indices = torch.argmax(target_qvalues_, dim=-1, keepdim=True)
-        target_chosen_qvalues_ = torch.gather(target_qvalues_, -1, best_next_action_indices).squeeze(-1)
+            tmp = torch.sum(target_qvalues_, dim=-1)
+            best_next_action_indices = torch.argmax(tmp, dim=-1, keepdim=True)
+        best_next_action_indices = best_next_action_indices.unsqueeze(-1).repeat(repeats)
+        target_chosen_qvalues_ = torch.gather(target_qvalues_, -2, best_next_action_indices).squeeze(-2)
 
         # We have to compute the best action of the next state from the indices since it is not present in the batch information
         one_hot_actions_ = F.one_hot(best_next_action_indices, batch.n_actions)
         next_state_value = self.target_mixer.forward(target_chosen_qvalues_, batch.states_, one_hot_actions_, target_qvalues_)
-        assert batch.rewards.shape == next_state_value.shape
-        qtargets = batch.rewards + self.gamma * next_state_value * (1 - batch.dones)
+
+        repeats = [1 for _ in batch.rewards.shape[:-1]] + [batch.reward_size]
+        dones = batch.dones.unsqueeze(-1).repeat(repeats)
+        assert batch.rewards.shape == next_state_value.shape == dones.shape
+
+        qtargets = batch.rewards + self.gamma * next_state_value * (1 - dones)
 
         # Compute the loss
         assert predicted_qvalues.shape == qtargets.shape
         td_error = predicted_qvalues - qtargets.detach()
-        td_error = td_error * batch.masks
+        masks = batch.masks.unsqueeze(-1).repeat(repeats)
+        td_error = td_error * masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
-        loss = squared_error.sum() / batch.masks.sum()
+        loss = squared_error.sum() / masks.sum()
 
         # Optimize
         logs = {"loss": float(loss.item())}

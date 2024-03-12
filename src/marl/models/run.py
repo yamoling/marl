@@ -57,34 +57,28 @@ class Run:
         directory = os.path.join(self.rundir, "test", f"{time_step}")
         for i, episode in enumerate(episodes):
             episode_directory = os.path.join(directory, f"{i}")
-            self.test_logger.log(episode.metrics)
+            self.test_logger.log(episode.metrics, time_step)
             os.makedirs(episode_directory)
             with open(os.path.join(episode_directory, "actions.json"), "w") as a:
                 json.dump(episode.actions.tolist(), a)
 
-    def log_train_episode(self, episode: Episode, training_logs: dict):
+    def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         if self.train_logger is None:
             self.train_logger = logging.CSVLogger(self.train_filename)
-        self.train_logger.log(episode.metrics)
-        if len(training_logs) > 1:
+        self.train_logger.log(episode.metrics, time_step)
+        if len(training_logs) > 0:
             if self.training_data_logger is None:
                 self.training_data_logger = logging.CSVLogger(self.training_data_filename)
-            self.training_data_logger.log(training_logs)
+            self.training_data_logger.log(training_logs, time_step)
 
-    def log_train_step(self, metrics: dict):
-        if len(metrics) > 1:
+    def log_train_step(self, metrics: dict[str, float], time_step: int):
+        if len(metrics) > 0:
             if self.training_data_logger is None:
                 self.training_data_logger = logging.CSVLogger(self.training_data_filename)
-            self.training_data_logger.log(metrics)
+            self.training_data_logger.log(metrics, time_step)
 
     def test_dir(self, time_step: int):
         return os.path.join(self.rundir, "test", f"{time_step}")
-
-    def current_train_step(self):
-        try:
-            return self.train_metrics["time_step"].max()
-        except KeyError:
-            return 0
 
     @property
     def train_metrics(self):

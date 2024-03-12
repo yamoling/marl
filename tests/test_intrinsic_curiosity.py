@@ -62,5 +62,5 @@ def test_rnd_linear():
 
 def test_rnd_conv():
     env = LLE.level(2, ObservationType.LAYERED)
-    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512)
+    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (512,))
     _test_rnd_no_reward_normalisation(env, target)

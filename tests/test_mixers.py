@@ -7,7 +7,7 @@ from marl.models import EpisodeMemory
 from marl.nn import model_bank
 from marl.training import DQNTrainer
 
-from .envs import TwoSteps, TwoStepsState, MatrixGame
+from marl.env import TwoSteps, TwoStepsState, MatrixGame
 
 
 def test_qmix_value():

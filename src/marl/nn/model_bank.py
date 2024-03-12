@@ -55,13 +55,12 @@ class RNNQMix(RecurrentQNetwork):
     - relu
     - linear 64"""
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]) -> None:
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         assert len(input_shape) == 1, "RNNQMix can only handle 1D inputs"
         assert len(extras_shape) == 1, "RNNQMix can only handle 1D extras"
-        assert len(output_shape) == 1, "RNNQMix can only handle 1D outputs"
         super().__init__(input_shape, extras_shape, output_shape)
         n_inputs = input_shape[0] + extras_shape[0]
-        n_outputs = output_shape[0]
+        n_outputs = math.prod(output_shape)
         self.fc1 = torch.nn.Sequential(torch.nn.Linear(n_inputs, 64), torch.nn.ReLU())
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, n_outputs)
@@ -142,20 +141,20 @@ class CNN(QNetwork):
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_size: int):
+    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, (extras_size,), (output_size,))
+        super().__init__(input_shape, (extras_size,), output_shape)
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP(n_features, extras_size, (64, 64), output_size)
+        mlp_output = math.prod(output_shape)
+        self.linear = MLP(n_features, extras_size, (64, 64), mlp_output)
 
     @classmethod
     def from_env(cls, env: RLEnv):
-        return cls(env.observation_shape, env.extra_feature_shape[0], env.n_actions)
+        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size))
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)

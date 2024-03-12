@@ -29,7 +29,9 @@ class TransitionBatch(Batch):
 
     @cached_property
     def actions(self):
-        return torch.from_numpy(np.array([t.action for t in self.transitions], dtype=np.int64)).unsqueeze(-1).to(self.device)
+        np_actions = np.array([t.action for t in self.transitions], dtype=np.int64)
+        torch_actions = torch.from_numpy(np_actions).unsqueeze(-1).to(self.device)
+        return torch_actions
 
     @cached_property
     def rewards(self):
