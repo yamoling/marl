@@ -103,6 +103,7 @@ class DQNTrainer(Trainer):
 
     def optimise_qnetwork(self):
         batch = self.memory.sample(self.batch_size)
+        batch.rewards = batch.rewards.squeeze()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
@@ -115,7 +116,7 @@ class DQNTrainer(Trainer):
         # Qtargets computation
         next_values = self._next_state_value(batch)
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
-
+        assert qvalues.shape == qtargets.shape
         # Compute the loss
         td_error = qvalues - qtargets.detach()
         td_error = td_error * batch.masks
