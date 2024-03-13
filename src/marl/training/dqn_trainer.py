@@ -102,7 +102,7 @@ class DQNTrainer(Trainer):
         return next_values
 
     def optimise_qnetwork(self):
-        batch = self.memory.sample(self.batch_size)
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
         batch.rewards = batch.rewards.squeeze()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
