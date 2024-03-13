@@ -107,7 +107,7 @@ def create_lle(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=500_000,
+        n_steps=100_000,
     )
     # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
     #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),

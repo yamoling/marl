@@ -87,23 +87,14 @@ class DQNTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
-    def _next_state_value(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_).squeeze(-1)
-        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
+    def _next_state_value(self, batch: Batch, qvalues_: torch.Tensor, target_qvalues_: torch.Tensor):
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_).squeeze(-1)
+            indices = torch.argmax(qvalues_, dim=-1, keepdim=True)
         else:
-            qvalues_for_index = next_qvalues
-        # For episode batches, the batch includes the initial observation in order to compute the
-        # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
-        if isinstance(batch, EpisodeBatch):
-            next_qvalues = next_qvalues[1:]
-            qvalues_for_index = qvalues_for_index[1:]
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
-        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+            indices = torch.argmax(target_qvalues_, dim=-1, keepdim=True)
+        next_values = torch.gather(target_qvalues_, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, target_qvalues_)
         return next_values
 
     def optimise_qnetwork(self):
@@ -113,13 +104,21 @@ class DQNTrainer(Trainer):
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues computation
-        all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras).squeeze(-1)
-        qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
+        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
+        all_qvalues[batch.all_available_actions == 0] = -torch.inf
+        all_target_qvalues_[batch.all_available_actions == 0] = -torch.inf
+
+        qvalues = all_qvalues[:-1]
+        qvalues_ = all_qvalues[1:]
+        target_qvalues_ = all_target_qvalues_[1:]
+
+        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
 
         # Qtargets computation
-        next_values = self._next_state_value(batch)
+        next_values = self._next_state_value(batch, qvalues_, target_qvalues_)
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         assert qvalues.shape == qtargets.shape
         # Compute the loss
