@@ -89,22 +89,13 @@ class DQNTrainer(Trainer):
 
     def optimise_qnetwork(self):
         batch = self.memory.sample(self.batch_size).to(self.device)
-        multi_objective = batch.reward_size > 1
-        if multi_objective:
-            ACTION_DIM = -2
-        else:
-            ACTION_DIM = -1
-            batch.rewards = batch.rewards.squeeze()
-
+        batch.rewards = batch.rewards.squeeze()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues computation
         all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
         all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)
-        if not multi_objective:
-            all_qvalues = all_qvalues.squeeze(-1)
-            all_target_qvalues_ = all_target_qvalues_.squeeze(-1)
 
         # Mask unavailable actions
         mask = batch.all_available_actions == 0.0
@@ -118,48 +109,20 @@ class DQNTrainer(Trainer):
         del all_qvalues
         del all_target_qvalues_
 
-        repeats = [1 for _ in range(batch.actions.dim())] + [batch.reward_size]
-        if multi_objective:
-            batch.actions = batch.actions.unsqueeze(-1).repeat(*repeats)
-        chosen_qvalues = torch.gather(qvalues, dim=ACTION_DIM, index=batch.actions)
-        chosen_qvalues = chosen_qvalues.squeeze(ACTION_DIM)
-        predicted_qvalues = self.mixer.forward(
-            chosen_qvalues,
-            states=batch.states,
-            one_hot_actions=batch.one_hot_actions,
-            all_qvalues=qvalues,
-            dim=ACTION_DIM,
-        )
+        chosen_qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        predicted_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
 
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            if multi_objective:
-                tmp = torch.sum(qvalues_, dim=-1)
-            else:
-                tmp = qvalues_
-            best_next_action_indices = torch.argmax(tmp, dim=-1, keepdim=True)
+            best_next_action_indices = torch.argmax(qvalues_, dim=-1, keepdim=True)
         else:
-            if multi_objective:
-                tmp = torch.sum(target_qvalues_, dim=-1)
-            else:
-                tmp = target_qvalues_
-            best_next_action_indices = torch.argmax(tmp, dim=-1, keepdim=True)
-        if multi_objective:
-            best_next_action_indices = best_next_action_indices.unsqueeze(-1).repeat(*repeats)
-        target_chosen_qvalues_ = torch.gather(target_qvalues_, ACTION_DIM, best_next_action_indices).squeeze(ACTION_DIM)
+            best_next_action_indices = torch.argmax(target_qvalues_, dim=-1, keepdim=True)
+        target_chosen_qvalues_ = torch.gather(target_qvalues_, -1, best_next_action_indices).squeeze(-1)
 
         # We have to compute the best action of the next state from the indices since it is not present in the batch information
         one_hot_actions_ = F.one_hot(best_next_action_indices, batch.n_actions)
-        next_state_value = self.target_mixer.forward(
-            target_chosen_qvalues_,
-            states=batch.states_,
-            one_hot_actions=one_hot_actions_,
-            all_qvalues=target_qvalues_,
-            dim=ACTION_DIM,
-        )
+        next_state_value = self.target_mixer.forward(target_chosen_qvalues_, batch.states_, one_hot_actions_, target_qvalues_)
 
-        if multi_objective:
-            batch.dones = batch.dones.unsqueeze(-1).expand_as(batch.rewards)
         assert batch.rewards.shape == next_state_value.shape == batch.dones.shape
 
         qtargets = batch.rewards + self.gamma * next_state_value * (1 - batch.dones)
@@ -167,8 +130,6 @@ class DQNTrainer(Trainer):
         # Compute the loss
         assert predicted_qvalues.shape == qtargets.shape
         td_error = predicted_qvalues - qtargets.detach()
-        if multi_objective:
-            batch.masks = batch.masks.unsqueeze(-1).expand_as(td_error)
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:

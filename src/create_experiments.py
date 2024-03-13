@@ -99,10 +99,10 @@ def create_ppo_lle():
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).agent_id().build()
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
-    qnetwork = model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -110,10 +110,16 @@ def create_lle(args: Arguments):
         n_steps=500_000,
     )
     # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-    #     target=model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
-    #     reward_size=env.reward_size,
+    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
     #     normalise_rewards=False,
     #     # gamma=gamma,
+    # )
+    rnd = None
+    # memory = marl.models.PrioritizedMemory(
+    #     memory=memory,
+    #     alpha=0.6,
+    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
+    #     td_error_clipping=5.0,
     # )
     trainer = DQNTrainer(
         qnetwork,
@@ -141,7 +147,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/{env.name}-mono-objective-squeezed"
+        logdir = f"logs/rollback1-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
