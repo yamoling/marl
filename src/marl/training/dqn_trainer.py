@@ -94,8 +94,8 @@ class DQNTrainer(Trainer):
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues computation
-        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
-        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)
+        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
+        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
 
         # Mask unavailable actions
         mask = batch.all_available_actions == 0.0
