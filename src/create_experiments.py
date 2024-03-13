@@ -99,7 +99,7 @@ def create_ppo_lle():
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).agent_id().build()
 
     qnetwork = model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
@@ -141,7 +141,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/{env.name}-multi-objective-256"
+        logdir = f"logs/{env.name}-mono-objective-squeezed"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
