@@ -5,7 +5,8 @@ from marl.models.nn import Mixer
 
 class VDN(Mixer):
     def forward(self, qvalues: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
-        return qvalues.sum(dim=-1)
+        # Sum across the agent dimension
+        return qvalues.sum(dim=-2)
 
     def save(self, directory: str):
         return

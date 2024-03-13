@@ -63,6 +63,11 @@ class Batch(ABC):
         last_available_actions = self.available_actions_[-1].unsqueeze(0)
         return torch.cat([available_actions, last_available_actions])
 
+    def multi_objective(self):
+        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
+        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
+        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
+
     @abstractmethod  # type: ignore
     @cached_property
     def obs(self) -> torch.Tensor:
