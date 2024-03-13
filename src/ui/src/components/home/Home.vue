@@ -108,10 +108,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { Dataset, ExperimentResults, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA, downloadStringAsFile, stringToRGB } from "../../utils";
+import { EMA, downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
@@ -124,7 +124,7 @@ const resultsStore = useResultsStore();
 const colours = useColourStore();
 
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
-const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
+const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 
 const testOrTrain = ref("Test" as "Test" | "Train");
