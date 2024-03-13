@@ -1,7 +1,6 @@
 __version__ = "0.1.0"
 
 from . import utils
-from . import env
 from . import models
 from . import logging
 from . import nn
@@ -20,7 +19,6 @@ from .models import Experiment, RLAlgo, Runner, Run, Policy
 
 __all__ = [
     "utils",
-    "env",
     "models",
     "logging",
     "nn",

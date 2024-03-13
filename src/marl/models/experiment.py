@@ -282,15 +282,18 @@ class Experiment:
         try:
             for action in actions:
                 values.append(self.algo.value(obs))
-                from marl.qlearning import DQN
-
-                if isinstance(self.algo, DQN):
-                    qvalues.append(self.algo.compute_qvalues(obs).tolist())
                 obs_, reward, done, truncated, info = env.step(action)
                 episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
                 frames.append(encode_b64_image(env.render("rgb_array")))
                 obs = obs_
             episode = episode.build()
+            from marl.qlearning import DQN
+            from marl.models.batch import TransitionBatch
+
+            if isinstance(self.algo, DQN):
+                batch = TransitionBatch(list(episode.transitions()))
+                qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras)
+                qvalues = qvalues.cpu().detach().tolist()
             return ReplayEpisode(
                 directory=episode_folder,
                 episode=episode,

@@ -16,11 +16,12 @@
                     </th>
                 </tr>
             </thead>
-            <tbody v-if="episode?.qvalues?.length && episode.qvalues.length > 0">
-                <tr>
-                    <th scope="row"> Qvalues </th>
-                    <td v-for="(q, action) in qvalues" :style='{ "background-color": "#" + backgroundColours[action] }'>
-                        {{ q.toFixed(4) }}
+            <tbody v-if="qvalues.length > 0">
+                <tr v-for="objectiveNum in nObjectives">
+                    <th scope="row"> Q-{{ objectiveNum }} </th>
+                    <td v-for="action in qvalues.length"
+                        :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum - 1] }'>
+                        {{ qvalues[action - 1][objectiveNum - 1].toFixed(4) }}
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
@@ -51,7 +52,6 @@ const props = defineProps<{
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
-    console.log(props.episode.episode._observations)
     return computeShape(props.episode.episode._observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
@@ -80,14 +80,13 @@ const qvalues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    if (qvalues.value.length == 0) {
-        return "white";
-    }
-    return qvalues.value.map(q => props.rainbow.colourAt(q));
+    const colours = qvalues.value.map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    return colours;
 });
 
-const obs1D = computed(() => obs.value as number[]);
-const obsFlattened = obs1D;
+const nObjectives = computed(() => qvalues.value[0].length);
+
+const obsFlattened = computed(() => obs.value as number[]);
 const obsLayered = computed(() => obs.value as number[][][]);
 
 </script>

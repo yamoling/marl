@@ -141,7 +141,13 @@ class CNN(QNetwork):
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_shape: tuple[int, ...]):
+    def __init__(
+        self,
+        input_shape: tuple[int, ...],
+        extras_size: int,
+        output_shape: tuple[int, ...],
+        mlp_sizes: tuple[int, ...] = (64, 64),
+    ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
 
@@ -150,21 +156,19 @@ class CNN(QNetwork):
         filters = [32, 64, 64]
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         mlp_output = math.prod(output_shape)
-        self.linear = MLP(n_features, extras_size, (64, 64), mlp_output)
+        self.linear = MLP(n_features, extras_size, mlp_sizes, mlp_output)
 
     @classmethod
-    def from_env(cls, env: RLEnv):
-        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size))
+    def from_env(cls, env: RLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
-        leading_dims_size = math.prod(dims)
-        # We must use 'reshape' instead of 'view' to handle the case of episodes
-        obs = obs.view(leading_dims_size, channels, height, width)
+        obs = obs.view(-1, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
+        extras = extras.view(-1, *self.extras_shape)
         res = self.linear.forward(features, extras)
         return res.view(*dims, *self.output_shape)
 

@@ -42,7 +42,8 @@
                     </thead>
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
-                            <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => resultsStore.load(exp.logdir)">
+                            <tr v-if="searchMatch(searchString, exp.logdir)"
+                                @click="() => resultsStore.load(exp.logdir)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -122,7 +123,7 @@ const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
 const colours = useColourStore();
 
-const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
+const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 

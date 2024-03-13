@@ -102,19 +102,19 @@ def create_lle(args: Arguments):
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     env = rlenv.Builder(env).time_limit(env.width * env.height // 2, add_extra=False).agent_id().build()
 
-    qnetwork = model_bank.CNN.from_env(env)
+    qnetwork = model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=500_000,
     )
-    rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-        target=model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
-        reward_size=env.reward_size,
-        normalise_rewards=False,
-        # gamma=gamma,
-    )
+    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+    #     target=model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
+    #     reward_size=env.reward_size,
+    #     normalise_rewards=False,
+    #     # gamma=gamma,
+    # )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -129,7 +129,7 @@ def create_lle(args: Arguments):
         mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=rnd,
+        ir_module=None,
     )
 
     algo = marl.qlearning.DQN(
@@ -141,7 +141,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/{env.name}"
+        logdir = f"logs/{env.name}-multi-objective-256"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:

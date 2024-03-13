@@ -18,7 +18,7 @@
                                     <template v-if="trainer.grad_norm_clipping">
                                         Grad norm clip={{ trainer.grad_norm_clipping }} <br>
                                     </template>
-                                    {{ trainer.target_params_updater.name }}
+                                    {{ trainer.target_updater.name }}
                                 </td>
                             </tr>
                             <tr v-if="trainer.ir_module">
@@ -75,7 +75,7 @@
                                 <th>Batch size</th>
                                 <td>{{ trainer.batch_size }}</td>
                             </tr>
-                            <tr>
+                            <tr v-if="trainer.lr">
                                 <th>Learning rate</th>
                                 <td>{{ trainer.lr.toExponential() }}</td>
                             </tr>

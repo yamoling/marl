@@ -14,7 +14,7 @@ class Arguments(tap.TypedArgs):
     quiet: Optional[bool] = tap.arg(
         default=None, help="Run the experiment quietly. If 'None' and n_runs > 1, all runs are quiet except one."
     )
-    delay: float = tap.arg(default=1.0, help="Delay in seconds between two consecutive runs")
+    delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
 
 

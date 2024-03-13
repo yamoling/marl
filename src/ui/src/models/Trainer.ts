@@ -9,7 +9,7 @@ export interface Trainer {
     update_interval: number
     policy: Policy | EpsilonGreedy
     batch_size: number
-    lr: number
+    lr?: number
     mixer?: {
         name: string
     }
@@ -17,7 +17,7 @@ export interface Trainer {
         name: string
     }
     grad_norm_clipping?: number
-    target_params_updater: {
+    target_updater: {
         name: string
     }
     memory: ReplayMemory
