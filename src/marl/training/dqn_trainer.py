@@ -87,7 +87,61 @@ class DQNTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
+    def _next_state_value(self, batch: Batch):
+        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_).squeeze(-1)
+        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
+        if self.double_qlearning:
+            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_).squeeze(-1)
+        else:
+            qvalues_for_index = next_qvalues
+        # For episode batches, the batch includes the initial observation in order to compute the
+        # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
+        if isinstance(batch, EpisodeBatch):
+            next_qvalues = next_qvalues[1:]
+            qvalues_for_index = qvalues_for_index[1:]
+        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
+        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
+        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+        if self.target_mixer is not None:
+            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        return next_values
+
     def optimise_qnetwork(self):
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+        batch.rewards = batch.rewards.squeeze()
+        if self.ir_module is not None:
+            batch.rewards = batch.rewards + self.ir_module.compute(batch)
+
+        # Qvalues computation
+        all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras).squeeze(-1)
+        qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        if self.mixer is not None:
+            qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
+
+        # Qtargets computation
+        next_values = self._next_state_value(batch)
+        qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
+        assert qvalues.shape == qtargets.shape
+        # Compute the loss
+        td_error = qvalues - qtargets.detach()
+        td_error = td_error * batch.masks
+        squared_error = td_error**2
+        if batch.importance_sampling_weights is not None:
+            assert squared_error.shape == batch.importance_sampling_weights.shape
+            squared_error = squared_error * batch.importance_sampling_weights
+        loss = squared_error.sum() / batch.masks.sum()
+
+        # Optimize
+        logs = {"loss": float(loss.item())}
+        self.optimiser.zero_grad()
+        loss.backward()
+        if self.grad_norm_clipping is not None:
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.qnetwork.parameters(), self.grad_norm_clipping)
+            logs["grad_norm"] = grad_norm.item()
+        self.optimiser.step()
+        return logs, td_error
+
+    def optimise_qnetwork_old(self):
         batch = self.memory.sample(self.batch_size).to(self.device)
         batch.rewards = batch.rewards.squeeze()
         if self.ir_module is not None:
