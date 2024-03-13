@@ -87,10 +87,15 @@ class DQNTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
-    def _next_state_value(self, batch: Batch, qvalues_: torch.Tensor, target_qvalues_: torch.Tensor):
+    def _next_state_value(self, batch: Batch):
+        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
+        target_qvalues_ = all_target_qvalues_[1:]
         if self.double_qlearning:
+            qvalues_ = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)[1:]
+            qvalues_[batch.available_actions_ == 0] = -torch.inf
             indices = torch.argmax(qvalues_, dim=-1, keepdim=True)
         else:
+            target_qvalues_[batch.available_actions_ == 0] = -torch.inf
             indices = torch.argmax(target_qvalues_, dim=-1, keepdim=True)
         next_values = torch.gather(target_qvalues_, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
@@ -104,25 +109,17 @@ class DQNTrainer(Trainer):
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues computation
-        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
-        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras).squeeze(-1)
-        all_qvalues[batch.all_available_actions == 0] = -torch.inf
-        all_target_qvalues_[batch.all_available_actions == 0] = -torch.inf
-
-        qvalues = all_qvalues[:-1]
-        qvalues_ = all_qvalues[1:]
-        target_qvalues_ = all_target_qvalues_[1:]
-
-        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras).squeeze(-1)
+        chosen_qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
+            chosen_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
 
         # Qtargets computation
-        next_values = self._next_state_value(batch, qvalues_, target_qvalues_)
+        next_values = self._next_state_value(batch)
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
-        assert qvalues.shape == qtargets.shape
+        assert chosen_qvalues.shape == qtargets.shape == batch.dones.shape
         # Compute the loss
-        td_error = qvalues - qtargets.detach()
+        td_error = chosen_qvalues - qtargets.detach()
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
