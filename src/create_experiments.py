@@ -147,7 +147,7 @@ def create_lle(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/rollback1-{env.name}"
+        logdir = f"logs/rollback2-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
