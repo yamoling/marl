@@ -2,8 +2,7 @@ import marl
 import lle
 import rlenv
 import typed_argparse as tap
-from marl.training import DQNNodeTrainer
-from marl.training.ppo_trainer import PPOTrainer
+from marl.training import DQNNodeTrainer, DDPGTrainer, PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 
 
@@ -63,6 +62,27 @@ def create_smac(args: Arguments):
             logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
+def create_ddpg_lle(args: Arguments):
+    n_steps = 10_000
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+
+    ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
+    memory = marl.models.TransitionMemory(50_000)
+
+    trainer = DDPGTrainer(
+        network=ac_network, 
+        memory=memory,
+        batch_size=4,
+        optimiser="adam",
+        train_every="step",
+        update_interval=20,
+        gamma=0.99
+    )
+
+    algo = marl.policy_gradient.DDPG(ac_network=ac_network)
+    logdir = f"logs/{env.name}-TEST-DDPG"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 def create_ppo_lle(args: Arguments):
     n_steps = 300_000
@@ -157,8 +177,10 @@ def create_lle(args: Arguments):
 
 def main(args: Arguments):
     # exp = create_smac(args)
-    exp = create_ppo_lle(args)
-    # exp = create_lle(args)
+    # exp = create_ppo_lle(args)
+    # exp = create_ddpg_lle(args)
+    exp = create_lle(args)
+
     print(exp.logdir)
     if args.run:
         exp.create_runner(seed=0).to("auto").train(args.n_tests)
