@@ -88,17 +88,18 @@ class DQNTrainer(Trainer):
         return self.memory.can_sample(self.batch_size)
 
     def _next_state_value(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
+        # next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
         # For episode batches, the batch includes the initial observation in order to compute the
         # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
-        if isinstance(batch, EpisodeBatch):
-            next_qvalues = next_qvalues[1:]
-            qvalues_for_index = qvalues_for_index[1:]
+        # if isinstance(batch, EpisodeBatch):
+        #     next_qvalues = next_qvalues[1:]
+        #     qvalues_for_index = qvalues_for_index[1:]
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)

@@ -12,20 +12,24 @@ class TransitionBatch(Batch):
         self.transitions = transitions
 
     @cached_property
-    def obs(self):
-        return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)
+    def all_obs(self):
+        observations = [t.obs.data for t in self.transitions] + [self.transitions[-1].obs_.data]
+        return torch.from_numpy(np.array(observations, dtype=np.float32)).to(self.device)
 
     @cached_property
-    def obs_(self):
-        return torch.from_numpy(np.array([t.obs_.data for t in self.transitions], dtype=np.float32)).to(self.device)
+    def all_extras(self):
+        extras = [t.obs.extras for t in self.transitions] + [self.transitions[-1].obs_.extras]
+        return torch.from_numpy(np.array(extras, dtype=np.float32)).to(self.device)
 
     @cached_property
-    def extras(self):
-        return torch.from_numpy(np.array([t.obs.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+    def all_available_actions(self):
+        available_actions = [t.obs.available_actions for t in self.transitions] + [self.transitions[-1].obs_.available_actions]
+        return torch.from_numpy(np.array(available_actions, dtype=np.int64)).to(self.device)
 
     @cached_property
-    def extras_(self):
-        return torch.from_numpy(np.array([t.obs_.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+    def all_states(self):
+        states = [t.obs.state for t in self.transitions] + [self.transitions[-1].obs_.state]
+        return torch.from_numpy(np.array(states, dtype=np.float32)).to(self.device)
 
     @cached_property
     def actions(self):
@@ -40,14 +44,6 @@ class TransitionBatch(Batch):
     @cached_property
     def dones(self):
         return torch.from_numpy(np.array([t.done for t in self.transitions], dtype=np.float32)).to(self.device)
-
-    @cached_property
-    def available_actions(self):
-        return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
-
-    @cached_property
-    def available_actions_(self):
-        return torch.from_numpy(np.array([t.obs_.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
 
     @cached_property
     def states(self):

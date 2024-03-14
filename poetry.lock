@@ -1232,10 +1232,10 @@ files = [
 
 [package.dependencies]
 numpy = [
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
+    {version = ">=1.23.5", markers = "python_version >= \"3.11\" and python_version < \"3.12\""},
     {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\" and python_version < \"3.11\""},
     {version = ">=1.21.2", markers = "platform_system != \"Darwin\" and python_version >= \"3.10\" and python_version < \"3.11\""},
-    {version = ">=1.23.5", markers = "python_version >= \"3.11\" and python_version < \"3.12\""},
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
 ]
 
 [[package]]
@@ -1289,9 +1289,9 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.22.4,<2", markers = "python_version < \"3.11\""},
-    {version = ">=1.23.2,<2", markers = "python_version == \"3.11\""},
     {version = ">=1.26.0,<2", markers = "python_version >= \"3.12\""},
+    {version = ">=1.23.2,<2", markers = "python_version == \"3.11\""},
+    {version = ">=1.22.4,<2", markers = "python_version < \"3.11\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1983,7 +1983,7 @@ tests = ["gymnasium[accept-rom-license,atari] (>=0.28.1,<0.29.0)", "pettingzoo (
 type = "git"
 url = "https://github.com/yamoling/rlenv.git"
 reference = "dev"
-resolved_reference = "65ae43dbaeff697daaa150a61d9276462c9704a8"
+resolved_reference = "d21deccc3ac45be70004159aa744e2b6c366f59a"
 
 [[package]]
 name = "rpds-py"
