@@ -106,7 +106,7 @@ class PPOTrainer(Trainer):
             discount = 1
             a_t = torch.zeros(batch_values[0].shape).to(self.device)
             for k in range(t, mem_len - 1):
-                a_t = discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
+                a_t += discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
                 if batch.dones[k] == 1:
                     break
                 discount *= self.gamma
@@ -160,6 +160,7 @@ class PPOTrainer(Trainer):
     def to(self, device: torch.device):
         self.device = device
         self.batch.to(device)
+        return self
 
     def randomize(self):
         self.batch.randomize()
