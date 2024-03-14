@@ -166,9 +166,10 @@ class CNN(QNetwork):
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
-        obs = obs.view(-1, channels, height, width)
+        bs = math.prod(dims)
+        obs = obs.view(bs, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.view(-1, *self.extras_shape)
+        extras = extras.view(bs, *self.extras_shape)
         res = self.linear.forward(features, extras)
         return res.view(*dims, *self.output_shape)
 
