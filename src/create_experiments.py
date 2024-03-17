@@ -2,7 +2,8 @@ import marl
 import lle
 import rlenv
 import typed_argparse as tap
-from marl.training import DQNNodeTrainer
+from types import SimpleNamespace
+from marl.training import DQNNodeTrainer, CommTrainer, MAICTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 
@@ -16,7 +17,7 @@ class Args:
     def __init__(self):
         self.latent_dim = 64
         self.hidden_size = 128
-        self.rnn_hidden_dim = 256
+        self.rnn_hidden_dim = 128
         self.attention_dim = 64
         self.var_floor = 1e-6
 
@@ -102,7 +103,7 @@ def create_ppo_lle():
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -162,13 +163,72 @@ def create_lle(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 def create_lle_maic(args: Arguments):
-    n_steps = 1_000_000
-    gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    n_steps = 300_000
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
 
-    maic_args = Args()
-    qnetwork = marl.nn.model_bank.MAICNetwork.from_env(env, maic_args)
+    argsAlgo = SimpleNamespace()
+    argsAlgo.n_agents = env.n_agents
+    argsAlgo.latent_dim = 64
+    argsAlgo.nn_hidden_size = 128
+    argsAlgo.rnn_hidden_dim = 128
+    argsAlgo.attention_dim = 64
+    argsAlgo.var_floor = 1e-6
+    argsAlgo.mi_loss_weight = 0.1
+    argsAlgo.entropy_loss_weight = 0.01
+
+    #Add the MAICNetwork (MAICAgent)
+    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, argsAlgo)
+    memory = marl.models.EpisodeMemory(50_000)
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        100_000,
+    )
+    #Add the MAICAlgo (MAICMAC)
+    algo = marl.qlearning.MAICAlgo(
+        maic_network=maic_network,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+        args=argsAlgo
+    )
+    batch_size = 16
+    #Add the MAICTrainer (MAICLearner)
+    trainer = MAICTrainer(
+        args=argsAlgo,
+        maic_algo=algo,
+        train_policy=train_policy,
+        batch_size= batch_size,
+        memory=memory,
+        mixer=marl.qlearning.VDN(env.n_agents),
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        grad_norm_clipping=10
+    )
+
+    if args.debug:
+        logdir = "logs/debug"
+    else:
+        logdir = f"logs/MAIC{batch_size}-{env.name}"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+
+def create_lle_rial(args: Arguments):
+    n_steps = 1_000_000
+    gamma = 0.95
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+
+    channel_size = 0
+
+    qnetwork = marl.nn.model_bank.CommCNN.from_env(env, channel_size)
+    comm_network = marl.nn.model_bank.RIALCommNetwork.from_env(env, channel_size)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -187,24 +247,17 @@ def create_lle_maic(args: Arguments):
     #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
     #     td_error_clipping=5.0,
     # )
-    trainer = DQNNodeTrainer(
-        qnetwork,
+    trainer = CommTrainer(
+        comm_network=comm_network,
+        qnetwork=qnetwork,
         train_policy=train_policy,
         memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
         target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=64,
-        train_interval=(5, "step"),
-        gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=None,
     )
 
-    algo = marl.qlearning.RDQN(
+    algo = marl.qlearning.RIALAlgo(
+        comm_network=comm_network,
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -213,7 +266,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/new-maic_network-{env.name}"
+        logdir = f"logs/RIAL-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
@@ -224,12 +277,12 @@ def create_lle_maic(args: Arguments):
             logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
-
 def main(args: Arguments):
     # exp = create_smac(args)
     # exp = create_ppo_lle()
+    # exp = create_lle(args)
+    #exp = create_lle_rial(args)
     exp = create_lle_maic(args)
-    #exp = create_lle(args)
     print(exp.logdir)
     if args.run:
         exp.create_runner(seed=0).to("auto").train(args.n_tests)

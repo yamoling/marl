@@ -1,108 +1,93 @@
-import torch as th
+import os
+import pickle
+import torch
 import numpy as np
 from dataclasses import dataclass
 from typing import Any, Optional
 from rlenv.models import Observation
-from marl.models import RLAlgo, Policy, QNetwork, RecurrentQNetwork
+from marl.models import RLAlgo, Policy, NN, MAICNN
 
 
 @dataclass
 class MAICAlgo(RLAlgo):
-    """
-    Multi-Agent Controller Interface with shared parameters between agents.
-    """
+    maic_network: MAICNN
+    train_policy: Policy
+    test_policy: Policy
 
-    def __init__(self, scheme, groups, args):
+    def __init__(self, maic_network: MAICNN, train_policy: Policy, test_policy: Policy, args):
         super().__init__()
+        self.maic_network = maic_network
         self.n_agents = args.n_agents
-        input_shape = self._get_input_shape(scheme)
-        self._build_agents(input_shape)
-        self.agent_output_type = args.agent_output_type
-
-        self.action_selector = action_REGISTRY[args.action_selector](args)
-
+        self.args = args
+        self.train_policy = train_policy
+        if test_policy is None:
+            test_policy = self.train_policy
+        self.test_policy = test_policy
+        self.policy = self.train_policy
+        
         self.hidden_states = None
 
-    def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False) -> np.ndarray:
-        avail_actions = ep_batch["avail_actions"][:, t_ep]
-        agent_outputs, _ = self.forward(ep_batch, t_ep, test_mode=test_mode, train_mode=False)
-        chosen_actions = self.action_selector.select_action(agent_outputs[bs], avail_actions[bs], t_env, test_mode=test_mode)
-        return chosen_actions
+    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        return obs_tensor, extras
+    
+    def choose_action(self, obs: Observation) -> np.ndarray[np.int32, Any]:
+        with torch.no_grad():
+            qvalues, _ = self.forward(*self.to_tensor(obs), test_mode=False)
+        qvalues = qvalues.cpu().numpy()
+        return self.policy.get_action(qvalues, obs.available_actions)
+    
+    def value(self, obs: Observation) -> float:
+        """Get the value of the input observation"""
+        return self.maic_network.value(obs, self.hidden_states).item()
+        
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, test_mode=False):
 
-    def forward(self, ep_batch, t, test_mode=False, **kwargs) -> Any:
-        agent_inputs = self._build_inputs(ep_batch, t)
-        avail_actions = ep_batch["avail_actions"][:, t]
-        agent_outs, self.hidden_states, losses = self.agent.forward(agent_inputs, self.hidden_states, ep_batch.batch_size, 
-            test_mode=test_mode, **kwargs)
+        agent_outs, self.hidden_states, losses = self.maic_network.qvalues(obs, extras, self.hidden_states, 
+            test_mode=test_mode)
 
-        # Softmax the agent outputs if they're policy logits
-        if self.agent_output_type == "pi_logits":
+        return agent_outs, losses # bs in the view
 
-            if getattr(self.args, "mask_before_softmax", True):
-                # Make the logits for unavailable actions very negative to minimise their affect on the softmax
-                reshaped_avail_actions = avail_actions.reshape(ep_batch.batch_size * self.n_agents, -1)
-                agent_outs[reshaped_avail_actions == 0] = -1e10
-
-            agent_outs = th.nn.functional.softmax(agent_outs, dim=-1)
-            if not test_mode:
-                # Epsilon floor
-                epsilon_action_num = agent_outs.size(-1)
-                if getattr(self.args, "mask_before_softmax", True):
-                    # With probability epsilon, we will pick an available action uniformly
-                    epsilon_action_num = reshaped_avail_actions.sum(dim=1, keepdim=True).float()
-
-                agent_outs = ((1 - self.action_selector.epsilon) * agent_outs
-                               + th.ones_like(agent_outs) * self.action_selector.epsilon/epsilon_action_num)
-
-                if getattr(self.args, "mask_before_softmax", True):
-                    # Zero out the unavailable actions
-                    agent_outs[reshaped_avail_actions == 0] = 0.0
-
-        return agent_outs.view(ep_batch.batch_size, self.n_agents, -1), losses
 
     def init_hidden(self, batch_size):
-        self.hidden_states = self.agent.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)  # bav
+        self.hidden_states = self.maic_network.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)
+
+    def new_episode(self):
+        self.init_hidden(1)  
 
     def parameters(self):
-        return self.agent.parameters()
+        return self.maic_network.parameters()
 
-    def load_state(self, other_mac):
-        self.agent.load_state_dict(other_mac.agent.state_dict())
+    def set_testing(self):
+        self.policy = self.test_policy
+        self.maic_network.eval()
 
-    def cuda(self):
-        self.agent.cuda()
+    def set_training(self):
+        self.policy = self.train_policy
+        self.maic_network.train()
+    
+    def save(self, to_directory: str):
+        os.makedirs(to_directory, exist_ok=True)
+        torch.save(self.maic_network.state_dict(), f"{to_directory}/maic_network.weights")
+        train_policy_path = os.path.join(to_directory, "train_policy")
+        test_policy_path = os.path.join(to_directory, "test_policy")
+        with open(train_policy_path, "wb") as f, open(test_policy_path, "wb") as g:
+            pickle.dump(self.train_policy, f)
+            pickle.dump(self.test_policy, g)
 
-    def save_models(self, path):
-        th.save(self.agent.state_dict(), "{}/agent.th".format(path))
+    def load(self, from_directory: str):
+        self.maic_network.load_state_dict(torch.load(f"{from_directory}/maic_network.weights"))
+        train_policy_path = os.path.join(from_directory, "train_policy")
+        test_policy_path = os.path.join(from_directory, "test_policy")
+        with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:
+            self.train_policy = pickle.load(f)
+            self.test_policy = pickle.load(g)
+        self.policy = self.train_policy
+        
+    def randomize(self):
+        self.maic_network.randomize()
 
-    def load_models(self, path):
-        self.agent.load_state_dict(th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
-
-    def _build_agents(self, input_shape):
-        self.agent = agent_REGISTRY[self.args.agent](input_shape, self.args)
-
-    def _build_inputs(self, batch, t):
-        # Assumes homogenous agents with flat observations.
-        # Other MACs might want to e.g. delegate building inputs to each agent
-        bs = batch.batch_size
-        inputs = []
-        inputs.append(batch["obs"][:, t])  # b1av
-        if self.args.obs_last_action:
-            if t == 0:
-                inputs.append(th.zeros_like(batch["actions_onehot"][:, t]))
-            else:
-                inputs.append(batch["actions_onehot"][:, t-1])
-        if self.args.obs_agent_id:
-            inputs.append(th.eye(self.n_agents, device=batch.device).unsqueeze(0).expand(bs, -1, -1))
-
-        inputs = th.cat([x.reshape(bs*self.n_agents, -1) for x in inputs], dim=1)
-        return inputs
-
-    def _get_input_shape(self, scheme):
-        input_shape = scheme["obs"]["vshape"]
-        if self.args.obs_last_action:
-            input_shape += scheme["actions_onehot"]["vshape"][0]
-        if self.args.obs_agent_id:
-            input_shape += self.n_agents
-
-        return input_shape
+    def to(self, device: torch.device):
+        self.maic_network.to(device)
+        self.device = device

@@ -1,4 +1,4 @@
-from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork
+from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, CommNetwork
 from .algo import RLAlgo
 from .updatable import Updatable
 from .policy import Policy
