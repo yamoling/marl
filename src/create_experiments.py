@@ -3,6 +3,7 @@ import marl
 import lle
 import rlenv
 import typed_argparse as tap
+from lle import WorldState
 from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
@@ -96,11 +97,26 @@ def create_ppo_lle():
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
+def curriculum(env: lle.LLE):
+    world = env.world
+    env.reset()
+    i_positions = list(range(world.height - 1, -1, -1))
+    j_positions = [3] * len(i_positions)
+    initial_states = list[WorldState]()
+    for i, j in zip(i_positions, j_positions):
+        start_positions = [(i, j + n) for n in range(world.n_agents)]
+        initial_states.append(WorldState(start_positions, [False] * world.n_gems))
+
+    interval = 1_000_000 // len(initial_states)
+    return marl.env.CurriculumLearning(env, initial_states, interval)
+
+
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+    env = curriculum(env)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=False).build()
     # env = rlenv.Builder(env).centralised().time_limit(env.width * env.height // 2, add_extra=False).build()
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)

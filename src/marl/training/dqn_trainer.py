@@ -96,9 +96,9 @@ class DQNTrainer(Trainer):
             qvalues_for_index = next_qvalues
         # For episode batches, the batch includes the initial observation in order to compute the
         # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
-        # if isinstance(batch, EpisodeBatch):
-        #     next_qvalues = next_qvalues[1:]
-        #     qvalues_for_index = qvalues_for_index[1:]
+        if isinstance(batch, EpisodeBatch):
+            next_qvalues = next_qvalues[1:]
+            qvalues_for_index = qvalues_for_index[1:]
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
@@ -149,7 +149,6 @@ class DQNTrainer(Trainer):
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
         loss = squared_error.sum() / batch.masks.sum()
-        print(self.update_num, loss.item())
 
         # Optimize
         logs = {"loss": float(loss.item())}
