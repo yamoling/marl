@@ -18,6 +18,9 @@ class Schedule:
         self.name = self.__class__.__name__
         self.current_step = 0
 
+    def rounded(self, n_digits: int = 0) -> "RoundedSchedule":
+        return RoundedSchedule(self, n_digits)
+
     @abstractmethod
     def update(self, step: Optional[int] = None):
         """Update the value of the schedule. Force a step if given."""
@@ -167,3 +170,17 @@ class ConstantSchedule(Schedule):
     @property
     def value(self) -> float:
         return self._value
+
+
+class RoundedSchedule(Schedule):
+    def __init__(self, schedule: Schedule, n_digits: int):
+        self.schedule = schedule
+        self._value = schedule.value
+        self.n_digits = n_digits
+
+    def update(self, step: int | None = None):
+        return self.schedule.update(step)
+
+    @property
+    def value(self) -> float:
+        return round(self.schedule.value, self.n_digits)

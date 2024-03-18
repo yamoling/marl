@@ -1,10 +1,17 @@
-import torch
+import marl
+import lle
+from lle import WorldState
 
-# Assuming your tensor is named 'tensor'
-tensor = torch.arange(100).reshape(10, 2, 5)
-indices = torch.full((10, 1, 5), 1, dtype=torch.int64)
-# Now we collect all the values from the tensor using the indices.
-# The output is a tensor of shape [5, 4, 2]
-output = torch.gather(tensor, 1, indices)
-print(output)
-print(output.shape)
+if __name__ == "__main__":
+    env = lle.LLE.level(6)
+    world = env.world
+    env.reset()
+    i_positions = list(range(world.height - 1, -1, -1))
+    j_positions = [3] * len(i_positions)
+    initial_states = list[WorldState]()
+    for i, j in zip(i_positions, j_positions):
+        start_positions = [(i, j + n) for n in range(world.n_agents)]
+        initial_states.append(WorldState(start_positions, [False] * world.n_gems))
+
+    interval = 1_000_000 // len(initial_states)
+    env = marl.env.CurriculumLearning(env, initial_states, interval)
