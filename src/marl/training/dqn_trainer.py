@@ -140,7 +140,7 @@ class DQNTrainer(Trainer):
             qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
 
         # Qtargets computation
-        next_values = self._next_state_value2(batch)
+        next_values = self._next_state_value(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         assert qvalues.shape == qtargets.shape

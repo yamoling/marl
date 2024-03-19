@@ -7,11 +7,11 @@ from marl.utils.exceptions import ExperimentVersionMismatch
 
 
 @app.route("/experiment/replay/<path:path>")
-def get_episode(path: str):
+def replay(path: str):
     try:
-        return to_json(state.replay_episode(path))
+        return to_json(state.replay_episode(path)), HTTPStatus.OK
     except ValueError as e:
-        return (str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
+        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 @app.route("/experiment/list")

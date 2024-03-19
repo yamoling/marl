@@ -118,14 +118,12 @@ def curriculum(env: lle.LLE, n_steps: int):
 
 
 def create_lle(args: Arguments):
-    n_steps = 1_000
-    test_interval = 50
+    n_steps = 1_000_000
+    test_interval = 5000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     env = curriculum(env, n_steps)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=False).build()
-    # env = rlenv.Builder(env).centralised().time_limit(env.width * env.height // 2, add_extra=False).build()
-
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
@@ -173,7 +171,7 @@ def create_lle(args: Arguments):
     elif args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/rollback8-{env.name}"
+        logdir = f"logs/curriculum-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
