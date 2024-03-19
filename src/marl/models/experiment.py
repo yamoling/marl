@@ -182,9 +182,6 @@ class Experiment:
         return Experiment.find_experiment_directory(parent)
 
     def create_runner(self, seed: int) -> Runner:
-        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
-        rundir = os.path.join(self.logdir, f"run_{now}_seed={seed}")
-        os.makedirs(rundir, exist_ok=False)
         import marl
 
         marl.seed(seed)
@@ -196,7 +193,8 @@ class Experiment:
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            run=Run.create(rundir),
+            logdir=self.logdir,
+            seed=seed,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
             test_env=deepcopy(self.env),

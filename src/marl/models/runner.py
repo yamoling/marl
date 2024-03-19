@@ -7,7 +7,7 @@ from marl.utils import defaults_to
 
 from .trainer import Trainer
 from .algo import RLAlgo
-from .run import Run
+from .run import Run, RunHandle
 
 
 class Runner:
@@ -16,7 +16,8 @@ class Runner:
         env: RLEnv,
         algo: RLAlgo,
         trainer: Trainer,
-        run: Run,
+        logdir: str,
+        seed: int,
         test_interval: int,
         n_steps: int,
         test_env: Optional[RLEnv] = None,
@@ -25,11 +26,12 @@ class Runner:
         self._env = env
         self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
-        self._run = run
         self._test_interval = test_interval
         self._max_step = n_steps
+        self._run = Run.create(logdir, seed)
+        self.seed(seed)
 
-    def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool):
+    def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
         obs = self._env.reset()
         self._algo.new_episode()
@@ -37,19 +39,19 @@ class Runner:
         while not episode.is_finished and step_num < self._max_step:
             step_num += 1
             if self._test_interval != 0 and step_num % self._test_interval == 0:
-                self.test(n_tests, step_num, quiet)
+                self.test(n_tests, step_num, quiet, run_handle)
             action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
             transition = Transition(obs, action, reward, done, info, obs_, truncated)
             training_metrics = self._trainer.update_step(transition, step_num)
-            self._run.log_train_step(training_metrics, step_num)
+            run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
             obs = obs_
         episode = episode.build({"initial_value": initial_value})
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
-        self._run.log_train_episode(episode, step_num, training_logs)
+        run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
     def train(self, n_tests: int, quiet: bool = False):
@@ -57,15 +59,16 @@ class Runner:
         episode_num = 0
         step = 0
         pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
-        self.test(n_tests, 0, quiet)
-        while step < self._max_step:
-            episode = self._train_episode(step, episode_num, n_tests, quiet)
-            episode_num += 1
-            step += len(episode)
-            pbar.update(len(episode))
+        with self._run as run_handle:
+            self.test(n_tests, 0, quiet, run_handle)
+            while step < self._max_step:
+                episode = self._train_episode(step, episode_num, n_tests, quiet, run_handle)
+                episode_num += 1
+                step += len(episode)
+                pbar.update(len(episode))
         pbar.close()
 
-    def test(self, ntests: int, time_step: int, quiet: bool):
+    def test(self, ntests: int, time_step: int, quiet: bool, run_handle: RunHandle):
         """Test the agent"""
         self._algo.set_testing()
         episodes = list[Episode]()
@@ -83,8 +86,17 @@ class Runner:
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        self._run.log_tests(episodes, saved_env, self._algo, time_step)
+        run_handle.log_tests(episodes, saved_env, self._algo, time_step)
         self._algo.set_training()
+
+    def seed(self, seed: int):
+        import marl
+
+        marl.seed(seed)
+        self._env.seed(seed)
+        self._test_env.seed(seed)
+        self._algo.randomize()
+        self._trainer.randomize()
 
     def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
         if isinstance(device, str):

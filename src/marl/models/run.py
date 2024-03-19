@@ -3,6 +3,7 @@ import shutil
 import polars as pl
 import json
 import pickle
+from datetime import datetime
 from rlenv import Episode, RLEnv
 from typing import Optional
 from dataclasses import dataclass
@@ -28,15 +29,13 @@ class Run:
     def __init__(self, rundir: str):
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
-        self.train_logger: Optional[logging.CSVLogger] = None
-        self.test_logger: Optional[logging.CSVLogger] = None
-        self.training_data_logger: Optional[logging.CSVLogger] = None
 
     @staticmethod
-    def create(rundir: str):
-        os.makedirs(rundir, exist_ok=True)
-        run = Run(rundir)
-        return run
+    def create(logdir: str, seed: int):
+        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        rundir = os.path.join(logdir, f"run_{now}_seed={seed}")
+        os.makedirs(rundir, exist_ok=False)
+        return Run(rundir)
 
     @staticmethod
     def load(rundir: str):
@@ -91,7 +90,7 @@ class Run:
 
     @property
     def is_running(self) -> bool:
-        return os.path.exists(os.path.join(self.rundir, "pid"))
+        return self.get_pid() is not None
 
     @property
     def test_filename(self):
@@ -138,6 +137,7 @@ class Run:
         return os.path.join(self.rundir, PID)
 
     def __enter__(self):
+        print("entering")
         with open(self.pid_filename(), "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(
@@ -147,9 +147,10 @@ class Run:
             run=self,
         )
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, *args):
         try:
-            os.remove(os.path.join(self.rundir, "pid"))
+            print("exiting")
+            os.remove(self.pid_filename())
         except FileNotFoundError:
             pass
 
@@ -184,10 +185,7 @@ class RunHandle:
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)
-        if len(training_logs) > 0:
-            if self.training_data_logger is None:
-                self.training_data_logger = logging.CSVLogger(self.training_data_filename)
-            self.training_data_logger.log(training_logs, time_step)
+        self.training_data_logger.log(training_logs, time_step)
 
     def log_train_step(self, metrics: dict[str, float], time_step: int):
         self.training_data_logger.log(metrics, time_step)
