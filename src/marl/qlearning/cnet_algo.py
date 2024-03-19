@@ -45,51 +45,51 @@ class CNetAlgo(RLAlgo):
         # self.policy = self.train_policy
     
     ########## Save and Load content which is not in a Episode Batch ##########
-    def create_episode(self):
+    def create_episode(self, bs=1):
         opt = self.opt
 
         episode = DotDic({})
-        episode.steps = torch.zeros(opt.bs).int()
-        episode.ended = torch.zeros(opt.bs).int()
-        episode.r = torch.zeros(opt.bs, opt.game_nagents).float()
+        episode.steps = torch.zeros(bs).int()
+        episode.ended = torch.zeros(bs).int()
+        episode.r = torch.zeros(bs, opt.game_nagents).float()
         episode.step_records = []
 
         return episode
 
-    def create_step_record(self):
+    def create_step_record(self, bs=1):
         opt = self.opt
         record = DotDic({})
         record.s_t = None
-        record.r_t = torch.zeros(opt.game_nagents)
-        record.terminal = 0
+        record.r_t = torch.zeros(bs, opt.game_nagents)
+        record.terminal = torch.zeros(bs)
 
         record.agent_inputs = []
 
         # Track actions at time t per agent
-        record.a_t = torch.zeros(opt.game_nagents, dtype=torch.long)
+        record.a_t = torch.zeros(bs, opt.game_nagents, dtype=torch.long)
         if not opt.model_dial:
-            record.a_comm_t = torch.zeros(opt.game_nagents, dtype=torch.long)
+            record.a_comm_t = torch.zeros(bs, opt.game_nagents, dtype=torch.long)
 
         # Track messages sent at time t per agent
         if opt.comm_enabled:
             comm_dtype = opt.model_dial and torch.float or torch.long
             comm_dtype = torch.float
-            record.comm = torch.zeros(opt.game_nagents, opt.game_comm_bits, dtype=comm_dtype)
+            record.comm = torch.zeros(bs, opt.game_nagents, opt.game_comm_bits, dtype=comm_dtype)
             if opt.model_dial and opt.model_target:
                 record.comm_target = record.comm.clone()
 
         # Track hidden state per time t per agent
-        record.hidden = torch.zeros(opt.game_nagents, opt.model_rnn_layers, opt.model_rnn_size)
-        record.hidden_target = torch.zeros(opt.game_nagents, opt.model_rnn_layers, opt.model_rnn_size)
+        record.hidden = torch.zeros(opt.game_nagents, opt.model_rnn_layers, bs, opt.model_rnn_size)
+        record.hidden_target = torch.zeros(opt.game_nagents, opt.model_rnn_layers, bs, opt.model_rnn_size)
 
         # Track Q(a_t) and Q(a_max_t) per agent
-        record.q_a_t = torch.zeros(opt.game_nagents)
-        record.q_a_max_t = torch.zeros(opt.game_nagents)
+        record.q_a_t = torch.zeros(bs, opt.game_nagents)
+        record.q_a_max_t = torch.zeros(bs, opt.game_nagents)
 
         # Track Q(m_t) and Q(m_max_t) per agent
         if not opt.model_dial:
-            record.q_comm_t = torch.zeros(opt.game_nagents)
-            record.q_comm_max_t = torch.zeros(opt.game_nagents)
+            record.q_comm_t = torch.zeros(bs, opt.game_nagents)
+            record.q_comm_max_t = torch.zeros(bs, opt.game_nagents)
 
         return record
     ###########################################################################
@@ -127,66 +127,9 @@ class CNetAlgo(RLAlgo):
         #     should_select_random_comm = self._eps_flip(eps)
 
         # Get action + comm
-        
 
         return (action, action_value), (comm_vector, comm_action, comm_value)
 
-    # def get_q_a_t(self, episode: Episode, step: int, agentID: int):
-    #     # Get the Q values for the actions at time step
-    #     a_t = episode.actions[step][agentID]
-    #     q_a_t = episode.actions_probs[step][a_t][agentID]
-
-    #     return q_a_t
-    
-    # def get_q_a_max(self, episode: Episode, step: int, agentID: int):
-    #     # Get the max Q value for the actions at time step
-    #     q_a_max = episode.actions_probs[step].max(0)[0][agentID]
-    #     return q_a_max
-
-    # def episode_loss(self, episodes: EpisodeBatch):
-    #     opt = self.opt
-    #     total_loss = torch.zeros(opt.bs)
-    #     for b in range(episodes.batch_size):
-    #         episode = episodes.episodes[b]
-    #         b_steps = episode.episode_len
-    #         for step in range(b_steps):
-    #             for i in range(opt.game_nagents):
-    #                 td_action = 0
-    #                 td_comm = 0
-    #                 r_t = episode.rewards[step]
-    #                 q_a_t = self.get_q_a_t(episode, step, i)
-    #                 q_comm_t = 0
-
-    #                 if episode.actions[step][i].item() > 0:
-    #                     if episode.dones()[step].item() > 0:
-    #                         td_action = r_t - q_a_t
-    #                     else:
-    #                         next_record = episode.step_records[step + 1] # TODO get the next episode
-    #                         q_next_max = self.get_q_a_max(episode, step + 1, i)
-    #                         q_comm_max = next_record.q_comm_max_t[b][i] # TODO : Add comm info in Episode
-    #                         if not opt.model_dial and opt.model_avg_q:
-    #                             q_next_max = (q_next_max + q_comm_max)/2.0
-    #                         td_action = r_t + opt.gamma * q_next_max - q_a_t
-
-    #                 if not opt.model_dial and record.a_comm_t[b][i].item() > 0:
-    #                     q_comm_t = record.q_comm_t[b][i]
-    #                     if record.terminal[b].item() > 0:
-    #                         td_comm = r_t - q_comm_t
-    #                     else:
-    #                         next_record = episode.step_records[step + 1]
-    #                         q_next_max = next_record.q_comm_max_t[b][i]
-    #                         if opt.model_avg_q: 
-    #                             q_next_max = (q_next_max + next_record.q_a_max_t[b][i])/2.0
-    #                         td_comm = r_t + opt.gamma * q_next_max - q_comm_t
-
-    #                 if not opt.model_dial:
-    #                     loss_t = (td_action ** 2 + td_comm ** 2)
-    #                 else:
-    #                     loss_t = (td_action ** 2)
-    #                 total_loss[b] = total_loss[b] + loss_t
-    #     loss = total_loss.sum()
-    #     loss = loss/(self.opt.bs * self.opt.game_nagents)
-    #     return loss
 
     def episode_loss(self, episode):
         opt = self.opt
@@ -258,7 +201,7 @@ class CNetAlgo(RLAlgo):
                 agent_id = i
                 messages = self.episode.step_records[self.step-1].comm.to(self.device) # Comm from t is stored on t+1
                 prev_actions = self.episode.step_records[self.step-1].a_t[agent_id].to(self.device) # Action from t is stored on t
-                hidden = self.episode.step_records[self.step-1].hidden[agent_id].to(self.device) # Hidden from t is stored on t
+                hidden = self.episode.step_records[self.step-1].hidden.to(self.device) # Hidden from t is stored on t
                 agent_inputs = {
 					'obs': obs,
                     'extras': extras,

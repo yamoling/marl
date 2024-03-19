@@ -402,8 +402,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
         # Set up inputs
         self.agent_lookup = nn.Embedding(opt.game_nagents, opt.model_rnn_size)
-        self.state_lookup = nn.Embedding(reduce(operator.mul, input_shape), opt.model_rnn_size) # TODO : verify that num_embeddings is n_features = input size
-
+        self.state_lookup = nn.Linear(reduce(operator.mul, input_shape), opt.model_rnn_size) # TODO : verify that num_embeddings is n_features = input size
         # Action aware
         self.prev_message_lookup = None
         if opt.model_action_aware:
@@ -421,7 +420,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
             self.messages_mlp.add_module('linear1', nn.Linear(self.comm_size, opt.model_rnn_size))
             if opt.model_comm_narrow:
                 self.messages_mlp.add_module('relu1', nn.ReLU(inplace=True))
-        
+                    
         # Set up RNN
         dropout_rate = opt.model_rnn_dropout_rate or 0 # TODO : set opt.model_rnn_dropout_rate
         self.rnn = nn.GRU(input_size=opt.model_rnn_size, hidden_size=opt.model_rnn_size, 
@@ -469,9 +468,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         # extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
         # features = torch.concat((features, extras), dim=-1)
         # features = features[agent_index, :].squeeze(0)
-        obs = obs.squeeze(0)[agent_index]
-        indices = obs[agent_index].view(-1).long()
-        s_t = Variable(indices).to(torch.long)
+        s_t = Variable(obs.squeeze(0)[agent_index])
         hidden = Variable(hidden)
         prev_message = None
         if opt.model_dial:
@@ -487,16 +484,16 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
         z_a, z_o, z_u, z_m = [0]*4
         z_a = self.agent_lookup(agent_index)
-        z_o = self.state_lookup(s_t)
+        z_o = self.state_lookup(s_t.view(-1)) # 1D state
         if opt.model_action_aware:
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
                 z_u += self.prev_message_lookup(prev_message)
         z_m = self.messages_mlp(messages.view(-1, self.comm_size))
-
         z = z_a + z_o + z_u + z_m
         z = z.unsqueeze(1)
 
+        hidden = hidden.squeeze(2)
         rnn_out, h_out = self.rnn(z, hidden)
         outputs = self.outputs(rnn_out[:, -1, :].squeeze())
 
