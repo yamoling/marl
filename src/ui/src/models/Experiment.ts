@@ -22,7 +22,8 @@ export interface Run {
 
 export interface ExperimentResults {
     logdir: string
-    ticks: number[]
+    test_ticks: number[]
+    train_ticks: number[]
     /** Training datasets*/
     train: Dataset[]
     /** Test datasets*/

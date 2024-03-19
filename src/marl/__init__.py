@@ -2,7 +2,6 @@ __version__ = "0.1.0"
 
 from . import utils
 from . import models
-from . import env
 from . import logging
 from . import nn
 from . import intrinsic_reward
@@ -21,7 +20,7 @@ from .models import Experiment, RLAlgo, Runner, Run, Policy
 __all__ = [
     "utils",
     "models",
-    "env",
+    # "env",
     "logging",
     "nn",
     "intrinsic_reward",

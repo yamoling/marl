@@ -8,11 +8,11 @@
                         <tr>
                             <th class="px-1"> # Step </th>
                             <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
-                            }}</th>
+                                }}</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(time_step, i) in results.ticks" @click="() => onTestClicked(time_step)"
+                        <tr v-for="(time_step, i) in results.test_ticks" @click="() => onTestClicked(time_step)"
                             :class="(time_step == selectedTimeStep) ? 'selected' : ''">
                             <td> {{ time_step }} </td>
                             <td v-for="ds in results.test">
@@ -30,7 +30,7 @@
                     <thead>
                         <tr>
                             <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
-                            }}</th>
+                                }}</th>
                         </tr>
                     </thead>
                     <tbody>

@@ -134,7 +134,12 @@ const alignedExperimentResults = computed(() => {
     resultsStore.results.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
     return res;
 });
-const ticks = computed(() => unionXTicks([...resultsStore.results.values()].map(r => r.ticks)));
+const ticks = computed(() => unionXTicks([...resultsStore.results.values()].map(r => {
+    if (testOrTrain.value == "Test") {
+        return r.test_ticks;
+    }
+    return r.train_ticks
+})));
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((v, _) => v.train.forEach(d => res.add(d.label)));

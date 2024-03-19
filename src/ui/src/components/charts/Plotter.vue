@@ -71,6 +71,7 @@ function updateChartData() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         const colour = colourStore.get(ds.logdir);
+        console.log(ds.label, ds.mean)
 
         if (enablePlusMinus.value) {
             let lower;

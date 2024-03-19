@@ -88,10 +88,13 @@ class DQNTrainer(Trainer):
         return self.memory.can_sample(self.batch_size)
 
     def _next_state_value(self, batch: Batch):
+        """this works"""
         next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
+        # next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
             qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
+            # qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
         # For episode batches, the batch includes the initial observation in order to compute the
@@ -137,7 +140,7 @@ class DQNTrainer(Trainer):
             qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
 
         # Qtargets computation
-        next_values = self._next_state_value(batch)
+        next_values = self._next_state_value2(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         assert qvalues.shape == qtargets.shape

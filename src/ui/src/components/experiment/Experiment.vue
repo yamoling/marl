@@ -5,8 +5,8 @@
     <div v-else class="row">
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <div class="col-3">
-            <DQNParams v-if="experiment.algo.name == 'DQN'" :trainer="experiment.trainer" :algo="(experiment.algo as DQN)"
-                class="mb-1" />
+            <DQNParams v-if="experiment.algo.name == 'DQN'" :trainer="experiment.trainer"
+                :algo="(experiment.algo as DQN)" class="mb-1" />
             <EnvironmentParams :env="experiment.env" />
         </div>
         <div class="col" v-if="results != null">
@@ -76,7 +76,7 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    ticks.value = runResults.value[0].ticks;
+    ticks.value = runResults.value[0].test_ticks;
     const trainDatasets = runResults.value.map(r => r.train).flat().filter(d => d.label == "score");
     datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
 });

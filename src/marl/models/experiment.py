@@ -37,7 +37,8 @@ class Dataset:
 @dataclass
 class ExperimentResults:
     logdir: str
-    ticks: list[int]
+    test_ticks: list[int]
+    train_ticks: list[int]
     train: list[Dataset]
     test: list[Dataset]
 
@@ -239,14 +240,14 @@ class Experiment:
         """Get the test metrics of an experiment."""
         runs = list(Experiment.get_runs(logdir))
         try:
-            ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs], replace_inf)
+            test_ticks, test_datasets = Experiment.compute_datasets([run.test_metrics for run in runs], replace_inf)
         except ValueError:
-            ticks, test_datasets = [], []
+            test_ticks, test_datasets = [], []
         try:
             dfs = [run.train_metrics for run in runs if not run.train_metrics.is_empty()]
             dfs_training_data = [run.training_data for run in runs if not run.training_data.is_empty()]
-            if len(ticks) >= 2:
-                test_interval = ticks[1] - ticks[0]
+            if len(test_ticks) >= 2:
+                test_interval = test_ticks[1] - test_ticks[0]
             else:
                 test_interval = 5000
             # Round the time step to match the closest test interval
@@ -256,13 +257,11 @@ class Experiment:
             dfs = [df.group_by("time_step").mean() for df in dfs]
             dfs_training_data = [df.group_by("time_step").mean() for df in dfs_training_data]
             # Concatenate the dataframes and compute the Datastets
-            ticks2, train_datasets = Experiment.compute_datasets(dfs, replace_inf)
+            train_ticks, train_datasets = Experiment.compute_datasets(dfs, replace_inf)
             _, training_data = Experiment.compute_datasets(dfs_training_data, replace_inf)
         except ValueError:
-            ticks2, train_datasets, training_data = [], [], []
-        if len(ticks) == 0:
-            ticks = ticks2
-        return ExperimentResults(logdir, ticks, train_datasets + training_data, test_datasets)
+            train_ticks, train_datasets, training_data = [], [], []
+        return ExperimentResults(logdir, test_ticks, train_ticks, train_datasets + training_data, test_datasets)
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
         # Actions must be loaded because of the stochasticity of the policy

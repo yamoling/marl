@@ -2,6 +2,7 @@ import shutil
 import marl
 import lle
 import rlenv
+from typing import Optional
 import typed_argparse as tap
 from lle import WorldState
 from marl.training import DQNTrainer
@@ -10,11 +11,15 @@ from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
 from marl.nn import model_bank
 
+from run import Arguments as RunArguments, main as run_experiment
+
 
 class Arguments(tap.TypedArgs):
+    name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
     n_tests: int = tap.arg(default=0, help="Number of tests to run")
+    n_runs: int = tap.arg(default=1, help="Number of runs to start. Only applies if 'run' is True.")
 
 
 def create_smac(args: Arguments):
@@ -161,10 +166,12 @@ def create_lle(args: Arguments):
         test_policy=marl.policy.ArgMax(),
     )
 
-    if args.debug:
+    if args.name is not None:
+        logdir = f"logs/{args.name}"
+    elif args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/rollback4-{env.name}"
+        logdir = f"logs/rollback8-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
@@ -183,7 +190,14 @@ def main(args: Arguments):
         exp = create_lle(args)
         print(exp.logdir)
         if args.run:
-            exp.create_runner(seed=0).to("auto").train(args.n_tests)
+            run_args = RunArguments(
+                logdir=exp.logdir,
+                n_tests=args.n_tests,
+                seed=0,
+                n_runs=args.n_runs,
+            )
+            run_experiment(run_args)
+            # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
         response = ""
         response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
