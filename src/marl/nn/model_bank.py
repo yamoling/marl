@@ -468,7 +468,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         # extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
         # features = torch.concat((features, extras), dim=-1)
         # features = features[agent_index, :].squeeze(0)
-        s_t = Variable(obs.squeeze(0)[agent_index])
+        s_t = Variable(obs.squeeze(0)[agent_index[-1]])
         hidden = Variable(hidden)
         prev_message = None
         if opt.model_dial:
@@ -489,6 +489,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
                 z_u += self.prev_message_lookup(prev_message)
+                
         z_m = self.messages_mlp(messages.view(-1, self.comm_size))
         z = z_a + z_o + z_u + z_m
         z = z.unsqueeze(1)

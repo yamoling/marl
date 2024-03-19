@@ -49,9 +49,9 @@ class CNetAlgo(RLAlgo):
         opt = self.opt
 
         episode = DotDic({})
-        episode.steps = torch.zeros(bs).int()
-        episode.ended = torch.zeros(bs).int()
-        episode.r = torch.zeros(bs, opt.game_nagents).float()
+        episode.steps = torch.zeros(bs).int().to(self.device)
+        episode.ended = torch.zeros(bs).int().to(self.device)
+        episode.r = torch.zeros(bs, opt.game_nagents).float().to(self.device)
         episode.step_records = []
 
         return episode
@@ -60,8 +60,8 @@ class CNetAlgo(RLAlgo):
         opt = self.opt
         record = DotDic({})
         record.s_t = None
-        record.r_t = torch.zeros(bs, opt.game_nagents)
-        record.terminal = torch.zeros(bs)
+        record.r_t = torch.zeros(bs, opt.game_nagents).to(self.device)
+        record.terminal = torch.zeros(bs).to(self.device)
 
         record.agent_inputs = []
 
@@ -193,22 +193,58 @@ class CNetAlgo(RLAlgo):
         return obs_tensor, extras
     
     def choose_action(self, obs: Observation) -> np.ndarray:
+        opt = self.opt
         with torch.no_grad():
             # TODO : Get agent_input : s_t = obs, messages (history), hidden (history), prev_action (history), agent_index ? 1 pass foreach agent ?
+            self.episode.step_records.append(self.create_step_record(opt.bs))
             self.step += 1
             obs, extras = self.to_tensor(obs) 
             for i in range(self.opt.game_nagents):
                 agent_id = i
-                messages = self.episode.step_records[self.step-1].comm.to(self.device) # Comm from t is stored on t+1
-                prev_actions = self.episode.step_records[self.step-1].a_t[agent_id].to(self.device) # Action from t is stored on t
-                hidden = self.episode.step_records[self.step-1].hidden.to(self.device) # Hidden from t is stored on t
+                # TODO : improve for batch
+                # messages = self.episode.step_records[self.step-1].comm.to(self.device) # Comm from t is stored on t+1
+                # prev_actions = self.episode.step_records[self.step-1].a_t[agent_id].to(self.device) # Action from t is stored on t
+                # hidden = self.episode.step_records[self.step-1].hidden.to(self.device) # Hidden from t is stored on t
+                # Get received messages per agent per batch
+                agent_idx = i
+                comm = None
+                if opt.comm_enabled:
+                    comm = self.episode.step_records[self.step].comm.clone()
+                    # comm_limited = self.game.get_comm_limited(step, agent.id)
+                    # if comm_limited is not None:
+                    #     comm_lim = torch.zeros(opt.bs, 1, opt.game_comm_bits)
+                    #     for b in range(opt.bs):
+                    #         if comm_limited[b].item() > 0:
+                    #             comm_lim[b] = comm[b][comm_limited[b] - 1]
+                    #     comm = comm_lim
+                    # else:
+                    comm[:, agent_idx].zero_()
+
+                # Get prev action per batch
+                prev_action = None
+                if opt.model_action_aware:
+                    prev_action = torch.ones(opt.bs, dtype=torch.long)
+                    if not opt.model_dial:
+                        prev_message = torch.ones(opt.bs, dtype=torch.long)
+                    for b in range(opt.bs):
+                        if self.step > 0 and self.episode.step_records[self.step - 1].a_t[b, agent_idx] > 0:
+                            prev_action[b] = self.episode.step_records[self.step - 1].a_t[b, agent_idx]
+                        if not opt.model_dial:
+                            if self.step > 0 and self.episode.step_records[self.step - 1].a_comm_t[b, agent_idx] > 0:
+                                prev_message[b] = self.episode.step_records[self.step - 1].a_comm_t[b, agent_idx]
+                    if not opt.model_dial:
+                        prev_action = (prev_action, prev_message)
+
+                # Batch agent index for input into model
+                batch_agent_index = torch.zeros(opt.bs, dtype=torch.long).fill_(agent_idx)
+
                 agent_inputs = {
 					'obs': obs,
                     'extras': extras,
-					'messages': messages,
-					'hidden': hidden, # Hidden state
-					'prev_action': prev_actions,
-					'agent_index': torch.tensor([agent_id]).to(self.device)
+					'messages': comm.to(self.device), # Messages
+					'hidden': self.episode.step_records[self.step].hidden[agent_idx, :].to(self.device), # Hidden state
+					'prev_action': prev_action.to(self.device),
+					'agent_index': batch_agent_index.to(self.device)
 				}
                 # Compute model output (Q function + message bits)
                 hidden_t, q_t = self.model.forward(**agent_inputs)
@@ -241,8 +277,8 @@ class CNetAlgo(RLAlgo):
 
     def new_episode(self):
         # Clear the history 
-        self.episode = self.create_episode()
-        self.episode.step_records.append(self.create_step_record())
+        self.episode = self.create_episode(self.opt.bs)
+        self.episode.step_records.append(self.create_step_record(self.opt.bs))
     
     #TODO : Save weights
     def save(self, to_directory: str):
