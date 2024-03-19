@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from marl.models.algo import RLAlgo
 from marl.utils import CorruptExperimentException
 from marl import logging
+from marl.utils import exceptions
 from marl.utils.exceptions import TestEnvNotSavedException
 from .replay_episode import ReplayEpisodeSummary
 
@@ -137,7 +138,9 @@ class Run:
         return os.path.join(self.rundir, PID)
 
     def __enter__(self):
-        print("entering")
+        pid = self.get_pid()
+        if pid is not None:
+            raise exceptions.AlreadyRunningException(self.rundir, pid)
         with open(self.pid_filename(), "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(
@@ -149,7 +152,6 @@ class Run:
 
     def __exit__(self, *args):
         try:
-            print("exiting")
             os.remove(self.pid_filename())
         except FileNotFoundError:
             pass

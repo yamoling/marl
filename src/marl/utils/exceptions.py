@@ -41,3 +41,16 @@ class MissingParameterException(Exception):
 
 class TestEnvNotSavedException(Exception):
     pass
+
+
+class AlreadyRunningException(Exception):
+    def __init__(self, rundir: str, pid: int):
+        super().__init__()
+        self.pid = pid
+        self.rundir = rundir
+
+    def __str__(self) -> str:
+        return f"Run {self.rundir} is already running (pid {self.pid})"
+
+    def __repr__(self) -> str:
+        return str(self)
