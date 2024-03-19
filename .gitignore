@@ -192,3 +192,6 @@ saved/
 .ruff_cache
 src/ui/bun.lockb
 poetry.lock
+
+# Include the marl/env package (excluded by 'env' above in this file)
+!src/marl/env
