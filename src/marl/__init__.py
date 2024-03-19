@@ -9,6 +9,7 @@ from . import policy
 from . import training
 from . import qlearning
 from . import policy_gradient
+from . import env
 
 
 from .utils import seed
@@ -20,7 +21,7 @@ from .models import Experiment, RLAlgo, Runner, Run, Policy
 __all__ = [
     "utils",
     "models",
-    # "env",
+    "env",
     "logging",
     "nn",
     "intrinsic_reward",

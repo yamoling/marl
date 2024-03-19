@@ -9,7 +9,7 @@ from marl.intrinsic_reward import RandomNetworkDistillation
 
 
 def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
-    rnd = RandomNetworkDistillation(target, normalise_rewards=False)
+    rnd = RandomNetworkDistillation(target, normalise_rewards=False, reward_size=env.reward_size)
     transitions = []
     obs = env.reset()
     for _ in range(64):

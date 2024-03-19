@@ -1,9 +1,11 @@
 import json
+import pathlib
 import os
 import shutil
 import time
-from datetime import datetime
 import pickle
+import numpy as np
+from datetime import datetime
 from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
@@ -194,7 +196,7 @@ class Experiment:
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            run=Run.create(rundir, seed),
+            run=Run.create(rundir),
             test_interval=self.test_interval,
             n_steps=self.n_steps,
             test_env=deepcopy(self.env),
@@ -264,15 +266,21 @@ class Experiment:
         return ExperimentResults(logdir, test_ticks, train_ticks, train_datasets + training_data, test_datasets)
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
-        # Actions must be loaded because of the stochasticity of the policy
-        with open(os.path.join(episode_folder, "actions.json"), "r") as a:
-            actions = json.load(a)
-        self.algo.load(os.path.dirname(episode_folder))
+        # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
+        # possibly with a trailing slash
+        path = pathlib.Path(episode_folder)
+        test_num = int(path.name)
+        time_step = int(path.parent.name)
+        rundir = path.parent.parent.parent
+        run = Run.load(rundir.as_posix())
+        actions = run.get_test_actions(time_step, test_num)
+        self.algo.load(run.get_saved_algo_dir(time_step))
         try:
-            env: RLEnv = pickle.load(open(os.path.join(episode_folder, "env.pkl"), "rb"))
-        except FileNotFoundError:
-            # The environment has not been saved, so we we the local one
+            env = run.get_test_env(time_step, test_num)
+        except exceptions.TestEnvNotSavedException:
+            # The environment has not been saved, fallback to the local one
             env = self.env
+
         obs = env.reset()
         values = []
         frames = [encode_b64_image(env.render("rgb_array"))]
@@ -282,7 +290,7 @@ class Experiment:
             for action in actions:
                 values.append(self.algo.value(obs))
                 obs_, reward, done, truncated, info = env.step(action)
-                episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
+                episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
                 frames.append(encode_b64_image(env.render("rgb_array")))
                 obs = obs_
             episode = episode.build()

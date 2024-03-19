@@ -26,6 +26,16 @@
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
             </tbody>
+            <tfoot v-if="nObjectives > 1">
+                <tr>
+                    <!-- Sum all objectives for that action -->
+                    <td> <b>Q-Total</b></td>
+                    <td v-for="action in qvalues.length"
+                        :style='{ "background-color": "#" + totalQValuesColours[action - 1] }'>
+                        {{ totalQValues[action - 1].toFixed(4) }}
+                    </td>
+                </tr>
+            </tfoot>
         </table>
     </div>
 </template>
@@ -79,8 +89,18 @@ const qvalues = computed(() => {
     return props.episode.qvalues[props.currentStep][props.agentNum];
 });
 
+const totalQValues = computed(() => {
+    if (qvalues.value.length == 0) return [];
+    return qvalues.value.map((_, i) => qvalues.value.map(q => q[i]).reduce((a, b) => a + b, 0));
+});
+
 const backgroundColours = computed(() => {
     const colours = qvalues.value.map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    return colours;
+});
+
+const totalQValuesColours = computed(() => {
+    const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
     return colours;
 });
 
@@ -98,5 +118,10 @@ const obsLayered = computed(() => obs.value as number[][][]);
     border-style: solid;
     border-color: gainsboro;
     border-radius: 2%;
+}
+
+
+tfoot {
+    border-top: 2px solid black;
 }
 </style>

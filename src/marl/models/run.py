@@ -2,65 +2,80 @@ import os
 import shutil
 import polars as pl
 import json
-from rlenv import Episode
+import pickle
+from rlenv import Episode, RLEnv
 from typing import Optional
-from serde.json import to_json
 from dataclasses import dataclass
+from marl.models.algo import RLAlgo
 from marl.utils import CorruptExperimentException
 from marl import logging
-from marl.utils.stats import agregate_metrics
+from marl.utils.exceptions import TestEnvNotSavedException
 from .replay_episode import ReplayEpisodeSummary
 
 
 TRAIN = "train.csv"
 TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"
+ENV_PICKLE = "env.pkl"
+ACTIONS = "actions.json"
 
 
 @dataclass
 class Run:
     rundir: str
-    seed: int
     pid: Optional[int]
 
-    def __init__(self, rundir: str, seed: int):
+    def __init__(self, rundir: str):
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
-        self.seed = seed
         self.train_logger: Optional[logging.CSVLogger] = None
         self.test_logger: Optional[logging.CSVLogger] = None
         self.training_data_logger: Optional[logging.CSVLogger] = None
         self.pid = self.get_pid()
 
     @staticmethod
-    def create(rundir: str, seed: int):
+    def create(rundir: str):
         os.makedirs(rundir, exist_ok=True)
-        run = Run(rundir, seed)
-        with open(os.path.join(rundir, "run.json"), "w") as f:
-            f.write(to_json(run))
+        with open(os.path.join(rundir, "pid"), "w") as f:
+            f.write(str(os.getpid()))
+        run = Run(rundir)
         return run
 
     @staticmethod
     def load(rundir: str):
-        try:
-            with open(os.path.join(rundir, "run.json"), "r") as f:
-                seed = json.load(f)["seed"]
-        except FileNotFoundError:
-            seed = -1
-        return Run(rundir, seed)
+        return Run(rundir)
 
-    def log_tests(self, episodes: list[Episode], time_step: int):
+    def get_test_env(self, time_step: int, test_num: int) -> RLEnv:
+        test_directory = self.test_dir(time_step, test_num)
+        env_file = os.path.join(test_directory, ENV_PICKLE)
+        try:
+            with open(env_file, "rb") as f:
+                return pickle.load(f)
+        except FileNotFoundError:
+            raise TestEnvNotSavedException()
+
+    def get_test_actions(self, time_step: int, test_num: int) -> list[list[int]]:
+        test_directory = self.test_dir(time_step, test_num)
+        actions_file = os.path.join(test_directory, ACTIONS)
+        with open(actions_file, "r") as f:
+            return json.load(f)
+
+    def log_tests(self, episodes: list[Episode], saved_env: list[RLEnv], algo: RLAlgo, time_step: int):
         if self.test_logger is None:
             self.test_logger = logging.CSVLogger(self.test_filename)
-        agg = agregate_metrics([e.metrics for e in episodes], skip_keys={"timestamp_sec", "time_step"})
-        print(agg)
-        directory = os.path.join(self.rundir, "test", f"{time_step}")
-        for i, episode in enumerate(episodes):
-            episode_directory = os.path.join(directory, f"{i}")
+        algo.save(self.test_dir(time_step))
+        for i, (episode, env) in enumerate(zip(episodes, saved_env)):
+            episode_directory = self.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
             os.makedirs(episode_directory)
-            with open(os.path.join(episode_directory, "actions.json"), "w") as a:
+            with open(os.path.join(episode_directory, ACTIONS), "w") as a:
                 json.dump(episode.actions.tolist(), a)
+            if env is not None:
+                try:
+                    with open(os.path.join(episode_directory, ENV_PICKLE), "wb") as e:
+                        pickle.dump(env, e)
+                except (AttributeError, pickle.PicklingError):
+                    pass
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         if self.train_logger is None:
@@ -77,8 +92,14 @@ class Run:
                 self.training_data_logger = logging.CSVLogger(self.training_data_filename)
             self.training_data_logger.log(metrics, time_step)
 
-    def test_dir(self, time_step: int):
-        return os.path.join(self.rundir, "test", f"{time_step}")
+    def test_dir(self, time_step: int, test_num: Optional[int] = None):
+        test_dir = os.path.join(self.rundir, "test", f"{time_step}")
+        if test_num is not None:
+            test_dir = os.path.join(test_dir, f"{test_num}")
+        return test_dir
+
+    def get_saved_algo_dir(self, time_step: int):
+        return self.test_dir(time_step)
 
     @property
     def train_metrics(self):
@@ -152,3 +173,9 @@ class Run:
         except ProcessLookupError:
             os.remove(pid_file)
             return None
+
+    def __del__(self):
+        try:
+            os.remove(os.path.join(self.rundir, "pid"))
+        except FileNotFoundError:
+            pass

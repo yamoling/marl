@@ -37,3 +37,7 @@ class MissingParameterException(Exception):
             Error in {self.class_name}.from_summary(...):
             {self.type_error_message}
             Did you save the appropriate fields in the summary? """
+
+
+class TestEnvNotSavedException(Exception):
+    pass

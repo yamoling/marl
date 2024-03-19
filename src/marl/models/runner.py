@@ -1,7 +1,5 @@
 import os
-import json
 import torch
-import pickle
 from copy import deepcopy
 from typing import Optional, Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
@@ -57,8 +55,6 @@ class Runner:
 
     def train(self, n_tests: int, quiet: bool = False):
         """Start the training loop"""
-        with open(os.path.join(self._run.rundir, "pid"), "w") as f:
-            f.write(str(os.getpid()))
         episode_num = 0
         step = 0
         pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
@@ -73,13 +69,12 @@ class Runner:
     def test(self, ntests: int, time_step: int, quiet: bool):
         """Test the agent"""
         self._algo.set_testing()
-        test_dir = self._run.test_dir(time_step)
-        self._algo.save(test_dir)
         episodes = list[Episode]()
+        saved_env = list[RLEnv]()
         for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+            saved_env.append(deepcopy(self._test_env))
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
-            self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
@@ -87,20 +82,10 @@ class Runner:
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
-            episode = episode.build({"initial_value": intial_value, "time_step": time_step})
+            episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        self._run.log_tests(episodes, time_step)
+        self._run.log_tests(episodes, saved_env, self._algo, time_step)
         self._algo.set_training()
-
-    def _save_test_episode(self, directory: str, episode: Episode):
-        os.makedirs(directory, exist_ok=True)
-        with open(os.path.join(directory, "env.pkl"), "wb") as e, open(os.path.join(directory, "actions.json"), "w") as a:
-            try:
-                pickle.dump(self._test_env, e)
-            except (pickle.PicklingError, AttributeError):
-                # AttributeError can be raised when the env is not pickleable
-                pass
-            json.dump(episode.actions.tolist(), a)
 
     def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
         if isinstance(device, str):
@@ -110,9 +95,3 @@ class Runner:
         self._algo.to(device)
         self._trainer.to(device)
         return self
-
-    def __del__(self):
-        try:
-            os.remove(os.path.join(self._run.rundir, "pid"))
-        except FileNotFoundError:
-            pass

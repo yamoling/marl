@@ -9,7 +9,6 @@ from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from marl.nn import model_bank
 
 from run import Arguments as RunArguments, main as run_experiment
 
@@ -18,7 +17,7 @@ class Arguments(tap.TypedArgs):
     name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
-    n_tests: int = tap.arg(default=0, help="Number of tests to run")
+    n_tests: int = tap.arg(default=1, help="Number of tests to run")
     n_runs: int = tap.arg(default=1, help="Number of runs to start. Only applies if 'run' is True.")
 
 
@@ -102,25 +101,28 @@ def create_ppo_lle():
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def curriculum(env: lle.LLE):
+def curriculum(env: lle.LLE, n_steps: int):
     world = env.world
     env.reset()
     i_positions = list(range(world.height - 1, -1, -1))
     j_positions = [3] * len(i_positions)
     initial_states = list[WorldState]()
+    exclude_i = [6]
     for i, j in zip(i_positions, j_positions):
+        if i in exclude_i:
+            continue
         start_positions = [(i, j + n) for n in range(world.n_agents)]
         initial_states.append(WorldState(start_positions, [False] * world.n_gems))
-
-    interval = 1_000_000 // len(initial_states)
+    interval = n_steps // len(initial_states)
     return marl.env.CurriculumLearning(env, initial_states, interval)
 
 
 def create_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 1_000
+    test_interval = 50
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
-    env = curriculum(env)
+    env = curriculum(env, n_steps)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=False).build()
     # env = rlenv.Builder(env).centralised().time_limit(env.width * env.height // 2, add_extra=False).build()
 
@@ -180,7 +182,7 @@ def create_lle(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def main(args: Arguments):
