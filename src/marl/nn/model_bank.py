@@ -6,9 +6,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import kl_divergence
+from torch.autograd import Variable
 import math
-
-from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, CommNetwork, MAICNN
+from functools import reduce
+import operator
+from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN
 
 
 @dataclass(unsafe_hash=True)
@@ -383,8 +385,8 @@ class ACNetwork2(ActorCriticNN):
         return self.policy_network.parameters()
 
 
-class RIALCommNetwork(CommNetwork):
-    def __init__(self, input_shape: tuple[int], extras_size: int, output_size: int):
+class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pytorch
+    def __init__(self, input_shape: tuple[int], extras_size: int, output_size: int, opt):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), (output_size,))
 
@@ -393,26 +395,116 @@ class RIALCommNetwork(CommNetwork):
         filters = [32, 64, 64]
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = torch.nn.Sequential(
-            torch.nn.Linear(n_features + extras_size, output_size)
-        )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        self.opt = opt
+        self.comm_size = opt.game_comm_bits
+        self.init_param_range = (-0.08, 0.08)
+
+        # Set up inputs
+        self.agent_lookup = nn.Embedding(opt.game_nagents, opt.model_rnn_size)
+        self.state_lookup = nn.Embedding(reduce(operator.mul, input_shape), opt.model_rnn_size) # TODO : verify that num_embeddings is n_features = input size
+
+        # Action aware
+        self.prev_message_lookup = None
+        if opt.model_action_aware:
+            if opt.model_dial:
+                self.prev_action_lookup = nn.Embedding(opt.game_action_space_total, opt.model_rnn_size)
+            else:
+                self.prev_action_lookup = nn.Embedding(opt.game_action_space + 1, opt.model_rnn_size)
+                self.prev_message_lookup = nn.Embedding(opt.game_comm_bits + 1, opt.model_rnn_size)
+            
+        # Communication enabled
+        if opt.comm_enabled:
+            self.messages_mlp = nn.Sequential()
+            if opt.model_bn:
+                self.messages_mlp.add_module('batchnorm1', nn.BatchNorm1d(self.comm_size))
+            self.messages_mlp.add_module('linear1', nn.Linear(self.comm_size, opt.model_rnn_size))
+            if opt.model_comm_narrow:
+                self.messages_mlp.add_module('relu1', nn.ReLU(inplace=True))
+        
+        # Set up RNN
+        dropout_rate = opt.model_rnn_dropout_rate or 0 # TODO : set opt.model_rnn_dropout_rate
+        self.rnn = nn.GRU(input_size=opt.model_rnn_size, hidden_size=opt.model_rnn_size, 
+            num_layers=opt.model_rnn_layers, dropout=dropout_rate, batch_first=True)
+
+        # Set up outputs
+        self.outputs = nn.Sequential()
+        if dropout_rate > 0:
+            self.outputs.add_module('dropout1', nn.Dropout(dropout_rate))
+        self.outputs.add_module('linear1', nn.Linear(opt.model_rnn_size, opt.model_rnn_size))
+        if opt.model_bn:
+            self.outputs.add_module('batchnorm1', nn.BatchNorm1d(opt.model_rnn_size))
+        self.outputs.add_module('relu1', nn.ReLU(inplace=True))
+        self.outputs.add_module('linear2', nn.Linear(opt.model_rnn_size, opt.game_action_space_total))
+
+    def get_params(self):
+        return list(self.parameters())
+
+    def reset_parameters(self):
+        opt = self.opt
+        self.messages_mlp.linear1.reset_parameters()
+        self.rnn.reset_parameters()
+        self.agent_lookup.reset_parameters()
+        self.state_lookup.reset_parameters()
+        self.prev_action_lookup.reset_parameters()
+        if self.prev_message_lookup:
+            self.prev_message_lookup.reset_parameters()
+        if opt.comm_enabled and opt.model_dial:
+            self.messages_mlp.batchnorm1.reset_parameters()
+        self.outputs.linear1.reset_parameters()
+        self.outputs.linear2.reset_parameters()
+        for p in self.rnn.parameters():
+            p.data.uniform_(*self.init_param_range)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, messages, hidden, prev_action, agent_index):
+        opt = self.opt
+
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-        *dims, channels, height, width = obs.shape
-        leading_dims_size = math.prod(dims)
-        # We must use 'reshape' instead of 'view' to handle the case of episodes
-        obs = obs.view(leading_dims_size, channels, height, width).to(self.device)
-        features = self.cnn.forward(obs)
-        extras = extras.view(leading_dims_size, *self.extras_shape).to(self.device)
-        features = torch.concat((features, extras), dim=-1)
-        res = self.linear(features)
-        return res.view(*dims, *self.output_shape)
+        # *dims, channels, height, width = obs.shape
+        # leading_dims_size = math.prod(dims)
+        # # We must use 'reshape' instead of 'view' to handle the case of episodes
+        # obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
+        # features = self.cnn.forward(obs)
+        # extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
+        # features = torch.concat((features, extras), dim=-1)
+        # features = features[agent_index, :].squeeze(0)
+        obs = obs.squeeze(0)[agent_index]
+        indices = obs[agent_index].view(-1).long()
+        s_t = Variable(indices).to(torch.long)
+        hidden = Variable(hidden)
+        prev_message = None
+        if opt.model_dial:
+            if opt.model_action_aware:
+                prev_action = Variable(prev_action)
+        else:
+            if opt.model_action_aware:
+                prev_action, prev_message = prev_action
+                prev_action = Variable(prev_action)
+                prev_message = Variable(prev_message)
+            messages = Variable(messages)
+        agent_index = Variable(agent_index)
+
+        z_a, z_o, z_u, z_m = [0]*4
+        z_a = self.agent_lookup(agent_index)
+        z_o = self.state_lookup(s_t)
+        if opt.model_action_aware:
+            z_u = self.prev_action_lookup(prev_action)
+            if prev_message is not None:
+                z_u += self.prev_message_lookup(prev_message)
+        z_m = self.messages_mlp(messages.view(-1, self.comm_size))
+
+        z = z_a + z_o + z_u + z_m
+        z = z.unsqueeze(1)
+
+        rnn_out, h_out = self.rnn(z, hidden)
+        outputs = self.outputs(rnn_out[:, -1, :].squeeze())
+
+        return h_out, outputs
 
     @classmethod
-    def from_env(cls, env: RLEnv, channel_size: int):
-        return cls(env.observation_shape, env.extra_feature_shape[0], channel_size)
+    def from_env(cls, env: RLEnv, opt):
+        return cls(env.observation_shape, env.extra_feature_shape[0], opt.game_action_space_total, opt)
 
 
 class MAICNetwork(MAICNN):

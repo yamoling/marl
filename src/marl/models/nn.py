@@ -190,25 +190,6 @@ class Mixer(NN, ABC):
         self.load_state_dict(torch.load(filename))
 
 
-class CommNetwork(NN):
-    
-    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
-        extras = torch.from_numpy(obs.extras).to(self.device)
-        obs_tensor = torch.from_numpy(obs.data).to(self.device)
-        return obs_tensor, extras
-
-    def encode(self, obs: Observation) -> torch.Tensor:
-        """Compute the Tensor of messages"""
-        return self.forward(*self.to_tensor(obs)).squeeze(0)
-    
-    def encodeTensor(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Compute the Tensor of messages"""
-        return self.forward(obs, extras).squeeze(0)
-
-    @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Compute the messages"""
-
 class MAICNN(NN):
 
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:

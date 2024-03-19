@@ -3,7 +3,7 @@ from .table_qlearning import VanillaQLearning, ReplayTableQLearning
 from .mixers import QMix, VDN, Qatten, QPlex
 from .dqn import DQN, RDQN
 from .maic import MAICAlgo
-from .rial import RIALAlgo
+from .cnet_algo import CNetAlgo
 
 
 __all__ = [
@@ -15,6 +15,6 @@ __all__ = [
     "QPlex",
     "DQN",
     "RDQN",
-    "RIALAlgo",
+    "CNetAlgo",
     "MAICAlgo"
 ]
