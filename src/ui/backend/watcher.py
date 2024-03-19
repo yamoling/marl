@@ -46,10 +46,11 @@ class Watcher(Thread):
     def watch(self, logdir: str):
         self.experiments[logdir] = []
         for run in Experiment.get_runs(logdir):
-            if run.pid is not None:
-                process = Process(run.pid)
+            pid = run.get_pid()
+            if pid is not None:
+                process = Process(pid)
                 if process.status() == psutil.STATUS_RUNNING:
-                    self.pids[run.pid] = logdir
+                    self.pids[pid] = logdir
                     self.experiments[logdir].append(process.pid)
         if len(self.experiments[logdir]) == 0:
             self.experiments.pop(logdir)
