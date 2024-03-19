@@ -16,7 +16,7 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         const response = await resp.json() as ExperimentResults;
         response.test.forEach(ds => ds.logdir = logdir);
         response.train.forEach(ds => ds.logdir = logdir);
-        console.log(response.train[0])
+        console.log(response)
         results.value.set(logdir, response);
         loading.value.set(logdir, false);
         return response;

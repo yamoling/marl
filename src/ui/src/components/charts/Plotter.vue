@@ -68,6 +68,7 @@ function updateChartData() {
     if (props.datasets.length == 0) {
         return;
     }
+    console.log(props.datasets)
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         const colour = colourStore.get(ds.logdir);

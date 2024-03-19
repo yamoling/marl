@@ -128,31 +128,39 @@ const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 
 const testOrTrain = ref("Test" as "Test" | "Train");
-const smoothValue = ref(0.);
+const smoothValue = ref(0);
+const selectedMetrics = ref(["score"]);
+const logdirToDownload = ref("");
+
 const alignedExperimentResults = computed(() => {
     const res = new Map<string, ExperimentResults>();
     resultsStore.results.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
     return res;
 });
-const ticks = computed(() => unionXTicks([...resultsStore.results.values()].map(r => {
+
+const ticks = computed(() => {
+    const results = [...resultsStore.results.values()];
+    let t: number[][] = [];
     if (testOrTrain.value == "Test") {
-        return r.test_ticks;
+        t = results.map(r => r.test_ticks);
+    } else {
+        t = results.map(r => r.train_ticks);
     }
-    return r.train_ticks
-})));
+    return unionXTicks(t);
+});
+
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((v, _) => v.train.forEach(d => res.add(d.label)));
     return res;
 });
-const selectedMetrics = ref(["score"]);
-const logdirToDownload = ref("");
 
 /** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
     alignedExperimentResults.value.forEach((v, k) => {
         const ds = testOrTrain.value === "Test" ? v.test : v.train;
+        console.log(ds)
         ds.forEach(d => {
             if (!selectedMetrics.value.includes(d.label)) return
             if (!res.has(d.label)) {
@@ -218,19 +226,6 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
         sortOrder.value = "ASCENDING";
     }
 }
-
-
-function initColoursFromLocalStorage() {
-    const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
-    try {
-        return new Map<string, string>(entries);
-    } catch (e) {
-        return new Map<string, string>();
-    }
-
-}
-
-
 </script>
 
 <style>

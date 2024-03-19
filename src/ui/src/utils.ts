@@ -155,11 +155,11 @@ export function alignTicks(experimentResults: ExperimentResults, desiredTicks: n
     // Filter train datasets based on the filtered ticks
     const filteredTrain = experimentResults.train.map(dataset => ({
         ...dataset,
-        mean: interpolate(dataset.mean, experimentResults.test_ticks, desiredTicks),
-        std: interpolate(dataset.std, experimentResults.test_ticks, desiredTicks),
-        min: interpolate(dataset.min, experimentResults.test_ticks, desiredTicks),
-        max: interpolate(dataset.max, experimentResults.test_ticks, desiredTicks),
-        ci95: interpolate(dataset.ci95, experimentResults.test_ticks, desiredTicks),
+        mean: interpolate(dataset.mean, experimentResults.train_ticks, desiredTicks),
+        std: interpolate(dataset.std, experimentResults.train_ticks, desiredTicks),
+        min: interpolate(dataset.min, experimentResults.train_ticks, desiredTicks),
+        max: interpolate(dataset.max, experimentResults.train_ticks, desiredTicks),
+        ci95: interpolate(dataset.ci95, experimentResults.train_ticks, desiredTicks),
     }));
 
     // Filter test datasets based on the filtered ticks
