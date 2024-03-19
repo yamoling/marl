@@ -88,13 +88,10 @@ class DQNTrainer(Trainer):
         return self.memory.can_sample(self.batch_size)
 
     def _next_state_value(self, batch: Batch):
-        """this works"""
         next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_)
-        # next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
             qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
-            # qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
         # For episode batches, the batch includes the initial observation in order to compute the
@@ -107,24 +104,7 @@ class DQNTrainer(Trainer):
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
-        return next_values
-
-    def _next_state_value2(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
-        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
-        if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
-        else:
-            qvalues_for_index = next_qvalues
-        qvalues_for_index = torch.sum(qvalues_for_index, -1)
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
-        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
-        next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
         return next_values
 
     def optimise_qnetwork(self):
@@ -162,6 +142,22 @@ class DQNTrainer(Trainer):
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
         return logs, td_error
+
+    def _next_state_value2(self, batch: Batch):
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
+        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
+        if self.double_qlearning:
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
+        else:
+            qvalues_for_index = next_qvalues
+        qvalues_for_index = torch.sum(qvalues_for_index, -1)
+        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
+        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
+        indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
+        next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
+        if self.target_mixer is not None:
+            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        return next_values
 
     def _next_state_value_old(self, batch: Batch):
         all_target_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)
