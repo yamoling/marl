@@ -86,20 +86,20 @@ class DQNTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
-    def _next_state_value(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras)
+    def _next_state_value(self, batch: Batch, qvalues_: torch.Tensor):
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_)
+            qvalues_for_index = qvalues_
         else:
+            next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
             qvalues_for_index = next_qvalues
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
-        return next_values
+        mixed_next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        return mixed_next_values
 
     def optimise_qnetwork(self):
         batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
@@ -107,19 +107,27 @@ class DQNTrainer(Trainer):
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
-        # Qvalues computation
-        all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(all_qvalues, dim=-2, index=batch.actions).squeeze(-2)
-        if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, all_qvalues)
+        # Qvalues and qvalues with target network computation
+        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
+        all_qvalues[batch.all_available_actions == 0.0] = -torch.inf
+
+        qvalues = all_qvalues[:-1]
+        qvalues_ = all_qvalues[1:]
+        del all_qvalues
+
+        chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
+        mixed_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
+
+        # Drop variables to prevent using them mistakenly
+        del qvalues
+        del chosen_qvalues
 
         # Qtargets computation
-        next_values = self._next_state_value(batch)
-        assert batch.rewards.shape == next_values.shape == batch.dones.shape
+        next_values = self._next_state_value(batch, qvalues_)
+        assert batch.rewards.shape == next_values.shape == batch.dones.shape == mixed_qvalues.shape == batch.masks.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
-        assert qvalues.shape == qtargets.shape
         # Compute the loss
-        td_error = qvalues - qtargets.detach()
+        td_error = mixed_qvalues - qtargets.detach()
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:

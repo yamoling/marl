@@ -55,7 +55,7 @@ def test_rnd_linear():
         input_size=env.observation_shape[0],
         extras_size=env.extra_feature_shape[0],
         hidden_sizes=(64, 64, 64),
-        output_size=512,
+        output_shape=(512,),
     )
     _test_rnd_no_reward_normalisation(env, target)
 

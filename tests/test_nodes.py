@@ -1,7 +1,8 @@
 import torch
 from marl.training.nodes import ValueNode, Add, NextQValues
 from marl.models.batch import TransitionBatch, Batch
-from .utils import MockEnv, generate_episode
+from rlenv import MockEnv
+from .utils import generate_episode
 
 
 def test_value_node():

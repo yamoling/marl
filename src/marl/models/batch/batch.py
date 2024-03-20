@@ -35,18 +35,30 @@ class Batch(ABC):
         """Shape of the reward tensor"""
         return self.rewards.shape[-1]
 
-    @cached_property
-    def all_obs(self) -> torch.Tensor:
-        """All observations from t=0 up to episode_length + 1."""
-        obs = self.obs
-        last_obs = self.obs_[-1].unsqueeze(0)
-        return torch.cat([obs, last_obs])
+    def multi_objective(self):
+        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
+        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
+        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
 
     @cached_property
-    def all_extras(self) -> torch.Tensor:
-        extras = self.extras
-        last_extras = self.extras_[-1].unsqueeze(0)
-        return torch.cat([extras, last_extras])
+    def obs(self) -> torch.Tensor:
+        """Observations"""
+        return self.all_obs[:-1]
+
+    @cached_property
+    def obs_(self) -> torch.Tensor:
+        """Next observations"""
+        return self.all_obs[1:]
+
+    @cached_property
+    def extras(self) -> torch.Tensor:
+        """Extra information"""
+        return self.all_extras[:-1]
+
+    @cached_property
+    def extras_(self) -> torch.Tensor:
+        """Nest extra information"""
+        return self.all_extras[1:]
 
     @cached_property
     def one_hot_actions(self) -> torch.Tensor:
@@ -57,36 +69,39 @@ class Batch(ABC):
         return one_hot
 
     @cached_property
+    def available_actions(self) -> torch.Tensor:
+        """Available actions"""
+        return self.all_available_actions[:-1]
+
+    @cached_property
+    def available_actions_(self) -> torch.Tensor:
+        """Next available actions"""
+        return self.all_available_actions[1:]
+
+    @cached_property
+    def states(self) -> torch.Tensor:
+        """Environment states"""
+        return self.all_states[:-1]
+
+    @cached_property
+    def states_(self) -> torch.Tensor:
+        """Next environment states"""
+        return self.all_states[1:]
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def all_obs(self) -> torch.Tensor:
+        """All observations from t=0 up to episode_length + 1."""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def all_extras(self) -> torch.Tensor:
+        """All extra information from t=0 up to episode_length + 1."""
+
+    @abstractmethod  # type: ignore
+    @cached_property
     def all_available_actions(self) -> torch.Tensor:
         """All available actions from t=0 up to episode_length + 1."""
-        available_actions = self.available_actions
-        last_available_actions = self.available_actions_[-1].unsqueeze(0)
-        return torch.cat([available_actions, last_available_actions])
-
-    def multi_objective(self):
-        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
-        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
-        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def obs(self) -> torch.Tensor:
-        """Observations"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def obs_(self) -> torch.Tensor:
-        """Next observations"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def extras(self) -> torch.Tensor:
-        """Extra information"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def extras_(self) -> torch.Tensor:
-        """Nest extra information"""
 
     @abstractmethod  # type: ignore
     @cached_property
@@ -105,23 +120,8 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def available_actions_(self) -> torch.Tensor:
-        """Next available actions"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def available_actions(self) -> torch.Tensor:
-        """Available actions"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def states(self) -> torch.Tensor:
+    def all_states(self) -> torch.Tensor:
         """Environment states"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def states_(self) -> torch.Tensor:
-        """Next environment states"""
 
     @abstractmethod  # type: ignore
     @cached_property

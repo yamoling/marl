@@ -29,9 +29,9 @@ class NN(torch.nn.Module, ABC):
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         torch.nn.Module.__init__(self)
-        self.input_shape = tuple(input_shape)
-        self.extras_shape = tuple(extras_shape)
-        self.output_shape = tuple(output_shape)
+        self.input_shape = input_shape
+        self.extras_shape = extras_shape
+        self.output_shape = output_shape
         self.name = self.__class__.__name__
         self.device = torch.device("cpu")
 

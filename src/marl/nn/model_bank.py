@@ -20,15 +20,15 @@ class MLP(QNetwork):
         input_size: int,
         extras_size: int,
         hidden_sizes: tuple[int, ...],
-        output_size: int,
+        output_shape: tuple[int, ...],
     ):
-        super().__init__((input_size,), (extras_size,), (output_size,))
-        self.layer_sizes = (input_size + extras_size, *hidden_sizes, output_size)
+        super().__init__((input_size,), (extras_size,), output_shape)
+        self.layer_sizes = (input_size + extras_size, *hidden_sizes, math.prod(output_shape))
         layers = [torch.nn.Linear(input_size + extras_size, hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(hidden_sizes) - 1):
             layers.append(torch.nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
             layers.append(torch.nn.ReLU())
-        layers.append(torch.nn.Linear(hidden_sizes[-1], output_size))
+        layers.append(torch.nn.Linear(hidden_sizes[-1], math.prod(output_shape)))
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
@@ -39,12 +39,14 @@ class MLP(QNetwork):
             env.observation_shape[0],
             env.extra_feature_shape[0],
             tuple(hidden_sizes),
-            env.n_actions,
+            (env.n_actions, env.reward_size),
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        *dims, _obs_size = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
-        return self.nn(obs)
+        x = self.nn(obs)
+        return x.view(*dims, *self.output_shape)
 
 
 class RNNQMix(RecurrentQNetwork):
@@ -155,8 +157,7 @@ class CNN(QNetwork):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        mlp_output = math.prod(output_shape)
-        self.linear = MLP(n_features, extras_size, mlp_sizes, mlp_output)
+        self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
     def from_env(cls, env: RLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):

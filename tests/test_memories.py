@@ -1,8 +1,7 @@
 from marl.models import TransitionMemory
 import numpy as np
-from rlenv import Transition
+from rlenv import Transition, MockEnv
 import marl
-from .utils import MockEnv
 
 
 def test_nstep_n_equals_end():
