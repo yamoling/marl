@@ -90,11 +90,13 @@ class DQNTrainer(Trainer):
         next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
+            # qvalues_ = qvalues_.detach()
             qvalues_for_index = qvalues_
         else:
-            next_qvalues[batch.available_actions_ == 0.0] = -torch.inf
             qvalues_for_index = next_qvalues
+        # Sum over the objectives
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
+        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
@@ -109,7 +111,6 @@ class DQNTrainer(Trainer):
 
         # Qvalues and qvalues with target network computation
         all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
-        all_qvalues[batch.all_available_actions == 0.0] = -torch.inf
 
         qvalues = all_qvalues[:-1]
         qvalues_ = all_qvalues[1:]
