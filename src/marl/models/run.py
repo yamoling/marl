@@ -22,6 +22,10 @@ ENV_PICKLE = "env.pkl"
 ACTIONS = "actions.json"
 PID = "pid"
 
+# Dataframe columns
+TIME_STEP_COL = "time_step"
+TIMESTAMP_COL = "timestamp_sec"
+
 
 @dataclass
 class Run:
@@ -105,6 +109,13 @@ class Run:
     def training_data_filename(self):
         return os.path.join(self.rundir, TRAINING_DATA)
 
+    def get_progress(self, max_n_steps: int) -> float:
+        try:
+            df = self.train_metrics
+            return df.select(pl.last(TIME_STEP_COL)).item() / max_n_steps
+        except (pl.NoDataError, pl.ColumnNotFoundError):
+            return 0.0
+
     def delete(self):
         try:
             shutil.rmtree(self.rundir)
@@ -113,8 +124,8 @@ class Run:
 
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         try:
-            test_metrics = self.test_metrics.filter(pl.col("time_step") == time_step).sort("timestamp_sec")
-            test_dir = os.path.join(self.rundir, "test", f"{time_step}")
+            test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
+            test_dir = self.test_dir(time_step)
             episodes = []
             for i, row in enumerate(test_metrics.rows()):
                 episode_dir = os.path.join(test_dir, f"{i}")

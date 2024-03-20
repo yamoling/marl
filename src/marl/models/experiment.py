@@ -235,6 +235,9 @@ class Experiment:
             )
         return df_stats["time_step"].to_list(), res
 
+    def n_active_runs(self):
+        return len([run for run in self.runs if run.is_running])
+
     @staticmethod
     def get_experiment_results(logdir: str, replace_inf=False) -> ExperimentResults:
         """Get the test metrics of an experiment."""

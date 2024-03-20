@@ -111,7 +111,6 @@ class DQNTrainer(Trainer):
 
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-
         chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
         mixed_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
 
