@@ -254,11 +254,9 @@ def create_lle_rial_dial(args: Arguments):
     opt.game = "LLE"
     opt.game_nagents = env.n_agents
     opt.game_action_space = env.n_actions
-    opt.game_comm_limited = False # TODO : Try with True
-    ############ Parameters took like Switch ##################
-    opt.game_comm_bits = 1 
+    opt.game_comm_limited = False
+    opt.game_comm_bits = 3 # test with different values
     opt.game_comm_sigma = 2
-    ##########################################################
     opt.nsteps = nsteps_limit
     opt.gamma = 0.9
     opt.model_dial = True
@@ -304,9 +302,7 @@ def create_lle_rial_dial(args: Arguments):
 
     trainer = CNetTrainer(
         opt,
-        algo,
-        'episode',
-        5
+        algo
     )
 
     if args.debug:

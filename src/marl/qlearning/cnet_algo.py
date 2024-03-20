@@ -23,6 +23,7 @@ class CNetAlgo(RLAlgo):
 
         self.train_policy = train_policy
         self.test_policy = test_policy
+        self.policy = self.train_policy
 
         for p in self.model_target.parameters():
             p.requires_grad = False
@@ -35,61 +36,54 @@ class CNetAlgo(RLAlgo):
         
         # TODO : Add Container with the history of select_action_and_comm + addition value not present in EpisodeBatch (to determine)
         self.training_mode = False
-        self.step = 0
-
-               
-        # self.train_policy = train_policy
-        # if test_policy is None:
-        #     test_policy = self.train_policy
-        # self.test_policy = test_policy
-        # self.policy = self.train_policy
+        
     
     ########## Save and Load content which is not in a Episode Batch ##########
-    def create_episode(self, bs=1):
+    def create_episode(self):
         opt = self.opt
 
         episode = DotDic({})
-        episode.steps = torch.zeros(bs).int().to(self.device)
-        episode.ended = torch.zeros(bs).int().to(self.device)
-        episode.r = torch.zeros(bs, opt.game_nagents).float().to(self.device)
+        episode.steps = 0
+        episode.ended = 0
+        episode.r = torch.zeros(opt.game_nagents).float().to(self.device)
         episode.step_records = []
 
         return episode
 
-    def create_step_record(self, bs=1):
+    def create_step_record(self):
         opt = self.opt
         record = DotDic({})
         record.s_t = None
-        record.r_t = torch.zeros(bs, opt.game_nagents).to(self.device)
-        record.terminal = torch.zeros(bs).to(self.device)
+        record.r_t = torch.zeros(opt.game_nagents).to(self.device)
+        record.terminal = 0
 
         record.agent_inputs = []
 
         # Track actions at time t per agent
-        record.a_t = torch.zeros(bs, opt.game_nagents, dtype=torch.long)
+        record.a_t = torch.zeros(opt.game_nagents, dtype=torch.long)
         if not opt.model_dial:
-            record.a_comm_t = torch.zeros(bs, opt.game_nagents, dtype=torch.long)
+            record.a_comm_t = torch.zeros(opt.game_nagents, dtype=torch.long)
 
         # Track messages sent at time t per agent
         if opt.comm_enabled:
             comm_dtype = opt.model_dial and torch.float or torch.long
             comm_dtype = torch.float
-            record.comm = torch.zeros(bs, opt.game_nagents, opt.game_comm_bits, dtype=comm_dtype)
+            record.comm = torch.zeros(opt.game_nagents, opt.game_comm_bits, dtype=comm_dtype)
             if opt.model_dial and opt.model_target:
                 record.comm_target = record.comm.clone()
 
         # Track hidden state per time t per agent
-        record.hidden = torch.zeros(opt.game_nagents, opt.model_rnn_layers, bs, opt.model_rnn_size)
-        record.hidden_target = torch.zeros(opt.game_nagents, opt.model_rnn_layers, bs, opt.model_rnn_size)
+        record.hidden = torch.zeros(opt.game_nagents, opt.model_rnn_layers, opt.model_rnn_size)
+        record.hidden_target = torch.zeros(opt.game_nagents, opt.model_rnn_layers, opt.model_rnn_size)
 
         # Track Q(a_t) and Q(a_max_t) per agent
-        record.q_a_t = torch.zeros(bs, opt.game_nagents)
-        record.q_a_max_t = torch.zeros(bs, opt.game_nagents)
+        record.q_a_t = torch.zeros(opt.game_nagents)
+        record.q_a_max_t = torch.zeros(opt.game_nagents)
 
         # Track Q(m_t) and Q(m_max_t) per agent
         if not opt.model_dial:
-            record.q_comm_t = torch.zeros(bs, opt.game_nagents)
-            record.q_comm_max_t = torch.zeros(bs, opt.game_nagents)
+            record.q_comm_t = torch.zeros(opt.game_nagents)
+            record.q_comm_max_t = torch.zeros(opt.game_nagents)
 
         return record
     ###########################################################################
@@ -99,37 +93,29 @@ class CNetAlgo(RLAlgo):
         self.model_target.reset_parameters()
         self.episodes_seen = 0
     
-    # def _eps_flip(self, eps):
-    #     # Sample Bernoulli with P(True) = eps
-    #     return np.random.rand(self.opt.bs) < eps
-    
-    def get_action_comm_range(obs: Observation):
-        # Get the range of actions and communications
-        # foreach batch : if action available : add range to the result (1, action_space) else (1, 1)
-        pass
-
-    
-    def select_action_and_comm(self, q, eps=0, target=False):
+    def select_action_and_comm(self, obs: Observation, q, agent_idx: int, target=False):
         # eps-Greedy action selector
         opt = self.opt
-        action_range, comm_range = self.get_action_comm_range() # TODO according to the game
-        action = torch.zeros(opt.bs, dtype=torch.long)
-        action_value = torch.zeros(opt.bs)
-        comm_action = torch.zeros(opt.bs).int()
-        comm_vector = torch.zeros(opt.bs, opt.game_comm_bits)
+        action = None
+        action_value = None
+        comm_action = None
+        comm_vector = torch.zeros(opt.game_comm_bits)
         comm_value = None
         if not opt.model_dial:
             comm_value = torch.zeros(opt.bs)
 
-        # should_select_random_comm = None
-        # should_select_random_a = self._eps_flip(eps) # TODO : Use Policy 
-        # if not opt.model_dial:
-        #     should_select_random_comm = self._eps_flip(eps)
-
         # Get action + comm
+        action = self.policy.get_action(q[:opt.game_action_space], obs.available_actions[agent_idx])
+        action_value = q[action]
+
+        if not opt.model_dial:
+            comm = self.policy.get_action(q[opt.game_action_space:opt.game_action_space_total], [1 for _ in range(opt.game_comm_bits)])
+            action_value = q[comm + opt.game_action_space]
+            comm_vector[comm] = 1
+        else:
+            comm_vector = self.dru.forward(q[opt.game_action_space:opt.game_action_space_total], self.training_mode)
 
         return (action, action_value), (comm_vector, comm_action, comm_value)
-
 
     def episode_loss(self, episode):
         opt = self.opt
@@ -191,25 +177,24 @@ class CNetAlgo(RLAlgo):
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
-    
-    def choose_action(self, obs: Observation) -> np.ndarray:
+
+    def compute_qvalues_and_hidden(self, observation: Observation):
         opt = self.opt
+        hidden_res = []
+        q_t_res = []
         with torch.no_grad():
             # TODO : Get agent_input : s_t = obs, messages (history), hidden (history), prev_action (history), agent_index ? 1 pass foreach agent ?
-            self.episode.step_records.append(self.create_step_record(opt.bs))
-            self.step += 1
-            obs, extras = self.to_tensor(obs) 
+            self.episode.step_records.append(self.create_step_record())
+            step_minus_1_id = -3
+            step_id = -2
+            step_plus_1_id = -1
+            step_greater_0 = len(self.episode.step_records) > 2
+            obs, extras = self.to_tensor(observation) 
             for i in range(self.opt.game_nagents):
-                agent_id = i
-                # TODO : improve for batch
-                # messages = self.episode.step_records[self.step-1].comm.to(self.device) # Comm from t is stored on t+1
-                # prev_actions = self.episode.step_records[self.step-1].a_t[agent_id].to(self.device) # Action from t is stored on t
-                # hidden = self.episode.step_records[self.step-1].hidden.to(self.device) # Hidden from t is stored on t
-                # Get received messages per agent per batch
                 agent_idx = i
                 comm = None
                 if opt.comm_enabled:
-                    comm = self.episode.step_records[self.step].comm.clone()
+                    comm = self.episode.step_records[step_id].comm.clone()
                     # comm_limited = self.game.get_comm_limited(step, agent.id)
                     # if comm_limited is not None:
                     #     comm_lim = torch.zeros(opt.bs, 1, opt.game_comm_bits)
@@ -218,67 +203,124 @@ class CNetAlgo(RLAlgo):
                     #             comm_lim[b] = comm[b][comm_limited[b] - 1]
                     #     comm = comm_lim
                     # else:
-                    comm[:, agent_idx].zero_()
+                    comm[agent_idx].zero_()
 
-                # Get prev action per batch
-                prev_action = None
+                # Get prev action 
+                prev_action = torch.tensor(0, dtype=torch.long).to(self.device)
+                prev_message = torch.tensor(0, dtype=torch.long).to(self.device)
                 if opt.model_action_aware:
-                    prev_action = torch.ones(opt.bs, dtype=torch.long)
+                    if step_greater_0 and self.episode.step_records[step_minus_1_id].a_t[agent_idx] > 0:
+                        prev_action= self.episode.step_records[step_minus_1_id].a_t[agent_idx]
                     if not opt.model_dial:
-                        prev_message = torch.ones(opt.bs, dtype=torch.long)
-                    for b in range(opt.bs):
-                        if self.step > 0 and self.episode.step_records[self.step - 1].a_t[b, agent_idx] > 0:
-                            prev_action[b] = self.episode.step_records[self.step - 1].a_t[b, agent_idx]
-                        if not opt.model_dial:
-                            if self.step > 0 and self.episode.step_records[self.step - 1].a_comm_t[b, agent_idx] > 0:
-                                prev_message[b] = self.episode.step_records[self.step - 1].a_comm_t[b, agent_idx]
+                        if step_greater_0 and self.episode.step_records[step_minus_1_id].a_comm_t[agent_idx] > 0:
+                            prev_message = self.episode.step_records[step_minus_1_id].a_comm_t[agent_idx]
                     if not opt.model_dial:
                         prev_action = (prev_action, prev_message)
 
-                # Batch agent index for input into model
-                batch_agent_index = torch.zeros(opt.bs, dtype=torch.long).fill_(agent_idx)
+                agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
 
                 agent_inputs = {
 					'obs': obs,
                     'extras': extras,
 					'messages': comm.to(self.device), # Messages
-					'hidden': self.episode.step_records[self.step].hidden[agent_idx, :].to(self.device), # Hidden state
-					'prev_action': prev_action.to(self.device),
-					'agent_index': batch_agent_index.to(self.device)
+					'hidden': self.episode.step_records[step_id].hidden.to(self.device), # Hidden state # TODO : one hidden state per agent
+					'prev_action': prev_action,
+					'agent_index': agent_idx
 				}
                 # Compute model output (Q function + message bits)
                 hidden_t, q_t = self.model.forward(**agent_inputs)
-                self.episode.step_records[self.step+1].hidden[agent_id] = hidden_t
+                hidden_res.append(hidden_t)
+                q_t_res.append(q_t)
+        return hidden_res, q_t_res
+
+    def choose_action(self, observation: Observation) -> np.ndarray:
+        opt = self.opt
+        actions = []
+        with torch.no_grad():
+            # TODO : Get agent_input : s_t = obs, messages (history), hidden (history), prev_action (history), agent_index ? 1 pass foreach agent ?
+            self.episode.step_records.append(self.create_step_record())
+            step_minus_1_id = -3
+            step_id = -2
+            step_plus_1_id = -1
+            step_greater_0 = len(self.episode.step_records) > 2
+            obs, extras = self.to_tensor(observation) 
+            for i in range(self.opt.game_nagents):
+                agent_idx = i
+                comm = None
+                if opt.comm_enabled:
+                    comm = self.episode.step_records[step_id].comm.clone()
+                    # comm_limited = self.game.get_comm_limited(step, agent.id)
+                    # if comm_limited is not None:
+                    #     comm_lim = torch.zeros(opt.bs, 1, opt.game_comm_bits)
+                    #     for b in range(opt.bs):
+                    #         if comm_limited[b].item() > 0:
+                    #             comm_lim[b] = comm[b][comm_limited[b] - 1]
+                    #     comm = comm_lim
+                    # else:
+                    comm[agent_idx].zero_()
+
+                # Get prev action 
+                prev_action = torch.tensor(0, dtype=torch.long).to(self.device)
+                prev_message = torch.tensor(0, dtype=torch.long).to(self.device)
+                if opt.model_action_aware:
+                    if step_greater_0 and self.episode.step_records[step_minus_1_id].a_t[agent_idx] > 0:
+                        prev_action= self.episode.step_records[step_minus_1_id].a_t[agent_idx].to(self.device)
+                    if not opt.model_dial:
+                        if step_greater_0 and self.episode.step_records[step_minus_1_id].a_comm_t[agent_idx] > 0:
+                            prev_message = self.episode.step_records[step_minus_1_id].a_comm_t[agent_idx].to(self.device)
+                    if not opt.model_dial:
+                        prev_action = (prev_action, prev_message)
+
+                agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
+
+                agent_inputs = {
+					'obs': obs,
+                    'extras': extras,
+					'messages': comm.to(self.device), # Messages
+					'hidden': self.episode.step_records[step_id].hidden.to(self.device), # Hidden state # TODO : one hidden state per agent
+					'prev_action': prev_action,
+					'agent_index': agent_idx
+				}
+                # Compute model output (Q function + message bits)
+                hidden_t, q_t = self.model.forward(**agent_inputs)
+                self.episode.step_records[step_plus_1_id].hidden = hidden_t
 
                 # Choose next action and comm using eps-greedy selector
                 (action, action_value), (comm_vector, comm_action, comm_value) = \
-                    self.select_action_and_comm(q_t)
+                    self.select_action_and_comm(observation, q_t, agent_idx)
+                
+                actions.append(action.cpu().item())
 
-            qvalues = self.compute_qvalues(obs)
-            # TODO : Store action and comm in the history : for qvalue t+1 : messages (history), hidden (history), prev_action (history)                                           for update ?        
-        qvalues = qvalues.cpu().numpy()
-        
-        return self.policy.get_action(qvalues, obs.available_actions) # TODO : Replace by select_action_and_comm
+                # Store action + comm
+                self.episode.step_records[step_id].a_t[agent_idx] = action
+                self.episode.step_records[step_id].q_a_t[agent_idx] = action_value
+                self.episode.step_records[step_plus_1_id].comm[agent_idx] = comm_vector
+                if not opt.model_dial:
+                    self.episode.step_records[step_id].a_comm_t[:, agent_idx] = comm_action
+                    self.episode.step_records[step_id].q_comm_t[:, agent_idx] = comm_value
+
+        return actions
 
     def value(self, obs: Observation) -> float:
-        #return self.model.value(obs).item()
-        return 0
+        agent_values = self.compute_qvalues(obs).max(dim=-1).values
+        return agent_values.mean(dim=-1).cpu().item()
 
     def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        message = self._encode_message(obs)
-        q_input = self._add_message_to_observation(obs, message)
-        return self.qnetwork.qvalues(q_input)
+        _, q = self.compute_qvalues_and_hidden(obs)
+        return torch.stack(q)
 
     def set_testing(self):
         self.training_mode = False
+        self.policy = self.test_policy
 
     def set_training(self):
         self.training_mode = True
+        self.policy = self.train_policy
 
     def new_episode(self):
         # Clear the history 
-        self.episode = self.create_episode(self.opt.bs)
-        self.episode.step_records.append(self.create_step_record(self.opt.bs))
+        self.episode = self.create_episode()
+        self.episode.step_records.append(self.create_step_record())
     
     #TODO : Save weights
     def save(self, to_directory: str):

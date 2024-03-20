@@ -468,7 +468,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         # extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
         # features = torch.concat((features, extras), dim=-1)
         # features = features[agent_index, :].squeeze(0)
-        s_t = Variable(obs.squeeze(0)[agent_index[-1]])
+        s_t = Variable(obs.squeeze(0)[agent_index])
         hidden = Variable(hidden)
         prev_message = None
         if opt.model_dial:
@@ -494,11 +494,10 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         z = z_a + z_o + z_u + z_m
         z = z.unsqueeze(1)
 
-        hidden = hidden.squeeze(2)
         rnn_out, h_out = self.rnn(z, hidden)
         outputs = self.outputs(rnn_out[:, -1, :].squeeze())
 
-        return h_out, outputs
+        return h_out, outputs[agent_index, :] # TODO : check if this is the correct way to index outputs (modify the given hidden state)
 
     @classmethod
     def from_env(cls, env: RLEnv, opt):
