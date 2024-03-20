@@ -41,26 +41,6 @@ class Batch(ABC):
         self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
 
     @cached_property
-    def obs(self) -> torch.Tensor:
-        """Observations"""
-        return self.all_obs[:-1]
-
-    @cached_property
-    def obs_(self) -> torch.Tensor:
-        """Next observations"""
-        return self.all_obs[1:]
-
-    @cached_property
-    def extras(self) -> torch.Tensor:
-        """Extra information"""
-        return self.all_extras[:-1]
-
-    @cached_property
-    def extras_(self) -> torch.Tensor:
-        """Nest extra information"""
-        return self.all_extras[1:]
-
-    @cached_property
     def one_hot_actions(self) -> torch.Tensor:
         """One hot encoded actions"""
         # Actions have a last dimension of size 1 that we have to remove
@@ -69,39 +49,61 @@ class Batch(ABC):
         return one_hot
 
     @cached_property
+    def all_obs_(self) -> torch.Tensor:
+        """
+        The first observation of the batch followed by the
+        next observations of the batch.
+
+        i.e: all observations from t=0 (reset) up to the end.
+        """
+        first_obs = self.obs[0].unsqueeze(0)
+        return torch.cat([first_obs, self.obs_])
+
+    @cached_property
+    def all_extras_(self) -> torch.Tensor:
+        """All extra information from t=0 (reset) up to the end."""
+        first_extras = self.extras[0].unsqueeze(0)
+        return torch.cat([first_extras, self.extras_])
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def obs(self) -> torch.Tensor:
+        """Observations"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def obs_(self) -> torch.Tensor:
+        """Next observations"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def extras(self) -> torch.Tensor:
+        """Extra information"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def extras_(self) -> torch.Tensor:
+        """Next extra information"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
     def available_actions(self) -> torch.Tensor:
         """Available actions"""
-        return self.all_available_actions[:-1]
 
+    @abstractmethod  # type: ignore
     @cached_property
     def available_actions_(self) -> torch.Tensor:
         """Next available actions"""
-        return self.all_available_actions[1:]
 
+    @abstractmethod  # type: ignore
     @cached_property
     def states(self) -> torch.Tensor:
         """Environment states"""
-        return self.all_states[:-1]
 
+    @abstractmethod  # type: ignore
     @cached_property
     def states_(self) -> torch.Tensor:
         """Next environment states"""
-        return self.all_states[1:]
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def all_obs(self) -> torch.Tensor:
-        """All observations from t=0 up to episode_length + 1."""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def all_extras(self) -> torch.Tensor:
-        """All extra information from t=0 up to episode_length + 1."""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def all_available_actions(self) -> torch.Tensor:
-        """All available actions from t=0 up to episode_length + 1."""
 
     @abstractmethod  # type: ignore
     @cached_property
@@ -117,11 +119,6 @@ class Batch(ABC):
     @cached_property
     def dones(self) -> torch.Tensor:
         """Dones"""
-
-    @abstractmethod  # type: ignore
-    @cached_property
-    def all_states(self) -> torch.Tensor:
-        """Environment states"""
 
     @abstractmethod  # type: ignore
     @cached_property

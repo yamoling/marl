@@ -86,12 +86,12 @@ class DQNTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
-    def _next_state_value(self, batch: Batch, qvalues_: torch.Tensor):
-        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
+    def _next_state_value(self, batch: Batch):
+        # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            # qvalues_ = qvalues_.detach()
-            qvalues_for_index = qvalues_
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
@@ -110,11 +110,7 @@ class DQNTrainer(Trainer):
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues and qvalues with target network computation
-        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
-
-        qvalues = all_qvalues[:-1]
-        qvalues_ = all_qvalues[1:]
-        del all_qvalues
+        qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
 
         chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
         mixed_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
@@ -124,7 +120,7 @@ class DQNTrainer(Trainer):
         del chosen_qvalues
 
         # Qtargets computation
-        next_values = self._next_state_value(batch, qvalues_)
+        next_values = self._next_state_value(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == mixed_qvalues.shape == batch.masks.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         # Compute the loss

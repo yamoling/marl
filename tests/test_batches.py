@@ -1,5 +1,7 @@
+import numpy as np
 import torch
 import random
+from copy import deepcopy
 from marl.models.batch import EpisodeBatch, TransitionBatch, Batch
 from rlenv.wrappers import TimeLimit
 from rlenv import EpisodeBuilder, Transition, Builder, MockEnv
@@ -46,8 +48,7 @@ def test_episode_batch_returns():
 
 def _batch_test(batch: Batch):
     assert (
-        batch.size
-        == len(batch.obs)
+        len(batch.obs)
         == len(batch.obs_)
         == len(batch.extras)
         == len(batch.extras_)
@@ -58,29 +59,35 @@ def _batch_test(batch: Batch):
         == len(batch.masks)
         == len(batch.rewards)
     )
-    assert batch.size + 1 == len(batch.all_obs) == len(batch.all_extras) == len(batch.all_states) == len(batch.all_available_actions)
+    assert len(batch.all_obs_) == len(batch.all_extras_)
+    assert torch.equal(batch.all_obs_[0], batch.obs[0])
     for i in range(len(batch)):
-        assert torch.equal(batch.obs[i], batch.all_obs[i])
-        assert torch.equal(batch.obs_[i], batch.all_obs[i + 1])
-        assert torch.equal(batch.extras[i], batch.all_extras[i])
-        assert torch.equal(batch.extras_[i], batch.all_extras[i + 1])
-        assert torch.equal(batch.states[i], batch.all_states[i])
-        assert torch.equal(batch.states_[i], batch.all_states[i + 1])
-        assert torch.equal(batch.available_actions[i], batch.all_available_actions[i])
-        assert torch.equal(batch.available_actions_[i], batch.all_available_actions[i + 1])
+        assert torch.equal(batch.obs_[i], batch.all_obs_[i + 1])
+        assert torch.equal(batch.extras_[i], batch.all_extras_[i + 1])
 
 
-def test_transition_batch_obs():
-    env = Builder(MockEnv(2)).time_limit(4).build()
+def test_transition_batch():
+    env = Builder(MockEnv(2)).time_limit(10).build()
     episode = generate_episode(env)
     transitions = list(episode.transitions())
     random.shuffle(transitions)
     batch = TransitionBatch(transitions)
+
+    obs = torch.from_numpy(np.array([t.obs.data for t in transitions]))
+    obs_ = torch.from_numpy(np.array([t.obs_.data for t in transitions]))
+    assert torch.equal(batch.obs, obs)
+    assert torch.equal(batch.obs_, obs_)
+    assert torch.equal(batch.all_obs_[1:], obs_)
+    assert torch.equal(batch.all_obs_[0], obs[0])
     _batch_test(batch)
 
 
-def test_episode_batch_obs():
-    env = Builder(MockEnv(2)).time_limit(4).build()
+def test_episode_batch():
+    env = Builder(MockEnv(2)).time_limit(10).build()
     episode = generate_episode(env)
-    batch = EpisodeBatch([episode, episode, episode])
+    episode2 = deepcopy(episode)
+    episode2._observations = np.random.random(episode2._observations.shape).astype(np.float32)
+    episode3 = deepcopy(episode)
+    episode3._observations = np.random.random(episode3._observations.shape).astype(np.float32)
+    batch = EpisodeBatch([episode, episode2, episode3])
     _batch_test(batch)

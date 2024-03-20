@@ -1,34 +1,45 @@
 import torch
 import marl
+import numpy as np
 import random
-from rlenv import Builder, Transition
-from rlenv.models import EpisodeBuilder
+from rlenv import Builder, Transition, MockEnv, EpisodeBuilder, RLEnv
+from marl.models.batch import TransitionBatch
 
-from rlenv import MockEnv
+
+def generate_episode(env: RLEnv):
+    obs = env.reset()
+    episode = EpisodeBuilder()
+    while not episode.is_finished:
+        action = env.action_space.sample()
+        next_obs, r, done, truncated, info = env.step(action)
+        episode.add(Transition(obs, action, r, done, info, next_obs, truncated))
+        obs = next_obs
+    return episode.build()
 
 
 if __name__ == "__main__":
-    env = Builder(MockEnv(2)).time_limit(4).build()
-    done = truncated = False
-    obs = env.reset()
-    episode = EpisodeBuilder()
-    while not (done or truncated):
-        actions = env.action_space.sample(obs.available_actions)
-        obs_, r, done, truncated, info = env.step(actions)
-        episode.add(Transition(obs, actions, r, done, info, obs_, truncated))
-        obs = obs_
-
-    episode = episode.build()
+    MockEnv.OBS_SIZE = 1
+    env = Builder(MockEnv(1)).time_limit(4).build()
+    episode = generate_episode(env)
     transitions = list(episode.transitions())
-    # print(transitions)
     random.shuffle(transitions)
-    # batch = marl.models.batch.TransitionBatch(transitions)
-    batch = marl.models.batch.EpisodeBatch([episode, episode, episode])
+    batch = TransitionBatch(transitions)
 
-    print(batch.obs[:, 1])
-    print(batch.obs_[:, 1])
-    print(batch.all_obs[:, 1])
+    print(batch.all_obs_)
 
-    for i in range(len(batch)):
-        assert torch.equal(batch.obs[i], batch.all_obs[i])
-        assert torch.equal(batch.obs_[i], batch.all_obs[i + 1])
+    for i, t in enumerate(transitions):
+        print(i)
+        print("obs=", t.obs.data.squeeze())
+        print("obs_=", t.obs_.data.squeeze())
+        print("batch.obs=", batch.obs[i].squeeze())
+        print("batch.obs_=", batch.obs_[i].squeeze())
+        print()
+
+    obs = torch.from_numpy(np.array([t.obs.data for t in transitions]))
+    obs_ = torch.from_numpy(np.array([t.obs_.data for t in transitions]))
+    print(obs)
+    print(batch.all_obs_)
+    print(batch.obs)
+    assert torch.equal(batch.obs, obs)
+    assert torch.equal(batch.obs_, obs_)
+    assert torch.equal(batch.all_obs_[1:], obs_)

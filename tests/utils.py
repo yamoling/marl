@@ -17,7 +17,7 @@ def parameters_equal(p1: list[torch.nn.Parameter], p2: list[torch.nn.Parameter])
     return True
 
 
-def generate_episode(env: RLEnv) -> Episode:
+def generate_episode(env: RLEnv):
     obs = env.reset()
     episode = EpisodeBuilder()
     while not episode.is_finished:
