@@ -9,14 +9,11 @@ class Schedule:
     name: str
     start_value: float
     end_value: float
-    n_steps: int
 
-    def __init__(self, start_value: float, end_value: float, n_steps: int):
+    def __init__(self, start_value: float, end_value: float):
         self.start_value = start_value
         self.end_value = end_value
-        self.n_steps = n_steps
         self.name = self.__class__.__name__
-        self.current_step = 0
 
     def rounded(self, n_digits: int = 0) -> "RoundedSchedule":
         return RoundedSchedule(self, n_digits)
@@ -110,49 +107,59 @@ class Schedule:
         return int(self.value)
 
 
+@dataclass
 class LinearSchedule(Schedule):
+    n_steps: int
+
     def __init__(self, start_value: float, end_value: float, n_steps: int):
-        super().__init__(start_value, end_value, n_steps)
+        super().__init__(start_value, end_value)
+        self.n_steps = n_steps
         self.current_value = self.start_value
         # y = ax + b
         self.a = (self.end_value - self.start_value) / self.n_steps
         self.b = self.start_value
+        self.t = 0
 
     def update(self, step: Optional[int] = None):
         if step is None:
-            self.current_step += 1
+            self.t += 1
         else:
-            self.current_step = step
-        if self.current_step >= self.n_steps:
+            self.t = step
+        if self.t >= self.n_steps:
             self.current_value = self.end_value
         else:
-            self.current_value = self.a * (self.current_step) + self.b
+            self.current_value = self.a * (self.t) + self.b
 
     @property
     def value(self) -> float:
         return self.current_value
 
 
+@dataclass
 class ExpSchedule(Schedule):
     """Exponential schedule. After n_steps, the value will be min_value.
 
     Update formula is next_value = start_value * (min_value / start_value) ** (step / (n - 1))
     """
 
+    n_steps: int
+
     def __init__(self, start_value: float, min_value: float, n_steps: int):
-        super().__init__(start_value, min_value, n_steps)
+        super().__init__(start_value, min_value)
+        self.n_steps = n_steps
         self.current_value = self.start_value
         self.base = self.end_value / self.start_value
         self.last_update_step = self.n_steps - 1
+        self.t = 0
 
     def update(self, step: Optional[int] = None):
         if step is not None:
             raise NotImplementedError("ExpSchedule does not support direct step updates")
-        if self.current_step >= self.last_update_step:
+        if self.t >= self.last_update_step:
             self.current_value = self.end_value
         else:
-            self.current_step += 1
-            self.current_value = self.start_value * (self.base) ** (self.current_step / (self.n_steps - 1))
+            self.t += 1
+            self.current_value = self.start_value * (self.base) ** (self.t / (self.n_steps - 1))
 
     @property
     def value(self) -> float:
@@ -161,7 +168,7 @@ class ExpSchedule(Schedule):
 
 class ConstantSchedule(Schedule):
     def __init__(self, value: float):
-        super().__init__(value, value, 0)
+        super().__init__(value, value)
         self._value = value
 
     def update(self, step=None):
@@ -184,3 +191,34 @@ class RoundedSchedule(Schedule):
     @property
     def value(self) -> float:
         return round(self.schedule.value, self.n_digits)
+
+
+class MultiSchedule(Schedule):
+    def __init__(self, schedules: dict[int, Schedule]):
+        first_schedule = schedules.get(0, None)
+        if first_schedule is None:
+            raise ValueError("First schedule must start at t=0")
+        sorted_steps = sorted(schedules.keys())
+        start = first_schedule.start_value
+        end = schedules[sorted_steps[-1]].end_value
+        super().__init__(start, end)
+
+        self.schedules = [(t, schedules[t]) for t in sorted_steps]
+        self.current_schedule = first_schedule
+        self.t = 0
+
+    def update(self, step: int | None = None):
+        if step is None:
+            self.t += 1
+        else:
+            self.t = step
+
+        index = 0
+        while index < len(self.schedules) - 1 and self.t >= self.schedules[index + 1][0]:
+            index += 1
+        t, self.current_schedule = self.schedules[index]
+        self.current_schedule.update(self.t - t)
+
+    @property
+    def value(self):
+        return self.current_schedule.value

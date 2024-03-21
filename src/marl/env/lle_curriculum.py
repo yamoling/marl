@@ -29,7 +29,7 @@ class CurriculumLearning(RLEnvWrapper):
 
 
 class RandomInitialStates(RLEnvWrapper):
-    def __init__(self, env: LLE):
+    def __init__(self, env: LLE, accumulate: bool = False):
         super().__init__(env)
         self.lle = env
         self.world = env.world
@@ -37,7 +37,11 @@ class RandomInitialStates(RLEnvWrapper):
         self.area0 = [(i, j) for i in range(7, self.world.height) for j in range(7)]
         self.area0 += [(i, j) for i in range(9, self.world.height) for j in range(7, self.world.width) if (i, j) not in self.world.exit_pos]
         self.area1 = [(5, j) for j in range(self.world.width)]
+        if accumulate:
+            self.area1 += self.area0
         self.area2 = [(i, j) for i in range(4) for j in range(2, self.world.width)]
+        if accumulate:
+            self.area2 = self.area2 + self.area1
 
     def get_initial_state(self):
         if self.t < 300_000:

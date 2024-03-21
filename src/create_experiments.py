@@ -3,13 +3,13 @@ import marl
 import lle
 import rlenv
 from typing import Optional
-from itertools import permutations
 import typed_argparse as tap
 from lle import WorldState
 from marl.training import DQNTrainer
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
+from marl.utils import MultiSchedule, LinearSchedule
 
 from run import Arguments as RunArguments, main as run_experiment
 
@@ -125,18 +125,26 @@ def create_lle(args: Arguments):
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     width, height = env.width, env.height
     # env = curriculum(env, n_steps)
-    env = marl.env.lle_curriculum.RandomInitialStates(env)
+    env = marl.env.lle_curriculum.RandomInitialStates(env, True)
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=False).build()
     # env = ExtraObjective(env, 2, [0, -0.1])
-    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=500_000,
+    eps_schedule = MultiSchedule(
+        {
+            0: LinearSchedule(1, 0.05, 150_000),
+            300_000: LinearSchedule(1, 0.05, 150_000),
+            600_000: LinearSchedule(1, 0.05, 150_000),
+        }
     )
+    train_policy = marl.policy.EpsilonGreedy(eps_schedule)
+    # train_policy = marl.policy.EpsilonGreedy.linear(
+    #    1.0,
+    #    0.05,
+    #    n_steps=500_000,
+    # )
     # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
     #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
     #     normalise_rewards=False,
