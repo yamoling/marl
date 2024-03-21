@@ -8,7 +8,7 @@ class DRU: # Source : https://github.com/minqi/learning-to-communicate-pytorch
 		self.hard = hard
 
 	def regularize(self, m):	
-		m_reg = m + torch.randn(m.size()) * self.sigma
+		m_reg = m + torch.randn(m.size()).to(m.device) * self.sigma
 		if self.comm_narrow:
 			m_reg = torch.sigmoid(m_reg)
 		else:

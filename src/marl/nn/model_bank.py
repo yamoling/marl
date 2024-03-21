@@ -402,7 +402,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
         # Set up inputs
         self.agent_lookup = nn.Embedding(opt.game_nagents, opt.model_rnn_size)
-        self.state_lookup = nn.Linear(reduce(operator.mul, input_shape), opt.model_rnn_size) # TODO : verify that num_embeddings is n_features = input size
+        self.state_lookup = nn.Linear(n_features + extras_size, opt.model_rnn_size)
         # Action aware
         self.prev_message_lookup = None
         if opt.model_action_aware:
@@ -455,20 +455,20 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         for p in self.rnn.parameters():
             p.data.uniform_(*self.init_param_range)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, messages, hidden, prev_action, agent_index):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, messages, hidden, prev_action):
         opt = self.opt
 
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-        # *dims, channels, height, width = obs.shape
-        # leading_dims_size = math.prod(dims)
-        # # We must use 'reshape' instead of 'view' to handle the case of episodes
-        # obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
-        # features = self.cnn.forward(obs)
-        # extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
-        # features = torch.concat((features, extras), dim=-1)
-        # features = features[agent_index, :].squeeze(0)
-        s_t = Variable(obs.squeeze(0)[agent_index])
+        *dims, channels, height, width = obs.shape
+        leading_dims_size = math.prod(dims)
+        # We must use 'reshape' instead of 'view' to handle the case of episodes
+        obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
+        features = self.cnn.forward(obs)
+        extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
+        features = torch.concat((features, extras), dim=-1)
+
+        s_t = Variable(features)
         hidden = Variable(hidden)
         prev_message = None
         if opt.model_dial:
@@ -480,11 +480,11 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
                 prev_action = Variable(prev_action)
                 prev_message = Variable(prev_message)
             messages = Variable(messages)
-        agent_index = Variable(agent_index)
+        # agent_index = Variable(agent_index)
 
         z_a, z_o, z_u, z_m = [0]*4
-        z_a = self.agent_lookup(agent_index)
-        z_o = self.state_lookup(s_t.view(-1)) # 1D state
+        # z_a = self.agent_lookup(agent_index)
+        z_o = self.state_lookup(s_t)
         if opt.model_action_aware:
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
@@ -497,7 +497,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         rnn_out, h_out = self.rnn(z, hidden)
         outputs = self.outputs(rnn_out[:, -1, :].squeeze())
 
-        return h_out, outputs[agent_index, :] # TODO : check if this is the correct way to index outputs (modify the given hidden state)
+        return h_out, outputs
 
     @classmethod
     def from_env(cls, env: RLEnv, opt):

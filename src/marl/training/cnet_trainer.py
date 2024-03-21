@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from marl.models import Trainer
 from rlenv import Transition, Episode
-from marl.qlearning import CNetAlgo
+from marl.qlearning import CNetAlgo, EpisodeCommWrapper
 
 from dataclasses import dataclass
 from serde import serialize
@@ -11,60 +11,40 @@ from typing_extensions import Self
 
 import torch
 
-
-class EpisodeCommWrapper:
-    def __init__(self):
-        self.episodes = []
-
-    def get_episode(self, ep_num: int):
-        if len(self.episodes) > ep_num:
-            return self.episodes[ep_num]
-    
-    def add_episode(self, episode: Episode):
-        self.episodes.append(episode)
-    
-    def clear(self):
-        self.episodes = []
-
 @serialize
 @dataclass
 class CNetTrainer(Trainer):
     def __init__(self, opt,  agents: CNetAlgo):
         super().__init__("episode", opt.bs)
+        self.opt = opt
         self.agents = agents
         self.memory = EpisodeCommWrapper()
-        self.current_episode = None
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        """
-        Update to call after each step. Should be run when update_after_each == "step".
-
-        Returns:
-            dict[str, Any]: A dictionary of training metrics to log.
-        
-        Put information in memory (transition + agent)
-        """
-        if (self.current_episode is None):
-            self.current_episode = self.agents.create_episode()
-        # TODO : update current episode
-        
         return {}
+    
+    def fill_episode(self, episode: Episode, agent_episode):
+        agent_episode.steps = episode.episode_len
+
+        for time_step in range(episode.episode_len):
+            # Add rewards
+            reward = episode.rewards[time_step]
+            agent_episode.step_records[time_step].rewards = reward # TODO convert to the good type
+            # Add terminals
+            done = episode.dones[time_step]
+            agent_episode.step_records[time_step].terminal = done
+        
+        return agent_episode
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
-        """
-        Update to call after each episode. Should be run when update_after_each == "episode".
 
-        Returns:
-            dict[str, Any]: A dictionary of training metrics to log.
+        episode_from_agent = self.agents.get_episode()
+        self.memory.add_episode(self.fill_episode(episode, episode_from_agent))
 
-        When update interval is reached : update with the bs last episodes
-        """
-        # TODO : Add current_episode to memory
-        # clear current_episode
-        # if update_interval is reached, 
-            # update with the memory
-            # clear memory
-        
+        if episode_num % self.update_interval == 0:
+            self.agents.learn_from_episode(self.memory.get_batch(self.opt))
+            self.memory.clear()
+
         return {}
 
 
