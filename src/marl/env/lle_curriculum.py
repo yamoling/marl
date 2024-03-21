@@ -29,26 +29,32 @@ class CurriculumLearning(RLEnvWrapper):
 
 
 class RandomInitialStates(RLEnvWrapper):
-    def __init__(self, env: LLE, states: dict[int, list[WorldState]]):
+    def __init__(self, env: LLE):
         super().__init__(env)
-        self.world = env.world
         self.lle = env
-        self.change_steps = list(states.keys())
-        self.change_steps.sort()
-        self.states = [states[step] for step in self.change_steps]
-        self.change_steps = self.change_steps[1:] + [float("inf")]
+        self.world = env.world
         self.t = 0
-        self.current_set = 0
+        self.area0 = [(i, j) for i in range(7, self.world.height) for j in range(7)]
+        self.area0 += [(i, j) for i in range(9, self.world.height) for j in range(7, self.world.width) if (i, j) not in self.world.exit_pos]
+        self.area1 = [(5, j) for j in range(self.world.width)]
+        self.area2 = [(i, j) for i in range(4) for j in range(2, self.world.width)]
+
+    def get_initial_state(self):
+        if self.t < 300_000:
+            area = self.area0
+        elif self.t < 600_000:
+            area = self.area1
+        else:
+            area = self.area2
+        pos = random.sample(area, k=self.world.n_agents)
+        return WorldState(pos, [False] * self.world.n_gems)
 
     def step(self, action):
         self.t += 1
-        print(self.world.get_state())
         return super().step(action)
 
     def reset(self):
-        if self.t >= self.change_steps[self.current_set]:
-            self.current_set += 1
-        initial_states_set = self.states[self.current_set]
-        initial_state = random.choice(initial_states_set)
-        self.world.set_state(initial_state)
+        self.lle.reset()
+        initial_state = self.get_initial_state()
+        self.lle.set_state(initial_state)
         return self.lle.get_observation()
