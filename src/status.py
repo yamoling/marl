@@ -22,6 +22,7 @@ class Arguments(tap.TypedArgs):
 
 
 def print_status(experiment: marl.Experiment):
+    print(f"Experiment {experiment.logdir} has {len(experiment.runs)} runs")
     if len(experiment.runs) == 0:
         print("No runs in experiment")
         return 0
@@ -33,8 +34,6 @@ def print_status(experiment: marl.Experiment):
             progress = run.get_progress(max_steps)
             print(f"\t[{progress * 100:6.2f} %] Run {run.rundir} is active with pid {pid}")
             actives += 1
-        else:
-            print(f"Run {run.rundir} is inactive")
     print(f"{actives}/{len(experiment.runs)} active runs")
 
 
@@ -60,7 +59,16 @@ def interrupt_runs(exp: marl.Experiment):
 
 
 def list_active_runs(args: ListArguments):
-    raise NotImplementedError("This function is not implemented yet.")
+    root = args.logdir
+    for directory in os.listdir(root):
+        directory = os.path.join(root, directory)
+        try:
+            exp = marl.Experiment.load(directory)
+            print_status(exp)
+        except FileNotFoundError:
+            continue
+        except Exception:
+            print(f"Unexpected error loading {directory}")
 
 
 def kill_runs(args: KillArguments):

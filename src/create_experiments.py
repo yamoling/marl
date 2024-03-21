@@ -130,7 +130,7 @@ def create_lle(args: Arguments):
 
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=False).build()
     # env = ExtraObjective(env, 2, [0, -0.1])
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
