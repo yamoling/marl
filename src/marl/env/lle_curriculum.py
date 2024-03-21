@@ -58,3 +58,7 @@ class RandomInitialStates(RLEnvWrapper):
         initial_state = self.get_initial_state()
         self.lle.set_state(initial_state)
         return self.lle.get_observation()
+
+    def seed(self, seed_value: int):
+        random.seed(seed_value)
+        return super().seed(seed_value)

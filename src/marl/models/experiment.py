@@ -269,16 +269,16 @@ class Experiment:
         actions = run.get_test_actions(time_step, test_num)
         self.algo.load(run.get_saved_algo_dir(time_step))
         try:
-            env = run.get_test_env(time_step, test_num)
+            env = run.get_test_env(time_step)
         except exceptions.TestEnvNotSavedException:
             # The environment has not been saved, fallback to the local one
-            env = self.env
+            env = deepcopy(self.env)
 
+        env.seed(time_step + test_num)
         obs = env.reset()
         values = []
         frames = [encode_b64_image(env.render("rgb_array"))]
         episode = EpisodeBuilder()
-        qvalues = []
         try:
             for action in actions:
                 values.append(self.algo.value(obs))
@@ -304,5 +304,5 @@ class Experiment:
             )
         except AssertionError:
             raise ValueError(
-                "Not possible to replay the episode. Maybe the enivornment state was not saved properly or it does not support (un)pickling."
+                "Not possible to replay the episode. Maybe the enivornment state was not saved properly or does not support (un)pickling."
             )

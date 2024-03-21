@@ -72,10 +72,9 @@ class Runner:
         """Test the agent"""
         self._algo.set_testing()
         episodes = list[Episode]()
-        saved_env = list[RLEnv]()
         test_env = deepcopy(self._env)
-        for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-            saved_env.append(test_env)
+        for test_num in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+            test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
             obs = test_env.reset()
             intial_value = self._algo.value(obs)
@@ -87,7 +86,7 @@ class Runner:
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        run_handle.log_tests(episodes, saved_env, self._algo, time_step)
+        run_handle.log_tests(episodes, test_env, self._algo, time_step)
         self._algo.set_training()
 
     def randomize(self):

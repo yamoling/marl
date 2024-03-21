@@ -47,8 +47,8 @@ class Run:
     def load(rundir: str):
         return Run(rundir)
 
-    def get_test_env(self, time_step: int, test_num: int) -> RLEnv:
-        test_directory = self.test_dir(time_step, test_num)
+    def get_test_env(self, time_step: int) -> RLEnv:
+        test_directory = self.test_dir(time_step)
         env_file = os.path.join(test_directory, ENV_PICKLE)
         try:
             with open(env_file, "rb") as f:
@@ -199,20 +199,19 @@ class RunHandle:
         self.training_data_logger = training_data_logger
         self.run = run
 
-    def log_tests(self, episodes: list[Episode], saved_env: list[RLEnv], algo: RLAlgo, time_step: int):
+    def log_tests(self, episodes: list[Episode], test_env: RLEnv, algo: RLAlgo, time_step: int):
         algo.save(self.run.test_dir(time_step))
-        for i, (episode, env) in enumerate(zip(episodes, saved_env)):
+        try:
+            with open(os.path.join(self.run.test_dir(time_step), ENV_PICKLE), "wb") as e:
+                pickle.dump(test_env, e)
+        except (AttributeError, pickle.PicklingError):
+            pass
+        for i, episode in enumerate(episodes):
             episode_directory = self.run.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
             os.makedirs(episode_directory)
             with open(os.path.join(episode_directory, ACTIONS), "w") as a:
                 json.dump(episode.actions.tolist(), a)
-            if env is not None:
-                try:
-                    with open(os.path.join(episode_directory, ENV_PICKLE), "wb") as e:
-                        pickle.dump(env, e)
-                except (AttributeError, pickle.PicklingError):
-                    pass
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)
