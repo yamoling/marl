@@ -121,18 +121,18 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    # env = curriculum(env, n_steps)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
+    env = curriculum(env, n_steps)
     # from marl.env import ExtraObjective
 
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=False).build()
     # env = ExtraObjective(env, 2, [0, -0.1])
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=100_000,
+        n_steps=500_000,
     )
     # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
     #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),

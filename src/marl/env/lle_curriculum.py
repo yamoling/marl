@@ -25,3 +25,18 @@ class CurriculumLearning(RLEnvWrapper):
                 self.index += 1
         self.world.set_state(self.initial_states[self.index])
         return self.lle.get_observation()
+
+
+
+class RandomInitialStates(RLEnvWrapper):
+    def __init__(self, env: LLE, states: list[WorldState]):
+        super().__init__(env)
+        self.world = env.world
+        self.lle = env
+        self.num_states = num_states
+        self.states = [self.world.random_state() for _ in range(num_states)]
+
+    def reset(self):
+        self.lle.reset()
+        self.world.set_state(self.states[np.random.randint(self.num_states)])
+        return self.lle.get_observation()

@@ -181,14 +181,7 @@ class Experiment:
             return None
         return Experiment.find_experiment_directory(parent)
 
-    def create_runner(self, seed: int) -> Runner:
-        import marl
-
-        marl.seed(seed)
-        self.env.seed(seed)
-        self.algo.randomize()
-        self.trainer.randomize()
-
+    def create_runner(self, seed: int):
         return Runner(
             env=self.env,
             algo=self.algo,
@@ -197,15 +190,14 @@ class Experiment:
             seed=seed,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
-            test_env=deepcopy(self.env),
         )
 
     @property
-    def train_dir(self) -> str:
+    def train_dir(self):
         return os.path.join(self.logdir, "train")
 
     @property
-    def test_dir(self) -> str:
+    def test_dir(self):
         return os.path.join(self.logdir, "test")
 
     @staticmethod
@@ -239,7 +231,7 @@ class Experiment:
         return len([run for run in self.runs if run.is_running])
 
     @staticmethod
-    def get_experiment_results(logdir: str, replace_inf=False) -> ExperimentResults:
+    def get_experiment_results(logdir: str, replace_inf=False):
         """Get the test metrics of an experiment."""
         runs = list(Experiment.get_runs(logdir))
         try:

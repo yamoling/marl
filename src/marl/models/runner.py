@@ -1,9 +1,10 @@
 import torch
 from copy import deepcopy
-from typing import Optional, Literal
+from typing import Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
-from marl.utils import defaults_to
+
+import marl
 
 from .trainer import Trainer
 from .algo import RLAlgo
@@ -20,16 +21,15 @@ class Runner:
         seed: int,
         test_interval: int,
         n_steps: int,
-        test_env: Optional[RLEnv] = None,
     ):
         self._trainer = trainer
         self._env = env
-        self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
         self._test_interval = test_interval
         self._max_step = n_steps
         self._run = Run.create(logdir, seed)
-        self.seed(seed)
+        marl.seed(seed, self._env)
+        self.randomize()
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
@@ -73,14 +73,15 @@ class Runner:
         self._algo.set_testing()
         episodes = list[Episode]()
         saved_env = list[RLEnv]()
+        test_env = deepcopy(self._env)
         for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-            saved_env.append(deepcopy(self._test_env))
+            saved_env.append(test_env)
             episode = EpisodeBuilder()
-            obs = self._test_env.reset()
+            obs = test_env.reset()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
-                new_obs, reward, done, truncated, info = self._test_env.step(action)
+                new_obs, reward, done, truncated, info = test_env.step(action)
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
@@ -89,12 +90,7 @@ class Runner:
         run_handle.log_tests(episodes, saved_env, self._algo, time_step)
         self._algo.set_training()
 
-    def seed(self, seed: int):
-        import marl
-
-        marl.seed(seed)
-        self._env.seed(seed)
-        self._test_env.seed(seed)
+    def randomize(self):
         self._algo.randomize()
         self._trainer.randomize()
 

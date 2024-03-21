@@ -2,6 +2,7 @@ import os
 import shutil
 import polars as pl
 import json
+import signal
 import pickle
 from datetime import datetime
 from rlenv import Episode, RLEnv
@@ -97,6 +98,22 @@ class Run:
     def is_running(self) -> bool:
         return self.get_pid() is not None
 
+    def kill(self):
+        """
+        Kill the current run.
+
+        If it is not running, raise a NotRunningException.
+        If the pid file exists but the process is not found, raise a RunProcessNotFound.
+        """
+        pid = self.get_pid()
+        if pid is not None:
+            try:
+                os.kill(pid, signal.SIGINT)
+                return
+            except ProcessLookupError:
+                raise exceptions.RunProcessNotFound(self.rundir, pid)
+        raise exceptions.NotRunningExcception(self.rundir)
+
     @property
     def test_filename(self):
         return os.path.join(self.rundir, TEST)
@@ -138,13 +155,14 @@ class Run:
             return []
 
     def get_pid(self) -> int | None:
-        pid_file = self.pid_filename()
+        pid_file = self.pid_filename
         try:
             with open(pid_file, "r") as f:
                 return int(f.read())
         except FileNotFoundError:
             return None
 
+    @property
     def pid_filename(self):
         return os.path.join(self.rundir, PID)
 
@@ -152,7 +170,7 @@ class Run:
         pid = self.get_pid()
         if pid is not None:
             raise exceptions.AlreadyRunningException(self.rundir, pid)
-        with open(self.pid_filename(), "w") as f:
+        with open(self.pid_filename, "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(
             train_logger=logging.CSVLogger(self.train_filename),
@@ -163,7 +181,7 @@ class Run:
 
     def __exit__(self, *args):
         try:
-            os.remove(self.pid_filename())
+            os.remove(self.pid_filename)
         except FileNotFoundError:
             pass
 
