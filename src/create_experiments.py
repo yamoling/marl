@@ -3,6 +3,7 @@ import marl
 import lle
 import rlenv
 from typing import Optional
+from itertools import permutations
 import typed_argparse as tap
 from lle import WorldState
 from marl.training import DQNTrainer
@@ -117,12 +118,33 @@ def curriculum(env: lle.LLE, n_steps: int):
     return marl.env.CurriculumLearning(env, initial_states, interval)
 
 
+def random_initial_states(env: lle.LLE):
+    # Three different spawn areas:
+    # - below the bottom laser (exclude exit tiles)
+    # - below the top laser
+    # - above the top laser
+    res = dict[int, list[WorldState]]()
+    area0 = [(i, j) for i in range(7, env.height) for j in range(7)]  # Bot left rectangle
+    area0 += [(i, j) for i in range(9, env.height) for j in range(7, env.width) if (i, j) not in env.world.exit_pos]  # Bot right rectangle
+    # All combinations of the area for four agents (without replacement)
+    res[0] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area0, env.n_agents)]
+
+    area1 = [(5, j) for j in range(env.width)]
+    res[300_000] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area1, env.n_agents)]
+
+    area2 = [(i, j) for i in range(4) for j in range(2, env.width)]
+    res[600_000] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area2, env.n_agents)]
+
+    return marl.env.lle_curriculum.RandomInitialStates(env, res)
+
+
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
-    env = curriculum(env, n_steps)
+    # env = curriculum(env, n_steps)
+    env = random_initial_states(env)
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=False).build()

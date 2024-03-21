@@ -1,3 +1,4 @@
+import random
 from rlenv.wrappers import RLEnvWrapper
 from lle import LLE, WorldState
 
@@ -27,16 +28,27 @@ class CurriculumLearning(RLEnvWrapper):
         return self.lle.get_observation()
 
 
-
 class RandomInitialStates(RLEnvWrapper):
-    def __init__(self, env: LLE, states: list[WorldState]):
+    def __init__(self, env: LLE, states: dict[int, list[WorldState]]):
         super().__init__(env)
         self.world = env.world
         self.lle = env
-        self.num_states = num_states
-        self.states = [self.world.random_state() for _ in range(num_states)]
+        self.change_steps = list(states.keys())
+        self.change_steps.sort()
+        self.states = [states[step] for step in self.change_steps]
+        self.change_steps = self.change_steps[1:] + [float("inf")]
+        self.t = 0
+        self.current_set = 0
+
+    def step(self, action):
+        self.t += 1
+        print(self.world.get_state())
+        return super().step(action)
 
     def reset(self):
-        self.lle.reset()
-        self.world.set_state(self.states[np.random.randint(self.num_states)])
+        if self.t >= self.change_steps[self.current_set]:
+            self.current_set += 1
+        initial_states_set = self.states[self.current_set]
+        initial_state = random.choice(initial_states_set)
+        self.world.set_state(initial_state)
         return self.lle.get_observation()

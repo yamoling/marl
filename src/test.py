@@ -1,45 +1,51 @@
-import torch
+import rlenv
 import marl
-import numpy as np
-import random
-from rlenv import Builder, Transition, MockEnv, EpisodeBuilder, RLEnv
-from marl.models.batch import TransitionBatch
+import lle
+from lle import WorldState
+from itertools import permutations
 
 
-def generate_episode(env: RLEnv):
-    obs = env.reset()
-    episode = EpisodeBuilder()
-    while not episode.is_finished:
-        action = env.action_space.sample()
-        next_obs, r, done, truncated, info = env.step(action)
-        episode.add(Transition(obs, action, r, done, info, next_obs, truncated))
-        obs = next_obs
-    return episode.build()
+def random_initial_states(env: lle.LLE):
+    # Three different spawn areas:
+    # - below the bottom laser (exclude exit tiles)
+    # - below the top laser
+    # - above the top laser
+    res = dict[int, list[WorldState]]()
+    area0 = [(i, j) for i in range(7, env.height) for j in range(7)]  # Bot left rectangle
+    area0 += [(i, j) for i in range(9, env.height) for j in range(7, env.width) if (i, j) not in env.world.exit_pos]  # Bot right rectangle
+    # All combinations of the area for four agents (without replacement)
+    res[0] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area0, env.n_agents)]
+
+    area1 = [(5, j) for j in range(env.width)]
+    res[300_000] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area1, env.n_agents)]
+
+    area2 = [(i, j) for i in range(4) for j in range(2, env.width)]
+    res[600_000] = [WorldState(list(p), [False] * env.world.n_gems) for p in permutations(area2, env.n_agents)]
+
+    return marl.env.lle_curriculum.RandomInitialStates(env, res)
+
+
+def create_lle():
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=True)
+    # env = curriculum(env, n_steps)
+    env = random_initial_states(env)
+    # from marl.env import ExtraObjective
+    env.reset()
+    env.render("human")
+    print(f"t={env.t}")
+    env.render("human")
+    input("Press Enter to continue...")
+    env.t = 300_000
+    env.reset()
+    print(f"t={env.t}")
+    env.render("human")
+    input("Press Enter to continue...")
+    env.t = 600_000
+    env.reset()
+    print(f"t={env.t}")
+    env.render("human")
+    input("Press Enter to continue...")
 
 
 if __name__ == "__main__":
-    MockEnv.OBS_SIZE = 1
-    env = Builder(MockEnv(1)).time_limit(4).build()
-    episode = generate_episode(env)
-    transitions = list(episode.transitions())
-    random.shuffle(transitions)
-    batch = TransitionBatch(transitions)
-
-    print(batch.all_obs_)
-
-    for i, t in enumerate(transitions):
-        print(i)
-        print("obs=", t.obs.data.squeeze())
-        print("obs_=", t.obs_.data.squeeze())
-        print("batch.obs=", batch.obs[i].squeeze())
-        print("batch.obs_=", batch.obs_[i].squeeze())
-        print()
-
-    obs = torch.from_numpy(np.array([t.obs.data for t in transitions]))
-    obs_ = torch.from_numpy(np.array([t.obs_.data for t in transitions]))
-    print(obs)
-    print(batch.all_obs_)
-    print(batch.obs)
-    assert torch.equal(batch.obs, obs)
-    assert torch.equal(batch.obs_, obs_)
-    assert torch.equal(batch.all_obs_[1:], obs_)
+    create_lle()
