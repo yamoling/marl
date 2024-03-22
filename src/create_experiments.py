@@ -168,18 +168,18 @@ def create_lle_maic(args: Arguments):
     env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
-    argsAlgo = SimpleNamespace()
-    argsAlgo.n_agents = env.n_agents
-    argsAlgo.latent_dim = 64
-    argsAlgo.nn_hidden_size = 128
-    argsAlgo.rnn_hidden_dim = 128
-    argsAlgo.attention_dim = 64
-    argsAlgo.var_floor = 1e-6
-    argsAlgo.mi_loss_weight = 0.1
-    argsAlgo.entropy_loss_weight = 0.01
+    opt = SimpleNamespace()
+    opt.n_agents = env.n_agents
+    opt.latent_dim = 64
+    opt.nn_hidden_size = 128
+    opt.rnn_hidden_dim = 128
+    opt.attention_dim = 64
+    opt.var_floor = 1e-6
+    opt.mi_loss_weight = 0.1
+    opt.entropy_loss_weight = 0.01
 
     #Add the MAICNetwork (MAICAgent)
-    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, argsAlgo)
+    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
     memory = marl.models.EpisodeMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -191,12 +191,12 @@ def create_lle_maic(args: Arguments):
         maic_network=maic_network,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
-        args=argsAlgo
+        args=opt
     )
     batch_size = 16
     #Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
-        args=argsAlgo,
+        args=opt,
         maic_algo=algo,
         train_policy=train_policy,
         batch_size= batch_size,

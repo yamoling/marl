@@ -485,7 +485,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         if opt.model_action_aware:
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
-                z_u += self.prev_message_lookup(prev_message)
+                z_u = z_u + self.prev_message_lookup(prev_message)
         
         if bs > 1:
             z_u = z_u.reshape(bs*n_agents, -1)
