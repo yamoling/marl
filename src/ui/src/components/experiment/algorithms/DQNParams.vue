@@ -32,7 +32,9 @@
                                     {{ algo.train_policy.epsilon.start_value }}
                                     <font-awesome-icon :icon="['fas', 'arrow-right']" />
                                     {{ algo.train_policy.epsilon.end_value }}
-                                    ({{ algo.train_policy.epsilon.n_steps / 1000 }}k steps)
+                                    <template v-if="algo.train_policy.epsilon.n_steps">
+                                        ({{ algo.train_policy.epsilon.n_steps / 1000 }}k steps)
+                                    </template>
 
                                 </td>
                             </tr>
@@ -51,7 +53,10 @@
                                             <font-awesome-icon :icon="['fas', 'arrow-right']" />
                                             {{ algo.train_policy.epsilon.end_value
                                             }}
-                                            ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
+                                            <template v-if="algo.test_policy.epsilon.n_steps">
+                                                ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
+                                            </template>
+
                                         </template>
                                     </template>
 
