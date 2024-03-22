@@ -26,7 +26,8 @@ def list_experiments():
 @app.route("/experiment/is_running/<path:logdir>")
 def list_running_experiments(logdir: str):
     try:
-        return json.dumps(Experiment.is_running(logdir))
+        exp = state.get_experiment(logdir)
+        return json.dumps(exp.is_running)
     except (ModuleNotFoundError, AttributeError):
         return json.dumps(False)
 

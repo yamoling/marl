@@ -22,8 +22,9 @@ class Arguments(tap.TypedArgs):
 
 
 def print_status(experiment: marl.Experiment):
-    print(f"Experiment {experiment.logdir} has {len(experiment.runs)} runs")
-    if len(experiment.runs) == 0:
+    runs = list(experiment.runs)
+    print(f"Experiment {experiment.logdir} has {len(runs)} runs")
+    if len(runs) == 0:
         print("No runs in experiment")
         return 0
     max_steps = experiment.n_steps
@@ -34,7 +35,7 @@ def print_status(experiment: marl.Experiment):
             progress = run.get_progress(max_steps)
             print(f"\t[{progress * 100:6.2f} %] Run {run.rundir} is active with pid {pid}")
             actives += 1
-    print(f"{actives}/{len(experiment.runs)} active runs")
+    print(f"{actives}/{len(runs)} active runs")
 
 
 def interrupt_runs(exp: marl.Experiment):

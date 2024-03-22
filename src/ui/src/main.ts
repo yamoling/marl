@@ -6,6 +6,11 @@ import Home from './components/home/Home.vue'
 import { createPinia } from 'pinia'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { Chart } from 'chart.js';
+import zoomPlugin from 'chartjs-plugin-zoom';
+
+Chart.register(zoomPlugin);
+
 
 /* import all font awesome icons from the 'solid' and 'regular' families*/
 import { fas } from '@fortawesome/free-solid-svg-icons'

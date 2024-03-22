@@ -7,15 +7,16 @@
                     <thead>
                         <tr>
                             <th class="px-1"> # Step </th>
-                            <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
-                                }}</th>
+                            <th v-for="col in labels" class="text-capitalize">
+                                {{ col.replaceAll('_', ' ') }}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="(time_step, i) in results.test_ticks" @click="() => onTestClicked(time_step)"
+                        <tr v-for="(time_step, i) in results.datasets[0].ticks" @click="() => onTestClicked(time_step)"
                             :class="(time_step == selectedTimeStep) ? 'selected' : ''">
                             <td> {{ time_step }} </td>
-                            <td v-for="ds in results.test">
+                            <td v-for="ds in testDatasets">
                                 {{ ds.mean[i]?.toFixed(3) }}
                             </td>
                         </tr>
@@ -54,7 +55,6 @@
 import { computed, ref } from 'vue';
 import type { ReplayEpisodeSummary } from "../../models/Episode";
 import { Experiment, ExperimentResults } from '../../models/Experiment';
-import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
 
 
@@ -65,7 +65,10 @@ const props = defineProps<{
 
 const selectedTimeStep = ref(null as number | null);
 const testsAtStep = ref([] as ReplayEpisodeSummary[]);
-const labels = computed(() => props.results.test.map(d => d.label));
+const testDatasets = computed(() => {
+    return props.results.datasets.filter(d => d.label.includes("[test]"));
+});
+const labels = computed(() => testDatasets.value.map(d => d.label));
 const resultsStore = useResultsStore();
 
 

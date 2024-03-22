@@ -23,7 +23,7 @@
             <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
                 @view-episode="viewer.viewEpisode" />
             <div v-show="plotOrTable == 'plot'">
-                <Plotter :xTicks="ticks" :datasets="datasets" title="All runs" :showLegend="false"></Plotter>
+                <Plotter :datasets="datasets" title="All runs" :showLegend="false"></Plotter>
                 <div>
                     <template v-for="ds in datasets">
                         <div>
@@ -57,7 +57,6 @@ const results = ref(null as ExperimentResults | null);
 const experimentStore = useExperimentStore()
 const plotOrTable = ref("plot" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
-const ticks = ref([] as number[]);
 const datasets = ref([] as Dataset[]);
 const colourStore = useColourStore();
 
@@ -76,12 +75,8 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    ticks.value = runResults.value[0].test_ticks;
-    const trainDatasets = runResults.value.map(r => r.train).flat().filter(d => d.label == "score");
+    const trainDatasets = runResults.value.map(r => r.datasets).flat().filter(d => d.label == "score [train]");
     datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
-
-const emits = defineEmits(["close-experiment"]);
-
 
 </script>

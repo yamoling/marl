@@ -150,7 +150,7 @@ function interpolate(data: number[], ticks: number[], desiredTicks: number[]) {
     return res;
 }
 
-
+/*
 export function alignTicks(experimentResults: ExperimentResults, desiredTicks: number[]): ExperimentResults {
     // Filter train datasets based on the filtered ticks
     const filteredTrain = experimentResults.train.map(dataset => ({
@@ -180,3 +180,4 @@ export function alignTicks(experimentResults: ExperimentResults, desiredTicks: n
         test: filteredTest,
     };
 }
+*/

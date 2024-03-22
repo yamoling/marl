@@ -20,17 +20,18 @@ export interface Run {
     pid: number | null
 }
 
-export interface ExperimentResults {
-    logdir: string
-    test_ticks: number[]
-    train_ticks: number[]
-    /** Training datasets*/
-    train: Dataset[]
-    /** Test datasets*/
-    test: Dataset[]
+export class ExperimentResults {
+    public logdir: string
+    public datasets: Dataset[]
+
+    constructor(logdir: string, datasets: Dataset[]) {
+        this.logdir = logdir;
+        this.datasets = datasets;
+    }
 }
 
 export interface Dataset {
+    ticks: number[]
     label: string
     logdir: string
     mean: number[]

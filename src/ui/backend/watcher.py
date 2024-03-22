@@ -45,7 +45,8 @@ class Watcher(Thread):
 
     def watch(self, logdir: str):
         self.experiments[logdir] = []
-        for run in Experiment.get_runs(logdir):
+        exp = Experiment.load(logdir)
+        for run in exp.runs:
             pid = run.get_pid()
             if pid is not None:
                 process = Process(pid)

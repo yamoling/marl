@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ExperimentResults } from "../models/Experiment";
+import { Dataset, ExperimentResults } from "../models/Experiment";
 import { HTTP_URL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
@@ -13,13 +13,12 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     async function load(logdir: string): Promise<ExperimentResults> {
         loading.value.set(logdir, true);
         const resp = await fetch(`${HTTP_URL}/results/load/${logdir}`);
-        const response = await resp.json() as ExperimentResults;
-        response.test.forEach(ds => ds.logdir = logdir);
-        response.train.forEach(ds => ds.logdir = logdir);
+        const response = await resp.json() as Dataset[];
         console.log(response)
-        results.value.set(logdir, response);
+        const experimentResults = new ExperimentResults(logdir, response);
+        results.value.set(logdir, experimentResults);
         loading.value.set(logdir, false);
-        return response;
+        return experimentResults;
     }
 
     function unload(logdir: string) {
@@ -37,10 +36,6 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
         const resp = await fetch(`${HTTP_URL}/results/load-by-run/${logdir}`);
         const results = await resp.json() as ExperimentResults[];
-        results.forEach(res => {
-            res.test.forEach(ds => ds.logdir = res.logdir);
-            res.train.forEach(ds => ds.logdir = res.logdir);
-        });
         return results;
     }
 

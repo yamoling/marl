@@ -1,3 +1,4 @@
+from serde import serde
 import torch
 from dataclasses import dataclass
 import numpy as np
@@ -5,6 +6,26 @@ import scipy.stats as sp
 import polars as pl
 import polars.exceptions as pl_errors
 from typing import Optional
+
+
+@serde
+@dataclass
+class Dataset:
+    logdir: str
+    ticks: list[int]
+    label: str
+    mean: list[float]
+    min: list[float]
+    max: list[float]
+    std: list[float]
+    ci95: list[float]
+
+
+@serde
+@dataclass
+class ExperimentResults:
+    logdir: str
+    datasets: list[Dataset]
 
 
 @dataclass
@@ -95,7 +116,7 @@ def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
     scale = (counts**0.5).to_numpy().astype(np.float32)
     for col in cols:
         mean = res[f"mean_{col}"].to_numpy().astype(np.float32)
-        # Avoid zero std, otherwise a "inf" * 0 will be computed by scipy, leading to NaN
+        # Avoid zero std with +1e-8, otherwise a "inf" * 0 will be computed by scipy, leading to NaN
         std = res[f"std_{col}"].to_numpy().astype(np.float32) + 1e-8
         # Use scipy.stats.t if the sample size is small (then degree of freedom, df, is n_samples - 1)
         # Use scipy.stats.norm if the sample size is large
@@ -114,6 +135,42 @@ def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
             mask = series.is_infinite() | series.is_nan()
             series[mask] = 1e20
             res.replace(series.name, series)
+    return res
+
+
+def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suffix: Optional[str] = None) -> list[Dataset]:
+    """
+    Aggregates dataframes and computes the stats (mean, std, etc) for each column.
+
+    Returns the list of datasets, one for each column in the dataframes.
+    Note: The dataframes must have the same columns.
+    """
+    dfs = [d for d in dfs if not d.is_empty()]
+    if len(dfs) == 0:
+        return []
+    df = pl.concat(dfs)
+    df = df.drop("timestamp_sec")
+    df_stats = stats_by("time_step", df, replace_inf)
+    res = list[Dataset]()
+    ticks = df_stats["time_step"].to_list()
+    for col in df.columns:
+        if col == "time_step":
+            continue
+        label = col
+        if suffix is not None:
+            label = col + suffix
+        res.append(
+            Dataset(
+                logdir=logdir,
+                ticks=ticks,
+                label=label,
+                mean=df_stats[f"mean_{col}"].to_list(),
+                std=df_stats[f"std_{col}"].to_list(),
+                min=df_stats[f"min_{col}"].to_list(),
+                max=df_stats[f"max_{col}"].to_list(),
+                ci95=df_stats[f"ci95_{col}"].to_list(),
+            )
+        )
     return res
 
 

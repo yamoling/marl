@@ -9,7 +9,7 @@ from rlenv import Episode, RLEnv
 from typing import Optional
 from dataclasses import dataclass
 from marl.models.algo import RLAlgo
-from marl.utils import CorruptExperimentException
+from marl.utils import CorruptExperimentException, stats
 from marl import logging
 from marl.utils import exceptions
 from marl.utils.exceptions import TestEnvNotSavedException
@@ -72,25 +72,31 @@ class Run:
         return self.test_dir(time_step)
 
     @property
-    def train_metrics(self):
-        try:
-            # With SMAC, there are sometimes episodes that are not finished and that produce
-            # None values for some metrics. We ignore these episodes.
-            return pl.read_csv(self.train_filename, ignore_errors=True)
-        except (pl.NoDataError, FileNotFoundError):
-            return pl.DataFrame()
-
-    @property
     def test_metrics(self):
         try:
             return pl.read_csv(self.test_filename, ignore_errors=True)
         except (pl.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
-    @property
-    def training_data(self):
+    def train_metrics(self, delta_x: int):
         try:
-            return pl.read_csv(self.training_data_filename)
+            # With SMAC, there are sometimes episodes that are not finished and that produce
+            # None values for some metrics. We ignore these episodes.
+            df = pl.read_csv(self.train_filename, ignore_errors=True)
+            # Round the time step to match the closest test interval
+            df = stats.round_col(df, TIME_STEP_COL, delta_x)
+            # Compute the mean of the metrics for each time step
+            df = df.groupby(TIME_STEP_COL).mean()
+            return df
+        except (pl.NoDataError, FileNotFoundError):
+            return pl.DataFrame()
+
+    def training_data(self, delta_x: int):
+        try:
+            df = pl.read_csv(self.training_data_filename)
+            df = stats.round_col(df, TIME_STEP_COL, delta_x)
+            df = df.groupby(TIME_STEP_COL).mean()
+            return df
         except (pl.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 

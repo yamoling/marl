@@ -2,10 +2,10 @@
   <main>
     <h1>RL dashboard</h1>
     <RouterView></RouterView>
+    <footer>
+      <SystemInfo />
+    </footer>
   </main>
-  <footer>
-    <SystemInfo />
-  </footer>
 </template>
 
 
@@ -25,19 +25,18 @@ import SystemInfo from './components/SystemInfo.vue';
 
 
 html,
-body {
+body,
+#app,
+main {
   height: 100%;
+  max-height: 100%;
 }
 
-#app {
-  height: 100%;
-}
 
 main {
-  overflow-y: scroll;
   overflow-x: hidden;
-  max-height: 97.5%;
-  padding-left: 0.5%;
+  padding-left: 1%;
+  padding-right: 1%;
 }
 
 footer {
