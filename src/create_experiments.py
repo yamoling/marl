@@ -165,7 +165,7 @@ def create_lle(args: Arguments):
 
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = lle.LLE.level(2, lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -245,7 +245,7 @@ def init_opt(opt):
 
 def create_lle_rial_dial(args: Arguments):
     n_steps = 300_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = lle.LLE.level(2, lle.ObservationType.FLATTENED)
     nsteps_limit = env.width * env.height // 2
     env = rlenv.Builder(env).agent_id().time_limit(nsteps_limit, add_extra=False).build()
 
@@ -323,8 +323,8 @@ def main(args: Arguments):
     # exp = create_smac(args)
     # exp = create_ppo_lle()
     # exp = create_lle(args)
-    # exp = create_lle_rial_dial(args)
-    exp = create_lle_maic(args)
+    exp = create_lle_rial_dial(args)
+    # exp = create_lle_maic(args)
     print(exp.logdir)
     if args.run:
         exp.create_runner(seed=0).to("auto").train(args.n_tests)

@@ -386,15 +386,9 @@ class ACNetwork2(ActorCriticNN):
 
 
 class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pytorch
-    def __init__(self, input_shape: tuple[int], extras_size: int, output_size: int, opt):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, (extras_size,), (output_size,))
+    def __init__(self, input_shape: tuple[int], extras_shape: tuple[int], output_size: int, opt):
 
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
-
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        super().__init__(input_shape, extras_shape, (output_size,))
 
         self.opt = opt
         self.comm_size = opt.game_comm_bits
@@ -402,7 +396,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
         # Set up inputs
         self.agent_lookup = nn.Embedding(opt.game_nagents, opt.model_rnn_size)
-        self.state_lookup = nn.Linear(n_features + extras_size, opt.model_rnn_size)
+        self.state_lookup = nn.Linear(input_shape[0] + extras_shape[0], opt.model_rnn_size)
         # Action aware
         self.prev_message_lookup = None
         if opt.model_action_aware:
@@ -458,17 +452,11 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, messages, hidden, prev_action):
         opt = self.opt
 
-        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
-        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-        *dims, channels, height, width = obs.shape
-        bs = dims[0]
-        n_agents = dims[1]
-        leading_dims_size = math.prod(dims)
-        # We must use 'reshape' instead of 'view' to handle the case of episodes
-        obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
-        features = self.cnn.forward(obs)
-        extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
-        features = torch.concat((features, extras), dim=-1)
+        bs, n_agents, obs_size = obs.shape
+        obs = torch.reshape(obs, (-1, obs_size))
+        if extras is not None:
+            extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+            obs = torch.concat((obs, extras), dim=-1)
 
         prev_message = None
         if not opt.model_dial:
@@ -481,7 +469,7 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
         z_a, z_o, z_u, z_m = [0]*4
         # z_a = self.agent_lookup(agent_index)
-        z_o = self.state_lookup(features)
+        z_o = self.state_lookup(obs)
         if opt.model_action_aware:
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
@@ -504,18 +492,13 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
     @classmethod
     def from_env(cls, env: RLEnv, opt):
-        return cls(env.observation_shape, env.extra_feature_shape[0], opt.game_action_space_total, opt)
+        return cls(env.observation_shape, env.extra_feature_shape, opt.game_action_space_total, opt)
 
 
 class MAICNetwork(MAICNN):
-    def __init__(self, input_shape: tuple[int, ...], extras_size: int, output_size: int, args):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, (extras_size,), (output_size,))
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
-    
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
+        super().__init__(input_shape, extras_shape, (output_size,))
+
         self.args = args
         self.n_agents = args.n_agents
         self.latent_dim = args.latent_dim
@@ -537,8 +520,9 @@ class MAICNetwork(MAICNN):
             activation_func,
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2)
         )
+        n_inputs = input_shape[0] + extras_shape[0]
 
-        self.fc1 = nn.Linear(n_features + extras_size, args.rnn_hidden_dim)
+        self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
         
@@ -555,18 +539,14 @@ class MAICNetwork(MAICNN):
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode=False):
-        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
-        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-        *dims, channels, height, width = obs.shape
-        bs = dims[0]
-        leading_dims_size = math.prod(dims)
-        # We must use 'reshape' instead of 'view' to handle the case of episodes
-        obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
-        features = self.cnn.forward(obs)
-        extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
-        features = torch.concat((features, extras), dim=-1)
 
-        x = F.relu(self.fc1(features))
+        bs, n_agent, obs_size = obs.shape
+        obs = torch.reshape(obs, (-1, obs_size))
+        if extras is not None:
+            extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+            obs = torch.concat((obs, extras), dim=-1)
+
+        x = F.relu(self.fc1(obs))
         h_in = hidden_state.reshape(-1, self.args.rnn_hidden_dim)
         h = self.rnn(x, h_in)
         q = self.fc2(h)
@@ -638,4 +618,4 @@ class MAICNetwork(MAICNN):
 
     @classmethod
     def from_env(cls, env: RLEnv, args):
-        return cls(env.observation_shape, env.extra_feature_shape[0], env.n_actions, args)
+        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
