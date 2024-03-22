@@ -42,12 +42,32 @@ class MAICAlgo(RLAlgo):
         """Get the value of the input observation"""
         return self.maic_network.value(obs, self.hidden_states).item()
         
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, test_mode=False):
-
-        agent_outs, self.hidden_states, losses = self.maic_network.qvalues(obs, extras, self.hidden_states, 
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor,  test_mode=False):
+        batch_size = obs.shape[0]
+        agent_outs, self.hidden_states, losses = self.maic_network.qvalues(obs, extras, hidden_state=self.hidden_states, 
             test_mode=test_mode)
+        # TODO : access to available actions
+        # if getattr(self.args, "mask_before_softmax", True):
+        #     # Make the logits for unavailable actions very negative to minimise their affect on the softmax
+        #     reshaped_avail_actions = avail_actions.reshape(batch_size * self.n_agents, -1)
+        #     agent_outs[reshaped_avail_actions == 0] = -1e10
+        #     agent_outs = torch.nn.functional.softmax(agent_outs, dim=-1)
 
-        return agent_outs, losses # bs in the view
+        # if not test_mode:
+        #     # Epsilon floor
+        #     epsilon_action_num = agent_outs.size(-1)
+        #     if getattr(self.args, "mask_before_softmax", True):
+        #         # With probability epsilon, we will pick an available action uniformly
+        #         epsilon_action_num = reshaped_avail_actions.sum(dim=1, keepdim=True).float()
+
+        #     agent_outs = ((1 - self.action_selector.epsilon) * agent_outs
+        #                     + torch.ones_like(agent_outs) * self.action_selector.epsilon/epsilon_action_num)
+
+        #     if getattr(self.args, "mask_before_softmax", True):
+        #         # Zero out the unavailable actions
+        #         agent_outs[reshaped_avail_actions == 0] = 0.0
+
+        return agent_outs.view(batch_size, self.n_agents, -1).squeeze(0), losses # bs in the view
 
 
     def init_hidden(self, batch_size):

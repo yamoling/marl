@@ -20,7 +20,7 @@ class MAICTrainer(Trainer):
             gamma: float = 0.99,
             batch_size: int = 16,
             lr: float = 1e-4,
-            optimiser: Literal["adam", "rmsprop"] = "adam",
+            optimiser: Literal["adam", "rmsprop"] = "rmsprop",
             target_updater: Optional[TargetParametersUpdater] = None,
             double_qlearning: bool = False,
             mixer: Optional[Mixer] = None,
@@ -85,17 +85,11 @@ class MAICTrainer(Trainer):
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(episode_num)
         logs = logs | self.target_updater.update(episode_num)
-        if isinstance(self.memory, PrioritizedMemory):
-            self.memory.update(td_error)
-            logs["per-alpha"] = self.memory.alpha.value
-            logs["per-beta"] = self.memory.beta.value
         return logs
     
     def optimise_network(self):
-        mem_len = len(self.memory)
         # get whole memory
-        batch = self.memory.get_batch(range(mem_len)).to(self.device)
-        self.memory.clear()
+        batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
         rewards = batch.rewards
         actions = batch.actions
         terminated = batch.dones
@@ -120,11 +114,10 @@ class MAICTrainer(Trainer):
                 del returns_['logs']
             losses.append(returns_)
 
-        mac_out = torch.stack(mac_out, dim=1)  # Concat over time
+        mac_out = torch.stack(mac_out, dim=0)  # Concat over time
 
-        # Pick the Q-Values for the actions taken by each agent
-        chosen_action_qvals = torch.gather(mac_out.transpose(1, 0), dim=2, index=actions.squeeze(3))  # Remove the last dim
-                                #               128 78 5                  78 64 2 1
+        # Pick the Q-Values for the actions taken by each agent TODO : mac_out[:, :-1] ??
+        chosen_action_qvals = torch.gather(mac_out, dim=3, index=actions).squeeze(3)  # Remove the last dim 
         # Calculate the Q-Values necessary for the target
         target_mac_out = []
         self.target_algo.init_hidden(self.batch_size)
@@ -133,30 +126,28 @@ class MAICTrainer(Trainer):
             target_mac_out.append(target_agent_outs)
 
         # We don't need the first timesteps Q-Value estimate for calculating targets
-        target_mac_out = torch.stack(target_mac_out, dim=1)  # Concat across time
+        target_mac_out = torch.stack(target_mac_out, dim=0)  # Concat across time
 
-        # Mask out unavailable actions
-        target_mac_out[avail_actions.reshape(target_mac_out.shape) == 0] = -torch.inf
+        # Mask out unavailable actions TODO : avail_actions[:, :-1] ??
+        target_mac_out[avail_actions == 0] = -torch.inf
 
         # Max over target Q-Values
         if self.double_qlearning:
             # Get actions that maximise live Q (for double q-learning)
             mac_out_detach = mac_out.clone().detach()
-            mac_out_detach[avail_actions.reshape(mac_out_detach.shape) == 0] = -torch.inf
-            cur_max_actions = mac_out_detach.max(dim=2, keepdim=True)[1]
-            target_max_qvals = torch.gather(target_mac_out, 2, cur_max_actions)
+            mac_out_detach[avail_actions == 0] = -torch.inf
+            cur_max_actions = mac_out_detach.max(dim=3, keepdim=True)[1] # TODO : mac_out_detach[:, :-1] ??
+            target_max_qvals = torch.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
         else:
-            target_max_qvals = target_mac_out.max(dim=2)[0]
+            target_max_qvals = target_mac_out.max(dim=3)[0]
         
         # Mix
-        if self.mixer is not None:
-            chosen_action_qvals = self.mixer.forward(chosen_action_qvals, batch.states, batch.one_hot_actions, mac_out )
-            target_max_qvals = self.target_mixer.forward(target_max_qvals,  batch.states, batch.one_hot_actions, target_mac_out )
+        if self.mixer is not None:                                                              # TODO: idx ??
+            chosen_action_qvals = self.mixer.forward(chosen_action_qvals, batch.states[:, :-1], batch.one_hot_actions, mac_out )
+            target_max_qvals = self.target_mixer.forward(target_max_qvals,  batch.states[:, 1:], batch.one_hot_actions, target_mac_out )
 
         # Calculate 1-step Q-Learning targets
-        target_max_qvals_transposed = target_max_qvals.reshape(terminated.shape[0], terminated.shape[1], -1)
-        target_max_qvals_mean = torch.mean(target_max_qvals_transposed, dim=2)
-        targets = rewards + self.gamma * (1 - terminated) * target_max_qvals_mean
+        targets = rewards + self.gamma * (1 - terminated) * target_max_qvals
         # Td-error
         td_error = (chosen_action_qvals - targets.detach())
 

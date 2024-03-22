@@ -164,27 +164,27 @@ def create_lle(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 def create_lle_maic(args: Arguments):
-    n_steps = 300_000
+    n_steps = 600_000
     env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
     opt.n_agents = env.n_agents
-    opt.latent_dim = 64
-    opt.nn_hidden_size = 128
-    opt.rnn_hidden_dim = 128
-    opt.attention_dim = 64
-    opt.var_floor = 1e-6
-    opt.mi_loss_weight = 0.1
+    opt.latent_dim = 8
+    opt.nn_hidden_size = 64
+    opt.rnn_hidden_dim = 64
+    opt.attention_dim = 32
+    opt.var_floor = 0.002
+    opt.mi_loss_weight = 0.001
     opt.entropy_loss_weight = 0.01
 
     #Add the MAICNetwork (MAICAgent)
     maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
-    memory = marl.models.EpisodeMemory(50_000)
+    memory = marl.models.EpisodeMemory(5000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        100_000,
+        300_000,
     )
     #Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(
@@ -193,7 +193,7 @@ def create_lle_maic(args: Arguments):
         test_policy=marl.policy.ArgMax(),
         args=opt
     )
-    batch_size = 16
+    batch_size = 32
     #Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
         args=opt,
@@ -323,8 +323,8 @@ def main(args: Arguments):
     # exp = create_smac(args)
     # exp = create_ppo_lle()
     # exp = create_lle(args)
-    exp = create_lle_rial_dial(args)
-    #exp = create_lle_maic(args)
+    # exp = create_lle_rial_dial(args)
+    exp = create_lle_maic(args)
     print(exp.logdir)
     if args.run:
         exp.create_runner(seed=0).to("auto").train(args.n_tests)

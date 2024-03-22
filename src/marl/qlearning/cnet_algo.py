@@ -244,40 +244,38 @@ class CNetAlgo(RLAlgo):
 
     def compute_qvalues_and_hidden(self, observation: Observation):
         opt = self.opt
-        with torch.no_grad():
-            
-            step_greater_0 = len(self.episode.step_records) > 2
-            obs, extras = self.to_tensor(observation) 
-            comm = None
-            if opt.comm_enabled:
-                comm = self.episode.step_records[CNetAlgo.STEP_ID].comm.clone()
+        step_greater_0 = len(self.episode.step_records) > 2
+        obs, extras = self.to_tensor(observation) 
+        comm = None
+        if opt.comm_enabled:
+            comm = self.episode.step_records[CNetAlgo.STEP_ID].comm.clone()
 
-            # Get prev action 
-            prev_action = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
-            prev_message = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
-            if opt.model_action_aware:
+        # Get prev action 
+        prev_action = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
+        prev_message = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
+        if opt.model_action_aware:
+            if step_greater_0:
+                prev_action= self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_t.to(self.device)
+            if not opt.model_dial:
                 if step_greater_0:
-                    prev_action= self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_t.to(self.device)
-                if not opt.model_dial:
-                    if step_greater_0:
-                        prev_message = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_comm_t.to(self.device)
-                if not opt.model_dial:
-                    prev_action = (prev_action, prev_message)
-            # agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
+                    prev_message = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_comm_t.to(self.device)
+            if not opt.model_dial:
+                prev_action = (prev_action, prev_message)
+        # agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
 
-            agent_inputs = {
-                'obs': obs,
-                'extras': extras,
-                'messages': comm.to(self.device), # Messages
-                'hidden': self.episode.step_records[CNetAlgo.STEP_ID].hidden.to(self.device),
-                'prev_action': prev_action
-                #'agent_index': agent_idx
-            }
-            self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t = observation.available_actions
-            self.episode.step_records[CNetAlgo.STEP_ID].agent_inputs = agent_inputs
-                        
-            # Compute model output (Q function + message bits)
-            return self.model.forward(**agent_inputs)
+        agent_inputs = {
+            'obs': obs,
+            'extras': extras,
+            'messages': comm.to(self.device), # Messages
+            'hidden': self.episode.step_records[CNetAlgo.STEP_ID].hidden.to(self.device),
+            'prev_action': prev_action
+            #'agent_index': agent_idx
+        }
+        self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t = observation.available_actions
+        self.episode.step_records[CNetAlgo.STEP_ID].agent_inputs = agent_inputs
+                    
+        # Compute model output (Q function + message bits)
+        return self.model.forward(**agent_inputs)
 
     def choose_action(self, observation: Observation) -> np.ndarray:
         opt = self.opt
@@ -432,6 +430,8 @@ class CNetAlgo(RLAlgo):
         self.episodes_seen = self.episodes_seen + 1
         if self.episodes_seen % self.opt.step_target == 0:
             self.model_target.load_state_dict(self.model.state_dict())
+        
+        # TODO returns logs
     
     def get_episode(self):
         # The first step record is a dummy record

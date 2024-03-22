@@ -40,18 +40,22 @@ class CNetTrainer(Trainer):
             agent_episode.step_records[time_step].terminal = torch.tensor(done)
         
         return agent_episode
-
+    
+    def _update(self, time_step: int) -> dict[str, Any]:
+        self.agents.learn_from_episode(self.memory.get_batch(self.opt, self.device))
+        self.memory.clear()
+        logs = self.agents.policy.update(time_step)
+        return logs
+    
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
 
         episode_from_agent = self.agents.get_episode()
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))
 
         if (episode_num + 1) % self.update_interval == 0:
-            self.agents.learn_from_episode(self.memory.get_batch(self.opt, self.device))
-            self.memory.clear()
+            self._update(time_step)
 
         return {}
-
 
     def to(self, device: torch.device) -> Self:
         """Send the tensors to the given device."""

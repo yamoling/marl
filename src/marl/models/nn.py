@@ -200,7 +200,7 @@ class MAICNN(NN):
     def qvalues(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode = False):
         """Compute the Q-values"""
         agent_outs, h, returns = self.forward(obs, extras, hidden_state=hidden_state, test_mode=test_mode)
-        return agent_outs.squeeze(0), h, returns
+        return agent_outs, h, returns
 
     def value(self, obs: Observation, hidden_state) -> torch.Tensor:
         """Compute the value function"""
