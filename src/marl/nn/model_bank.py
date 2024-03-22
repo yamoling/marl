@@ -461,6 +461,8 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
+        bs = dims[0]
+        n_agents = dims[1]
         leading_dims_size = math.prod(dims)
         # We must use 'reshape' instead of 'view' to handle the case of episodes
         obs = obs.reshape(leading_dims_size, channels, height, width).to(self.device)
@@ -468,36 +470,37 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
         extras = extras.reshape(leading_dims_size, *self.extras_shape).to(self.device)
         features = torch.concat((features, extras), dim=-1)
 
-        s_t = Variable(features)
-        hidden = Variable(hidden)
         prev_message = None
-        if opt.model_dial:
-            if opt.model_action_aware:
-                prev_action = Variable(prev_action)
-        else:
+        if not opt.model_dial:
             if opt.model_action_aware:
                 prev_action, prev_message = prev_action
-                prev_action = Variable(prev_action)
-                prev_message = Variable(prev_message)
-            messages = Variable(messages)
+                prev_action = prev_action.to(self.device)
+                prev_message = prev_message.to(self.device)
+                messages = messages.to(self.device)
         # agent_index = Variable(agent_index)
 
         z_a, z_o, z_u, z_m = [0]*4
         # z_a = self.agent_lookup(agent_index)
-        z_o = self.state_lookup(s_t)
+        z_o = self.state_lookup(features)
         if opt.model_action_aware:
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
                 z_u += self.prev_message_lookup(prev_message)
-                
+        
+        if bs > 1:
+            z_u = z_u.reshape(bs*n_agents, -1)
+
         z_m = self.messages_mlp(messages.view(-1, self.comm_size))
         z = z_a + z_o + z_u + z_m
         z = z.unsqueeze(1)
 
-        rnn_out, h_out = self.rnn(z, hidden)
+        # Reshape the hidden state to match the number of layers and batch size
+        hidden_batch = hidden.view(opt.model_rnn_layers, bs * n_agents, -1)
+
+        rnn_out, h_out = self.rnn(z, hidden_batch)
         outputs = self.outputs(rnn_out[:, -1, :].squeeze())
 
-        return h_out, outputs
+        return h_out.view(opt.model_rnn_layers, n_agents, bs, -1), outputs.view(bs, n_agents, -1)
 
     @classmethod
     def from_env(cls, env: RLEnv, opt):
