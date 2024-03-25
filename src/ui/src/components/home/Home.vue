@@ -1,5 +1,17 @@
 <template>
     <div class="row">
+        <div ref="contextMenu" class="context-menu">
+            <ul>
+                <li @click="() => rename()">
+                    <font-awesome-icon :icon="['far', 'pen-to-square']" class="pe-2" />
+                    Rename
+                </li>
+                <li @click="() => remove()">
+                    <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
+                    Delete
+                </li>
+            </ul>
+        </div>
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -43,7 +55,8 @@
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)"
-                                @click="() => resultsStore.load(exp.logdir)">
+                                @click="() => resultsStore.load(exp.logdir)"
+                                @contextmenu="(e) => openContextMenu(e, exp.logdir)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -119,6 +132,7 @@ const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 
 const selectedMetrics = ref(["score [train]"]);
+const contextMenuLogdir = ref(null as string | null);
 
 
 const metrics = computed(() => {
@@ -190,6 +204,40 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
         sortOrder.value = "ASCENDING";
     }
 }
+
+const contextMenu = ref({} as HTMLDivElement);
+
+// Function to open context menu
+function openContextMenu(e: MouseEvent, logdir: string) {
+    contextMenuLogdir.value = logdir;
+    e.preventDefault()
+    contextMenu.value.style.left = `${e.x}px`;
+    contextMenu.value.style.top = `${e.y}px`;
+    contextMenu.value.style.display = 'block';
+}
+
+function rename() {
+    if (contextMenuLogdir.value === null) return;
+    const logdir = contextMenuLogdir.value;
+    const newLogdir = prompt("Enter new name for the experiment", logdir);
+    if (newLogdir === null) return;
+    experimentStore.rename(logdir, newLogdir);
+}
+
+function remove() {
+    const logdir = contextMenuLogdir.value;
+    if (logdir === null) return;
+    if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
+        experimentStore.remove(logdir);
+    }
+}
+
+document.addEventListener('click', () => {
+    contextMenu.value.style.display = 'none';
+    contextMenuLogdir.value = null;
+});
+
+
 </script>
 
 <style>
@@ -200,5 +248,30 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
 .sortable:hover {
     cursor: pointer;
     text-decoration: underline;
+}
+
+.context-menu {
+    width: fit-content;
+    position: fixed;
+    display: none;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 5px;
+    z-index: 1000;
+}
+
+.context-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.context-menu ul li {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.context-menu ul li:hover {
+    background-color: #f0f0f0;
 }
 </style>

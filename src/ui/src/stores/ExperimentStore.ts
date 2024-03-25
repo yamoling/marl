@@ -78,6 +78,29 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return await resp.json();
     }
 
+    async function rename(logdir: string, newLogdir: string) {
+        const resp = await fetch(`${HTTP_URL}/experiment/rename`, {
+            method: "POST",
+            body: JSON.stringify({ logdir, newLogdir }),
+            headers: { "Content-Type": "application/json" }
+        });
+        if (!resp.ok) {
+            alert("Failed to rename experiment: " + await resp.text());
+            return;
+        }
+        return refresh();
+    }
+
+    async function remove(logdir: string) {
+        const res = await fetch(`${HTTP_URL}/experiment/delete/${logdir}`, { method: "DELETE" });
+        if (!res.ok) {
+            alert("Failed to delete experiment: " + await res.text())
+        } else {
+            experiments.value = experiments.value.filter(exp => exp.logdir !== logdir);
+            runningExperiments.value.delete(logdir);
+        }
+    }
+
     return {
         loading,
         experiments,
@@ -87,5 +110,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         loadExperiment,
         unloadExperiment,
         getTestEpisodes,
+        remove,
+        rename
     };
 });

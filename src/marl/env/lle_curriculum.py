@@ -2,6 +2,7 @@ import random
 from rlenv.wrappers import RLEnvWrapper
 from lle import LLE, WorldState
 from dataclasses import dataclass
+from serde import serde
 
 
 class CurriculumLearning(RLEnvWrapper):
@@ -29,20 +30,24 @@ class CurriculumLearning(RLEnvWrapper):
         return self.lle.get_observation()
 
 
+@serde
 @dataclass
 class RandomInitialStates(RLEnvWrapper):
     accumulate: bool
-    env: LLE
 
-    def __init__(self, env: LLE, accumulate: bool = False):
+    def __init__(self, env: LLE, accumulate: bool):
         super().__init__(env)
         self.lle = env
         self.world = env.world
         self.accumulate = accumulate
         self.t = 0
-        self.area0 = [(i, j) for i in range(7, self.world.height) for j in range(7)]
-        self.area0 += [(i, j) for i in range(9, self.world.height) for j in range(7, self.world.width) if (i, j) not in self.world.exit_pos]
-        self.area1 = [(5, j) for j in range(self.world.width)]
+        self.area0 = list(
+            set((i, j) for i in range(7, self.world.height) for j in range(7))
+            .union((i, j) for i in range(9, self.world.height) for j in range(7, self.world.width))
+            .difference(pos for (pos, gem) in self.world.gems)
+            .difference(pos for pos in self.world.exit_pos)
+        )
+        self.area1 = [(i, j) for i in [5, 6] for j in range(self.world.width)]
         self.area2 = [(i, j) for i in range(4) for j in range(2, self.world.width)]
 
     def get_initial_state(self):

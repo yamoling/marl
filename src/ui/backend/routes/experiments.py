@@ -1,4 +1,5 @@
 from . import app, state
+from flask import request
 from http import HTTPStatus
 from serde.json import to_json
 import json
@@ -52,3 +53,29 @@ def load_experiment(logdir: str):
 def unload_experiment(logdir: str):
     state.unload_experiment(logdir)
     return ("", HTTPStatus.NO_CONTENT)
+
+
+@app.route("/experiment/rename", methods=["POST"])
+def rename_experiment():
+    json_data = request.json
+    if json_data is None:
+        return ("", HTTPStatus.BAD_REQUEST)
+    logdir = json_data["logdir"]
+    new_logdir = json_data["newLogdir"]
+    exp = state.get_experiment(logdir)
+    exp.copy(new_logdir, copy_runs=True)
+    state.unload_experiment(logdir)
+    state.load_experiment(new_logdir)
+    exp.delete()
+    return ("", HTTPStatus.NO_CONTENT)
+
+
+@app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
+def delete_experiment(logdir: str):
+    try:
+        exp = state.get_experiment(logdir)
+        exp.delete()
+        state.unload_experiment(logdir)
+        return ("", HTTPStatus.NO_CONTENT)
+    except FileNotFoundError as e:
+        return str(e), HTTPStatus.NOT_FOUND

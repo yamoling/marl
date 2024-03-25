@@ -93,15 +93,18 @@ class Experiment:
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
             return json.load(f)
 
-    # @staticmethod
-    # def get_runs(logdir: str):
-    #     """Get the runs of an experiment."""
-    #     for run in os.listdir(logdir):
-    #         if run.startswith("run_"):
-    #             try:
-    #                 yield Run.load(os.path.join(logdir, run))
-    #             except Exception as e:
-    #                 print(e)
+    def copy(self, new_logdir: str, copy_runs: bool = True):
+        new_exp = deepcopy(self)
+        new_exp.logdir = new_logdir
+        new_exp.save()
+        if copy_runs:
+            for run in self.runs:
+                new_rundir = run.rundir.replace(self.logdir, new_logdir)
+                shutil.copytree(run.rundir, new_rundir)
+        return new_exp
+
+    def delete(self):
+        shutil.rmtree(self.logdir)
 
     @property
     def is_running(self):
@@ -119,6 +122,7 @@ class Experiment:
 
     def save(self):
         """Save the experiment to disk."""
+        os.makedirs(self.logdir, exist_ok=True)
         with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
             f.write(to_json(self))
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:

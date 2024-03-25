@@ -149,10 +149,9 @@ class Run:
         try:
             test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
             test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
-            test_dir = self.test_dir(time_step)
             episodes = []
-            for i, row in enumerate(test_metrics.rows()):
-                episode_dir = os.path.join(test_dir, f"{i}")
+            for test_num, row in enumerate(test_metrics.rows()):
+                episode_dir = self.test_dir(time_step, test_num)
                 metrics = dict(zip(test_metrics.columns, row))
                 episode = ReplayEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)

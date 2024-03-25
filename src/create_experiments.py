@@ -25,13 +25,11 @@ class Arguments(tap.TypedArgs):
 def create_smac(args: Arguments):
     n_steps = 2_000_000
     env = rlenv.adapters.SMAC("3s_vs_5z")
-    smac = env._env
     env = rlenv.Builder(env).agent_id().last_action().build()
     qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
     memory = marl.models.EpisodeMemory(5_000)
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     test_policy = train_policy
-    smac_unit_state_size: int = 4 + smac.shield_bits_ally + smac.unit_type_bits
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -125,10 +123,10 @@ def create_lle(args: Arguments):
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     width, height = env.width, env.height
     # env = curriculum(env, n_steps)
-    env = marl.env.lle_curriculum.RandomInitialStates(env, True)
+    env = marl.env.lle_curriculum.RandomInitialStates(env, False)
     # from marl.env import ExtraObjective
 
-    env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=False).build()
+    env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).last_action().build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     eps_schedule = MultiSchedule(
