@@ -56,7 +56,6 @@ function toggleMetric(metricName: string) {
 }
 
 onMounted(() => {
-    console.log("Metrics", selectedMetrics.value);
     emits("change-selected-metrics", selectedMetrics.value);
 })
 

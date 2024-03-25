@@ -14,7 +14,6 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         loading.value.set(logdir, true);
         const resp = await fetch(`${HTTP_URL}/results/load/${logdir}`);
         const response = await resp.json() as Dataset[];
-        console.log(response)
         const experimentResults = new ExperimentResults(logdir, response);
         results.value.set(logdir, experimentResults);
         loading.value.set(logdir, false);

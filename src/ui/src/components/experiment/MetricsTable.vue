@@ -8,7 +8,7 @@
                         <tr>
                             <th class="px-1"> # Step </th>
                             <th v-for="col in labels" class="text-capitalize">
-                                {{ col.replaceAll('_', ' ') }}
+                                {{ col.replaceAll('_', ' ').replaceAll(" [test]", "") }}
                             </th>
                         </tr>
                     </thead>
@@ -27,11 +27,12 @@
         <div class="col-auto mx-auto text-center" v-if="selectedTimeStep != null">
             <h4>Tests at time step {{ selectedTimeStep }}</h4>
             <div class="table-scrollable">
-                <table class="table table-sm table-striped table-hover">
+                <table v-if="testsAtStep != null" class="table table-sm table-striped table-hover">
                     <thead>
                         <tr>
-                            <th v-for="col in labels" class="text-capitalize"> {{ col.replaceAll('_', ' ')
-                                }}</th>
+                            <th v-for="column in Object.keys(testsAtStep[0].metrics)" class="text-capitalize">
+                                {{ column.replaceAll("_", " ") }}
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -41,13 +42,15 @@
                             </td>
                         </tr>
                         <tr v-for="test in testsAtStep" @click="() => emits('view-episode', test.directory)">
-                            <td v-for="col in labels">
-                                {{ formatFloat(test.metrics[col] as number) }}
+                            <td v-for="value in test.metrics">
+                                {{ formatFloat(value) }}
                             </td>
                         </tr>
                     </tbody>
                 </table>
+                <font-awesome-icon v-else icon="spinner" spin />
             </div>
+
         </div>
     </div>
 </template>
@@ -93,28 +96,9 @@ async function onTestClicked(time_step: number) {
 }
 
 
-/*
-function getScollProgress(e: UIEvent): { downScrollProgress: number, upScrollProgress: number } {
-    const target = e.target as HTMLElement;
-    const tbodyHeight = target.scrollHeight;
-    const downScrollProgress = (target.scrollTop + target.clientHeight) / tbodyHeight;
-    const upScrollProgress = target.scrollTop / tbodyHeight;
-    return { downScrollProgress, upScrollProgress };
-}
 
-function onTrainScroll(e: UIEvent) {
-    const { downScrollProgress, upScrollProgress } = getScollProgress(e);
-    if (downScrollProgress > 0.9) {
-        trainOffset.value = Math.min(trainOffset.value + 10, props.experiment.train.length - 100);
-        return;
-    }
-    if (upScrollProgress < 0.1) {
-        trainOffset.value = Math.max(0, trainOffset.value - 10);
-        return
-    }
-}
-*/
-
-const emits = defineEmits(["view-episode", "load-model"]);
+const emits = defineEmits<{
+    (event: "view-episode", directory: string): void
+}>();
 
 </script>

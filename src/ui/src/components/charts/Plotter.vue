@@ -19,14 +19,10 @@
                 </button>
             </div>
             <div v-show="showOptions">
-                <b class="me-1">Y axis type:</b>
-                <label class="me-2">
-                    linear
-                    <input type="radio" value="linear" name="y-scale" v-model="yScaleType">
-                </label>
-                <label>
-                    logarithmic
-                    <input type="radio" value="logarithmic" name="y-scale" v-model="yScaleType">
+                <b class="me-1">Y-scale:</b>
+                <label v-for="scale in SCALES" class="me-2">
+                    {{ scale }}
+                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
                 </label>
                 <br>
 
@@ -34,41 +30,36 @@
                     <input type="checkbox" v-model="enablePlusMinus">
                     <b class="me-1">Show</b>
                 </label>
-                <label class="me-2">
-                    standard deviation
-                    <input type="radio" value="std" name="plusMinus" v-model="plusMinus" checked>
-                </label>
-                <label>
-                    95% confidence interval
-                    <input type="radio" value="ci95" name="plusMinus" v-model="plusMinus">
+                <label v-for="pm in PLUS_MINUS" class="me-2">
+                    {{ pm }}
+                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" checked>
                 </label>
             </div>
-
-
         </div>
-
     </div>
 </template>
 
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
-import { computed, onMounted, ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
 import { clip } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
 
 const SCALES = ["Linear", "Logarithmic"] as const;
-const PLUS_MINUS = ["None", "Standard deviation", "95% C.I."] as const;
+const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 
 let chart: Chart;
-const emits = defineEmits(["episode-selected"]);
+const emits = defineEmits<{
+    (event: "episode-selected", datasetIndex: number, xIndex: number): void
+}>();
 const canvas = ref({} as HTMLCanvasElement);
 
-const yScaleType = ref("linear" as "linear" | "logarithmic");
+const yScaleType = ref("Linear" as typeof SCALES[number]);
+const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
 const enablePlusMinus = ref(true);
 const showOptions = ref(false);
 
-const plusMinus = ref("std" as "std" | "ci95");
 const colourStore = useColourStore();
 const props = defineProps<{
     datasets: readonly Dataset[]
@@ -82,11 +73,6 @@ function tickedDataset(ticks: number[], dataset: number[]) {
     return dataset.map((d, i) => ({ x: ticks[i], y: d }));
 }
 
-function zoom() {
-    console.log("zoom")
-    chart.zoom(0.1);
-}
-
 function updateChartData() {
     if (props.datasets.length == 0) {
         return;
@@ -98,10 +84,12 @@ function updateChartData() {
         const colour = colourStore.get(ds.logdir);
         if (enablePlusMinus.value) {
             let lower;
-            if (plusMinus.value == "std") {
+            if (plusMinus.value == "Standard deviation") {
                 lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
-            } else {
+            } else if (plusMinus.value == "95% C.I.") {
                 lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
             const lowerColour = rgbToAlpha(colour, 0.3);
             datasets.push({
@@ -118,10 +106,12 @@ function updateChartData() {
         });
         if (enablePlusMinus.value) {
             let upper;
-            if (plusMinus.value == "std") {
+            if (plusMinus.value == "Standard deviation") {
                 upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
-            } else {
+            } else if (plusMinus.value == "95% C.I.") {
                 upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
             const upperColour = rgbToAlpha(colour, 0.3);
             datasets.push({
@@ -139,7 +129,13 @@ function updateChartData() {
 
 watch(props, updateChartData);
 watch(yScaleType, () => {
-    chart.options!.scales!.y!.type = yScaleType.value;
+    if (yScaleType.value == "Linear") {
+        chart.options!.scales!.y!.type = "linear";
+    } else if (yScaleType.value == "Logarithmic") {
+        chart.options!.scales!.y!.type = "logarithmic";
+    } else {
+        alert("Unknown scale type: " + yScaleType.value)
+    }
     chart.update()
 });
 watch(enablePlusMinus, updateChartData)
@@ -160,12 +156,18 @@ function initialiseChart(): Chart {
         options: {
             interaction: {
                 intersect: false,
-                mode: 'index',
+                mode: "nearest",
             },
             animation: false,
-            onClick: (event, datasetElement) => {
+            onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
-                    emits("episode-selected", datasetElement[0].index)
+                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
+                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
+                    let datasetIndex = datasetElement[0].datasetIndex;
+                    if (enablePlusMinus.value) {
+                        datasetIndex = Math.floor(datasetIndex / 3);
+                    }
+                    emits("episode-selected", datasetIndex, datasetElement[0].index);
                 }
             },
             plugins: {
@@ -200,7 +202,7 @@ function initialiseChart(): Chart {
             scales: {
                 y: {
                     display: true,
-                    type: yScaleType.value,
+                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
                 }
             },
         },

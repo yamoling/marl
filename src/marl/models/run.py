@@ -148,6 +148,7 @@ class Run:
     def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
         try:
             test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
+            test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
             test_dir = self.test_dir(time_step)
             episodes = []
             for i, row in enumerate(test_metrics.rows()):

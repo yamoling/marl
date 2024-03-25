@@ -23,7 +23,8 @@
             <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
                 @view-episode="viewer.viewEpisode" />
             <div v-show="plotOrTable == 'plot'">
-                <Plotter :datasets="datasets" title="All runs" :showLegend="false"></Plotter>
+                <Plotter :datasets="datasets" title="All runs" :showLegend="false"
+                    @episode-selected="onEpisodeSelected" />
                 <div>
                     <template v-for="ds in datasets">
                         <div>
@@ -61,10 +62,18 @@ const datasets = ref([] as Dataset[]);
 const colourStore = useColourStore();
 
 
+function onEpisodeSelected(datasetIndex: number, xIndex: number) {
+    const run = runResults.value[datasetIndex];
+    const tick = run.datasets[0].ticks[xIndex];
+    const episodeDirectory = `${run.logdir}/test/${tick}/0`
+    viewer.value.viewEpisode(episodeDirectory);
+}
+
+
 onMounted(async () => {
     const route = useRoute();
     const logdir = (route.params.logdir as string[]).join('/');
-    // Asynchronously load the experiment in case we want to load the results
+    // Asynchronously load the experiment in case we want to replay an episode later on.
     experimentStore.loadExperiment(logdir);
     const res = await experimentStore.getExperiment(logdir);
     if (res == null) {
@@ -75,7 +84,8 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    const trainDatasets = runResults.value.map(r => r.datasets).flat().filter(d => d.label == "score [train]");
+    const trainDatasets = runResults.value.map(r => r.datasets).flat().filter(d => d.label == "score [test]");
+    trainDatasets.forEach((ds, i) => ds.logdir = runResults.value[i].logdir)
     datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
 
