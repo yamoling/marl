@@ -202,9 +202,9 @@ class MAICNN(NN):
         agent_outs, h, returns = self.forward(obs, extras, hidden_state=hidden_state, test_mode=test_mode)
         return agent_outs, h, returns
 
-    def value(self, obs: Observation, hidden_state) -> torch.Tensor:
+    def value(self, obs: Observation, hidden_state, test_mode) -> torch.Tensor:
         """Compute the value function"""
-        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state)[0].max(dim=-1).values
+        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=-1).values
         return agent_values.mean(dim=-1)
     
     @abstractmethod

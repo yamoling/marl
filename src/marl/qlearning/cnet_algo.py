@@ -335,7 +335,7 @@ class CNetAlgo(RLAlgo):
                     episode.step_records[step + 1].hidden_target = hidden_target_t_remaining
 
                 # Choose next arg max action and comm
-                avail_actions = episode.step_records[step].avail_a_t.cpu().numpy()
+                avail_actions = episode.step_records[step].avail_a_t.squeeze(0).cpu().numpy()
 
                 (action, action_value), (comm_vector, comm_action, comm_value) = \
                     self.select_action_and_comm(q_target_t, avail_actions) 
@@ -357,7 +357,7 @@ class CNetAlgo(RLAlgo):
 
         return episode
     
-    def episode_loss(self, episode):
+    def episode_loss_2(self, episode):
         opt = self.opt
         total_loss = torch.zeros(opt.bs, device=self.device)
         ended_dict = {}
@@ -380,7 +380,7 @@ class CNetAlgo(RLAlgo):
                 if (ended_dict.get(step + 1) is not None):
                     b_plus_1_id_in_record = b - sum([1 for e in ended_dict.get(step+1) if e < b])
                 else:
-                    b_plus_1_id_in_record = b
+                    b_plus_1_id_in_record = b + 1
                 for i in range(opt.game_nagents):
                     td_action = torch.tensor(0., device=self.device)
                     td_comm = torch.tensor(0., device=self.device)
@@ -417,6 +417,50 @@ class CNetAlgo(RLAlgo):
                     total_loss[b] = total_loss[b] + loss_t
 
         loss = total_loss.mean()
+        return loss
+    
+    def episode_loss(self, episode):
+        opt = self.opt
+        total_loss = torch.zeros(opt.bs)
+        for b in range(opt.bs):
+            b_steps = episode.steps[b].item()
+            for step in range(b_steps):
+                record = episode.step_records[step]
+                for i in range(opt.game_nagents):
+                    td_action = 0
+                    td_comm = 0
+                    r_t = record.r_t[b][i]
+                    q_a_t = record.q_a_t[b][i]
+                    q_comm_t = 0
+
+                    if record.a_t[b][i].item() > 0:
+                        if record.terminal[b].item() > 0 or step >= b_steps - 1:
+                            td_action = r_t - q_a_t
+                        else:
+                            next_record = episode.step_records[step + 1]
+                            q_next_max = next_record.q_a_max_t[i]
+                            if not opt.model_dial and opt.model_avg_q:
+                                q_next_max = (q_next_max + next_record.q_comm_max_t[b][i])/2.0
+                            td_action = r_t + opt.gamma * q_next_max - q_a_t
+
+                    if not opt.model_dial and record.a_comm_t[b][i].item() > 0:
+                        q_comm_t = record.q_comm_t[b][i]
+                        if record.terminal[b].item() > 0 or step >= b_steps - 1:
+                            td_comm = r_t - q_comm_t
+                        else:
+                            next_record = episode.step_records[step + 1]
+                            q_next_max = next_record.q_comm_max_t[b][i]
+                            if opt.model_avg_q: 
+                                q_next_max = (q_next_max + next_record.q_a_max_t[b][i])/2.0
+                            td_comm = r_t + opt.gamma * q_next_max - q_comm_t
+
+                    if not opt.model_dial:
+                        loss_t = (td_action ** 2 + td_comm ** 2)
+                    else:
+                        loss_t = (td_action ** 2)
+                    total_loss[b] = total_loss[b] + loss_t
+        loss = total_loss.sum()
+        loss = loss/(self.opt.bs * self.opt.game_nagents)
         return loss
 
     def learn_from_episode(self, episode):

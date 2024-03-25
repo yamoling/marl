@@ -474,9 +474,8 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
             z_u = self.prev_action_lookup(prev_action)
             if prev_message is not None:
                 z_u = z_u + self.prev_message_lookup(prev_message)
-        
-        if bs > 1:
-            z_u = z_u.reshape(bs*n_agents, -1)
+    
+        z_u = z_u.reshape(bs*n_agents, -1)
 
         z_m = self.messages_mlp(messages.view(-1, self.comm_size))
         z = z_a + z_o + z_u + z_m
@@ -496,6 +495,9 @@ class CNet(NN): # Source : https://github.com/minqi/learning-to-communicate-pyto
 
 
 class MAICNetwork(MAICNN):
+    """
+    Source : https://github.com/mansicer/MAIC
+    """
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -537,7 +539,7 @@ class MAICNetwork(MAICNN):
 
     def init_hidden(self):
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
-
+    
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode=False):
 
         bs, n_agent, obs_size = obs.shape
@@ -619,3 +621,4 @@ class MAICNetwork(MAICNN):
     @classmethod
     def from_env(cls, env: RLEnv, args):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+

@@ -24,6 +24,7 @@ class MAICAlgo(RLAlgo):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
+        self.test_mode = True
         
         self.hidden_states = None
 
@@ -34,13 +35,13 @@ class MAICAlgo(RLAlgo):
     
     def choose_action(self, obs: Observation) -> np.ndarray[np.int32, Any]:
         with torch.no_grad():
-            qvalues, _ = self.forward(*self.to_tensor(obs), test_mode=False)
+            qvalues, _ = self.forward(*self.to_tensor(obs), test_mode=self.test_mode)
         qvalues = qvalues.cpu().numpy()
         return self.policy.get_action(qvalues, obs.available_actions)
     
     def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""
-        return self.maic_network.value(obs, self.hidden_states).item()
+        return self.maic_network.value(obs, self.hidden_states, self.test_mode).item()
         
     def forward(self, obs: torch.Tensor, extras: torch.Tensor,  test_mode=False):
         batch_size = obs.shape[0]
@@ -81,10 +82,12 @@ class MAICAlgo(RLAlgo):
 
     def set_testing(self):
         self.policy = self.test_policy
+        self.test_mode = True
         self.maic_network.eval()
 
     def set_training(self):
         self.policy = self.train_policy
+        self.test_mode = False
         self.maic_network.train()
     
     def save(self, to_directory: str):
