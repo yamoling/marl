@@ -27,23 +27,34 @@ def random_initial_states(env: lle.LLE):
 def create_lle():
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=True)
     # env = curriculum(env, n_steps)
-    env = random_initial_states(env)
+    env = marl.env.lle_curriculum.RandomInitialStates(env, accumulate=True)
     # from marl.env import ExtraObjective
-    env.reset()
-    env.render("human")
-    print(f"t={env.t}")
-    env.render("human")
-    input("Press Enter to continue...")
-    env.t = 300_000
-    env.reset()
-    print(f"t={env.t}")
-    env.render("human")
-    input("Press Enter to continue...")
-    env.t = 600_000
-    env.reset()
-    print(f"t={env.t}")
-    env.render("human")
-    input("Press Enter to continue...")
+    go_next = ""
+    while go_next != "n":
+        env.t = 0
+        env.reset()
+        env.render("human")
+        print(f"t={env.t}")
+        env.render("human")
+        go_next = input("Press 'n' to go next")
+
+    go_next = ""
+    while go_next != "n":
+        env.t = 300_000
+        env.reset()
+        env.render("human")
+        print(f"t={env.t}")
+        env.render("human")
+        go_next = input("Press 'n' to go next")
+
+    go_next = ""
+    while go_next != "n":
+        env.t = 600_000
+        env.reset()
+        env.render("human")
+        print(f"t={env.t}")
+        env.render("human")
+        go_next = input("Press 'n' to go next")
 
 
 if __name__ == "__main__":

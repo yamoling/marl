@@ -1,6 +1,7 @@
 import random
 from rlenv.wrappers import RLEnvWrapper
 from lle import LLE, WorldState
+from dataclasses import dataclass
 
 
 class CurriculumLearning(RLEnvWrapper):
@@ -28,30 +29,48 @@ class CurriculumLearning(RLEnvWrapper):
         return self.lle.get_observation()
 
 
+@dataclass
 class RandomInitialStates(RLEnvWrapper):
+    accumulate: bool
+    env: LLE
+
     def __init__(self, env: LLE, accumulate: bool = False):
         super().__init__(env)
         self.lle = env
         self.world = env.world
+        self.accumulate = accumulate
         self.t = 0
         self.area0 = [(i, j) for i in range(7, self.world.height) for j in range(7)]
         self.area0 += [(i, j) for i in range(9, self.world.height) for j in range(7, self.world.width) if (i, j) not in self.world.exit_pos]
         self.area1 = [(5, j) for j in range(self.world.width)]
-        if accumulate:
-            self.area1 += self.area0
         self.area2 = [(i, j) for i in range(4) for j in range(2, self.world.width)]
-        if accumulate:
-            self.area2 = self.area2 + self.area1
 
     def get_initial_state(self):
-        if self.t < 300_000:
-            area = self.area0
-        elif self.t < 600_000:
-            area = self.area1
-        else:
-            area = self.area2
-        pos = random.sample(area, k=self.world.n_agents)
-        return WorldState(pos, [False] * self.world.n_gems)
+        initial_pos = []
+        for agent in range(self.n_agents):
+            agent_pos = None
+            while agent_pos is None or agent_pos in initial_pos:
+                if self.t < 300_000:
+                    area = self.area0
+                elif self.t < 600_000:
+                    if agent == 1 or not self.accumulate:
+                        area = self.area1
+                    else:
+                        area = self.area0 + self.area1
+                else:
+                    if agent == 0:
+                        area = self.area2
+                    elif agent == 1:
+                        area = self.area1
+                    else:
+                        if self.accumulate:
+                            area = self.area0 + self.area1 + self.area2
+                        else:
+                            area = self.area2
+
+                agent_pos = random.choice(area)
+            initial_pos.append(agent_pos)
+        return WorldState(initial_pos, [False] * self.world.n_gems)
 
     def step(self, action):
         self.t += 1

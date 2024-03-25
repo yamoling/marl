@@ -129,7 +129,6 @@ def create_lle(args: Arguments):
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=False).build()
-    # env = ExtraObjective(env, 2, [0, -0.1])
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     eps_schedule = MultiSchedule(
