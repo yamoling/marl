@@ -7,6 +7,7 @@ from .matrix_game import MatrixGame
 from .coordinated_grid import CoordinatedGrid
 from .lle_curriculum import CurriculumLearning
 from .extra_objective import ExtraObjective
+from .env_pool import EnvPool
 
 __all__ = [
     "TwoSteps",
@@ -15,4 +16,5 @@ __all__ = [
     "CoordinatedGrid",
     "CurriculumLearning",
     "ExtraObjective",
+    "EnvPool",
 ]

@@ -47,7 +47,7 @@ class RandomInitialStates(RLEnvWrapper):
             .difference(pos for (pos, gem) in self.world.gems)
             .difference(pos for pos in self.world.exit_pos)
         )
-        self.area1 = [(i, j) for i in [5, 6] for j in range(self.world.width)]
+        self.area1 = [(5, j) for j in range(self.world.width)]
         self.area2 = [(i, j) for i in range(4) for j in range(2, self.world.width)]
 
     def get_initial_state(self):
