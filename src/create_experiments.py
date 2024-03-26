@@ -120,12 +120,12 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
-    env = marl.env.EnvPool(envs)
-    # env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
+    # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
+    # env = marl.env.EnvPool(envs)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
-    # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
+    env = marl.env.lle_curriculum.RandomInitialStates(env, True)
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
