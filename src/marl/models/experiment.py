@@ -52,7 +52,7 @@ class Experiment:
         self.test_interval = test_interval
         self.n_steps = n_steps
         self.creation_timestamp = creation_timestamp
-        self.teste_env = test_env
+        self.test_env = test_env
 
     @staticmethod
     def create(

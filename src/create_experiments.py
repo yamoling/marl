@@ -129,7 +129,8 @@ def create_lle(args: Arguments):
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-    test_env = env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     # eps_schedule = MultiSchedule(

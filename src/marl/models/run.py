@@ -134,7 +134,7 @@ class Run:
 
     def get_progress(self, max_n_steps: int) -> float:
         try:
-            df = self.train_metrics
+            df = pl.read_csv(self.train_filename, ignore_errors=True)
             return df.select(pl.last(TIME_STEP_COL)).item() / max_n_steps
         except (pl.NoDataError, pl.ColumnNotFoundError):
             return 0.0
