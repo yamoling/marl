@@ -122,17 +122,18 @@ def create_lle(args: Arguments):
     gamma = 0.95
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
-    env = marl.env.lle_curriculum.RandomInitialStates(env, True)
+    # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-    test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
+    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
+    test_env = None
+    qnetwork = marl.nn.model_bank.RCNN.from_env(env)
+    memory = marl.models.EpisodeMemory(5000)
     # eps_schedule = MultiSchedule(
     #     {
     #         0: LinearSchedule(1, 0.05, 150_000),

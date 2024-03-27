@@ -11,6 +11,11 @@ class TransitionBatch(Batch):
         super().__init__(len(transitions), transitions[0].n_agents)
         self.transitions = transitions
 
+    def multi_objective(self):
+        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
+        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
+        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
+
     @cached_property
     def obs(self):
         return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)

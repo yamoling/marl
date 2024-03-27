@@ -1,5 +1,6 @@
 from typing import Optional, Iterable
 from dataclasses import dataclass
+from rlenv import Observation
 from rlenv.models import RLEnv
 import torch
 import math
@@ -173,6 +174,58 @@ class CNN(QNetwork):
         extras = extras.view(bs, *self.extras_shape)
         res = self.linear.forward(features, extras)
         return res.view(*dims, *self.output_shape)
+
+
+class RCNN(RecurrentQNetwork):
+    """
+    Recurrent CNN.
+    """
+
+    def __init__(self, input_shape: tuple[int, int, int], extras_size: int, output_shape: tuple[int, ...]):
+        super().__init__(input_shape, (extras_size,), output_shape)
+
+        kernel_sizes = [3, 3, 3]
+        strides = [1, 1, 1]
+        filters = [32, 64, 64]
+        self.cnn, self.n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        assert len(env.observation_shape) == 3
+        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size))
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
+        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
+        *dims, channels, height, width = obs.shape
+        obs = obs.view(-1, channels, height, width)
+        features = self.cnn.forward(obs)
+        features = torch.reshape(features, (*dims, self.n_features))
+        extras = extras.view(*dims, *self.extras_shape)
+        res = self.rnn.forward(features, extras)
+        return res.view(*dims, *self.output_shape)
+
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        *dims, channels, height, width = obs.shape
+        obs = obs.reshape(-1, channels, height, width)
+        features = self.cnn.forward(obs)
+        features = torch.reshape(features, (*dims, self.n_features))
+        extras = extras.view(*dims, *self.extras_shape)
+        res = self.rnn.batch_forward(features, extras)
+        return res.view(*dims, *self.output_shape)
+
+    def value(self, obs: Observation) -> torch.Tensor:
+        x, extras = self.to_tensor(obs)
+        *dims, channels, height, width = x.shape
+        x = x.view(-1, channels, height, width)
+        features = self.cnn.forward(x).unsqueeze(0)
+        extras = extras.view(*dims, *self.extras_shape)
+        saved_hidden_states = self.rnn.hidden_states
+        qvalues = self.rnn.forward(features, extras)
+        self.rnn.hidden_states = saved_hidden_states
+        max_qvalues = qvalues.max(dim=-2).values
+        return max_qvalues.mean(dim=-2)
 
 
 class CNN_ActorCritic(ActorCriticNN):

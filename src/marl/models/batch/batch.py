@@ -35,10 +35,9 @@ class Batch(ABC):
         """Shape of the reward tensor"""
         return self.rewards.shape[-1]
 
+    @abstractmethod
     def multi_objective(self):
-        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
-        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
-        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
+        """Prepare the batch for multi-objective training"""
 
     @cached_property
     def one_hot_actions(self) -> torch.Tensor:

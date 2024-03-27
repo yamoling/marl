@@ -25,6 +25,9 @@ class EpisodeBatch(Batch):
             result[step] = next_step_returns
         return result
 
+    def multi_objective(self):
+        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
+
     # def compute_normalized_returns(self, gamma: float, last_obs_value: Optional[float] = None) -> torch.Tensor:
     #     """Compute the returns for each timestep in the batch"""
     #     returns = self.compute_returns(gamma, last_obs_value)
