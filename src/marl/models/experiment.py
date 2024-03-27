@@ -13,6 +13,7 @@ from serde import serde
 import polars as pl
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
+from marl.policy_gradient import PPO, DDPG
 from marl.utils import encode_b64_image, exceptions, stats
 
 from .algo import RLAlgo
@@ -286,6 +287,10 @@ class Experiment:
 
                 if isinstance(self.algo, DQN):
                     qvalues.append(self.algo.compute_qvalues(obs).tolist())
+                if isinstance(self.algo, PPO):
+                    qvalues.append(self.algo.actions_logits(obs).tolist())
+                if isinstance(self.algo, DDPG):
+                    qvalues.append(self.algo.actions_logits(obs).tolist())
                 obs_, reward, done, truncated, info = env.step(action)
                 episode.add(Transition(obs, action, reward, done, info, obs_, truncated))
                 frames.append(encode_b64_image(env.render("rgb_array")))
