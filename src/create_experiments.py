@@ -122,13 +122,14 @@ def create_lle(args: Arguments):
     gamma = 0.95
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=True)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
     env = marl.env.lle_curriculum.RandomInitialStates(env, True)
     # from marl.env import ExtraObjective
 
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    test_env = env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     # eps_schedule = MultiSchedule(
@@ -193,7 +194,15 @@ def create_lle(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+    return marl.Experiment.create(
+        logdir,
+        algo=algo,
+        trainer=trainer,
+        env=env,
+        test_interval=test_interval,
+        n_steps=n_steps,
+        test_env=test_env,
+    )
 
 
 def main(args: Arguments):

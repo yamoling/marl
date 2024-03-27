@@ -4,6 +4,7 @@ import os
 import shutil
 import time
 import pickle
+from typing import Literal, Optional
 import numpy as np
 from copy import deepcopy
 from dataclasses import dataclass
@@ -31,8 +32,19 @@ class Experiment:
     test_interval: int
     n_steps: int
     creation_timestamp: int
+    test_env: RLEnv
 
-    def __init__(self, logdir: str, algo: RLAlgo, trainer: Trainer, env: RLEnv, test_interval: int, n_steps: int, creation_timestamp: int):
+    def __init__(
+        self,
+        logdir: str,
+        algo: RLAlgo,
+        trainer: Trainer,
+        env: RLEnv,
+        test_interval: int,
+        n_steps: int,
+        creation_timestamp: int,
+        test_env: RLEnv,
+    ):
         self.logdir = logdir
         self.trainer = trainer
         self.algo = algo
@@ -40,6 +52,7 @@ class Experiment:
         self.test_interval = test_interval
         self.n_steps = n_steps
         self.creation_timestamp = creation_timestamp
+        self.teste_env = test_env
 
     @staticmethod
     def create(
@@ -49,8 +62,11 @@ class Experiment:
         env: RLEnv,
         n_steps: int,
         test_interval: int,
+        test_env: Optional[RLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
+        if test_env is None:
+            test_env = deepcopy(env)
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
 
@@ -70,6 +86,7 @@ class Experiment:
                 n_steps=n_steps,
                 test_interval=test_interval,
                 creation_timestamp=int(time.time() * 1000),
+                test_env=test_env,
             )
             experiment.save()
             return experiment
@@ -155,15 +172,31 @@ class Experiment:
             return None
         return Experiment.find_experiment_directory(parent)
 
-    def create_runner(self, seed: int):
+    def run(
+        self,
+        seed: int,
+        quiet: bool = False,
+        n_tests: int = 1,
+        device: Literal["auto", "cpu", "cuda"] = "auto",
+        run_in_new_process=False,
+    ):
+        if run_in_new_process:
+            # Parent process returns directly
+            if os.fork() != 0:
+                return
+        runner = self.create_runner().to(device)
+        runner.train(self.logdir, seed, n_tests, quiet)
+        if run_in_new_process:
+            exit(0)
+
+    def create_runner(self):
         return Runner(
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            logdir=self.logdir,
-            seed=seed,
             test_interval=self.test_interval,
             n_steps=self.n_steps,
+            test_env=self.test_env,
         )
 
     @property

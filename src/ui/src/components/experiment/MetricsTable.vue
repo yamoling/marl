@@ -27,7 +27,7 @@
         <div class="col-auto mx-auto text-center" v-if="selectedTimeStep != null">
             <h4>Tests at time step {{ selectedTimeStep }}</h4>
             <div class="table-scrollable">
-                <table v-if="testsAtStep != null" class="table table-sm table-striped table-hover">
+                <table v-if="testsAtStep.length > 0" class="table table-sm table-striped table-hover">
                     <thead>
                         <tr>
                             <th v-for="column in Object.keys(testsAtStep[0].metrics)" class="text-capitalize">

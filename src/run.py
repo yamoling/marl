@@ -1,7 +1,6 @@
 from typing import Literal, Optional
 import typed_argparse as tap
 
-import os
 import time
 import marl
 
@@ -18,32 +17,20 @@ class Arguments(tap.TypedArgs):
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
 
 
-def create_run(logdir: str, seed: int, n_tests: int, quiet: bool, device: Literal["auto", "cpu", "cuda"]):
-    experiment = marl.Experiment.load(logdir)
-    runner = experiment.create_runner(seed)
-    runner.to(device)
-    runner.train(n_tests=n_tests, quiet=quiet)
-
-
 def main(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    for i in range(args.n_runs - 1):
-        seed = args.seed + i
-        if os.fork() == 0:
-            # Child processes are quiet if not specified otherwise
-            if args.quiet is None:
-                args.quiet = True
-            args.seed = seed
-            create_run(args.logdir, args.seed, args.n_tests, args.quiet, args.device)
-            exit(0)
-
+    experiment = marl.Experiment.load(args.logdir)
+    for run_num in range(1, args.n_runs):
+        seed = args.seed + run_num
+        if args.quiet is None:
+            args.quiet = True
+        experiment.run(seed, args.quiet, args.n_tests, args.device, True)
         # Sleep for some time for each child process to allocate GPUs properly
         time.sleep(args.delay)
-    seed = args.seed + args.n_runs - 1
     if args.quiet is None:
         args.quiet = False
-    create_run(args.logdir, seed, args.n_tests, args.quiet, args.device)
+    experiment.run(args.seed, args.quiet, args.n_tests, args.device, False)
 
 
 if __name__ == "__main__":

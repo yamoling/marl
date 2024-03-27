@@ -1,5 +1,4 @@
 import torch
-from copy import deepcopy
 from typing import Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
@@ -12,24 +11,13 @@ from .run import Run, RunHandle
 
 
 class Runner:
-    def __init__(
-        self,
-        env: RLEnv,
-        algo: RLAlgo,
-        trainer: Trainer,
-        logdir: str,
-        seed: int,
-        test_interval: int,
-        n_steps: int,
-    ):
+    def __init__(self, env: RLEnv, algo: RLAlgo, trainer: Trainer, test_interval: int, n_steps: int, test_env: RLEnv):
         self._trainer = trainer
         self._env = env
         self._algo = algo
         self._test_interval = test_interval
         self._max_step = n_steps
-        self._run = Run.create(logdir, seed)
-        marl.seed(seed, self._env)
-        self.randomize()
+        self._test_env = test_env
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
@@ -54,15 +42,17 @@ class Runner:
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def train(self, n_tests: int, quiet: bool = False):
+    def train(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
         """Start the training loop"""
+        marl.seed(seed, self._env)
+        self.randomize()
         episode_num = 0
         step = 0
         pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
-        with self._run as run_handle:
-            self.test(n_tests, 0, quiet, run_handle)
+        with Run.create(logdir, seed) as run:
+            self.test(n_tests, 0, quiet, run)
             while step < self._max_step:
-                episode = self._train_episode(step, episode_num, n_tests, quiet, run_handle)
+                episode = self._train_episode(step, episode_num, n_tests, quiet, run)
                 episode_num += 1
                 step += len(episode)
                 pbar.update(len(episode))
@@ -72,21 +62,20 @@ class Runner:
         """Test the agent"""
         self._algo.set_testing()
         episodes = list[Episode]()
-        test_env = deepcopy(self._env)
         for test_num in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-            test_env.seed(time_step + test_num)
+            self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
-            obs = test_env.reset()
+            obs = self._test_env.reset()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
-                new_obs, reward, done, truncated, info = test_env.step(action)
+                new_obs, reward, done, truncated, info = self._test_env.step(action)
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        run_handle.log_tests(episodes, test_env, self._algo, time_step)
+        run_handle.log_tests(episodes, self._test_env, self._algo, time_step)
         self._algo.set_training()
 
     def randomize(self):
