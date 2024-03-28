@@ -26,7 +26,7 @@ class ActorCritic(RLAlgo):
     def after_train_episode(self, episode_num: int, episode: Episode):
         batch = EpisodeBatch([episode]).for_individual_learners()
         returns = batch.compute_normalized_returns(self.gamma)  # type: ignore
-        logits, values = self.network.forward(batch.obs)
+        logits, values = self.network.forward(batch.obs)  # type: ignore
         # Values have last dimension [1] -> squeeze it
         values = values.squeeze(-1)
         advantages = returns - values

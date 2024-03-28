@@ -5,8 +5,8 @@
     <div v-else class="row">
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <div class="col-3">
-            <DQNParams v-if="experiment.algo.name == 'DQN'" :trainer="experiment.trainer" :algo="(experiment.algo as DQN)"
-                class="mb-1" />
+            <DQNParams v-if="experiment.algo.name == 'DQN'" :trainer="experiment.trainer"
+                :algo="(experiment.algo as DQN)" class="mb-1" />
             <EnvironmentParams :env="experiment.env" />
         </div>
         <div class="col" v-if="results != null">
@@ -23,7 +23,8 @@
             <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
                 @view-episode="viewer.viewEpisode" />
             <div v-show="plotOrTable == 'plot'">
-                <Plotter :xTicks="ticks" :datasets="datasets" title="All runs" :showLegend="false"></Plotter>
+                <Plotter :datasets="datasets" title="All runs" :showLegend="false"
+                    @episode-selected="onEpisodeSelected" />
                 <div>
                     <template v-for="ds in datasets">
                         <div>
@@ -57,15 +58,22 @@ const results = ref(null as ExperimentResults | null);
 const experimentStore = useExperimentStore()
 const plotOrTable = ref("plot" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
-const ticks = ref([] as number[]);
 const datasets = ref([] as Dataset[]);
 const colourStore = useColourStore();
+
+
+function onEpisodeSelected(datasetIndex: number, xIndex: number) {
+    const run = runResults.value[datasetIndex];
+    const tick = run.datasets[0].ticks[xIndex];
+    const episodeDirectory = `${run.logdir}/test/${tick}/0`
+    viewer.value.viewEpisode(episodeDirectory);
+}
 
 
 onMounted(async () => {
     const route = useRoute();
     const logdir = (route.params.logdir as string[]).join('/');
-    // Asynchronously load the experiment in case we want to load the results
+    // Asynchronously load the experiment in case we want to replay an episode later on.
     experimentStore.loadExperiment(logdir);
     const res = await experimentStore.getExperiment(logdir);
     if (res == null) {
@@ -76,12 +84,9 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    ticks.value = runResults.value[0].ticks;
-    const trainDatasets = runResults.value.map(r => r.train).flat().filter(d => d.label == "score");
+    const trainDatasets = runResults.value.map(r => r.datasets).flat().filter(d => d.label == "score [test]");
+    trainDatasets.forEach((ds, i) => ds.logdir = runResults.value[i].logdir)
     datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
-
-const emits = defineEmits(["close-experiment"]);
-
 
 </script>

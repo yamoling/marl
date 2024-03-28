@@ -7,7 +7,7 @@ from marl.models import EpisodeMemory
 from marl.nn import model_bank
 from marl.training import DQNTrainer
 
-from .envs import TwoSteps, TwoStepsState, MatrixGame
+from marl.env import TwoSteps, TwoStepsState, MatrixGame
 
 
 def test_qmix_value():
@@ -34,9 +34,9 @@ def test_qmix_value():
         lr=1e-4,
     )
     algo = marl.qlearning.DQN(trainer.qnetwork, trainer.policy)
-    runner = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000).create_runner(0)
+    runner = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000).create_runner()
     runner.to(device)
-    runner.train(0)
+    runner.train("logs/test", 0, 0)
 
     # Expected results shown in the paper
     expected = {
@@ -68,12 +68,13 @@ def test_qplex():
     env = LastAction(AgentId(MatrixGame(MatrixGame.QPLEX_PAYOFF_MATRIX)))
     qnetwork = model_bank.RNN.from_env(env)
     policy = marl.policy.EpsilonGreedy.constant(1.0)
-    mixer = marl.qlearning.QPlex(
+    mixer = marl.qlearning.mixers.QPlex(
         env.n_agents,
         env.n_actions,
         10,
         env.state_shape[0],
         64,
+        # transformation=True,
     )
     trainer = DQNTrainer(
         qnetwork=qnetwork,
@@ -96,32 +97,29 @@ def test_qplex():
         env,
         500,
         0,
-    ).create_runner(0)
-    runner.to(marl.utils.get_device())
+    ).create_runner()
+    device = marl.utils.get_device()
+    runner.to(device)
 
     for _epoch in range(10):
         # Train the model for 500 time steps.
         # If it converged, the test passes.
         # If it did not converge, we train for an additional 500 time steps (at most 10 times).
-        runner.train(0)
+        runner.train("logs/test", 0, 0)
 
         # Then check if the learned Q-function matches the expected qvalues
         obs = env.reset()
         qnetwork.reset_hidden_states()
-        qvalues = qnetwork.qvalues(obs)
-        success = True
+        qvalues = qnetwork.qvalues(obs).to(device)
+        predicted = np.zeros((3, 3))
         for a0 in range(3):
             for a1 in range(3):
-                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0)
-                s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0)
-                actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0)
-                res = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
-                difference = abs(res - MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1])
-                if difference > 1:
-                    print(f"{a0}/{a1}: {res} vs {MatrixGame.QPLEX_PAYOFF_MATRIX[a0][a1]}")
-                    success = False
-            if success:
-                return
+                qs = torch.tensor([qvalues[0][a0], qvalues[1][a1]]).unsqueeze(0).to(device)
+                s = torch.tensor(env.get_state(), dtype=torch.float32).unsqueeze(0).to(device)
+                actions = torch.nn.functional.one_hot(torch.tensor([a0, a1]), 3).unsqueeze(0).to(device)
+                predicted[a0, a1] = mixer.forward(qs, s, actions, qvalues.unsqueeze(0)).detach().cpu().item()
+        if np.allclose(predicted, MatrixGame.QPLEX_PAYOFF_MATRIX, atol=1):
+            return
     assert False, "The QPLEX mixer did not converge to the expected values."
 
 
@@ -159,9 +157,9 @@ def test_mixers():
     )
     algo = marl.qlearning.DQN(qnetwork, policy)
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 2000, 10_000)
-    runner = exp.create_runner(0)
+    runner = exp.create_runner()
     runner.to(device)
-    runner.train(0)
+    runner.train("logs/test", 0, 0)
 
     # Expected results shown in the paper
     expected_qatten = [

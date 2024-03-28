@@ -150,33 +150,34 @@ function interpolate(data: number[], ticks: number[], desiredTicks: number[]) {
     return res;
 }
 
-
+/*
 export function alignTicks(experimentResults: ExperimentResults, desiredTicks: number[]): ExperimentResults {
     // Filter train datasets based on the filtered ticks
     const filteredTrain = experimentResults.train.map(dataset => ({
         ...dataset,
-        mean: interpolate(dataset.mean, experimentResults.ticks, desiredTicks),
-        std: interpolate(dataset.std, experimentResults.ticks, desiredTicks),
-        min: interpolate(dataset.min, experimentResults.ticks, desiredTicks),
-        max: interpolate(dataset.max, experimentResults.ticks, desiredTicks),
-        ci95: interpolate(dataset.ci95, experimentResults.ticks, desiredTicks),
+        mean: interpolate(dataset.mean, experimentResults.train_ticks, desiredTicks),
+        std: interpolate(dataset.std, experimentResults.train_ticks, desiredTicks),
+        min: interpolate(dataset.min, experimentResults.train_ticks, desiredTicks),
+        max: interpolate(dataset.max, experimentResults.train_ticks, desiredTicks),
+        ci95: interpolate(dataset.ci95, experimentResults.train_ticks, desiredTicks),
     }));
 
     // Filter test datasets based on the filtered ticks
     const filteredTest = experimentResults.test.map(dataset => ({
         ...dataset,
-        mean: interpolate(dataset.mean, experimentResults.ticks, desiredTicks),
-        std: interpolate(dataset.std, experimentResults.ticks, desiredTicks),
-        min: interpolate(dataset.min, experimentResults.ticks, desiredTicks),
-        max: interpolate(dataset.max, experimentResults.ticks, desiredTicks),
-        ci95: interpolate(dataset.ci95, experimentResults.ticks, desiredTicks),
+        mean: interpolate(dataset.mean, experimentResults.test_ticks, desiredTicks),
+        std: interpolate(dataset.std, experimentResults.test_ticks, desiredTicks),
+        min: interpolate(dataset.min, experimentResults.test_ticks, desiredTicks),
+        max: interpolate(dataset.max, experimentResults.test_ticks, desiredTicks),
+        ci95: interpolate(dataset.ci95, experimentResults.test_ticks, desiredTicks),
     }));
 
     // Return a new ExperimentResults with filtered data
     return {
         ...experimentResults,
-        ticks: [...desiredTicks],
+        test_ticks: [...desiredTicks],
         train: filteredTrain,
         test: filteredTest,
     };
 }
+*/

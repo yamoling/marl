@@ -8,6 +8,10 @@ export interface Env {
     action_space: {
         action_names: string[]
     }
+    reward_space: {
+        size: number,
+        labels: string[]
+    },
 }
 
 

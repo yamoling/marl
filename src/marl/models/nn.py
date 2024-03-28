@@ -29,19 +29,15 @@ class NN(torch.nn.Module, ABC):
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         torch.nn.Module.__init__(self)
-        self.input_shape = tuple(input_shape)
-        self.extras_shape = tuple(extras_shape)
-        self.output_shape = tuple(output_shape)
+        self.input_shape = input_shape
+        self.extras_shape = extras_shape
+        self.output_shape = output_shape
         self.name = self.__class__.__name__
+        self.device = torch.device("cpu")
 
     @abstractmethod
-    def forward(self, *args):
+    def forward(self, *args) -> torch.Tensor:
         """Forward pass"""
-
-    @property
-    def device(self) -> torch.device:
-        """Returns the device of the model"""
-        return next(self.parameters()).device
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         match method:
@@ -60,6 +56,14 @@ class NN(torch.nn.Module, ABC):
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
         return hash(self.__class__.__name__)
+
+    def to(self, device: torch.device | Literal["cpu", "cuda"], dtype: Optional[torch.dtype] = None, non_blocking=True):
+        if isinstance(device, str):
+            from marl.utils import get_device
+
+            device = get_device(device)
+        self.device = device
+        return super().to(device, dtype, non_blocking)
 
 
 class RecurrentNN(NN):
@@ -86,23 +90,35 @@ class RecurrentNN(NN):
 
 
 class QNetwork(NN):
+    """
+    Takes as input observations of the environment and outputs Q-values for each action.
+    """
+
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
-        """Compute the Q-values"""
-        return self.forward(*self.to_tensor(obs)).squeeze(0)
+        """Compute the Q-values (one per objective)."""
+        obs_tensor, extra_tensor = self.to_tensor(obs)
+        objective_qvalues = self.forward(obs_tensor, extra_tensor)
+        objective_qvalues = objective_qvalues.squeeze(0)
+        return torch.sum(objective_qvalues, dim=-1)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function"""
-        agent_values = self.qvalues(obs).max(dim=-1).values
+        qvalues = self.qvalues(obs)
+        agent_values = qvalues.max(dim=-1).values
         return agent_values.mean(dim=-1)
 
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Compute the Q-values"""
+        """
+        Compute the Q-values.
+
+        This function should output qvalues of shape (batch_size, n_actions, n_objectives).
+        """
 
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
@@ -110,7 +126,11 @@ class QNetwork(NN):
 
     @classmethod
     def from_env(cls, env: RLEnv):
-        return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
+        return cls(
+            input_shape=env.observation_shape,
+            extras_shape=env.extra_feature_shape,
+            output_shape=(env.n_actions, env.reward_size),
+        )
 
 
 class RecurrentQNetwork(QNetwork, RecurrentNN):
@@ -152,16 +172,16 @@ class ActorCriticNN(NN, ABC):
         """Returns the logits of the policy distribution"""
 
     @abstractmethod
-    def value(self, obs: torch.Tensor) -> torch.Tensor:
+    def value(self, obs: torch.Tensor, extras: torch.Tensor, *args) -> torch.Tensor:
         """Returns the value function of an observation"""
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
-        return self.policy(obs), self.value(obs)
+        return self.policy(obs), self.value(obs, extras)
 
 
 @dataclass(eq=False)
-class Mixer(NN, ABC):
+class Mixer(NN):
     n_agents: int
 
     def __init__(self, n_agents: int):
@@ -195,3 +215,32 @@ class Mixer(NN, ABC):
         """Load the mixer from a directory."""
         filename = f"{from_directory}/mixer.weights"
         self.load_state_dict(torch.load(filename))
+
+
+class MAICNN(NN):
+    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        return obs_tensor, extras
+
+    def qvalues(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode=False):
+        """Compute the Q-values"""
+        agent_outs, h, returns = self.forward(obs, extras, hidden_state=hidden_state, test_mode=test_mode)
+        return agent_outs, h, returns
+
+    def value(self, obs: Observation, hidden_state, test_mode) -> torch.Tensor:
+        """Compute the value function"""
+        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=-1).values
+        return agent_values.mean(dim=-1)
+
+    @abstractmethod
+    def init_hidden(self) -> torch.Tensor:
+        """Initialize the hidden states"""
+
+    @abstractmethod
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode) -> ...:
+        """Compute the Q-values"""
+
+    # def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode):
+    #     """Compute the Q-values for a batch of observations during training"""
+    #     return self.forward(obs, extras, hidden_state, test_mode)

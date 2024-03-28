@@ -104,7 +104,7 @@ class PPOTrainer(Trainer):
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
         for t in range(mem_len - 1):
             discount = 1
-            a_t = torch.tensor(0)
+            a_t = torch.zeros(batch_values[0].shape).to(self.device)
             for k in range(t, mem_len - 1):
                 a_t += discount * (batch.rewards[k] + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
                 if batch.dones[k] == 1:
@@ -160,6 +160,7 @@ class PPOTrainer(Trainer):
     def to(self, device: torch.device):
         self.device = device
         self.batch.to(device)
+        return self
 
     def randomize(self):
         self.batch.randomize()

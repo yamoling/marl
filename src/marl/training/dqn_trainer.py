@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 
 from typing import Any, Literal, Optional
 from copy import deepcopy
@@ -47,7 +46,7 @@ class DQNTrainer(Trainer):
         super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
-
+        self.device = qnetwork.device
         self.policy = train_policy
         self.memory = memory
         self.gamma = gamma
@@ -70,84 +69,61 @@ class DQNTrainer(Trainer):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
-        self.i = 0
 
     def _update(self, time_step: int):
         self.update_num += 1
-        if self.update_num % self.update_interval != 0:
+        if self.update_num % self.update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_qnetwork()
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
         if isinstance(self.memory, PrioritizedMemory):
-            self.memory.update(td_error)
-            logs["per-alpha"] = self.memory.alpha.value
-            logs["per-beta"] = self.memory.beta.value
+            logs = logs | self.memory.update(td_error)
+        if self.ir_module is not None:
+            logs = logs | self.ir_module.update(time_step)
         return logs
 
+    def _can_update(self):
+        return self.memory.can_sample(self.batch_size)
+
     def _next_state_value(self, batch: Batch):
-        next_qvalues = self.qtarget.batch_forward(batch.obs_, batch.extras_).detach()
+        # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.obs_, batch.extras_).detach()
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
         else:
             qvalues_for_index = next_qvalues
-        # For episode batches, the batch includes the initial observation in order to compute the
-        # hidden state at t=0 and use it for t=1. We need to remove it when considering the next qvalues.
-        if isinstance(batch, EpisodeBatch):
-            next_qvalues = next_qvalues[1:]
-            qvalues_for_index = qvalues_for_index[1:]
+        # Sum over the objectives
+        qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
-        if self.target_mixer is not None:
-            # We have to compute the best action of the next state from the indices since it is not present in the batch information
-            one_hot_actions_ = F.one_hot(indices, batch.n_actions)
-            next_values = self.target_mixer.forward(next_values, batch.states_, one_hot_actions_, next_qvalues)
-        return next_values
+        indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
+        next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
+        mixed_next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        return mixed_next_values
 
     def optimise_qnetwork(self):
-        if not self.memory.can_sample(self.batch_size):
-            return {}, torch.tensor(0.0)
-        batch = self.memory.sample(self.batch_size)
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+        batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
-        # Qvalues computation
-        all_qvalues = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)
-        all_target_qvalues_ = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)
+        # Qvalues and qvalues with target network computation
+        qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
+        chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
+        mixed_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
 
-        # Mask unavailable actions
-        mask = batch.all_available_actions == 0.0
-        all_qvalues[mask] = -torch.inf
-        all_target_qvalues_[mask] = -torch.inf
+        # Drop variables to prevent using them mistakenly
+        del qvalues
+        del chosen_qvalues
 
-        qvalues = all_qvalues[:-1]
-        qvalues_ = all_qvalues[1:]
-        target_qvalues_ = all_target_qvalues_[1:]
-        # Drop these variables to prevent using them by mistake
-        del all_qvalues
-        del all_target_qvalues_
-
-        chosen_qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
-        predicted_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
-
-        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
-        if self.double_qlearning:
-            best_next_action_indices = torch.argmax(qvalues_, dim=-1, keepdim=True)
-        else:
-            best_next_action_indices = torch.argmax(target_qvalues_, dim=-1, keepdim=True)
-        target_chosen_qvalues_ = torch.gather(target_qvalues_, -1, best_next_action_indices).squeeze(-1)
-
-        # We have to compute the best action of the next state from the indices since it is not present in the batch information
-        one_hot_actions_ = F.one_hot(best_next_action_indices, batch.n_actions)
-        next_state_value = self.target_mixer.forward(target_chosen_qvalues_, batch.states_, one_hot_actions_, target_qvalues_)
-        assert batch.rewards.shape == next_state_value.shape
-        qtargets = batch.rewards + self.gamma * next_state_value * (1 - batch.dones)
-
+        # Qtargets computation
+        next_values = self._next_state_value(batch)
+        assert batch.rewards.shape == next_values.shape == batch.dones.shape == mixed_qvalues.shape == batch.masks.shape
+        qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         # Compute the loss
-        assert predicted_qvalues.shape == qtargets.shape
-        td_error = predicted_qvalues - qtargets.detach()
+        td_error = mixed_qvalues - qtargets.detach()
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
@@ -157,13 +133,10 @@ class DQNTrainer(Trainer):
 
         # Optimize
         logs = {"loss": float(loss.item())}
-        print(self.i, logs["loss"])
-        self.i += 1
         self.optimiser.zero_grad()
         loss.backward()
         if self.grad_norm_clipping is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
-            # grad_norm = torch.nn.utils.clip_grad_norm_(self.qnetwork.parameters(), self.grad_norm_clipping)
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.qnetwork.parameters(), self.grad_norm_clipping)
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
         return logs, td_error
@@ -183,12 +156,13 @@ class DQNTrainer(Trainer):
         return self._update(time_step)
 
     def to(self, device: torch.device):
-        if self.mixer is not None:
-            self.mixer.to(device)
-        if self.target_mixer is not None:
-            self.target_mixer.to(device)
         self.qnetwork.to(device)
         self.qtarget.to(device)
+        self.mixer.to(device)
+        self.target_mixer.to(device)
+        if self.ir_module is not None:
+            self.ir_module.to(device)
+        self.device = device
         return self
 
     def randomize(self):

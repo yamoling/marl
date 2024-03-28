@@ -5,6 +5,7 @@ from copy import deepcopy
 
 import torch
 import os
+import math
 
 from marl.models.batch import Batch, EpisodeBatch
 from marl.models.nn import randomize, NN
@@ -24,27 +25,33 @@ class RandomNetworkDistillation(IRModule):
     def __init__(
         self,
         target: NN,
+        reward_size: int,
         update_ratio: float = 0.25,
         normalise_rewards=True,
         ir_weight: Optional[Schedule] = None,
         gamma: Optional[float] = None,
+        lr: float = 1e-4,
     ):
         """
         Gamma is required if normalise_rewards is True since we have to compute the episode returns.
         normalise_rewards only works with EpisodeBatch.
         """
         super().__init__()
+        # RND should output one intrinsic reward objective
+        if len(target.output_shape) != 2 or target.output_shape[0] != reward_size:
+            raise ValueError("RND target should output a tensor of shape (reward_size, embedding)")
         self.target = target
         self.predictor_head = deepcopy(target)
+        self.output_size = math.prod(target.output_shape)
         self.predictor_tail = torch.nn.Sequential(
             torch.nn.ReLU(),
-            torch.nn.Linear(target.output_shape[0], target.output_shape[0]),
+            torch.nn.Linear(self.output_size, self.output_size),
         )
         self.target.randomize()
         if ir_weight is None:
             ir_weight = Schedule.constant(1.0)
         self.ir_weight = ir_weight
-        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=1e-4)
+        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=lr)
 
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
@@ -73,11 +80,17 @@ class RandomNetworkDistillation(IRModule):
         with torch.no_grad():
             target_features = self.target.forward(obs_, extras_)
         predicted_features = self.predictor_head.forward(batch.obs_, extras_)
+        shape = predicted_features.shape
+        new_shape = shape[:-2] + (self.output_size,)
+        predicted_features = predicted_features.view(*new_shape)
         predicted_features = self.predictor_tail.forward(predicted_features)
-        self._squared_error = torch.pow(target_features - predicted_features, 2)
-        # Reshape the error such that it is a vector of shape (batch_size, -1) to sum over batch size even if there are multiple agents
-        self._squared_error = self._squared_error.view(batch.size, -1)
-        intrinsic_reward = torch.sum(self._squared_error, dim=-1).detach()
+        predicted_features = predicted_features.view(*shape)
+        squared_error = torch.pow(target_features - predicted_features, 2)
+        # squared error has shape (batch_size, n_agents, reward_size, embedding)
+        # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
+        squared_error = torch.sum(squared_error, dim=-1)
+        # squared_error has shape (batch_size, n_agents, reward_size) and we want to sum over the agents to have one common intrinsic reward
+        intrinsic_reward = torch.sum(squared_error, dim=1).detach()
         if self.normalise_rewards:
             if not isinstance(batch, EpisodeBatch):
                 raise RuntimeError("Normalising rewards only works with EpisodeBatch since there is no return to individual Transitions")
@@ -86,11 +99,12 @@ class RandomNetworkDistillation(IRModule):
             intrinsic_reward = intrinsic_reward / self._running_returns.std
         # Book keeping
         self._intrinsic_reward = intrinsic_reward * self.ir_weight.value
+        self._squared_error = squared_error
         return self._intrinsic_reward
 
     def to(self, device: torch.device):
-        self.target.to(device, non_blocking=True)
-        self.predictor_head.to(device, non_blocking=True)
+        self.target.to(device)
+        self.predictor_head.to(device)
         self.predictor_tail.to(device, non_blocking=True)
         self._running_obs.to(device)
         self._running_returns.to(device)
@@ -103,8 +117,9 @@ class RandomNetworkDistillation(IRModule):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        self.ir_weight.update()
-        return {"ir-loss": loss.item(), "ir": self._intrinsic_reward.mean().item(), "ir-weight": self.ir_weight.value}
+        self.ir_weight.update(time_step)
+        ir = self._intrinsic_reward.mean().item()
+        return {"ir-loss": loss.item(), "ir": ir, "ir-weight": self.ir_weight.value}
 
     def randomize(self):
         self.target.randomize()

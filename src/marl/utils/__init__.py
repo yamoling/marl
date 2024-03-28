@@ -1,6 +1,7 @@
 from .exceptions import CorruptExperimentException, EmptyForcedActionsException, ExperimentAlreadyExistsException
 from .others import alpha_num_order, defaults_to, encode_b64_image, get_device, seed
-from .schedule import ExpSchedule, LinearSchedule, Schedule, ConstantSchedule
+from .schedule import ExpSchedule, LinearSchedule, Schedule, ConstantSchedule, MultiSchedule
+from .dotdic import DotDic
 
 __all__ = [
     "get_device",
@@ -15,4 +16,6 @@ __all__ = [
     "ConstantSchedule",
     "ExpSchedule",
     "Schedule",
+    "MultiSchedule",
+    "DotDic",
 ]
