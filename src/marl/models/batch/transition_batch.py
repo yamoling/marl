@@ -8,8 +8,8 @@ from .batch import Batch
 
 class TransitionBatch(Batch):
     def __init__(self, transitions: list[Transition]):
-        super().__init__(len(transitions), transitions[0].n_agents)
         self.transitions = transitions
+        super().__init__(len(transitions), transitions[0].n_agents)
 
     def multi_objective(self):
         self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)

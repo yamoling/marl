@@ -7,10 +7,10 @@ from .batch import Batch
 
 class EpisodeBatch(Batch):
     def __init__(self, episodes: list[Episode]):
-        super().__init__(len(episodes), episodes[0].n_agents)
         self._max_episode_len = max(len(e) for e in episodes)
         self._base_episodes = episodes
         self.episodes = [e.padded(self._max_episode_len) for e in episodes]
+        super().__init__(len(episodes), episodes[0].n_agents)
 
     def for_individual_learners(self):
         self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
