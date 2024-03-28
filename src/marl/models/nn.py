@@ -215,3 +215,33 @@ class Mixer(NN):
         """Load the mixer from a directory."""
         filename = f"{from_directory}/mixer.weights"
         self.load_state_dict(torch.load(filename))
+
+
+class MAICNN(NN):
+
+    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        return obs_tensor, extras
+    
+    def qvalues(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode = False):
+        """Compute the Q-values"""
+        agent_outs, h, returns = self.forward(obs, extras, hidden_state=hidden_state, test_mode=test_mode)
+        return agent_outs, h, returns
+
+    def value(self, obs: Observation, hidden_state, test_mode) -> torch.Tensor:
+        """Compute the value function"""
+        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=-1).values
+        return agent_values.mean(dim=-1)
+    
+    @abstractmethod
+    def init_hidden(self) -> torch.Tensor:
+        """Initialize the hidden states"""
+
+    @abstractmethod
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode):
+        """Compute the Q-values"""
+
+    # def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode):
+    #     """Compute the Q-values for a batch of observations during training"""
+    #     return self.forward(obs, extras, hidden_state, test_mode)
