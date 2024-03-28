@@ -22,15 +22,6 @@ class Arguments(tap.TypedArgs):
     n_runs: int = tap.arg(default=1, help="Number of runs to start. Only applies if 'run' is True.")
 
 
-class Args:
-    def __init__(self):
-        self.latent_dim = 64
-        self.hidden_size = 128
-        self.rnn_hidden_dim = 128
-        self.attention_dim = 64
-        self.var_floor = 1e-6
-
-
 def create_smac(args: Arguments):
     n_steps = 2_000_000
     env = rlenv.adapters.SMAC("3s_vs_5z")
@@ -213,7 +204,7 @@ def create_lle(args: Arguments):
     elif args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/curriculum-{env.name}"
+        logdir = f"logs/qnetwork-{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
@@ -235,7 +226,7 @@ def create_lle(args: Arguments):
 
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
-    env = lle.LLE.level(2, lle.ObservationType.FLATTENED)
+    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -254,11 +245,11 @@ def create_lle_maic(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        300_000,
+        50_000,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
-    batch_size = 64
+    batch_size = 32
     # Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
         args=opt,
@@ -291,170 +282,12 @@ def create_lle_maic(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-## Init RIAL/DIAL options https://github.com/minqi/learning-to-communicate-pytorch
-def init_action_and_comm_bits(opt):
-    opt.comm_enabled = opt.game_comm_bits > 0 and opt.game_nagents > 1
-    if opt.model_comm_narrow is None:
-        opt.model_comm_narrow = opt.model_dial
-    if not opt.model_comm_narrow and opt.game_comm_bits > 0:
-        opt.game_comm_bits = 2**opt.game_comm_bits
-    if opt.comm_enabled:
-        opt.game_action_space_total = opt.game_action_space + opt.game_comm_bits
-    else:
-        opt.game_action_space_total = opt.game_action_space
-    return opt
-
-
-def init_opt(opt):
-    if not opt.model_rnn_layers:
-        opt.model_rnn_layers = 2
-    if opt.model_avg_q is None:
-        opt.model_avg_q = True
-    if opt.eps_decay is None:
-        opt.eps_decay = 1.0
-    opt = init_action_and_comm_bits(opt)
-    return opt
-
-
-def create_lle_rial_dial(args: Arguments):
-    n_steps = 300_000
-    env = lle.LLE.level(2, lle.ObservationType.FLATTENED)
-    nsteps_limit = env.width * env.height // 2
-    env = rlenv.Builder(env).agent_id().time_limit(nsteps_limit, add_extra=False).build()
-
-    opt = SimpleNamespace()
-    # TODO : Add options from Json ?
-    opt.game = "LLE"
-    opt.game_nagents = env.n_agents
-    opt.game_action_space = env.n_actions
-    opt.game_comm_limited = False
-    opt.game_comm_bits = 3  # test with different values
-    opt.game_comm_sigma = 2
-    opt.nsteps = nsteps_limit
-    opt.gamma = 0.9
-    opt.model_dial = True
-    opt.model_target = True
-    opt.model_bn = True
-    opt.model_know_share = True
-    opt.model_action_aware = True
-    opt.model_rnn_size = 128
-    opt.bs = 32
-    opt.learningrate = 0.0005
-    opt.momentum = 0.05
-    opt.eps = 0.05
-    opt.nepisodes = n_steps
-    opt.step_test = 10
-    opt.step_target = 100
-    opt.cuda = 0
-
-    opt.model_rnn_layers = 2
-    opt.model_avg_q = True
-    opt.eps_decay = 1.0
-    opt.model_comm_narrow = opt.model_dial
-
-    opt.model_rnn_dropout_rate = 0.0
-    opt.game_comm_hard = False
-
-    opt = init_opt(opt)
-
-    cnet = marl.nn.model_bank.CNet.from_env(env, opt)
-
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        100_000,
-    )
-
-    algo = marl.qlearning.CNetAlgo(opt, cnet, deepcopy(cnet), train_policy, marl.policy.ArgMax())
-
-    trainer = CNetTrainer(opt, algo)
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "DIAL" if opt.model_dial else "RIAL"
-        logdir = f"logs/{name}{opt.bs}-{env.name}"
-        # if trainer.mixer is not None:
-        #     logdir += f"-{trainer.mixer.name}"
-        # else:
-        logdir += "-iql"
-        # if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        #     logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
-
-
-def create_lle_rial_dial_bs_1(args: Arguments):
-    n_steps = 300_000
-    env = lle.LLE.level(2, lle.ObservationType.FLATTENED)
-    nsteps_limit = env.width * env.height // 2
-    env = rlenv.Builder(env).agent_id().time_limit(nsteps_limit, add_extra=False).build()
-
-    opt = SimpleNamespace()
-    # TODO : Add options from Json ?
-    opt.game = "LLE"
-    opt.game_nagents = env.n_agents
-    opt.game_action_space = env.n_actions
-    opt.game_comm_limited = False
-    opt.game_comm_bits = 3  # test with different values
-    opt.game_comm_sigma = 2
-    opt.nsteps = nsteps_limit
-    opt.gamma = 0.9
-    opt.model_dial = True
-    opt.model_target = True
-    opt.model_bn = True
-    opt.model_know_share = True
-    opt.model_action_aware = True
-    opt.model_rnn_size = 128
-    opt.bs = 1
-    opt.learningrate = 0.0005
-    opt.momentum = 0.05
-    opt.eps = 0.05
-    opt.nepisodes = n_steps
-    opt.step_test = 10
-    opt.step_target = 100
-    opt.cuda = 0
-
-    opt.model_rnn_layers = 2
-    opt.model_avg_q = True
-    opt.eps_decay = 1.0
-    opt.model_comm_narrow = opt.model_dial
-
-    opt.model_rnn_dropout_rate = 0.0
-    opt.game_comm_hard = False
-
-    opt = init_opt(opt)
-
-    cnet = marl.nn.model_bank.CNet.from_env(env, opt)
-
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        100_000,
-    )
-
-    algo = marl.qlearning.CNetAlgo(opt, cnet, deepcopy(cnet), train_policy, marl.policy.ArgMax())
-
-    trainer = CNetTrainer(opt, algo)
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "DIAL" if opt.model_dial else "RIAL"
-        logdir = f"logs/{name}{opt.bs}-{env.name}"
-        # if trainer.mixer is not None:
-        #     logdir += f"-{trainer.mixer.name}"
-        # else:
-        logdir += "-iql"
-        # if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        #     logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
-
-
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # exp = create_ppo_lle()
         exp = create_lle(args)
+        #exp = create_lle_maic(args)
         print(exp.logdir)
         if args.run:
             run_args = RunArguments(

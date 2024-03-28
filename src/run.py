@@ -1,6 +1,5 @@
 from typing import Literal, Optional
 import typed_argparse as tap
-from create_experiments import Args
 
 import time
 import marl
