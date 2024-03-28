@@ -1,6 +1,7 @@
 import os
 import pickle
 import copy
+from types import SimpleNamespace
 import numpy as np
 import torch
 from torch import optim
@@ -15,13 +16,14 @@ from typing import Optional
 from marl.models import RLAlgo, Policy, DRU
 from marl.nn.model_bank import CNet
 
+
 class EpisodeCommWrapper:
     def __init__(self):
         self.episodes = []
-    
-    ########## Save and Load content which is not in a Episode Batch ##########
-    def create_episode(opt, bs=1):
 
+    ########## Save and Load content which is not in a Episode Batch ##########
+    @staticmethod
+    def create_episode(opt: SimpleNamespace, bs=1):
         episode = DotDic({})
         episode.steps = torch.zeros(bs).int()
         episode.ended = torch.zeros(bs).int()
@@ -30,7 +32,8 @@ class EpisodeCommWrapper:
 
         return episode
 
-    def create_step_record(opt, device, bs=1):
+    @staticmethod
+    def create_step_record(opt: SimpleNamespace, device, bs=1):
         record = DotDic({})
         record.s_t = None
         record.r_t = torch.zeros(bs, opt.game_nagents).to(device)
@@ -66,37 +69,39 @@ class EpisodeCommWrapper:
             record.q_comm_max_t = torch.zeros(bs, opt.game_nagents).to(device)
 
         return record
+
     ###########################################################################
+    @staticmethod
     def add_agent_inputs(episode, time_step, agent_inputs):
         if agent_inputs != {}:
             current_agent_input = episode.step_records[time_step].agent_inputs
             if current_agent_input == {}:
-                obs = agent_inputs['obs']
-                extras = agent_inputs['extras']
-                messages = agent_inputs['messages'].unsqueeze(0)
-                hidden = agent_inputs['hidden']
-                prev_action = agent_inputs['prev_action'].unsqueeze(0)
+                obs = agent_inputs["obs"]
+                extras = agent_inputs["extras"]
+                messages = agent_inputs["messages"].unsqueeze(0)
+                hidden = agent_inputs["hidden"]
+                prev_action = agent_inputs["prev_action"].unsqueeze(0)
 
                 episode.step_records[time_step].agent_inputs = {
-                    'obs': obs,
-                    'extras': extras,
-                    'messages': messages,
-                    'hidden': hidden,
-                    'prev_action': prev_action
+                    "obs": obs,
+                    "extras": extras,
+                    "messages": messages,
+                    "hidden": hidden,
+                    "prev_action": prev_action,
                 }
-            else: # Concatenate the agent inputs
-                obs = torch.cat((current_agent_input['obs'], agent_inputs['obs']), dim=0)
-                extras = torch.cat((current_agent_input['extras'], agent_inputs['extras']), dim=0)
-                messages = torch.cat((current_agent_input['messages'], agent_inputs['messages'].unsqueeze(0)), dim=0)
-                hidden = torch.cat((current_agent_input['hidden'], agent_inputs['hidden']), dim=2)
-                prev_action = torch.cat((current_agent_input['prev_action'], agent_inputs['prev_action'].unsqueeze(0)), dim=0)
-            
+            else:  # Concatenate the agent inputs
+                obs = torch.cat((current_agent_input["obs"], agent_inputs["obs"]), dim=0)
+                extras = torch.cat((current_agent_input["extras"], agent_inputs["extras"]), dim=0)
+                messages = torch.cat((current_agent_input["messages"], agent_inputs["messages"].unsqueeze(0)), dim=0)
+                hidden = torch.cat((current_agent_input["hidden"], agent_inputs["hidden"]), dim=2)
+                prev_action = torch.cat((current_agent_input["prev_action"], agent_inputs["prev_action"].unsqueeze(0)), dim=0)
+
                 episode.step_records[time_step].agent_inputs = {
-                    'obs': obs,
-                    'extras': extras,
-                    'messages': messages,
-                    'hidden': hidden,
-                    'prev_action': prev_action
+                    "obs": obs,
+                    "extras": extras,
+                    "messages": messages,
+                    "hidden": hidden,
+                    "prev_action": prev_action,
                 }
 
         return episode
@@ -110,10 +115,10 @@ class EpisodeCommWrapper:
             episode.ended[episode_id] = episode_from_agent.ended
             episode.r[episode_id] = episode_from_agent.r
             for time_step in range(episode_from_agent.steps):
-                if (episode_id == 0):
+                if episode_id == 0:
                     bs = 0
                     for e in range(len(self.episodes)):
-                        if (self.episodes[e].steps > time_step):
+                        if self.episodes[e].steps > time_step:
                             bs = bs + 1
                         else:
                             if ended_dict.get(e) is None:
@@ -122,9 +127,9 @@ class EpisodeCommWrapper:
                                 ended_dict[time_step].append(e)
 
                     episode.step_records.append(EpisodeCommWrapper.create_step_record(opt, device, bs))
-                
-                if (ended_dict.get(time_step) is not None):
-                    episode_id_in_record = episode_id - sum([1 for e in ended_dict.get(time_step) if e < episode_id])
+
+                if ended_dict.get(time_step) is not None:
+                    episode_id_in_record = episode_id - sum([1 for e in ended_dict[time_step] if e < episode_id])
                 else:
                     episode_id_in_record = episode_id
                 record = episode_from_agent.step_records[time_step]
@@ -142,13 +147,13 @@ class EpisodeCommWrapper:
                 episode.step_records[time_step].q_a_max_t[episode_id_in_record] = record.q_a_max_t
                 if not opt.model_dial:
                     episode.step_records[time_step].q_comm_t[episode_id_in_record] = record.q_comm_t
-                    episode.step_records[time_step].q_comm_max_t[episode_id_in_record] = record.q_comm_max_t 
+                    episode.step_records[time_step].q_comm_max_t[episode_id_in_record] = record.q_comm_max_t
 
         return episode
-    
+
     def add_episode(self, episode: Episode):
         self.episodes.append(episode)
-    
+
     def clear(self):
         self.episodes = []
 
@@ -157,7 +162,7 @@ class CNetAlgo(RLAlgo):
     STEP_MINUS_1_ID = -3
     STEP_ID = -2
     STEP_PLUS_1_ID = -1
-    
+
     def __init__(self, opt, model: CNet, target: CNet, train_policy: Policy, test_policy: Policy):
         super().__init__()
         self.opt = opt
@@ -170,25 +175,24 @@ class CNetAlgo(RLAlgo):
 
         for p in self.model_target.parameters():
             p.requires_grad = False
-        
+
         self.episodes_seen = 0
         self.dru = DRU(opt.game_comm_sigma, opt.model_comm_narrow, opt.game_comm_hard)
 
-        self.optimizer = optim.RMSprop(
-            params=model.get_params(), lr=opt.learningrate, momentum=opt.momentum)
-        
+        self.optimizer = optim.RMSprop(params=model.get_params(), lr=opt.learningrate, momentum=opt.momentum)
+
         self.training_mode = False
-        
+
     def reset(self):
         self.model.reset_parameters()
         self.model_target.reset_parameters()
         self.episodes_seen = 0
-    
+
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
-    
+
     def select_action_and_comm(self, q, avail_actions):
         # eps-Greedy action selector
         opt = self.opt
@@ -204,15 +208,15 @@ class CNetAlgo(RLAlgo):
         bs = q.size(0)
         is_batched = bs > 1
         if not is_batched:
-            q_action = q.squeeze(0)[:, :opt.game_action_space]
-            q_message = q.squeeze(0)[:, -opt.game_comm_bits:]
+            q_action = q.squeeze(0)[:, : opt.game_action_space]
+            q_message = q.squeeze(0)[:, -opt.game_comm_bits :]
         else:
-            q_action = q[:, :, :opt.game_action_space]
-            q_message = q[:, :, -opt.game_comm_bits:]
+            q_action = q[:, :, : opt.game_action_space]
+            q_message = q[:, :, -opt.game_comm_bits :]
 
         if not is_batched:
             action = self.policy.get_action(q_action.cpu().numpy(), avail_actions)
-        else:                 
+        else:
             action = np.stack([self.policy.get_action(q_action[b, :].cpu().numpy(), avail_actions[b]) for b in range(bs)])
         if not is_batched:
             action_value = q_action[torch.arange(q_action.size(0)), action]
@@ -229,9 +233,9 @@ class CNetAlgo(RLAlgo):
 
             # Reshape action_value to match the original shape of action
             action_value = action_value.view(action.shape)
-         
+
         if not opt.model_dial:
-            comm = self.policy.get_action(q_message.cpu().numpy(), [1 for _ in range(opt.game_comm_bits)])
+            comm = self.policy.get_action(q_message.cpu().numpy(), np.ones((opt.game_comm_bits,)))
             if not is_batched:
                 comm_value = q_message[torch.arange(q_message.size(0)), comm]
             else:
@@ -245,17 +249,17 @@ class CNetAlgo(RLAlgo):
     def compute_qvalues_and_hidden(self, observation: Observation):
         opt = self.opt
         step_greater_0 = len(self.episode.step_records) > 2
-        obs, extras = self.to_tensor(observation) 
+        obs, extras = self.to_tensor(observation)
         comm = None
         if opt.comm_enabled:
             comm = self.episode.step_records[CNetAlgo.STEP_ID].comm.clone()
 
-        # Get prev action 
+        # Get prev action
         prev_action = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
         prev_message = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
         if opt.model_action_aware:
             if step_greater_0:
-                prev_action= self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_t.to(self.device)
+                prev_action = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_t.to(self.device)
             if not opt.model_dial:
                 if step_greater_0:
                     prev_message = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_comm_t.to(self.device)
@@ -264,16 +268,16 @@ class CNetAlgo(RLAlgo):
         # agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
 
         agent_inputs = {
-            'obs': obs,
-            'extras': extras,
-            'messages': comm.to(self.device), # Messages
-            'hidden': self.episode.step_records[CNetAlgo.STEP_ID].hidden.to(self.device),
-            'prev_action': prev_action
+            "obs": obs,
+            "extras": extras,
+            "messages": comm.to(self.device),  # type: ignore
+            "hidden": self.episode.step_records[CNetAlgo.STEP_ID].hidden.to(self.device),
+            "prev_action": prev_action,
             #'agent_index': agent_idx
         }
         self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t = observation.available_actions
         self.episode.step_records[CNetAlgo.STEP_ID].agent_inputs = agent_inputs
-                    
+
         # Compute model output (Q function + message bits)
         return self.model.forward(**agent_inputs)
 
@@ -281,16 +285,15 @@ class CNetAlgo(RLAlgo):
         opt = self.opt
         with torch.no_grad():
             # TODO : Get agent_input : s_t = obs, messages (history), hidden (history), prev_action (history), agent_index ? 1 pass foreach agent ?
-            self.episode.step_records.append(EpisodeCommWrapper.create_step_record(opt, self.device))           
-            
+            self.episode.step_records.append(EpisodeCommWrapper.create_step_record(opt, self.device))
+
             # Compute model output (Q function + message bits)
             hidden_t, q_t = self.compute_qvalues_and_hidden(observation)
             self.episode.step_records[CNetAlgo.STEP_PLUS_1_ID].hidden = hidden_t
             # Choose next action and comm using eps-greedy selector
             avail_actions = self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t
-            (action, action_value), (comm_vector, comm_action, comm_value) = \
-                self.select_action_and_comm(q_t, avail_actions)
-            
+            (action, action_value), (comm_vector, comm_action, comm_value) = self.select_action_and_comm(q_t, avail_actions)
+
             # Store action + comm
             self.episode.step_records[CNetAlgo.STEP_ID].a_t = torch.tensor(action).to(self.device)
             self.episode.step_records[CNetAlgo.STEP_ID].q_a_t = action_value
@@ -299,23 +302,23 @@ class CNetAlgo(RLAlgo):
                 self.episode.step_records[CNetAlgo.STEP_ID].a_comm_t = comm_action
                 self.episode.step_records[CNetAlgo.STEP_ID].q_comm_t = comm_value
         return action
-    
+
     def fill_target_values(self, episode):
         opt = self.opt
         if opt.model_target:
             for step in range(opt.nsteps):
                 agent_inputs = episode.step_records[step].agent_inputs
-                comm_target = agent_inputs['messages']
+                comm_target = agent_inputs["messages"]
                 if opt.comm_enabled and opt.model_dial:
                     comm_target = episode.step_records[step].comm_target.clone()
-                
+
                 agent_target_inputs = copy.copy(agent_inputs)
-                agent_target_inputs['messages'] = comm_target
-                agent_target_inputs['hidden'] = episode.step_records[step].hidden_target
+                agent_target_inputs["messages"] = comm_target
+                agent_target_inputs["hidden"] = episode.step_records[step].hidden_target
                 hidden_target_t, q_target_t = self.model_target.forward(**agent_target_inputs)
 
                 ended_episode = []
-                current_bs = agent_inputs['obs'].shape[0]
+                current_bs = agent_inputs["obs"].shape[0]
                 for b in range(current_bs):
                     next_step_ended = episode.step_records[step].terminal[b].item()
                     if next_step_ended > 0:
@@ -324,21 +327,22 @@ class CNetAlgo(RLAlgo):
                 if (step + 1) < opt.nsteps:
                     hidden_target_t_squeezed = hidden_target_t.squeeze()
                     hidden_target_t_remaining = None
-            
+
                     for b in range(hidden_target_t_squeezed.shape[2]):
                         if b not in ended_episode:
                             if hidden_target_t_remaining is None:
                                 hidden_target_t_remaining = hidden_target_t_squeezed[:, :, b].unsqueeze(2)
                             else:
-                                hidden_target_t_remaining = torch.cat((hidden_target_t_remaining, hidden_target_t_squeezed[:, :, b].unsqueeze(2)), dim=2)
+                                hidden_target_t_remaining = torch.cat(
+                                    (hidden_target_t_remaining, hidden_target_t_squeezed[:, :, b].unsqueeze(2)), dim=2
+                                )
 
                     episode.step_records[step + 1].hidden_target = hidden_target_t_remaining
 
                 # Choose next arg max action and comm
                 avail_actions = episode.step_records[step].avail_a_t.squeeze(0).cpu().numpy()
 
-                (action, action_value), (comm_vector, comm_action, comm_value) = \
-                    self.select_action_and_comm(q_target_t, avail_actions) 
+                (action, action_value), (comm_vector, comm_action, comm_value) = self.select_action_and_comm(q_target_t, avail_actions)
 
                 # save target actions, comm, and q_a_t, q_a_max_t
                 episode.step_records[step].q_a_max_t = action_value
@@ -356,35 +360,35 @@ class CNetAlgo(RLAlgo):
                     episode.step_records[step].q_comm_max_t = comm_value
 
         return episode
-    
+
     def episode_loss_2(self, episode):
         opt = self.opt
         total_loss = torch.zeros(opt.bs, device=self.device)
         ended_dict = {}
-        
+
         for b in range(opt.bs):
             b_steps = episode.steps[b].item()
             for step in range(len(episode.step_records)):
                 record = episode.step_records[step]
-                if (b == 0):
+                if b == 0:
                     for e in range(opt.bs):
                         if episode.steps[e].item() <= step:
                             if ended_dict.get(e) is None:
                                 ended_dict[step] = [e]
                             else:
                                 ended_dict[step].append(e)
-                if (ended_dict.get(step) is not None):
-                    b_id_in_record = b - sum([1 for e in ended_dict.get(step) if e < b])
+                if ended_dict.get(step) is not None:
+                    b_id_in_record = b - sum([1 for e in ended_dict[step] if e < b])
                 else:
                     b_id_in_record = b
-                if (ended_dict.get(step + 1) is not None):
-                    b_plus_1_id_in_record = b - sum([1 for e in ended_dict.get(step+1) if e < b])
+                if ended_dict.get(step + 1) is not None:
+                    b_plus_1_id_in_record = b - sum([1 for e in ended_dict[step + 1] if e < b])
                 else:
                     b_plus_1_id_in_record = b + 1
                 for i in range(opt.game_nagents):
-                    td_action = torch.tensor(0., device=self.device)
-                    td_comm = torch.tensor(0., device=self.device)
-                    
+                    td_action = torch.tensor(0.0, device=self.device)
+                    td_comm = torch.tensor(0.0, device=self.device)
+
                     r_t = record.r_t[b_id_in_record][i]
                     q_a_t = record.q_a_t[b_id_in_record][i]
                     q_comm_t = 0
@@ -406,19 +410,19 @@ class CNetAlgo(RLAlgo):
                         else:
                             next_record = episode.step_records[step + 1]
                             q_next_max = next_record.q_comm_max_t[b_plus_1_id_in_record][i]
-                            if opt.model_avg_q: 
+                            if opt.model_avg_q:
                                 q_next_max = (q_next_max + next_record.q_a_max_t[b_plus_1_id_in_record][i]) / 2.0
                             td_comm = r_t + opt.gamma * q_next_max - q_comm_t
 
                     if not opt.model_dial:
-                        loss_t = (td_action ** 2 + td_comm ** 2)
+                        loss_t = td_action**2 + td_comm**2
                     else:
-                        loss_t = (td_action ** 2)
+                        loss_t = td_action**2
                     total_loss[b] = total_loss[b] + loss_t
 
         loss = total_loss.mean()
         return loss
-    
+
     def episode_loss(self, episode):
         opt = self.opt
         total_loss = torch.zeros(opt.bs)
@@ -440,7 +444,7 @@ class CNetAlgo(RLAlgo):
                             next_record = episode.step_records[step + 1]
                             q_next_max = next_record.q_a_max_t[i]
                             if not opt.model_dial and opt.model_avg_q:
-                                q_next_max = (q_next_max + next_record.q_comm_max_t[b][i])/2.0
+                                q_next_max = (q_next_max + next_record.q_comm_max_t[b][i]) / 2.0
                             td_action = r_t + opt.gamma * q_next_max - q_a_t
 
                     if not opt.model_dial and record.a_comm_t[b][i].item() > 0:
@@ -450,17 +454,17 @@ class CNetAlgo(RLAlgo):
                         else:
                             next_record = episode.step_records[step + 1]
                             q_next_max = next_record.q_comm_max_t[b][i]
-                            if opt.model_avg_q: 
-                                q_next_max = (q_next_max + next_record.q_a_max_t[b][i])/2.0
+                            if opt.model_avg_q:
+                                q_next_max = (q_next_max + next_record.q_a_max_t[b][i]) / 2.0
                             td_comm = r_t + opt.gamma * q_next_max - q_comm_t
 
                     if not opt.model_dial:
-                        loss_t = (td_action ** 2 + td_comm ** 2)
+                        loss_t = td_action**2 + td_comm**2
                     else:
-                        loss_t = (td_action ** 2)
+                        loss_t = td_action**2
                     total_loss[b] = total_loss[b] + loss_t
         loss = total_loss.sum()
-        loss = loss/(self.opt.bs * self.opt.game_nagents)
+        loss = loss / (self.opt.bs * self.opt.game_nagents)
         return loss
 
     def learn_from_episode(self, episode):
@@ -474,18 +478,18 @@ class CNetAlgo(RLAlgo):
         self.episodes_seen = self.episodes_seen + 1
         if self.episodes_seen % self.opt.step_target == 0:
             self.model_target.load_state_dict(self.model.state_dict())
-        
+
         # TODO returns logs
-    
+
     def get_episode(self):
         # The first step record is a dummy record
         self.episode.step_records.pop()
         return self.episode
-    
-    def get_step_record(self):	
-        return self.episode.step_records[CNetAlgo.STEP_ID] # Get the step record of time t
-    
-    def clear_last_record(self): # When the episode is done
+
+    def get_step_record(self):
+        return self.episode.step_records[CNetAlgo.STEP_ID]  # Get the step record of time t
+
+    def clear_last_record(self):  # When the episode is done
         return 0
 
     def value(self, obs: Observation) -> float:
@@ -496,7 +500,7 @@ class CNetAlgo(RLAlgo):
         self.episode.step_records.append(EpisodeCommWrapper.create_step_record(self.opt, self.device))
         _, q = self.compute_qvalues_and_hidden(obs)
         self.episode.step_records.pop()
-        q_values = q[:, :self.opt.game_action_space].max(dim=-1).values
+        q_values = q[:, : self.opt.game_action_space].max(dim=-1).values
         return q_values.mean(dim=-1)
 
     def set_testing(self):
@@ -508,11 +512,11 @@ class CNetAlgo(RLAlgo):
         self.policy = self.train_policy
 
     def new_episode(self):
-        # Clear the history 
+        # Clear the history
         self.episode = EpisodeCommWrapper.create_episode(self.opt)
         self.episode.step_records.append(EpisodeCommWrapper.create_step_record(self.opt, self.device))
-    
-    #TODO : Save weights
+
+    # TODO : Save weights
     def save(self, to_directory: str):
         # os.makedirs(to_directory, exist_ok=True)
         # torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.weights")
@@ -522,7 +526,8 @@ class CNetAlgo(RLAlgo):
         #     pickle.dump(self.train_policy, f)
         #     pickle.dump(self.test_policy, g)
         pass
-    #TODO : Load weights
+
+    # TODO : Load weights
     def load(self, from_directory: str):
         # self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights"))
         # train_policy_path = os.path.join(from_directory, "train_policy")
@@ -532,14 +537,12 @@ class CNetAlgo(RLAlgo):
         #     self.test_policy = pickle.load(g)
         # self.policy = self.train_policy
         pass
-    
+
     def randomize(self):
         self.model.randomize()
         self.model_target.randomize()
-    
+
     def to(self, device: torch.device):
         self.model.to(device)
         self.model_target.to(device)
         self.device = device
-
-        

@@ -7,15 +7,13 @@ import numpy.typing as npt
 @serde
 @dataclass
 class Message:
-
-    n_agents: int
     data: npt.NDArray[np.float32]
 
     # def __init__(self, n_agents: int):
     #     self.n_agents = n_agents
-    
+
     def __init__(self, data: npt.NDArray[np.float32]):
-         self.dat = data
+        self.dat = data
 
     @property
     def n_agents(self) -> int:

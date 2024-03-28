@@ -11,22 +11,24 @@ from marl.utils import defaults_to
 
 from copy import deepcopy
 
+
 class MAICTrainer(Trainer):
-    def __init__(self, 
-            args,
-            maic_algo: MAICAlgo,
-            train_policy: Policy,
-            memory: EpisodeMemory,
-            gamma: float = 0.99,
-            batch_size: int = 16,
-            lr: float = 1e-4,
-            optimiser: Literal["adam", "rmsprop"] = "rmsprop",
-            target_updater: Optional[TargetParametersUpdater] = None,
-            double_qlearning: bool = False,
-            mixer: Optional[Mixer] = None,
-            train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
-            grad_norm_clipping: Optional[float] = None,
-            ):
+    def __init__(
+        self,
+        args,
+        maic_algo: MAICAlgo,
+        train_policy: Policy,
+        memory: EpisodeMemory,
+        gamma: float = 0.99,
+        batch_size: int = 16,
+        lr: float = 1e-4,
+        optimiser: Literal["adam", "rmsprop"] = "rmsprop",
+        target_updater: Optional[TargetParametersUpdater] = None,
+        double_qlearning: bool = False,
+        mixer: Optional[Mixer] = None,
+        train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
+        grad_norm_clipping: Optional[float] = None,
+    ):
         super().__init__(train_interval[1], train_interval[0])
         self.n_agents = args.n_agents
         self.maic_algo = maic_algo
@@ -55,7 +57,7 @@ class MAICTrainer(Trainer):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
-         
+
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         """
         Update to call after each step. Should be run when update_after_each == "step".
@@ -64,7 +66,7 @@ class MAICTrainer(Trainer):
             dict[str, Any]: A dictionary of training metrics to log.
         """
         return {}
-    
+
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
         """
         Update to call after each episode. Should be run when update_after_each == "episode".
@@ -86,7 +88,7 @@ class MAICTrainer(Trainer):
         logs = logs | self.policy.update(episode_num)
         logs = logs | self.target_updater.update(episode_num)
         return logs
-    
+
     def optimise_network(self):
         # get whole memory
         batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
@@ -94,7 +96,7 @@ class MAICTrainer(Trainer):
         actions = batch.actions
         terminated = batch.dones
         mask = batch.masks
-        avail_actions = batch.available_actions # or available_actions_ 
+        avail_actions = batch.available_actions  # or available_actions_
 
         logs = []
         losses = []
@@ -109,15 +111,15 @@ class MAICTrainer(Trainer):
             # if self.mixer is not None:
             #     qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, agent_outs)
             mac_out.append(agent_outs)
-            if 'logs' in returns_:
-                logs.append(returns_['logs'])
-                del returns_['logs']
+            if "logs" in returns_:
+                logs.append(returns_["logs"])
+                del returns_["logs"]
             losses.append(returns_)
 
         mac_out = torch.stack(mac_out, dim=0)  # Concat over time
 
         # Pick the Q-Values for the actions taken by each agent TODO : mac_out[:, :-1] ??
-        chosen_action_qvals = torch.gather(mac_out, dim=3, index=actions).squeeze(3)  # Remove the last dim 
+        chosen_action_qvals = torch.gather(mac_out, dim=3, index=actions).squeeze(3)  # Remove the last dim
         # Calculate the Q-Values necessary for the target
         target_mac_out = []
         self.target_algo.init_hidden(self.batch_size)
@@ -136,20 +138,20 @@ class MAICTrainer(Trainer):
             # Get actions that maximise live Q (for double q-learning)
             mac_out_detach = mac_out.clone().detach()
             mac_out_detach[avail_actions == 0] = -torch.inf
-            cur_max_actions = mac_out_detach.max(dim=3, keepdim=True)[1] # TODO : mac_out_detach[:, :-1] ??
+            cur_max_actions = mac_out_detach.max(dim=3, keepdim=True)[1]  # TODO : mac_out_detach[:, :-1] ??
             target_max_qvals = torch.gather(target_mac_out, 3, cur_max_actions).squeeze(3)
         else:
             target_max_qvals = target_mac_out.max(dim=3)[0]
-        
+
         # Mix
-        if self.mixer is not None:                                                              # TODO: idx ??
-            chosen_action_qvals = self.mixer.forward(chosen_action_qvals, batch.states[:, :-1], batch.one_hot_actions, mac_out )
-            target_max_qvals = self.target_mixer.forward(target_max_qvals,  batch.states[:, 1:], batch.one_hot_actions, target_mac_out )
+        if self.mixer is not None and self.target_mixer is not None:  # TODO: idx ??
+            chosen_action_qvals = self.mixer.forward(chosen_action_qvals, batch.states[:, :-1], batch.one_hot_actions, mac_out)
+            target_max_qvals = self.target_mixer.forward(target_max_qvals, batch.states[:, 1:], batch.one_hot_actions, target_mac_out)
 
         # Calculate 1-step Q-Learning targets
         targets = rewards + self.gamma * (1 - terminated) * target_max_qvals
         # Td-error
-        td_error = (chosen_action_qvals - targets.detach())
+        td_error = chosen_action_qvals - targets.detach()
 
         mask = mask.expand_as(td_error)
 
@@ -157,7 +159,7 @@ class MAICTrainer(Trainer):
         masked_td_error = td_error * mask
 
         # Normal L2 loss, take mean over actual data
-        loss = (masked_td_error ** 2).sum() / mask.sum()
+        loss = (masked_td_error**2).sum() / mask.sum()
 
         external_loss, loss_dict = self._process_loss(losses, batch)
         loss += external_loss
@@ -178,13 +180,13 @@ class MAICTrainer(Trainer):
         loss_dict = {}
         for item in losses:
             for k, v in item.items():
-                if str(k).endswith('loss'):
+                if str(k).endswith("loss"):
                     loss_dict[k] = loss_dict.get(k, 0) + v
                     total_loss += v
         for k in loss_dict.keys():
             loss_dict[k] /= batch._max_episode_len
         total_loss /= batch._max_episode_len
-        return total_loss, loss_dict    
+        return total_loss, loss_dict
 
     def to(self, device: torch.device):
         if self.mixer is not None:
