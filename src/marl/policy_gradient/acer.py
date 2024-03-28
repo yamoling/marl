@@ -49,7 +49,7 @@ class ACER(RLAlgo):
         batch = self.memory.sample(self.batch_size).to(self.device)
         batch = batch.for_individual_learners()
         returns = batch.compute_normalized_returns(self.gamma)  # type: ignore
-        logits, predicted_values = self.network.forward(batch.obs)
+        logits, predicted_values = self.network.forward(batch.obs)  # type: ignore
         # Values have last dimension [1] -> squeeze it
         predicted_values = predicted_values.squeeze(-1)
         advantages = (returns - predicted_values) * batch.masks

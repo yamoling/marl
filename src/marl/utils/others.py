@@ -3,12 +3,13 @@ import cv2
 import torch
 import numpy as np
 from serde import serde
-from typing import Callable, TypeVar, Literal
+from typing import Callable, Optional, TypeVar, Literal
 import re
 from dataclasses import dataclass
+from rlenv import RLEnv
 
 
-def seed(seed_value: int):
+def seed(seed_value: int, env: Optional[RLEnv] = None):
     import torch
     import random
     import numpy as np
@@ -16,6 +17,9 @@ def seed(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
+
+    if env is not None:
+        env.seed(seed_value)
 
 
 T = TypeVar("T")

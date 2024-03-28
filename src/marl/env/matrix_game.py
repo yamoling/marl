@@ -38,6 +38,7 @@ class MatrixGame(RLEnv[DiscreteActionSpace]):
         )
 
     def step(self, actions):
+        actions = list(actions)
         self.current_step += 1
         return self.observation(), self.payoffs[actions[0]][actions[1]], True, False, {}
 

@@ -1,4 +1,4 @@
-from marl.utils import ExpSchedule, LinearSchedule, ConstantSchedule
+from marl.utils import ExpSchedule, LinearSchedule, ConstantSchedule, MultiSchedule
 
 
 def test_exp_schedule():
@@ -27,3 +27,25 @@ def test_constant_schedule():
     for _ in range(20):
         assert sched == 10.0
         sched.update()
+
+
+def test_multi_schedule():
+    sched = MultiSchedule(
+        {
+            0: ConstantSchedule(10),
+            5: LinearSchedule(10, 0, 10),
+        }
+    )
+
+    for _ in range(5):
+        assert sched.value == 10
+        sched.update()
+    for x in range(10, 5, -1):
+        assert sched.value == x
+        sched.update()
+
+    sched.update(4)
+    assert sched.value == 10
+
+    sched.update(6)
+    assert sched.value == 9

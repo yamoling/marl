@@ -1,8 +1,20 @@
 <template>
     <div class="row">
+        <div ref="contextMenu" class="context-menu">
+            <ul>
+                <li @click="() => rename()">
+                    <font-awesome-icon :icon="['far', 'pen-to-square']" class="pe-2" />
+                    Rename
+                </li>
+                <li @click="() => remove()">
+                    <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
+                    Delete
+                </li>
+            </ul>
+        </div>
         <div class="col-6">
             <div class="row">
-                <div class="input-group input-group-sm">
+                <div class="input-group">
                     <span class="input-group-text">
                         <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
                         Filter
@@ -42,7 +54,9 @@
                     </thead>
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
-                            <tr v-if="searchMatch(searchString, exp.logdir)" @click="() => resultsStore.load(exp.logdir)">
+                            <tr v-if="searchMatch(searchString, exp.logdir)"
+                                @click="() => resultsStore.load(exp.logdir)"
+                                @contextmenu="(e) => openContextMenu(e, exp.logdir)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -69,19 +83,18 @@
                                         @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
                                     </button>
+                                    <button class="btn btn-sm btn-outline-primary"
+                                        @click="() => downloadDatasets(exp.logdir)">
+                                        <font-awesome-icon :icon="['fas', 'download']" />
+                                    </button>
                                 </td>
                             </tr>
                         </template>
                     </tbody>
                 </table>
             </div>
-            <div class="row">
-                <SettingsPanel class="col-4 mx-auto" :metrics="metrics"
-                    @change-selected-metrics="(m) => selectedMetrics = m" @change-smooting="(v) => smoothValue = v"
-                    @change-type="(t) => testOrTrain = t" />
-            </div>
         </div>
-        <div class="col-6">
+        <div class="col-6" style="">
             <div v-if="resultsStore.results.size == 0" class="text-center mt-5">
                 Click on an experiment to load its results
                 <br>
@@ -89,17 +102,9 @@
                     style="color: rgba(211, 211, 211, 0.5);" />
             </div>
             <template v-else>
-                <div class="input-group mb-3">
-                    <button class="btn btn-outline-primary" @click="downloadDatasets">
-                        <font-awesome-icon :icon="['fas', 'download']" />
-                    </button>
-                    <select v-model="logdirToDownload" class="form-select">
-                        <option v-for="logdir in resultsStore.results.keys()" selected> {{ logdir }}</option>
-                    </select>
-                </div>
-
-                <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :xTicks="ticks"
-                    :title="label.replaceAll('_', ' ')" :showLegend="false" />
+                <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
+                <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
+                    :showLegend="false" />
             </template>
 
         </div>
@@ -107,14 +112,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Dataset, ExperimentResults, toCSV } from '../../models/Experiment';
+import { ref, computed } from 'vue';
+import { Dataset, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
-import { EMA, downloadStringAsFile, stringToRGB } from "../../utils";
+import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
-import { searchMatch, unionXTicks, alignTicks } from '../../utils';
+import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
 import { useColourStore } from '../../stores/ColourStore';
 
@@ -122,58 +127,45 @@ const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
 const colours = useColourStore();
 
-const sortKey = ref("logdir" as "logdir" | "env" | "algo" | "date");
-const sortOrder = ref("ASCENDING" as "ASCENDING" | "DESCENDING");
+const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
+const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 
-const testOrTrain = ref("Test" as "Test" | "Train");
-const smoothValue = ref(0.);
-const alignedExperimentResults = computed(() => {
-    const res = new Map<string, ExperimentResults>();
-    resultsStore.results.forEach((results, logdir) => res.set(logdir, alignTicks(results, ticks.value)));
-    return res;
-});
-const ticks = computed(() => unionXTicks([...resultsStore.results.values()].map(r => r.ticks)));
+const selectedMetrics = ref(["score [train]"]);
+const contextMenuLogdir = ref(null as string | null);
+
+
 const metrics = computed(() => {
     const res = new Set<string>();
-    resultsStore.results.forEach((v, _) => v.train.forEach(d => res.add(d.label)));
+    resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
     return res;
 });
-const selectedMetrics = ref(["score"]);
-const logdirToDownload = ref("");
 
-/** Create a map of label => datasets of the appropriate kind (train or test) */
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    alignedExperimentResults.value.forEach((v, k) => {
-        const ds = testOrTrain.value === "Test" ? v.test : v.train;
-        ds.forEach(d => {
-            if (!selectedMetrics.value.includes(d.label)) return
-            if (!res.has(d.label)) {
-                res.set(d.label, []);
+    resultsStore.results.forEach((r, _k) => {
+        r.datasets.forEach(ds => {
+            if (!selectedMetrics.value.includes(ds.label)) return
+            if (!res.has(ds.label)) {
+                res.set(ds.label, []);
             }
-            let dataset = d;
-            if (smoothValue.value > 0) {
-                // Only copy the dataset if we need to smooth it
-                dataset = { ...d };
-                dataset.mean = EMA(dataset.mean, smoothValue.value);
-            }
-            res.get(d.label)?.push(dataset);
+            res.get(ds.label)?.push(ds);
         })
     });
     return res;
 });
 
 
-function downloadDatasets() {
-    const results = resultsStore.results.get(logdirToDownload.value);
+function downloadDatasets(logdir: string) {
+    const results = resultsStore.results.get(logdir);
     if (results === undefined) {
         alert("No such logdir to download");
         return;
     }
-    const csv = toCSV(results.train, ticks.value);
-    downloadStringAsFile(csv, `${logdirToDownload.value}.csv`);
+    const csv = toCSV(results.datasets, results.datasets[0].ticks);
+    downloadStringAsFile(csv, `${logdir}.csv`);
 }
+
 
 const emits = defineEmits<{
     (event: "experiment-selected", logdir: string): void
@@ -213,16 +205,37 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     }
 }
 
+const contextMenu = ref({} as HTMLDivElement);
 
-function initColoursFromLocalStorage() {
-    const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
-    try {
-        return new Map<string, string>(entries);
-    } catch (e) {
-        return new Map<string, string>();
-    }
-
+// Function to open context menu
+function openContextMenu(e: MouseEvent, logdir: string) {
+    contextMenuLogdir.value = logdir;
+    e.preventDefault()
+    contextMenu.value.style.left = `${e.x}px`;
+    contextMenu.value.style.top = `${e.y}px`;
+    contextMenu.value.style.display = 'block';
 }
+
+function rename() {
+    if (contextMenuLogdir.value === null) return;
+    const logdir = contextMenuLogdir.value;
+    const newLogdir = prompt("Enter new name for the experiment", logdir);
+    if (newLogdir === null) return;
+    experimentStore.rename(logdir, newLogdir);
+}
+
+function remove() {
+    const logdir = contextMenuLogdir.value;
+    if (logdir === null) return;
+    if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
+        experimentStore.remove(logdir);
+    }
+}
+
+document.addEventListener('click', () => {
+    contextMenu.value.style.display = 'none';
+    contextMenuLogdir.value = null;
+});
 
 
 </script>
@@ -235,5 +248,30 @@ function initColoursFromLocalStorage() {
 .sortable:hover {
     cursor: pointer;
     text-decoration: underline;
+}
+
+.context-menu {
+    width: fit-content;
+    position: fixed;
+    display: none;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 5px;
+    z-index: 1000;
+}
+
+.context-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.context-menu ul li {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.context-menu ul li:hover {
+    background-color: #f0f0f0;
 }
 </style>

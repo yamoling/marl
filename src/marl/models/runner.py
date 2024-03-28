@@ -1,38 +1,25 @@
-import os
-import json
 import torch
-import pickle
-from copy import deepcopy
-from typing import Optional, Literal
+from typing import Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
-from marl.utils import defaults_to
+
+import marl
 
 from .trainer import Trainer
 from .algo import RLAlgo
-from .run import Run
+from .run import Run, RunHandle
 
 
 class Runner:
-    def __init__(
-        self,
-        env: RLEnv,
-        algo: RLAlgo,
-        trainer: Trainer,
-        run: Run,
-        test_interval: int,
-        n_steps: int,
-        test_env: Optional[RLEnv] = None,
-    ):
+    def __init__(self, env: RLEnv, algo: RLAlgo, trainer: Trainer, test_interval: int, n_steps: int, test_env: RLEnv):
         self._trainer = trainer
         self._env = env
-        self._test_env = defaults_to(test_env, lambda: deepcopy(env))
         self._algo = algo
-        self._run = run
         self._test_interval = test_interval
         self._max_step = n_steps
+        self._test_env = test_env
 
-    def _train_episode(self, step_num: int, episode_num: int, n_tests: int):
+    def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
         obs = self._env.reset()
         self._algo.new_episode()
@@ -40,46 +27,45 @@ class Runner:
         while not episode.is_finished and step_num < self._max_step:
             step_num += 1
             if self._test_interval != 0 and step_num % self._test_interval == 0:
-                self.test(n_tests, step_num)
+                self.test(n_tests, step_num, quiet, run_handle)
             action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
             transition = Transition(obs, action, reward, done, info, obs_, truncated)
-            training_metrics = self._trainer.update_step(transition, step_num) | {"time_step": step_num}
-            self._run.log_train_step(training_metrics)
+            training_metrics = self._trainer.update_step(transition, step_num)
+            run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
             obs = obs_
-        episode = episode.build({"initial_value": initial_value, "time_step": step_num})
-        training_logs = self._trainer.update_episode(episode, episode_num, step_num) | {"time_step": step_num}
-        self._run.log_train_episode(episode, training_logs)
+        episode = episode.build({"initial_value": initial_value})
+        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
+        run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def train(self, n_tests: int):
+    def train(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
         """Start the training loop"""
-        with open(os.path.join(self._run.rundir, "pid"), "w") as f:
-            f.write(str(os.getpid()))
+        marl.seed(seed, self._env)
+        self.randomize()
         episode_num = 0
         step = 0
-        pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True)
-        self.test(n_tests, 0)
-        while step < self._max_step:
-            episode = self._train_episode(step, episode_num, n_tests)
-            episode_num += 1
-            step += len(episode)
-            pbar.update(len(episode))
+        pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
+        with Run.create(logdir, seed) as run:
+            self.test(n_tests, 0, quiet, run)
+            while step < self._max_step:
+                episode = self._train_episode(step, episode_num, n_tests, quiet, run)
+                episode_num += 1
+                step += len(episode)
+                pbar.update(len(episode))
         pbar.close()
 
-    def test(self, ntests: int, time_step: int):
+    def test(self, ntests: int, time_step: int, quiet: bool, run_handle: RunHandle):
         """Test the agent"""
         self._algo.set_testing()
-        test_dir = self._run.test_dir(time_step)
-        self._algo.save(test_dir)
         episodes = list[Episode]()
-        for _ in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True):
+        for test_num in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+            self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
-            self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
@@ -87,20 +73,14 @@ class Runner:
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
                 obs = new_obs
-            episode = episode.build({"initial_value": intial_value, "time_step": time_step})
+            episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        self._run.log_tests(episodes, time_step)
+        run_handle.log_tests(episodes, self._test_env, self._algo, time_step)
         self._algo.set_training()
 
-    def _save_test_episode(self, directory: str, episode: Episode):
-        os.makedirs(directory, exist_ok=True)
-        with open(os.path.join(directory, "env.pkl"), "wb") as e, open(os.path.join(directory, "actions.json"), "w") as a:
-            try:
-                pickle.dump(self._test_env, e)
-            except (pickle.PicklingError, AttributeError):
-                # AttributeError can be raised when the env is not pickleable
-                pass
-            json.dump(episode.actions.tolist(), a)
+    def randomize(self):
+        self._algo.randomize()
+        self._trainer.randomize()
 
     def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
         if isinstance(device, str):
@@ -110,9 +90,3 @@ class Runner:
         self._algo.to(device)
         self._trainer.to(device)
         return self
-
-    def __del__(self):
-        try:
-            os.remove(os.path.join(self._run.rundir, "pid"))
-        except FileNotFoundError:
-            pass

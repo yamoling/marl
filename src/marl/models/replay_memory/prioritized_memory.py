@@ -101,7 +101,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, td_error: torch.Tensor):
+    def update(self, td_error: torch.Tensor) -> dict[str, float]:
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
@@ -115,3 +115,8 @@ class PrioritizedMemory(ReplayMemory[T]):
             priorities = (td_error + self.eps) ** self.alpha
             self.max_priority = max(self.max_priority, priorities.max().item())
         self.tree.update_batched(self.sampled_indices, priorities.cpu().tolist())
+        return {
+            "mean-priority": priorities.mean().item(),
+            "per-alpha": self.alpha.value,
+            "per-beta": self.beta.value,
+        }

@@ -29,6 +29,16 @@
                                 <th>Observation shape</th>
                                 <td>{{ env.observation_shape }}</td>
                             </tr>
+                            <tr v-if="env.reward_space.size > 1">
+                                <th> Rewards </th>
+                                <td>
+                                    <!-- Show all labels from env.reward_space.labels -->
+                                    <template v-for="(label, i) in env.reward_space.labels">
+                                        {{ label }}
+                                        <template v-if="i < env.reward_space.size - 1">, </template>
+                                    </template>
+                                </td>
+                            </tr>
                             <tr>
                                 <th>Extras shape</th>
                                 <td>{{ env.extra_feature_shape }}</td>

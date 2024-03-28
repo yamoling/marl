@@ -16,15 +16,26 @@
                     </th>
                 </tr>
             </thead>
-            <tbody v-if="episode?.qvalues?.length && episode.qvalues.length > 0">
-                <tr>
-                    <th scope="row"> Qvalues </th>
-                    <td v-for="(q, action) in qvalues" :style='{ "background-color": "#" + backgroundColours[action] }'>
-                        {{ q.toFixed(4) }}
+            <tbody v-if="currentQvalues.length > 0">
+                <tr v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+                    <th scope="row" class="text-capitalize"> {{ objective }} </th>
+                    <td v-for="action in currentQvalues.length"
+                        :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
+                        {{ currentQvalues[action - 1][objectiveNum].toFixed(4) }}
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
             </tbody>
+            <tfoot v-if="experiment.env.reward_space.size > 1">
+                <tr>
+                    <!-- Sum all objectives for that action -->
+                    <td> <b>Q-Total</b></td>
+                    <td v-for="action in currentQvalues.length"
+                        :style='{ "background-color": "#" + totalQValuesColours[action - 1] }'>
+                        {{ totalQValues[action - 1].toFixed(4) }}
+                    </td>
+                </tr>
+            </tfoot>
         </table>
     </div>
 </template>
@@ -51,7 +62,6 @@ const props = defineProps<{
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
-    console.log(props.episode.episode._observations)
     return computeShape(props.episode.episode._observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
@@ -72,22 +82,36 @@ const availableActions = computed(() => {
     return props.episode.episode._available_actions[props.currentStep][props.agentNum];
 });
 
-const qvalues = computed(() => {
+const currentQvalues = computed(() => {
     if (props.episode == null) return [];
     if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
     if (props.currentStep >= episodeLength.value) return [];
     return props.episode.qvalues[props.currentStep][props.agentNum];
 });
 
-const backgroundColours = computed(() => {
-    if (qvalues.value.length == 0) {
-        return "white";
+const totalQValues = computed(() => {
+    const res = [] as number[];
+    for (let i = 0; i < currentQvalues.value.length; i++) {
+        let sum = 0;
+        for (let j = 0; j < currentQvalues.value[i].length; j++) {
+            sum += currentQvalues.value[i][j];
+        }
+        res.push(sum);
     }
-    return qvalues.value.map(q => props.rainbow.colourAt(q));
+    return res;
 });
 
-const obs1D = computed(() => obs.value as number[]);
-const obsFlattened = obs1D;
+const backgroundColours = computed(() => {
+    const colours = currentQvalues.value.map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    return colours;
+});
+
+const totalQValuesColours = computed(() => {
+    const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
+    return colours;
+});
+
+const obsFlattened = computed(() => obs.value as number[]);
 const obsLayered = computed(() => obs.value as number[][][]);
 
 </script>
@@ -99,5 +123,10 @@ const obsLayered = computed(() => obs.value as number[][][]);
     border-style: solid;
     border-color: gainsboro;
     border-radius: 2%;
+}
+
+
+tfoot {
+    border-top: 2px solid black;
 }
 </style>

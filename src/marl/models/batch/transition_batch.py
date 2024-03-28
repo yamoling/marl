@@ -8,8 +8,13 @@ from .batch import Batch
 
 class TransitionBatch(Batch):
     def __init__(self, transitions: list[Transition]):
-        super().__init__(len(transitions), transitions[0].n_agents)
         self.transitions = transitions
+        super().__init__(len(transitions), transitions[0].n_agents)
+
+    def multi_objective(self):
+        self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
+        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
+        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
 
     @cached_property
     def obs(self):
@@ -29,7 +34,9 @@ class TransitionBatch(Batch):
 
     @cached_property
     def actions(self):
-        return torch.from_numpy(np.array([t.action for t in self.transitions], dtype=np.int64)).unsqueeze(-1).to(self.device)
+        np_actions = np.array([t.action for t in self.transitions], dtype=np.int64)
+        torch_actions = torch.from_numpy(np_actions).unsqueeze(-1).to(self.device)
+        return torch_actions
 
     @cached_property
     def rewards(self):

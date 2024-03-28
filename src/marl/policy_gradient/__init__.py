@@ -1,6 +1,7 @@
 from .acer import ACER
 from .actor_critic import ActorCritic
 from .ppo import PPO
+from .ddpg import DDPG
 from .reinforce import Reinforce
 
 __all__ = [
@@ -8,4 +9,5 @@ __all__ = [
     "ActorCritic",
     "ACER",
     "PPO",
+    "DDPG",
 ]

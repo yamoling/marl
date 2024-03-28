@@ -1,6 +1,6 @@
 import marl
 import torch
-from .utils import MockEnv
+from rlenv import MockEnv
 
 
 def test_rdqn_twice_same_input():

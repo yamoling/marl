@@ -24,6 +24,11 @@ class ServerState:
         self.experiments[logdir] = experiment
         return experiment
 
+    def get_experiment(self, logdir: str) -> Experiment:
+        if logdir not in self.experiments:
+            return self.load_experiment(logdir)
+        return self.experiments[logdir]
+
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self.experiments.pop(logdir, None)
 

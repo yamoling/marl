@@ -1,20 +1,21 @@
 export interface ReplayEpisodeSummary {
     name: string,
     directory: string,
-    metrics: Metrics
+    metrics: {
+        [key: string]: number
+    }
 }
 
-type Metrics = {
-    [key: string]: number
-}
 
 
 export interface ReplayEpisode {
     name: string,
     directory: string,
     episode: Episode,
-    metrics: Metrics,
-    qvalues?: number[][][],
+    metrics: {
+        [key: string]: number
+    },
+    qvalues?: number[][][][],
     frames: string[]
 }
 

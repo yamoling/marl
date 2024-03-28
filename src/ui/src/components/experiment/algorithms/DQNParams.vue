@@ -18,7 +18,7 @@
                                     <template v-if="trainer.grad_norm_clipping">
                                         Grad norm clip={{ trainer.grad_norm_clipping }} <br>
                                     </template>
-                                    {{ trainer.target_params_updater.name }}
+                                    {{ trainer.target_updater.name }}
                                 </td>
                             </tr>
                             <tr v-if="trainer.ir_module">
@@ -32,7 +32,9 @@
                                     {{ algo.train_policy.epsilon.start_value }}
                                     <font-awesome-icon :icon="['fas', 'arrow-right']" />
                                     {{ algo.train_policy.epsilon.end_value }}
-                                    ({{ algo.train_policy.epsilon.n_steps / 1000 }}k steps)
+                                    <template v-if="algo.train_policy.epsilon.n_steps">
+                                        ({{ algo.train_policy.epsilon.n_steps / 1000 }}k steps)
+                                    </template>
 
                                 </td>
                             </tr>
@@ -51,7 +53,10 @@
                                             <font-awesome-icon :icon="['fas', 'arrow-right']" />
                                             {{ algo.train_policy.epsilon.end_value
                                             }}
-                                            ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
+                                            <template v-if="algo.test_policy.epsilon.n_steps">
+                                                ({{ algo.test_policy.epsilon.n_steps / 1000 }}k steps)
+                                            </template>
+
                                         </template>
                                     </template>
 
@@ -75,7 +80,7 @@
                                 <th>Batch size</th>
                                 <td>{{ trainer.batch_size }}</td>
                             </tr>
-                            <tr>
+                            <tr v-if="trainer.lr">
                                 <th>Learning rate</th>
                                 <td>{{ trainer.lr.toExponential() }}</td>
                             </tr>

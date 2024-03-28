@@ -9,7 +9,7 @@ from marl.intrinsic_reward import RandomNetworkDistillation
 
 
 def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
-    rnd = RandomNetworkDistillation(target, normalise_rewards=False)
+    rnd = RandomNetworkDistillation(target, normalise_rewards=False, reward_size=env.reward_size)
     transitions = []
     obs = env.reset()
     for _ in range(64):
@@ -55,12 +55,12 @@ def test_rnd_linear():
         input_size=env.observation_shape[0],
         extras_size=env.extra_feature_shape[0],
         hidden_sizes=(64, 64, 64),
-        output_size=512,
+        output_shape=(512,),
     )
     _test_rnd_no_reward_normalisation(env, target)
 
 
 def test_rnd_conv():
     env = LLE.level(2, ObservationType.LAYERED)
-    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512)
+    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (512,))
     _test_rnd_no_reward_normalisation(env, target)

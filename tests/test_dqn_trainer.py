@@ -1,7 +1,8 @@
 import marl
 from copy import deepcopy
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
-from .utils import MockEnv, generate_episode, parameters_equal
+from rlenv import MockEnv
+from .utils import generate_episode, parameters_equal
 
 
 def test_trainer_nodes_vdn():

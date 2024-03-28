@@ -1,41 +1,41 @@
 <template>
-    <div>
+    <div class="row">
         <h3 class="text-center title" v-if="title.length > 0">
             {{ title }}
-            <!-- <button class="btn btn-outline-info" @click="downloadDatasets">
-                <font-awesome-icon :icon="['fa', 'download']" />
-            </button> -->
         </h3>
-        <div ref="legendContainer" class="row"></div>
         <div v-show="datasets.length > 0">
             <canvas ref="canvas"></canvas>
         </div>
-        <div>
-            <b class="me-1">Y axis type:</b>
-            <label class="me-2">
-                linear
-                <input type="radio" value="linear" name="y-scale" v-model="yScaleType">
-            </label>
-            <label>
-                logarithmic
-                <input type="radio" value="logarithmic" name="y-scale" v-model="yScaleType">
-            </label>
-            <br>
+        <div class="col">
+            <div class="input-group mb-3">
+                <button @click="() => showOptions = !showOptions" class="btn"
+                    :class="showOptions ? 'btn-success' : 'btn-light'">
+                    <font-awesome-icon :icon="['fas', 'gear']" />
+                    Options
+                </button>
+                <button class="btn btn-light" @click="chart.resetZoom">
+                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                    Reset zoom
+                </button>
+            </div>
+            <div v-show="showOptions">
+                <b class="me-1">Y-scale:</b>
+                <label v-for="scale in SCALES" class="me-2">
+                    {{ scale }}
+                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
+                </label>
+                <br>
 
-            <label>
-                <input type="checkbox" v-model="enablePlusMinus">
-                <b class="me-1">Show</b>
-            </label>
-            <label class="me-2">
-                standard deviation
-                <input type="radio" value="std" name="plusMinus" v-model="plusMinus" checked>
-            </label>
-            <label>
-                95% confidence interval
-                <input type="radio" value="ci95" name="plusMinus" v-model="plusMinus">
-            </label>
+                <label>
+                    <input type="checkbox" v-model="enablePlusMinus">
+                    <b class="me-1">Show</b>
+                </label>
+                <label v-for="pm in PLUS_MINUS" class="me-2">
+                    {{ pm }}
+                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" checked>
+                </label>
+            </div>
         </div>
-        <p v-show="datasets.length == 0"> Nothing to show at the moment</p>
     </div>
 </template>
 
@@ -46,75 +46,96 @@ import { Dataset } from '../../models/Experiment';
 import { clip } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
 
+const SCALES = ["Linear", "Logarithmic"] as const;
+const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
+
 let chart: Chart;
-const emits = defineEmits(["episode-selected"]);
+const emits = defineEmits<{
+    (event: "episode-selected", datasetIndex: number, xIndex: number): void
+}>();
 const canvas = ref({} as HTMLCanvasElement);
-const legendContainer = ref({} as HTMLElement);
-const yScaleType = ref("linear" as "linear" | "logarithmic");
+
+const yScaleType = ref("Linear" as typeof SCALES[number]);
+const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
 const enablePlusMinus = ref(true);
-const plusMinus = ref("std" as "std" | "ci95");
+const showOptions = ref(false);
+
 const colourStore = useColourStore();
 const props = defineProps<{
     datasets: readonly Dataset[]
-    xTicks: number[]
     title: string
     showLegend: boolean
 }>();
 
 watch(colourStore.colours, updateChartData);
 
+function tickedDataset(ticks: number[], dataset: number[]) {
+    return dataset.map((d, i) => ({ x: ticks[i], y: d }));
+}
 
 function updateChartData() {
     if (props.datasets.length == 0) {
         return;
     }
+    const allTicks = [] as number[];
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
+        allTicks.push(...ds.ticks);
         const colour = colourStore.get(ds.logdir);
-
         if (enablePlusMinus.value) {
             let lower;
-            if (plusMinus.value == "std") {
+            if (plusMinus.value == "Standard deviation") {
                 lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
-            } else {
+            } else if (plusMinus.value == "95% C.I.") {
                 lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
             const lowerColour = rgbToAlpha(colour, 0.3);
             datasets.push({
-                data: lower,
+                data: tickedDataset(ds.ticks, lower),
                 backgroundColor: lowerColour,
                 fill: "+1"
             });
         }
         datasets.push({
-            label: "",
-            data: ds.mean,
+            label: ds.logdir.replace("logs/", ""),
+            data: tickedDataset(ds.ticks, ds.mean),
             borderColor: colour,
             backgroundColor: colour,
         });
         if (enablePlusMinus.value) {
             let upper;
-            if (plusMinus.value == "std") {
+            if (plusMinus.value == "Standard deviation") {
                 upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
-            } else {
+            } else if (plusMinus.value == "95% C.I.") {
                 upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
             const upperColour = rgbToAlpha(colour, 0.3);
             datasets.push({
-                data: upper,
+                data: tickedDataset(ds.ticks, upper),
                 backgroundColor: upperColour,
                 fill: "-1",
             });
         }
     });
-    // Take the dataset with the longes ticks
-    chart.data = { labels: props.xTicks, datasets };
+    // Remove duplicates and sort by value
+    const ticks = Array.from(new Set(allTicks)).sort((a, b) => a - b);
+    chart.data = { labels: ticks, datasets };
     chart.update();
 }
 
 watch(props, updateChartData);
 watch(yScaleType, () => {
-    chart.options!.scales!.y!.type = yScaleType.value;
+    if (yScaleType.value == "Linear") {
+        chart.options!.scales!.y!.type = "linear";
+    } else if (yScaleType.value == "Logarithmic") {
+        chart.options!.scales!.y!.type = "logarithmic";
+    } else {
+        alert("Unknown scale type: " + yScaleType.value)
+    }
     chart.update()
 });
 watch(enablePlusMinus, updateChartData)
@@ -135,25 +156,55 @@ function initialiseChart(): Chart {
         options: {
             interaction: {
                 intersect: false,
-                mode: 'index',
+                mode: "nearest",
             },
             animation: false,
-            onClick: (event, datasetElement) => {
+            onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
-                    emits("episode-selected", datasetElement[0].index)
+                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
+                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
+                    let datasetIndex = datasetElement[0].datasetIndex;
+                    if (enablePlusMinus.value) {
+                        datasetIndex = Math.floor(datasetIndex / 3);
+                    }
+                    emits("episode-selected", datasetIndex, datasetElement[0].index);
                 }
             },
             plugins: {
                 legend: {
                     display: props.showLegend,
+                },
+                tooltip: {
+                    filter: (tooltipItem) => {
+                        if (!tooltipItem.dataset.label) {
+                            return false;
+                        }
+                        return tooltipItem.dataset.label.length > 0;
+                    }
+                },
+                zoom: {
+                    pan: {
+                        enabled: true,
+                        mode: 'xy',
+                        modifierKey: 'ctrl',
+                    },
+                    zoom: {
+                        mode: 'xy',
+                        drag: {
+                            enabled: true,
+                            borderColor: 'rgb(54, 162, 235)',
+                            borderWidth: 1,
+                            backgroundColor: 'rgba(54, 162, 235, 0.3)'
+                        }
+                    }
                 }
             },
             scales: {
                 y: {
                     display: true,
-                    type: yScaleType.value,
+                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
                 }
-            }
+            },
         },
         // plugins: [htmlLegendPlugin]
     });
@@ -165,62 +216,6 @@ function rgbToAlpha(rgb: string, alpha: number) {
     let B = parseInt(rgb.substring(5, 7), 16);
     return `rgba(${R}, ${G}, ${B}, ${alpha})`
 }
-
-const htmlLegendPlugin = {
-    id: 'htmlLegend',
-    afterUpdate(chart: Chart, args: any, options: any) {
-        const legend = legendContainer.value;
-        // Remove old legend items
-        while (legend.firstChild) {
-            legend.firstChild.remove();
-        }
-
-        if (chart.options.plugins?.legend?.labels?.generateLabels == null) {
-            return;
-        }
-        // Reuse the built-in legendItems generator and remove datasets without labels
-        const items = chart.options.plugins?.legend?.labels.generateLabels(chart)
-            .filter(item => item.text != "+std" && item.text != "-std");
-
-
-        items.forEach(item => {
-            const div = document.createElement('div');
-            div.classList.add("col-auto");
-            div.classList.add("legend-item");
-
-            div.onclick = () => {
-                // Hide the dataset on click (with the one before and after if there is a std)
-                const index = item.datasetIndex || 0;
-                const newVisibility = !chart.isDatasetVisible(index);
-                chart.setDatasetVisibility(index, newVisibility);
-                if (chart.data.datasets[index - 1].label == "-std") {
-                    chart.setDatasetVisibility(index - 1, newVisibility);
-                    chart.setDatasetVisibility(index + 1, newVisibility);
-                }
-                chart.update();
-            };
-
-            // Color box
-            const boxSpan = document.createElement('span');
-            boxSpan.classList.add("legend-box")
-            boxSpan.style.background = item.fillStyle?.toString() || "";
-            boxSpan.style.borderColor = item.strokeStyle?.toString() || "";
-            boxSpan.style.borderWidth = item.lineWidth + 'px';
-
-            // Text
-            const textContainer = document.createElement('span');
-            textContainer.style.color = item.fontColor?.toString() || "";
-            textContainer.style.textDecoration = item.hidden ? 'line-through' : '';
-
-            const text = document.createTextNode(item.text);
-            textContainer.appendChild(text);
-
-            div.appendChild(boxSpan);
-            div.appendChild(textContainer);
-            legend.appendChild(div);
-        });
-    }
-};
 </script>
 
 <style>

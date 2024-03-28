@@ -112,8 +112,9 @@ async function viewEpisode(episodeDirectory: string) {
     episode.value = replay;
     currentStep.value = 0;
     if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
-        const minQValue = Math.min(...episode.value?.qvalues.map(qs => Math.min(...qs.map(q => Math.min(...q)))));
-        const maxQValue = Math.max(...episode.value?.qvalues.map(qs => Math.max(...qs.map(q => Math.max(...q)))));
+        const allQvalues = episode.value.qvalues.flat(4);
+        const minQValue = Math.min(...allQvalues);
+        const maxQValue = Math.max(...allQvalues);
         rainbow.setNumberRange(minQValue, maxQValue);
     }
     loading.value = false;
