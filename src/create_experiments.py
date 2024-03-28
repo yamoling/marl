@@ -4,13 +4,11 @@ import lle
 import rlenv
 from typing import Optional
 import typed_argparse as tap
-from lle import WorldState
-from marl.training import DQNTrainer
-from marl.training.ppo_trainer import PPOTrainer
+from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
 from marl.utils import MultiSchedule, LinearSchedule
-
+from lle import WorldState
 from run import Arguments as RunArguments, main as run_experiment
 
 
@@ -72,7 +70,24 @@ def create_smac(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def create_ppo_lle():
+def create_ddpg_lle(args: Arguments):
+    n_steps = 10_000
+    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+
+    ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
+    memory = marl.models.TransitionMemory(50_000)
+
+    trainer = DDPGTrainer(
+        network=ac_network, memory=memory, batch_size=4, optimiser="adam", train_every="step", update_interval=20, gamma=0.99
+    )
+
+    algo = marl.policy_gradient.DDPG(ac_network=ac_network)
+    logdir = f"logs/{env.name}-TEST-DDPG"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+
+
+def create_ppo_lle(args: Arguments):
     n_steps = 300_000
     env = lle.LLE.level(2, lle.ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()

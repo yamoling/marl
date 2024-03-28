@@ -172,12 +172,12 @@ class ActorCriticNN(NN, ABC):
         """Returns the logits of the policy distribution"""
 
     @abstractmethod
-    def value(self, obs: torch.Tensor) -> torch.Tensor:
+    def value(self, obs: torch.Tensor, extras: torch.Tensor, *args) -> torch.Tensor:
         """Returns the value function of an observation"""
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
-        return self.policy(obs), self.value(obs)
+        return self.policy(obs), self.value(obs, extras)
 
 
 @dataclass(eq=False)
