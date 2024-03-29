@@ -71,7 +71,7 @@ class DDPGTrainer(Trainer):
         obs_ = batch.obs_
         extras_ = batch.extras_
         available_actions = batch.available_actions
-        rewards = batch.rewards
+        rewards = batch.rewards.squeeze(-1)
         with torch.no_grad():
             new_logits, _ = self.target_network(obs_, extras_)
             new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
