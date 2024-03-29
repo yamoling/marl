@@ -74,18 +74,27 @@ def create_smac(args: Arguments):
 
 
 def create_ddpg_lle(args: Arguments):
-    n_steps = 10_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    n_steps = 500_000
+    env = lle.LLE.level(2, obs_type=lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
-    ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
+    ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
+    
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=400_000,
+    )
+    test_policy = marl.policy.ArgMax()
+
+
 
     trainer = DDPGTrainer(
-        network=ac_network, memory=memory, batch_size=4, optimiser="adam", train_every="step", update_interval=20, gamma=0.99
+        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95
     )
 
-    algo = marl.policy_gradient.DDPG(ac_network=ac_network)
+    algo = marl.policy_gradient.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
     logdir = f"logs/{env.name}-TEST-DDPG"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -286,7 +295,8 @@ def create_lle_maic(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_ppo_lle()
+        #exp = create_ddpg_lle(args)
+        # exp = create_ppo_lle(args)
         exp = create_lle(args)
         #exp = create_lle_maic(args)
         print(exp.logdir)
