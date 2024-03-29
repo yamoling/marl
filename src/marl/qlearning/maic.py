@@ -3,9 +3,9 @@ import pickle
 import torch
 import numpy as np
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 from rlenv.models import Observation
-from marl.models import RLAlgo, Policy, NN, MAICNN
+from marl.models import RLAlgo, Policy, MAICNN
 
 
 @dataclass

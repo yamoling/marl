@@ -92,10 +92,10 @@ class MAICTrainer(Trainer):
     def optimise_network(self):
         # get whole memory
         batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
-        rewards = batch.rewards
+        rewards = batch.rewards.squeeze(-1)
         actions = batch.actions
-        terminated = batch.dones
-        mask = batch.masks
+        terminated = batch.dones.squeeze(-1)
+        mask = batch.masks.squeeze(-1)
         avail_actions = batch.available_actions  # or available_actions_
 
         logs = []
@@ -145,8 +145,8 @@ class MAICTrainer(Trainer):
 
         # Mix
         if self.mixer is not None and self.target_mixer is not None:  # TODO: idx ??
-            chosen_action_qvals = self.mixer.forward(chosen_action_qvals, batch.states[:, :-1], batch.one_hot_actions, mac_out)
-            target_max_qvals = self.target_mixer.forward(target_max_qvals, batch.states[:, 1:], batch.one_hot_actions, target_mac_out)
+            chosen_action_qvals = self.mixer.forward(chosen_action_qvals.unsqueeze(-1), batch.states_, batch.one_hot_actions, mac_out).squeeze(-1)
+            target_max_qvals = self.target_mixer.forward(target_max_qvals.unsqueeze(-1), batch.states_, batch.one_hot_actions, target_mac_out).squeeze(-1)
 
         # Calculate 1-step Q-Learning targets
         targets = rewards + self.gamma * (1 - terminated) * target_max_qvals

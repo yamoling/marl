@@ -66,6 +66,7 @@ class Runner:
             self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
+            self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
