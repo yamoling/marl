@@ -15,6 +15,7 @@ from copy import deepcopy
 
 
 class Arguments(tap.TypedArgs):
+    delay: int = tap.arg(default=5, help="Delay between two consecutive runs.")
     name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
@@ -148,7 +149,7 @@ def create_lle(args: Arguments):
     gamma = 0.95
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
     # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
@@ -462,6 +463,7 @@ def main(args: Arguments):
                 n_tests=args.n_tests,
                 seed=0,
                 n_runs=args.n_runs,
+                delay=args.delay,
             )
             run_experiment(run_args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)

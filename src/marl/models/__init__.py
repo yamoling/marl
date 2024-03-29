@@ -13,8 +13,8 @@ from .replay_memory import (
 )
 from .run import Run, RunHandle
 from .runner import Runner
-from .experiment import Experiment, ReplayEpisode, ReplayEpisodeSummary
 from .trainer import Trainer
+from .experiment import Experiment, ReplayEpisode, ReplayEpisodeSummary
 
 __all__ = [
     "NN",
