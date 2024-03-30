@@ -788,7 +788,7 @@ class MAICNetwork(MAICNN):
 
         gated_msg = alpha * msg
 
-        return_q = q + torch.sum(gated_msg, dim=-1).view(bs * self.n_agents, self.n_actions)
+        return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
 
         returns = {}
 
