@@ -22,7 +22,7 @@ class MAICTrainer(Trainer):
         gamma: float = 0.99,
         batch_size: int = 16,
         lr: float = 1e-4,
-        optimiser: Literal["adam", "rmsprop"] = "rmsprop",
+        optimiser: Literal["adam", "rmsprop"] = "adam",
         target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
         mixer: Optional[Mixer] = None,
@@ -76,7 +76,7 @@ class MAICTrainer(Trainer):
         """
         if not self.memory.update_on_transitions:
             self.memory.add(episode)
-        return self._update(time_step)
+        return self._update(episode_num)
 
     def _update(self, episode_num: int):
         if len(self.memory) < self.batch_size:
