@@ -286,9 +286,9 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 200_000
+    n_steps = 600_000
     test_interval = 5000
-    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(3, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -307,7 +307,7 @@ def create_lle_maic(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        50_000,
+        200_000,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
@@ -319,8 +319,8 @@ def create_lle_maic(args: Arguments):
         train_policy=train_policy,
         batch_size=batch_size,
         memory=memory,
-        #mixer=marl.qlearning.VDN(env.n_agents),
-        mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
+        mixer=marl.qlearning.VDN(env.n_agents),
+        #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=HardUpdate(200),
         lr=5e-4,

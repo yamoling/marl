@@ -723,7 +723,9 @@ class MAICNetwork(MAICNN):
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
         self.msg_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE),
+            activation_func,
+            nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
         )
 
         self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
@@ -765,7 +767,8 @@ class MAICNetwork(MAICNN):
             latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
             gaussian_embed = D.Normal(
-                latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+                latent_embed[:, : self.n_agents * self.latent_dim],
+                (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
             )
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
         latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
@@ -785,7 +788,7 @@ class MAICNetwork(MAICNN):
 
         gated_msg = alpha * msg
 
-        return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+        return_q = q + torch.sum(gated_msg, dim=-1).view(bs * self.n_agents, self.n_actions)
 
         returns = {}
 
