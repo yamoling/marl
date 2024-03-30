@@ -355,12 +355,6 @@ class RCNN(RecurrentQNetwork):
         return res.view(*dims, *self.output_shape)
 
 
-class CommCNN(CNN):
-    @classmethod
-    def from_env(cls, env: RLEnv, channel_size: int):
-        return cls(env.observation_shape, env.extra_feature_shape[0] + channel_size, (env.n_actions,))
-
-
 class CNN_ActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
@@ -715,8 +709,11 @@ class MAICNetwork(MAICNN):
             activation_func,
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
         )
-        #n_inputs = input_shape[0] + extras_shape[0] # When FLATTENED
-        n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape) # When LAYERED
+
+        if (len(input_shape) == 1):
+            n_inputs = input_shape[0] + extras_shape[0] # When FLATTENED
+        else:
+            n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape) # When LAYERED
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
@@ -735,21 +732,22 @@ class MAICNetwork(MAICNN):
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, hidden_state, test_mode=False):
-        # When FLATTENED
-        # bs, n_agent, obs_size = obs.shape
-        # obs = torch.reshape(obs, (-1, obs_size))
-        # if extras is not None:
-        #     extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-        #     obs = torch.concat((obs, extras), dim=-1)
-
-        # When LAYERED
-        *dims, channels, height, width = obs.shape
-        bs = dims[0]
-        n_agents = dims[1]
-        obs = torch.reshape(obs, (bs*n_agents, -1))
-        if extras is not None:
+        if (len(obs.shape) == 3):
+            # When FLATTENED
+            bs, n_agents, obs_size = obs.shape
+            obs = torch.reshape(obs, (-1, obs_size))
+            if extras is not None:
                 extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
                 obs = torch.concat((obs, extras), dim=-1)
+        else:
+            # When LAYERED
+            *dims, channels, height, width = obs.shape
+            bs = dims[0]
+            n_agents = dims[1]
+            obs = torch.reshape(obs, (bs*n_agents, -1))
+            if extras is not None:
+                    extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+                    obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
         h_in = hidden_state.reshape(-1, self.args.rnn_hidden_dim)

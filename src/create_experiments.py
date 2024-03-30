@@ -286,9 +286,9 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 600_000
+    n_steps = 200_000
     test_interval = 5000
-    env = lle.LLE.level(3, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(2, lle.ObservationType.FLATTENED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -307,7 +307,7 @@ def create_lle_maic(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        200_000,
+        50_000,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
@@ -330,7 +330,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC{batch_size}-{env.name}"
+        logdir = f"logs/MAIC{batch_size}-{env.name}FLATTENED"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
