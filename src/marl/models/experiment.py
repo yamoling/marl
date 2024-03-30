@@ -21,7 +21,7 @@ from .algo import RLAlgo
 from .trainer import Trainer
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
 from .run import Run
-from .runner import Runner
+from .runners import SimpleRunner
 
 
 @serde
@@ -192,7 +192,7 @@ class Experiment:
             exit(0)
 
     def create_runner(self):
-        return Runner(
+        return SimpleRunner(
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,

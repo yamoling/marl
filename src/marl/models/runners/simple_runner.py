@@ -1,23 +1,20 @@
-import torch
-from typing import Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
 
 import marl
 
-from .trainer import Trainer
-from .algo import RLAlgo
-from .run import Run, RunHandle
+from marl.models.trainer import Trainer
+from marl.models.algo import RLAlgo
+from marl.models.run import Run, RunHandle
+
+from .runner import Runner
 
 
-class Runner:
+class SimpleRunner(Runner):
     def __init__(self, env: RLEnv, algo: RLAlgo, trainer: Trainer, test_interval: int, n_steps: int, test_env: RLEnv):
-        self._trainer = trainer
-        self._env = env
-        self._algo = algo
+        super().__init__(algo, env, trainer, test_env)
         self._test_interval = test_interval
         self._max_step = n_steps
-        self._test_env = test_env
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
@@ -78,16 +75,3 @@ class Runner:
             episodes.append(episode)
         run_handle.log_tests(episodes, self._test_env, self._algo, time_step)
         self._algo.set_training()
-
-    def randomize(self):
-        self._algo.randomize()
-        self._trainer.randomize()
-
-    def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
-        if isinstance(device, str):
-            from marl.utils import get_device
-
-            device = get_device(device)
-        self._algo.to(device)
-        self._trainer.to(device)
-        return self
