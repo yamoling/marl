@@ -15,7 +15,9 @@ from serde import serde
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl.policy_gradient import PPO, DDPG
+from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
+from .batch import TransitionBatch
 
 from .algo import RLAlgo
 from .trainer import Trainer
@@ -232,44 +234,32 @@ class Experiment:
         run = Run.load(rundir.as_posix())
         actions = run.get_test_actions(time_step, test_num)
         self.algo.load(run.get_saved_algo_dir(time_step))
-        try:
-            env = run.get_test_env(time_step)
-        except exceptions.TestEnvNotSavedException:
-            # The environment has not been saved, fallback to the local one
-            env = deepcopy(self.env)
-
-        env.seed(time_step + test_num)
-        obs = env.reset()
-        values = []
-        frames = [encode_b64_image(env.render("rgb_array"))]
+        self.test_env.seed(time_step + test_num)
+        obs = self.test_env.reset()
+        frames = [encode_b64_image(self.test_env.render("rgb_array"))]
         episode = EpisodeBuilder()
+        values = []
         qvalues = []
-        try:
-            for action in actions:
-                values.append(self.algo.value(obs))
-                from marl.qlearning import DQN
+        self.algo.new_episode()
+        self.algo.set_testing()
+        for action in actions:
+            values.append(self.algo.value(obs))
+            if isinstance(self.algo, (PPO, DDPG)):
+                qvalues.append(self.algo.actions_logits(obs).tolist())
+            obs_, reward, done, truncated, info = self.test_env.step(action)
+            episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
+            frames.append(encode_b64_image(self.test_env.render("rgb_array")))
+            obs = obs_
+        episode = episode.build()
+        if isinstance(self.algo, DQN):
+            batch = TransitionBatch(list(episode.transitions()))
+            qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
 
-                if isinstance(self.algo, DQN):
-                    qvalues.append(self.algo.compute_qvalues(obs).tolist())
-                if isinstance(self.algo, PPO):
-                    qvalues.append(self.algo.actions_logits(obs).tolist())
-                if isinstance(self.algo, DDPG):
-                    qvalues.append(self.algo.actions_logits(obs).tolist())
-                obs_, reward, done, truncated, info = env.step(action)
-                episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
-                frames.append(encode_b64_image(env.render("rgb_array")))
-                obs = obs_
-            episode = episode.build()
-
-            return ReplayEpisode(
-                directory=episode_folder,
-                episode=episode,
-                qvalues=qvalues,
-                frames=frames,
-                metrics=episode.metrics,
-                state_values=values,
-            )
-        except AssertionError:
-            raise ValueError(
-                "Not possible to replay the episode. Maybe the enivornment state was not saved properly or does not support (un)pickling."
-            )
+        return ReplayEpisode(
+            directory=episode_folder,
+            episode=episode,
+            qvalues=qvalues,
+            frames=frames,
+            metrics=episode.metrics,
+            state_values=values,
+        )

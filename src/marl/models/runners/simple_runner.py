@@ -73,5 +73,5 @@ class SimpleRunner(Runner):
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        run_handle.log_tests(episodes, self._test_env, self._algo, time_step)
+        run_handle.log_tests(episodes, self._algo, time_step)
         self._algo.set_training()

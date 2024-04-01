@@ -205,13 +205,8 @@ class RunHandle:
         self.training_data_logger = training_data_logger
         self.run = run
 
-    def log_tests(self, episodes: list[Episode], test_env: RLEnv, algo: RLAlgo, time_step: int):
+    def log_tests(self, episodes: list[Episode], algo: RLAlgo, time_step: int):
         algo.save(self.run.test_dir(time_step))
-        try:
-            with open(os.path.join(self.run.test_dir(time_step), ENV_PICKLE), "wb") as e:
-                pickle.dump(test_env, e)
-        except (AttributeError, pickle.PicklingError):
-            pass
         for i, episode in enumerate(episodes):
             episode_directory = self.run.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
