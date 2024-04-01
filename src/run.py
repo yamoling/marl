@@ -21,7 +21,7 @@ def main(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
     experiment = marl.Experiment.load(args.logdir)
-    for run_num in range(1, args.n_runs):
+    for run_num in range(0, args.n_runs - 1):
         seed = args.seed + run_num
         if args.quiet is None:
             args.quiet = True
@@ -30,7 +30,7 @@ def main(args: Arguments):
         time.sleep(args.delay)
     if args.quiet is None:
         args.quiet = False
-    experiment.run(args.seed, args.quiet, args.n_tests, args.device, False)
+    experiment.run(args.seed + args.n_runs - 1, args.quiet, args.n_tests, args.device, False)
 
 
 if __name__ == "__main__":

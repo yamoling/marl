@@ -41,7 +41,8 @@ class DQN(RLAlgo):
         return self.qnetwork.value(obs).item()
 
     def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        return self.qnetwork.qvalues(obs)
+        objective_qvalues = self.qnetwork.qvalues(obs)
+        return torch.sum(objective_qvalues, dim=-1)
 
     def set_testing(self):
         self.policy = self.test_policy
@@ -88,4 +89,4 @@ class RDQN(DQN):
         self.qnetwork: RecurrentQNetwork
 
     def new_episode(self):
-        self.qnetwork.reset_hidden_states()        
+        self.qnetwork.reset_hidden_states()

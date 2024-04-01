@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import numpy.typing as npt
 from rlenv import Observation
-from marl.models import RLAlgo, nn
+from marl.models import RLAlgo, nn, Policy
 from marl.utils import get_device
 
 
@@ -15,27 +15,34 @@ class PPO(RLAlgo):
     def __init__(
         self,
         ac_network: nn.ActorCriticNN,
+        train_policy: Policy,
+        test_policy: Policy,
+        extra_policy: Policy = None,
+        extra_policy_every: int = 100,
     ):
         super().__init__()
         self.device = get_device()
         self.network = ac_network.to(self.device)
         self.action_probs: np.ndarray = np.array([])
+        self.train_policy = train_policy
+        if test_policy is None:
+            test_policy = self.train_policy
+        self.test_policy = test_policy
+        self.policy = self.train_policy
         self.is_training = True
+        self.extra_policy = extra_policy
+        self.extra_policy_every = extra_policy_every
+        self.episode_counter = 1
 
     def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
-            logits, value = self.network.forward(obs_data, obs_extras)  # get action probabilities
-            logits[torch.tensor(observation.available_actions) == 0] = -torch.inf  # mask unavailable actions
-            dist = torch.distributions.Categorical(logits=logits)
 
-            if self.is_training:
-                action = dist.sample()
-            else:
-                action = torch.argmax(logits, dim=1)
+            logits, _ = self.network.forward(obs_data, obs_extras)  # get action logits
 
-            return action.numpy(force=True)
+            actions = self.policy.get_action(logits.cpu().numpy(), observation.available_actions)
+            return actions#.numpy(force=True)
 
     def actions_logits(self, obs: Observation):
         obs_data = torch.tensor(obs.data).to(self.device, non_blocking=True)
@@ -61,9 +68,11 @@ class PPO(RLAlgo):
 
     def set_testing(self):
         self.is_training = False
+        self.policy = self.test_policy
 
     def set_training(self):
         self.is_training = True
+        self.policy = self.train_policy
 
     def randomize(self):
         self.network.randomize()
@@ -71,3 +80,13 @@ class PPO(RLAlgo):
     def to(self, device: torch.device):
         self.network.to(device)
         self.device = device
+
+    def new_episode(self):
+        if self.is_training and self.extra_policy is not None:
+            self.episode_counter += 1
+            if self.episode_counter == self.extra_policy_every:
+                self.extra_policy.update(0)
+                self.policy = self.extra_policy
+                self.episode_counter = 0
+            else:
+                self.policy = self.train_policy

@@ -7,14 +7,13 @@ import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from marl.utils import MultiSchedule, LinearSchedule
 from lle import WorldState
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
-from copy import deepcopy
 
 
 class Arguments(tap.TypedArgs):
+    delay: int = tap.arg(default=5, help="Delay between two consecutive runs.")
     name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
@@ -73,18 +72,27 @@ def create_smac(args: Arguments):
 
 
 def create_ddpg_lle(args: Arguments):
-    n_steps = 10_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    n_steps = 500_000
+    env = lle.LLE.level(2, obs_type=lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
-    ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
+    ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
+    
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=400_000,
+    )
+    test_policy = marl.policy.ArgMax()
+
+
 
     trainer = DDPGTrainer(
-        network=ac_network, memory=memory, batch_size=4, optimiser="adam", train_every="step", update_interval=20, gamma=0.99
+        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95
     )
 
-    algo = marl.policy_gradient.DDPG(ac_network=ac_network)
+    algo = marl.policy_gradient.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
     logdir = f"logs/{env.name}-TEST-DDPG"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -100,7 +108,7 @@ def create_ppo_lle(args: Arguments):
     trainer = PPOTrainer(
         network=ac_network,
         memory=memory,
-        gamma=0.99,
+        gamma=0.95,
         batch_size=5,
         lr_critic=1e-4,
         lr_actor=1e-4,
@@ -112,7 +120,7 @@ def create_ppo_lle(args: Arguments):
         c2=0.01,
     )
 
-    algo = marl.policy_gradient.PPO(ac_network=ac_network)
+    algo = marl.policy_gradient.PPO(ac_network=ac_network, train_policy=marl.policy.CategoricalPolicy(), test_policy=marl.policy.ArgMax(), extra_policy=marl.policy.ExtraPolicy(env.n_agents), extra_policy_every=100)
     logdir = f"logs/{env.name}-TEST-PPO"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
@@ -139,7 +147,10 @@ def create_lle(args: Arguments):
     gamma = 0.95
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    from marl.env.lle_shaping import LLEShaping
+
+    env = LLEShaping(env, reward_for_blocking=0.1)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
     # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
@@ -358,6 +369,7 @@ def main(args: Arguments):
                 n_tests=args.n_tests,
                 seed=0,
                 n_runs=args.n_runs,
+                delay=args.delay,
             )
             run_experiment(run_args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)

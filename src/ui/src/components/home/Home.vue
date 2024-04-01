@@ -79,13 +79,13 @@
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
+                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                        @click="() => downloadDatasets(exp.logdir)">
+                                        <font-awesome-icon :icon="['fas', 'download']" />
+                                    </button>
                                     <button v-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
                                         @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-primary"
-                                        @click="() => downloadDatasets(exp.logdir)">
-                                        <font-awesome-icon :icon="['fas', 'download']" />
                                     </button>
                                 </td>
                             </tr>
