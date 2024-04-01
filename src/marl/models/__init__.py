@@ -12,7 +12,7 @@ from .replay_memory import (
     TransitionMemory,
 )
 from .run import Run, RunHandle
-from .runner import Runner
+from .runners import Runner
 from .trainer import Trainer
 from .experiment import Experiment, ReplayEpisode, ReplayEpisodeSummary
 
