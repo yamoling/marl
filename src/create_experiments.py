@@ -288,7 +288,7 @@ def create_lle_baseline(args: Arguments):
 def create_lle_maic(args: Arguments):
     n_steps = 200_000
     test_interval = 5000
-    env = lle.LLE.level(2, lle.ObservationType.FLATTENED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -330,7 +330,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC{batch_size}-{env.name}FLATTENED"
+        logdir = f"logs/MAIC{batch_size}-{env.name}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
