@@ -16,7 +16,9 @@ class PPO(RLAlgo):
         self,
         ac_network: nn.ActorCriticNN,
         train_policy: Policy,
-        test_policy: Policy
+        test_policy: Policy,
+        extra_policy: Policy = None,
+        extra_policy_every: int = 100,
     ):
         super().__init__()
         self.device = get_device()
@@ -28,6 +30,9 @@ class PPO(RLAlgo):
         self.test_policy = test_policy
         self.policy = self.train_policy
         self.is_training = True
+        self.extra_policy = extra_policy
+        self.extra_policy_every = extra_policy_every
+        self.episode_counter = 1
 
     def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
         with torch.no_grad():
@@ -35,6 +40,7 @@ class PPO(RLAlgo):
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
 
             logits, _ = self.network.forward(obs_data, obs_extras)  # get action logits
+
             actions = self.policy.get_action(logits.cpu().numpy(), observation.available_actions)
             return actions#.numpy(force=True)
 
@@ -74,3 +80,13 @@ class PPO(RLAlgo):
     def to(self, device: torch.device):
         self.network.to(device)
         self.device = device
+
+    def new_episode(self):
+        if self.is_training and self.extra_policy is not None:
+            self.episode_counter += 1
+            if self.episode_counter == self.extra_policy_every:
+                self.extra_policy.update(0)
+                self.policy = self.extra_policy
+                self.episode_counter = 0
+            else:
+                self.policy = self.train_policy

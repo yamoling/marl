@@ -110,7 +110,7 @@ def create_ppo_lle(args: Arguments):
     trainer = PPOTrainer(
         network=ac_network,
         memory=memory,
-        gamma=0.99,
+        gamma=0.95,
         batch_size=5,
         lr_critic=1e-4,
         lr_actor=1e-4,
@@ -122,7 +122,7 @@ def create_ppo_lle(args: Arguments):
         c2=0.01,
     )
 
-    algo = marl.policy_gradient.PPO(ac_network=ac_network)
+    algo = marl.policy_gradient.PPO(ac_network=ac_network, train_policy=marl.policy.CategoricalPolicy(), test_policy=marl.policy.ArgMax(), extra_policy=marl.policy.ExtraPolicy(env.n_agents), extra_policy_every=100)
     logdir = f"logs/{env.name}-TEST-PPO"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
