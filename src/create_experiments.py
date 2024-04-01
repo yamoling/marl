@@ -7,11 +7,9 @@ import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from marl.utils import MultiSchedule, LinearSchedule
 from lle import WorldState
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
-from copy import deepcopy
 
 
 class Arguments(tap.TypedArgs):
@@ -149,7 +147,10 @@ def create_lle(args: Arguments):
     gamma = 0.95
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    from marl.env.lle_shaping import LLEShaping
+
+    env = LLEShaping(env, reward_for_blocking=0.1)
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
     # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
@@ -298,7 +299,7 @@ def main(args: Arguments):
         #exp = create_ddpg_lle(args)
         # exp = create_ppo_lle(args)
         exp = create_lle(args)
-        #exp = create_lle_maic(args)
+        # exp = create_lle_maic(args)
         print(exp.logdir)
         if args.run:
             run_args = RunArguments(

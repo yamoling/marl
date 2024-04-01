@@ -8,7 +8,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = ">=3.10, <3.13"
 numpy = "^1.23.4"
-rlenv = { git = "https://github.com/yamoling/rlenv.git" }
+# rlenv = { git = "https://github.com/yamoling/rlenv.git" }
 opencv-python = "^4.7.0.68"
 tqdm = "^4.65.0"
 pynvml = "^11.5.0"
@@ -22,7 +22,15 @@ polars = "^0.20.6"
 protobuf = "3.20"
 neptune = "^1.9.1"
 python-dotenv = "^1.0.1"
-laser-learning-environment = "^0.2.0"
+# laser-learning-environment = "^0.2.0"
+
+[tool.poetry.dependencies.lle]
+git = "https://github.com/yamoling/lle.git"
+branch = "dev"
+
+[tool.poetry.dependencies.rlenv]
+git = "https://github.com/yamoling/rlenv.git"
+branch = "dev"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -100,15 +100,20 @@ class QNetwork(NN):
         return obs_tensor, extras
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
-        """Compute the Q-values (one per objective)."""
+        """
+        Compute the Q-values (one per agent, per action and per objective).
+
+        The resulting shape is (n_agents, n_actions, n_objectives)
+        """
         obs_tensor, extra_tensor = self.to_tensor(obs)
         objective_qvalues = self.forward(obs_tensor, extra_tensor)
         objective_qvalues = objective_qvalues.squeeze(0)
-        return torch.sum(objective_qvalues, dim=-1)
+        return objective_qvalues
 
     def value(self, obs: Observation) -> torch.Tensor:
-        """Compute the value function"""
-        qvalues = self.qvalues(obs)
+        """Compute the value function (maximum of the q-values)."""
+        objective_qvalues = self.qvalues(obs)
+        qvalues = torch.sum(objective_qvalues, dim=-1)
         agent_values = qvalues.max(dim=-1).values
         return agent_values.mean(dim=-1)
 
@@ -137,7 +142,9 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function. Does not update the hidden states."""
         hidden_states = self.hidden_states
-        agent_values = self.qvalues(obs).max(dim=-1).values
+        objective_qvalues = self.qvalues(obs)
+        qvalues = torch.sum(objective_qvalues, dim=-1)
+        agent_values = torch.max(qvalues, dim=-1).values
         self.hidden_states = hidden_states
         return agent_values.mean(dim=-1)
 
