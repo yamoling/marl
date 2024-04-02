@@ -28,6 +28,10 @@ python-dotenv = "^1.0.1"
 git = "https://github.com/yamoling/lle.git"
 branch = "dev"
 
+[tool.poetry.dependencies.rlenv]
+git = "https://github.com/yamoling/rlenv.git"
+branch = "dev"
+
 
 [tool.poetry.group.dev.dependencies]
 matplotlib = "^3.6.3"
