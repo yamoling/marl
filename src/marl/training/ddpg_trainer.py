@@ -106,10 +106,10 @@ class DDPGTrainer(Trainer):
         # reshape and mask unavailable actions
         logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)
         logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
+        actions_current_policy = torch.argmax(logits_current_policy, dim=2)
+        actions_current_policy_formatted = torch.nn.functional.one_hot(actions_current_policy, new_logits.shape[-1])
 
-        actions_current_policy = torch.nn.functional.one_hot(actions, new_logits.shape[-1])
-
-        actor_loss = self.network.value(states, extras, actions_current_policy)
+        actor_loss = self.network.value(states, extras, actions_current_policy_formatted)
         actor_loss = -actor_loss.mean()
 
         self.policy_optimiser.zero_grad()
