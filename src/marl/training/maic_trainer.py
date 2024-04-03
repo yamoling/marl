@@ -96,7 +96,8 @@ class MAICTrainer(Trainer):
         actions = batch.actions[:-1, :]
         terminated = batch.dones.squeeze(-1)[:-1, :].float()
         mask = batch.masks.squeeze(-1)[:-1, :].float()
-        avail_actions = batch.available_actions  # or available_actions_
+        mask[1:, :] = mask[1:, :] * (1 - terminated[:-1, :])
+        avail_actions = batch.available_actions 
 
         logs = []
         losses = []
@@ -144,12 +145,13 @@ class MAICTrainer(Trainer):
             target_max_qvals = target_mac_out.max(dim=3)[0]
 
         # Mix
-        if self.mixer is not None and self.target_mixer is not None:  # TODO: idx ??
+        if self.mixer is not None and self.target_mixer is not None:
             chosen_action_qvals = self.mixer.forward(chosen_action_qvals.unsqueeze(-1), batch.states_[:-1, :], batch.one_hot_actions[:-1, :], mac_out[:-1, :]).squeeze(-1)
             target_max_qvals = self.target_mixer.forward(target_max_qvals.unsqueeze(-1), batch.states_[1:, :], batch.one_hot_actions[1:, :], target_mac_out[1:, :]).squeeze(-1)
 
         # Calculate 1-step Q-Learning targets
         targets = rewards + self.gamma * (1 - terminated) * target_max_qvals
+        
         # Td-error
         td_error = chosen_action_qvals - targets.detach()
         
