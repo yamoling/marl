@@ -1,41 +1,22 @@
+import time
 import marl
 import lle
 from lle import WorldState, LLE, Action
 from marl.env.lle_shaping import LLEShaping
+from marl.env.lle_curriculum import LaserCurriculum
 from itertools import permutations
 
 
-env = LLE.level(3, obs_type=lle.ObservationType.LAYERED_PADDED)
-env = LLEShaping(env, 1.0)
+env = LLE.level(6, obs_type=lle.ObservationType.LAYERED_PADDED)
+env = LaserCurriculum(env)
 env.reset()
+
 env.render("human")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
-env.render("human")
-input("Press Enter to continue...")
-r = env.step([Action.SOUTH.value, Action.SOUTH.value])[1]
-print(r)
+time.sleep(0.2)
+for t in range(0, 1_000_000, 100_000):
+    r = ""
+    while r != "n":
+        env.t = t
+        env.reset()
+        env.render("human")
+        r = input(f"'n' to continue to next step, any other key to generate a new environment for t={t}: ")
