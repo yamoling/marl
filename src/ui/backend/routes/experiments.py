@@ -66,10 +66,11 @@ def rename_experiment():
     logdir = json_data["logdir"]
     new_logdir = json_data["newLogdir"]
     exp = state.get_experiment(logdir)
-    exp.copy(new_logdir, copy_runs=True)
+    exp.move(new_logdir)
+    # exp.copy(new_logdir, copy_runs=True)
     state.unload_experiment(logdir)
     state.load_experiment(new_logdir)
-    exp.delete()
+    # exp.delete()
     return ("", HTTPStatus.NO_CONTENT)
 
 

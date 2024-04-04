@@ -14,6 +14,10 @@
                 <font-awesome-icon :icon="['fa', 'play']" class=" text-success pe-2" />
                 Test on other env
             </li>
+            <li @click="archive">
+                <font-awesome-icon :icon="['fas', 'box-archive']" class="pe-2" />
+                Archive
+            </li>
             <li>
                 <font-awesome-icon :icon="['fas', 'person-running']" class="pe-2" />
                 Start a new run
@@ -34,6 +38,13 @@ const experimentStore = useExperimentStore();
 
 document.addEventListener('click', () => {
     contextMenu.value.style.display = 'none';
+});
+
+// Escape key also closes the context menu
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        contextMenu.value.style.display = 'none';
+    }
 });
 
 function show(exp: Experiment, x: number, y: number) {
@@ -58,5 +69,12 @@ function remove() {
     if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
         experimentStore.remove(logdir);
     }
+}
+
+function archive() {
+    const currentLogdir = clickedExperiment.value.logdir;
+    const newLogdir = currentLogdir.replace("logs/", "archives/")
+    console.log(newLogdir);
+    experimentStore.rename(currentLogdir, newLogdir);
 }
 </script>

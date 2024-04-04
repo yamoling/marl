@@ -115,6 +115,13 @@ class Experiment:
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
             return json.load(f)
 
+    def move(self, new_logdir: str):
+        """Move an experiment to a new directory."""
+        os.makedirs(new_logdir, exist_ok=False)
+        shutil.move(self.logdir, new_logdir)
+        self.logdir = new_logdir
+        self.save()
+
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)
         new_exp.logdir = new_logdir
