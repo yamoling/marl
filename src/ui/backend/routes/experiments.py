@@ -109,6 +109,6 @@ def test_on_other_env():
     def start():
         return exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
 
-    # Process(target=start, daemon=False).start()
-    start()
-    return ("", HTTPStatus.NO_CONTENT)
+    Process(target=start, daemon=False).start()
+    # start()
+    return ""

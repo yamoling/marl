@@ -81,16 +81,14 @@ export function downloadStringAsFile(textToSave: string, fileName: string) {
     hiddenElement.click();
 }
 
-export async function fetchJSON(url: string, data: Object, method: string = "POST") {
-    const response = await fetch(url, {
+export async function fetchWithJSON(url: string, data: Object, method: string = "POST") {
+    return await fetch(url, {
         method,
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(data)
     });
-    return await response.json();
-
 }
 
 

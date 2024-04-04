@@ -3,7 +3,7 @@ import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
-import { fetchJSON } from "../utils";
+import { fetchWithJSON } from "../utils";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
@@ -80,11 +80,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function rename(logdir: string, newLogdir: string) {
-        const resp = await fetch(`${HTTP_URL}/experiment/rename`, {
-            method: "POST",
-            body: JSON.stringify({ logdir, newLogdir }),
-            headers: { "Content-Type": "application/json" }
-        });
+        const resp = await fetchWithJSON(`${HTTP_URL}/experiment/rename`, { logdir, newLogdir });
         if (!resp.ok) {
             alert("Failed to rename experiment: " + await resp.text());
             return;
@@ -103,7 +99,8 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
-        await fetchJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
+        await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
+        refresh()
     }
 
     async function getEnvImage(logdir: String, seed: number): Promise<string> {
