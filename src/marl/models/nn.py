@@ -245,8 +245,8 @@ class MAICNN(NN):
 
     def value(self, obs: Observation, hidden_state, test_mode) -> torch.Tensor:
         """Compute the value function"""
-        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=2).values
-        test = agent_values.squeeze(-1).mean(dim=-1)
+        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=-1).values
+        test = agent_values.mean(dim=-1)
         return test
 
     @abstractmethod
