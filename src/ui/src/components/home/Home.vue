@@ -45,7 +45,7 @@
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)"
                                 @click="() => resultsStore.load(exp.logdir)"
-                                @contextmenu="(e) => openContextMenu(e, exp.logdir)">
+                                @contextmenu="(e) => openContextMenu(e, exp)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -102,7 +102,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Dataset, toCSV } from '../../models/Experiment';
+import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
 import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
@@ -196,10 +196,9 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
 
 
 // Function to open context menu
-function openContextMenu(e: MouseEvent, logdir: string) {
+function openContextMenu(e: MouseEvent, exp: Experiment) {
     e.preventDefault()
-    console.log(contextMenu.value)
-    contextMenu.value.show(logdir, e.x, e.y);
+    contextMenu.value.show(exp, e.x, e.y);
 }
 
 

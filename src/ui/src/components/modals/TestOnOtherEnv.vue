@@ -7,7 +7,17 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div v-show="step == 'CHOOSE_ENV'" class="modal-body row">
-                    <table class="table table-sm table-striped table-hover table-scrollable">
+                    <div v-if="compatibleExperiments.length == 0">
+                        <p>There is no other experiment available that has the same observation shape and extra feature
+                            shape as the one you have selected.
+                        </p>
+                        <p>
+                            Observation space: {{ originalExperiment?.env.observation_shape }}.<br>
+                            Extra feature space: {{ originalExperiment?.env.extra_feature_shape }}. <br>
+                            Logdir: {{ originalExperiment?.logdir }}.
+                        </p>
+                    </div>
+                    <table v-else class="table table-sm table-striped table-hover table-scrollable">
                         <thead>
                             <tr>
                                 <th class="px-1"> Logdir </th>
@@ -55,7 +65,7 @@
                         @click="start">
                         Start
                     </button>
-                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Cancel</button>
                 </div>
 
             </div>
@@ -79,29 +89,49 @@ const chosenExperimentForEnv = ref(null as Experiment | null);
 const nTests = ref(1);
 const newExperimentLogdir = ref("");
 
-
+/**
+ * Compatible experiments are experiments that have 
+ *  - the same observation shape
+ *  - the same extra feature shape
+ *  - a logdir different from the original experiment.
+ */
 const compatibleExperiments = computed(() => {
     if (originalExperiment.value == null) {
         return []
     }
+    const logdir = originalExperiment.value.logdir;
     const observationShape = originalExperiment.value.env.observation_shape;
     const extrasShape = originalExperiment.value.env.extra_feature_shape;
-    return store.experiments.filter(exp => exp.env.observation_shape == observationShape && exp.env.extra_feature_shape == extrasShape)
+    return store.experiments.filter(exp => {
+        if (exp.logdir == logdir) {
+            return false
+        }
+        // Array equality in JS is not straightforward
+        if (exp.env.observation_shape.length != observationShape.length || exp.env.observation_shape.some((dim, i) => dim != observationShape[i])) {
+            return false
+        }
+        return exp.env.extra_feature_shape.every((el, i) => extrasShape[i] == el);
+    })
 
 })
 
 function chooseEnv(exp: Experiment) {
     chosenExperimentForEnv.value = exp;
     step.value = "CHOOSE_PARAMS";
-    newExperimentLogdir.value = originalExperiment.value + "-tested-on-" + exp.test_env?.name;
+    newExperimentLogdir.value = originalExperiment.value?.logdir + "-tested-on-" + exp.test_env?.name;
 }
 
 function start() {
-    store.testOnOtherEnvironment(originalExperiment.value, newExperimentLogdir.value, chosenExperimentForEnv.value!.logdir, nTests.value);
+    if (originalExperiment.value == null || chosenExperimentForEnv.value == null) {
+        alert("Please choose an experiment")
+        return
+    }
+    store.testOnOtherEnvironment(originalExperiment.value.logdir, newExperimentLogdir.value, chosenExperimentForEnv.value.logdir, nTests.value);
 }
 
 function showModal(experiment: Experiment) {
     originalExperiment.value = experiment;
+    step.value = "CHOOSE_ENV";
     (new Modal(modal.value)).show()
     compatibleExperiments.value.forEach(exp => {
         if (!envImages.value.has(exp.logdir)) {

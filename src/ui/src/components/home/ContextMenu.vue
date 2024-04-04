@@ -25,6 +25,7 @@
 import { ref } from 'vue';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import TestOnOtherEnvironment from '../modals/TestOnOtherEnv.vue';
+import { Experiment } from '../../models/Experiment';
 
 const contextMenu = ref({} as HTMLDivElement);
 const modal = ref({} as typeof TestOnOtherEnvironment)

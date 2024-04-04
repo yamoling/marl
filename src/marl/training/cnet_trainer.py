@@ -50,7 +50,7 @@ class CNetTrainer(Trainer):
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
         episode_from_agent = self.agents.get_episode()
-        self.memory.add_episode(self.fill_episode(episode, episode_from_agent))
+        self.memory.add_episode(self.fill_episode(episode, episode_from_agent))  # type: ignore
 
         if (episode_num + 1) % self.update_interval == 0:
             self._update(time_step)
