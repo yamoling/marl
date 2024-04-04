@@ -70,7 +70,24 @@ class MAICAlgo(RLAlgo):
 
         return agent_outs.view(batch_size, self.n_agents, -1).squeeze(0), losses # bs in the view
 
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor):
+        bs = obs.shape[1] # obs shape : steps, bs,...
+        qvalues = []
+        logs = []
+        losses = []
+        self.init_hidden(bs)
+        for t in range(len(obs)):
+            target_agent_outs, returns_ = self.forward(obs[t], extras[t], test_mode=False)
+            qvalues.append(target_agent_outs)
+            if "logs" in returns_:
+                logs.append(returns_["logs"])
+                del returns_["logs"]
+            losses.append(returns_)
 
+        qvalues = torch.stack(qvalues, dim=0)  # Concat across time
+
+        return qvalues, logs, losses
+    
     def init_hidden(self, batch_size):
         self.hidden_states = self.maic_network.init_hidden().unsqueeze(0).expand(batch_size, self.n_agents, -1)
 

@@ -72,7 +72,7 @@ class RecurrentNN(NN):
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 
-    def reset_hidden_states(self):
+    def reset_hidden_states(self, bs=1):
         """Reset the hidden states"""
         self.hidden_states = None
 
@@ -128,6 +128,10 @@ class QNetwork(NN):
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
         return self.forward(obs, extras)
+    
+    def set_testing(self, test_mode: bool = True):
+        """Set the network in testing mode"""
+        self.test_mode = test_mode
 
     @classmethod
     def from_env(cls, env: RLEnv):
@@ -154,11 +158,15 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
 
         In this case, the RNN considers hidden states=None.
         """
-        saved_hidden_states = self.hidden_states
-        self.hidden_states = None
-        qvalues = self.forward(obs, extras)
-        self.hidden_states = saved_hidden_states
-        return qvalues
+        #saved_hidden_states = self.hidden_states
+        self.test_mode = False
+        bs = obs.shape[1]
+        qvalues = []
+        self.reset_hidden_states(bs)
+        for t in range(len(obs)): # case of Episode Batch
+            qvalues.append(self.forward(obs[t], extras[t]))
+        #self.hidden_states = saved_hidden_states
+        return torch.stack(qvalues, dim=0) 
 
 
 class ActorCriticNN(NN, ABC):
@@ -237,8 +245,9 @@ class MAICNN(NN):
 
     def value(self, obs: Observation, hidden_state, test_mode) -> torch.Tensor:
         """Compute the value function"""
-        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=-1).values
-        return agent_values.mean(dim=-1)
+        agent_values = self.qvalues(*self.to_tensor(obs), hidden_state=hidden_state, test_mode=test_mode)[0].max(dim=2).values
+        test = agent_values.squeeze(-1).mean(dim=-1)
+        return test
 
     @abstractmethod
     def init_hidden(self) -> torch.Tensor:
