@@ -3,8 +3,11 @@ from flask import request
 from http import HTTPStatus
 from serde.json import to_json
 import json
+import cv2
 from marl.models import Experiment
 from marl.utils.exceptions import ExperimentVersionMismatch
+from marl.utils import encode_b64_image
+from multiprocessing import Process
 
 
 @app.route("/experiment/replay/<path:path>")
@@ -79,3 +82,33 @@ def delete_experiment(logdir: str):
         return ("", HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return str(e), HTTPStatus.NOT_FOUND
+
+
+@app.route("/experiment/image/<seed>/<path:logdir>")
+def get_env_image(seed: str, logdir: str):
+    exp = state.get_experiment(logdir)
+    exp.env.seed(int(seed))
+    exp.env.reset()
+    image = exp.env.render(mode="rgb_array")
+    image = cv2.resize(image, (100, 100))
+    return encode_b64_image(image)
+
+
+@app.route("/experiment/test-on-other-env", methods=["POST"])
+def test_on_other_env():
+    json_data = request.json
+    if json_data is None:
+        return ("", HTTPStatus.BAD_REQUEST)
+    logdir = json_data["logdir"]
+    new_logdir = json_data["newLogdir"]
+    env_logdir = json_data["envLogdir"]
+    n_tests = json_data["nTests"]
+    exp = state.get_experiment(logdir)
+    test_env = state.get_experiment(env_logdir).test_env
+
+    def start():
+        return exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
+
+    # Process(target=start, daemon=False).start()
+    start()
+    return ("", HTTPStatus.NO_CONTENT)

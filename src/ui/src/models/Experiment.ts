@@ -7,6 +7,7 @@ export interface Experiment {
     algo: Algorithm
     trainer: Trainer
     env: Env | EnvWrapper
+    test_env?: Env | EnvWrapper
     test_interval: number
     n_steps: number
     creation_timestamp: number

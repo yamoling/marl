@@ -1,17 +1,6 @@
 <template>
     <div class="row">
-        <div ref="contextMenu" class="context-menu">
-            <ul>
-                <li @click="() => rename()">
-                    <font-awesome-icon :icon="['far', 'pen-to-square']" class="pe-2" />
-                    Rename
-                </li>
-                <li @click="() => remove()">
-                    <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
-                    Delete
-                </li>
-            </ul>
-        </div>
+        <ContextMenu ref="contextMenu" />
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -122,6 +111,7 @@ import { useExperimentStore } from '../../stores/ExperimentStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
 import { useColourStore } from '../../stores/ColourStore';
+import ContextMenu from './ContextMenu.vue';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
@@ -130,10 +120,9 @@ const colours = useColourStore();
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
+const contextMenu = ref({} as typeof ContextMenu);
 
 const selectedMetrics = ref(["score [train]"]);
-const contextMenuLogdir = ref(null as string | null);
-
 
 const metrics = computed(() => {
     const res = new Set<string>();
@@ -205,37 +194,13 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     }
 }
 
-const contextMenu = ref({} as HTMLDivElement);
 
 // Function to open context menu
 function openContextMenu(e: MouseEvent, logdir: string) {
-    contextMenuLogdir.value = logdir;
     e.preventDefault()
-    contextMenu.value.style.left = `${e.x}px`;
-    contextMenu.value.style.top = `${e.y}px`;
-    contextMenu.value.style.display = 'block';
+    console.log(contextMenu.value)
+    contextMenu.value.show(logdir, e.x, e.y);
 }
-
-function rename() {
-    if (contextMenuLogdir.value === null) return;
-    const logdir = contextMenuLogdir.value;
-    const newLogdir = prompt("Enter new name for the experiment", logdir);
-    if (newLogdir === null) return;
-    experimentStore.rename(logdir, newLogdir);
-}
-
-function remove() {
-    const logdir = contextMenuLogdir.value;
-    if (logdir === null) return;
-    if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
-        experimentStore.remove(logdir);
-    }
-}
-
-document.addEventListener('click', () => {
-    contextMenu.value.style.display = 'none';
-    contextMenuLogdir.value = null;
-});
 
 
 </script>

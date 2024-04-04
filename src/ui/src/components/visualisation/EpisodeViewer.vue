@@ -1,5 +1,5 @@
 <template>
-    <div ref="modal" id="oerfhdskj" class="modal fade" tabindex="-1">
+    <div ref="modal" class="modal fade" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -106,9 +106,8 @@ function changeStep(event: KeyboardEvent) {
 async function viewEpisode(episodeDirectory: string) {
     episode.value = null;
     loading.value = true;
-    (new Modal("#" + modal.value.id)).show()
+    (new Modal(modal.value)).show()
     const replay = await replayStore.getEpisode(episodeDirectory);
-    console.log(replay)
     episode.value = replay;
     currentStep.value = 0;
     if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {

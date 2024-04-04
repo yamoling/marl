@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
+from tqdm import tqdm
 
 
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
@@ -184,14 +185,33 @@ class Experiment:
         device: Literal["auto", "cpu", "cuda"] = "auto",
         run_in_new_process=False,
     ):
+        """Train the RLAlgo on the environment according to the experiment parameters."""
         if run_in_new_process:
             # Parent process returns directly
             if os.fork() != 0:
                 return
         runner = self.create_runner().to(device)
-        runner.train(self.logdir, seed, n_tests, quiet)
+        runner.run(self.logdir, seed, n_tests, quiet)
         if run_in_new_process:
             exit(0)
+
+    def test_on_other_env(self, test_env: RLEnv, new_logdir: str, n_tests: int, quiet: bool = False):
+        """
+        Test the RLAlgo on an other environment but with the same parameters.
+
+        This methods loads the experiment parameters at every test step and run the test on the given environment.
+        """
+        print("Parameters:", test_env, new_logdir, n_tests, quiet)
+        return
+        new_experiment = Experiment.create(new_logdir, self.algo, self.trainer, self.env, self.n_steps, self.test_interval, test_env)
+        runner = new_experiment.create_runner().to("auto")
+        runs = sorted(list(self.runs), key=lambda run: run.rundir)
+        for i, base_run in enumerate(runs):
+            new_run = Run.create(new_experiment.logdir, base_run.seed)
+            with new_run as run_handle:
+                for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
+                    self.algo.load(base_run.get_saved_algo_dir(time_step))
+                    runner.test(n_tests, time_step, run_handle=run_handle, quiet=True)
 
     def create_runner(self):
         return SimpleRunner(

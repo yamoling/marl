@@ -81,6 +81,18 @@ export function downloadStringAsFile(textToSave: string, fileName: string) {
     hiddenElement.click();
 }
 
+export async function fetchJSON(url: string, data: Object, method: string = "POST") {
+    const response = await fetch(url, {
+        method,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    });
+    return await response.json();
+
+}
+
 
 
 
@@ -115,69 +127,3 @@ export function unionXTicks(allXTicks: number[][]) {
     return Array.from(resTicks).sort((a, b) => a - b);
 }
 
-
-function interpolate(data: number[], ticks: number[], desiredTicks: number[]) {
-    const maxTick = ticks[ticks.length - 1]
-    let originIndex = 0;
-    let index = 0;
-    const res = [];
-    while (index < desiredTicks.length && desiredTicks[index] <= maxTick) {
-        const desiredTick = desiredTicks[index];
-        // Find the closest origin tick that is smaller than the desired tick
-        while (ticks[originIndex + 1] <= desiredTick) {
-            originIndex++;
-        }
-
-        // Easy case: when the tick is the same as the current tick, then push the exact value
-        if (ticks[originIndex] === desiredTick) {
-            res.push(data[originIndex]);
-        }
-        // More complicated case: when the required tick does not exist
-        else {
-            if (originIndex == 0) {
-                res.push(data[0]);
-            }
-            // More complicated case: when the required tick does not exist, then interpolate
-            else {
-                const prevTick = ticks[originIndex];
-                const nextTick = ticks[originIndex + 1];
-                const ratio = (desiredTick - prevTick) / (nextTick - prevTick);
-                res.push(data[originIndex] + ratio * (data[originIndex] - data[originIndex + 1]));
-            }
-        }
-        index++;
-    }
-    return res;
-}
-
-/*
-export function alignTicks(experimentResults: ExperimentResults, desiredTicks: number[]): ExperimentResults {
-    // Filter train datasets based on the filtered ticks
-    const filteredTrain = experimentResults.train.map(dataset => ({
-        ...dataset,
-        mean: interpolate(dataset.mean, experimentResults.train_ticks, desiredTicks),
-        std: interpolate(dataset.std, experimentResults.train_ticks, desiredTicks),
-        min: interpolate(dataset.min, experimentResults.train_ticks, desiredTicks),
-        max: interpolate(dataset.max, experimentResults.train_ticks, desiredTicks),
-        ci95: interpolate(dataset.ci95, experimentResults.train_ticks, desiredTicks),
-    }));
-
-    // Filter test datasets based on the filtered ticks
-    const filteredTest = experimentResults.test.map(dataset => ({
-        ...dataset,
-        mean: interpolate(dataset.mean, experimentResults.test_ticks, desiredTicks),
-        std: interpolate(dataset.std, experimentResults.test_ticks, desiredTicks),
-        min: interpolate(dataset.min, experimentResults.test_ticks, desiredTicks),
-        max: interpolate(dataset.max, experimentResults.test_ticks, desiredTicks),
-        ci95: interpolate(dataset.ci95, experimentResults.test_ticks, desiredTicks),
-    }));
-
-    // Return a new ExperimentResults with filtered data
-    return {
-        ...experimentResults,
-        test_ticks: [...desiredTicks],
-        train: filteredTrain,
-        test: filteredTest,
-    };
-}
-*/

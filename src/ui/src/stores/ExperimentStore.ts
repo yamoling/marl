@@ -3,6 +3,7 @@ import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
+import { fetchJSON } from "../utils";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
@@ -101,6 +102,15 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
+        await fetchJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
+    }
+
+    async function getEnvImage(logdir: String, seed: number): Promise<string> {
+        const resp = await fetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`);
+        return await resp.text();
+    }
+
     return {
         loading,
         experiments,
@@ -111,6 +121,8 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         unloadExperiment,
         getTestEpisodes,
         remove,
-        rename
+        rename,
+        testOnOtherEnvironment,
+        getEnvImage
     };
 });

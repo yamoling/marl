@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 
 class Arguments(tap.TypedArgs):
+    override: bool = tap.arg(default=False, help="Override the existing experiment directory")
     delay: int = tap.arg(default=5, help="Delay between two consecutive runs.")
     name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
@@ -116,22 +117,6 @@ def create_ppo_lle(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def curriculum(env: lle.LLE, n_steps: int):
-    world = env.world
-    env.reset()
-    i_positions = list(range(world.height - 1, -1, -1))
-    j_positions = [3] * len(i_positions)
-    initial_states = list[WorldState]()
-    exclude_i = [6]
-    for i, j in zip(i_positions, j_positions):
-        if i in exclude_i:
-            continue
-        start_positions = [(i, j + n) for n in range(world.n_agents)]
-        initial_states.append(WorldState(start_positions, [False] * world.n_gems))
-    interval = n_steps // len(initial_states)
-    return marl.env.CurriculumLearning(env, initial_states, interval)
-
-
 def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
@@ -139,18 +124,21 @@ def create_lle(args: Arguments):
     # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
     # env = marl.env.EnvPool(envs)
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    width, height = env.width, env.height
     from marl.env.lle_shaping import LLEShaping
+    from marl.env.lle_curriculum import LaserCurriculum
 
-    env = LLEShaping(env, reward_for_blocking=0.1)
+    # env = LLEShaping(env, reward_for_blocking=0.025)
+    env = LaserCurriculum(env)
+
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
     # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
-    # from marl.env import ExtraObjective
 
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
+    env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
     test_env = None
+    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     # eps_schedule = MultiSchedule(
@@ -302,11 +290,12 @@ def main(args: Arguments):
             run_experiment(run_args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
-        response = ""
-        response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
-        if response.lower() != "y":
-            print("Experiment not created.")
-            return
+        if not args.override:
+            response = ""
+            response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
+            if response.lower() != "y":
+                print("Experiment not created.")
+                return
         shutil.rmtree(e.logdir)
         return main(args)
 

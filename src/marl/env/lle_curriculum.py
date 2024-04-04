@@ -103,19 +103,27 @@ class LaserCurriculum(RLEnvWrapper):
         self.top_laser = self.world.laser_sources[4, 0]
         self.bot_laser = self.world.laser_sources[6, 12]
         self.t = 0
+        self.n_lasers_enabled = 0
 
     def randomize(self, source: LaserSource, p_enabled: float, p_colour: float):
         if random.random() <= p_enabled:
             self.world.enable_laser_source(source)
+            try:
+                self.n_lasers_enabled += 1
+            except AttributeError:
+                self.n_lasers_enabled = 1
         else:
             self.world.disable_laser_source(source)
+            self.n_lasers_enabled -= 1
         if random.random() <= p_colour:
             colour = random.randint(0, self.n_agents - 1)
             self.world.set_laser_colour(source, colour)
 
     def step(self, actions: list[int] | ndarray):
         self.t += 1
-        return super().step(actions)
+        obs, r, done, truncated, info = super().step(actions)
+        info = info | {"n_lasers_enabled": self.n_lasers_enabled}
+        return obs, r, done, truncated, info
 
     def reset(self):
         """
@@ -154,3 +162,8 @@ class LaserCurriculum(RLEnvWrapper):
             self.world.set_laser_colour(self.top_left_laser, 2)
 
         return super().reset()
+
+    def seed(self, seed_value: int):
+        self.t = seed_value - (seed_value % 100)
+        random.seed(seed_value)
+        return super().seed(seed_value)

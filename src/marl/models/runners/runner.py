@@ -17,11 +17,7 @@ class Runner(ABC):
         self._test_env = test_env
 
     @abstractmethod
-    def test(self, *args, **kwargs):
-        pass
-
-    @abstractmethod
-    def train(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
         pass
 
     def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):

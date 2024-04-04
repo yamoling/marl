@@ -31,10 +31,12 @@ TIMESTAMP_COL = "timestamp_sec"
 @dataclass
 class Run:
     rundir: str
+    seed: int
 
     def __init__(self, rundir: str):
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
+        self.seed = int(os.path.basename(rundir).split("=")[1])
 
     @staticmethod
     def create(logdir: str, seed: int):
@@ -132,12 +134,28 @@ class Run:
     def training_data_filename(self):
         return os.path.join(self.rundir, TRAINING_DATA)
 
-    def get_progress(self, max_n_steps: int) -> float:
+    @property
+    def latest_train_step(self) -> int:
         try:
             df = pl.read_csv(self.train_filename, ignore_errors=True)
-            return df.select(pl.last(TIME_STEP_COL)).item() / max_n_steps
+            return df.select(pl.last(TIME_STEP_COL)).item()
         except (pl.NoDataError, pl.ColumnNotFoundError):
-            return 0.0
+            return 0
+
+    @property
+    def latest_test_step(self) -> int:
+        try:
+            df = pl.read_csv(self.test_filename, ignore_errors=True)
+            return df.select(pl.last(TIME_STEP_COL)).item()
+        except (pl.NoDataError, pl.ColumnNotFoundError):
+            return 0
+
+    @property
+    def latest_time_step(self) -> int:
+        return max(self.latest_test_step, self.latest_train_step)
+
+    def get_progress(self, max_n_steps: int) -> float:
+        return self.latest_time_step / max_n_steps
 
     def delete(self):
         try:
