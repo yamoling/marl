@@ -125,11 +125,11 @@ def create_lle(args: Arguments):
     # env = marl.env.EnvPool(envs)
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
     width, height = env.width, env.height
-    # from marl.env.lle_shaping import LLEShaping
-    # from marl.env.lle_curriculum import LaserCurriculum
+    from marl.env.lle_shaping import LLEShaping, LLEShapeEachLaser
+    from marl.env.lle_curriculum import LaserCurriculum
 
     # env = LLEShaping(env, reward_for_blocking=0.025)
-    # env = LaserCurriculum(env)
+    env = LLEShapeEachLaser(env, 0.5)
 
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)
@@ -154,12 +154,12 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=200_000,
     )
-    rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-        target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
-        reward_size=env.reward_size,
-        normalise_rewards=False,
-        # gamma=gamma,
-    )
+    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
+    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
+    #     reward_size=env.reward_size,
+    #     normalise_rewards=False,
+    #     # gamma=gamma,
+    # )
     # memory = marl.models.PrioritizedMemory(
     #     memory=memory,
     #     alpha=0.6,
@@ -180,7 +180,7 @@ def create_lle(args: Arguments):
         mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=rnd,
+        # ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(
