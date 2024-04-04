@@ -208,7 +208,6 @@ class Experiment:
 
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
-        print("Parameters:", test_env, new_logdir, n_tests, quiet)
         new_experiment = Experiment.create(new_logdir, self.algo, self.trainer, self.env, self.n_steps, self.test_interval, test_env)
         runner = new_experiment.create_runner().to("auto")
         runs = sorted(list(self.runs), key=lambda run: run.rundir)

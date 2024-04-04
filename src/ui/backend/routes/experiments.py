@@ -7,7 +7,6 @@ import cv2
 from marl.models import Experiment
 from marl.utils.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
-from multiprocessing import Process
 
 
 @app.route("/experiment/replay/<path:path>")
@@ -107,9 +106,12 @@ def test_on_other_env():
     exp = state.get_experiment(logdir)
     test_env = state.get_experiment(env_logdir).test_env
 
-    def start():
-        return exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
+    import threading
 
-    Process(target=start, daemon=False).start()
-    # start()
+    def start():
+        exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
+
+    threading.Thread(target=start).start()
+
+    # The parent just returns
     return ""
