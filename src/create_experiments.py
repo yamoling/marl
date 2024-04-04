@@ -296,9 +296,9 @@ def create_lle_maic(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        #exp = create_ddpg_lle(args)
+        exp = create_ddpg_lle(args)
         # exp = create_ppo_lle(args)
-        exp = create_lle(args)
+        # exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)
         if args.run:

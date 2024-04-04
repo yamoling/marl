@@ -245,7 +245,7 @@ class Experiment:
         for action in actions:
             values.append(self.algo.value(obs))
             if isinstance(self.algo, (PPO, DDPG)):
-                qvalues.append(self.algo.actions_logits(obs).tolist())
+                qvalues.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
             obs_, reward, done, truncated, info = self.test_env.step(action)
             episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
             frames.append(encode_b64_image(self.test_env.render("rgb_array")))
