@@ -1,7 +1,5 @@
 import os
 import typed_argparse as tap
-import marl
-from marl.utils import exceptions
 
 
 class ListArguments(tap.TypedArgs):
@@ -21,15 +19,17 @@ class Arguments(tap.TypedArgs):
     kill: bool = tap.arg(default=False, help="Whether to send a SIGINT to all active runs")
 
 
-def print_status(experiment: marl.Experiment):
-    runs = list(experiment.runs)
+def print_status(experiment):
+    from marl import Run
+
+    runs = list[Run](experiment.runs)
     print(f"Experiment {experiment.logdir} has {len(runs)} runs")
     if len(runs) == 0:
         print("No runs in experiment")
         return 0
     max_steps = experiment.n_steps
     actives = 0
-    for run in experiment.runs:
+    for run in runs:
         pid = run.get_pid()
         if pid is not None:
             progress = run.get_progress(max_steps)
@@ -38,8 +38,13 @@ def print_status(experiment: marl.Experiment):
     print(f"{actives}/{len(runs)} active runs")
 
 
-def interrupt_runs(exp: marl.Experiment):
-    runs_to_cleanup = list[marl.Run]()
+def interrupt_runs(experiment):
+    from marl.utils import exceptions
+    from marl import Experiment, Run
+
+    exp: Experiment = experiment
+
+    runs_to_cleanup = list[Run]()
     for run in exp.runs:
         try:
             run.kill()
@@ -60,6 +65,8 @@ def interrupt_runs(exp: marl.Experiment):
 
 
 def list_active_runs(args: ListArguments):
+    import marl
+
     root = args.logdir
     for directory in os.listdir(root):
         directory = os.path.join(root, directory)
@@ -73,6 +80,8 @@ def list_active_runs(args: ListArguments):
 
 
 def kill_runs(args: KillArguments):
+    import marl
+
     exp = marl.Experiment.load(args.logdir)
     print_status(exp)
     n_active = exp.n_active_runs()
@@ -88,6 +97,8 @@ def kill_runs(args: KillArguments):
 
 
 def show_status(args: ShowArguments):
+    import marl
+
     exp = marl.Experiment.load(args.logdir)
     print_status(exp)
 

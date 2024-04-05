@@ -202,14 +202,21 @@ class Experiment:
         if run_in_new_process:
             exit(0)
 
-    def test_on_other_env(self, test_env: RLEnv, new_logdir: str, n_tests: int, quiet: bool = False):
+    def test_on_other_env(
+        self,
+        test_env: RLEnv,
+        new_logdir: str,
+        n_tests: int,
+        quiet: bool = False,
+        device: Literal["auto", "cpu", "cuda"] = "auto",
+    ):
         """
         Test the RLAlgo on an other environment but with the same parameters.
 
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
         new_experiment = Experiment.create(new_logdir, self.algo, self.trainer, self.env, self.n_steps, self.test_interval, test_env)
-        runner = new_experiment.create_runner().to("auto")
+        runner = new_experiment.create_runner().to(device)
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
         for i, base_run in enumerate(runs):
             new_run = Run.create(new_experiment.logdir, base_run.seed)

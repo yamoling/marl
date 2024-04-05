@@ -79,9 +79,13 @@ def delete_experiment(logdir: str):
         exp = state.get_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
-        return ("", HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return str(e), HTTPStatus.NOT_FOUND
+    except AttributeError:  # From version mismatch, for instance
+        import shutil
+
+        shutil.rmtree(logdir)
+    return ("", HTTPStatus.NO_CONTENT)
 
 
 @app.route("/experiment/image/<seed>/<path:logdir>")

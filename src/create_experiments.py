@@ -129,7 +129,7 @@ def create_lle(args: Arguments):
     from marl.env.lle_curriculum import LaserCurriculum
 
     # env = LLEShaping(env, reward_for_blocking=0.025)
-    env = LLEShapeEachLaser(env, 0.5)
+    env = LLEShapeEachLaser(env, 0.5, enable_reward=False)
 
     # width, height = env.width, env.height
     # env = curriculum(env, n_steps)

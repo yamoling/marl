@@ -10,12 +10,20 @@ from itertools import permutations
 
 
 if __name__ == "__main__":
-    env = LLEShapeEachLaser(LLE.level(6), 0.5)
+    env = LLEShapeEachLaser(LLE.level(6), 0.5, True)
     print(env)
-    exit()
     env.reset()
     env.render("human")
     actions = [
+        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+    ]
+    actions2 = [
         [Action.SOUTH.value] * 4,
         [Action.SOUTH.value] * 4,
         [Action.SOUTH.value] * 4,

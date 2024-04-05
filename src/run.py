@@ -2,7 +2,6 @@ from typing import Literal, Optional
 import typed_argparse as tap
 
 import time
-import marl
 
 
 class Arguments(tap.TypedArgs):
@@ -18,6 +17,9 @@ class Arguments(tap.TypedArgs):
 
 
 def main(args: Arguments):
+    # Import in the function to quicken the startup time
+    import marl
+
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
     experiment = marl.Experiment.load(args.logdir)
