@@ -298,9 +298,9 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 200_000
+    n_steps = 600_000
     test_interval = 5000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(3, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -320,7 +320,7 @@ def create_lle_maic(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        50_000,
+        150_000,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
@@ -336,7 +336,7 @@ def create_lle_maic(args: Arguments):
         mixer=marl.qlearning.VDN(env.n_agents),
         #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
-        # target_updater=HardUpdate(200),
+        #target_updater=HardUpdate(200),
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         grad_norm_clipping=10,
@@ -345,7 +345,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC{batch_size}-{env.name}"
+        logdir = f"logs/MAIC-7x7-{batch_size}-{env.name}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -389,7 +389,8 @@ def create_lle_maic2(args: Arguments):
         memory=memory,
         optimiser="adam",
         double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
+        #target_updater=SoftUpdate(0.01),
+        target_updater=HardUpdate(200),
         lr=5e-4,
         batch_size=32,
         train_interval=(1, "episode"),
@@ -408,7 +409,7 @@ def create_lle_maic2(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC2-{env.name}"
+        logdir = f"logs/MAIC2-HARD-{env.name}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -427,7 +428,7 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # exp = create_ppo_lle()
-        # exp = create_lle(args)
+        #exp = create_lle(args)
         exp = create_lle_maic(args)
         #exp = create_lle_maic2(args)
         #exp = create_lle_baseline(args)

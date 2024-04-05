@@ -4,7 +4,7 @@ from typing import Literal, Any, Optional
 from rlenv import Transition, Episode
 from marl.models import Trainer, Mixer, EpisodeMemory, Policy, MAICNN
 from marl.models.batch import EpisodeBatch
-from .qtarget_updater import TargetParametersUpdater, SoftUpdate
+from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 from rlenv.models import Observation
 from marl.utils import defaults_to
 
@@ -63,7 +63,10 @@ class MAICTrainer(Trainer):
             return {}
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(time_step)
-        logs = logs | self.target_updater.update(time_step)
+        if isinstance(self.target_updater, HardUpdate):
+            logs = logs | self.target_updater.update(episode_num)
+        else:
+            logs = logs | self.target_updater.update(time_step)   
         return logs
     
     def _can_update(self):
