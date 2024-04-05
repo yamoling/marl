@@ -19,13 +19,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
+import { useSettingsStore } from '../../stores/SettingsStore';
 
 const N_COLS = 4;
 const props = defineProps<{
     metrics: Set<string>
 }>();
-const selectedMetrics = ref(["score [train]"]);
+
+const settingsStore = useSettingsStore();
+const selectedMetrics = computed(() => settingsStore.getSelectedMetrics());
 const metricsByColumn = computed(() => {
     // N columns
     const res = [] as string[][];
@@ -48,9 +51,9 @@ const emits = defineEmits<{
 
 function toggleMetric(metricName: string) {
     if (selectedMetrics.value.includes(metricName)) {
-        selectedMetrics.value = selectedMetrics.value.filter(m => m !== metricName);
+        settingsStore.removeSelectedMetric(metricName);
     } else {
-        selectedMetrics.value.push(metricName);
+        settingsStore.addSelectedMetric(metricName);
     }
     emits("change-selected-metrics", selectedMetrics.value);
 }
