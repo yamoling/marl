@@ -805,14 +805,14 @@ class MAICNetwork(MAICNN):
                 extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
                 obs = torch.concat((obs, extras), dim=-1)
         else:
-            # When LAYERED
+            # When LAYERED            
             *dims, channels, height, width = obs.shape
+            total_batch = math.prod(dims)
             bs = dims[0]
-            n_agents = dims[1]
-            obs = torch.reshape(obs, (bs*n_agents, -1))
-            if extras is not None:
-                    extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                    obs = torch.concat((obs, extras), dim=-1)
+            #obs = obs.view(bs, channels, height, width)
+            obs = obs.reshape(total_batch, -1)
+            extras = extras.reshape(total_batch, *self.extras_shape)
+            obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
         h_in = self.hidden_states.reshape(-1, self.args.rnn_hidden_dim)

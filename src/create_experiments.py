@@ -313,6 +313,7 @@ def create_lle_maic(args: Arguments):
     opt.mi_loss_weight = 0.001
     opt.entropy_loss_weight = 0.01
 
+    gamma = 0.95
     # Add the MAICNetwork (MAICAgent)
     maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
@@ -331,6 +332,7 @@ def create_lle_maic(args: Arguments):
         train_policy=train_policy,
         batch_size=batch_size,
         memory=memory,
+        gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),
         #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,

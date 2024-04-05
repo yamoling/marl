@@ -63,7 +63,7 @@ class MAICTrainer(Trainer):
             return {}
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(time_step)
-        logs = logs | self.target_updater.update(episode_num)
+        logs = logs | self.target_updater.update(time_step)
         return logs
     
     def _can_update(self):
