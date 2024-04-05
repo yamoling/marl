@@ -327,7 +327,7 @@ def create_lle_maic(args: Arguments):
     # Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
         args=opt,
-        maic_algo=algo,
+        maic_network=maic_network,
         train_policy=train_policy,
         batch_size=batch_size,
         memory=memory,
