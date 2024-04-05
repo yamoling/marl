@@ -54,7 +54,7 @@ class LLEShapeEachLaser(RLEnvWrapper):
             [True] * env_lvl6.n_agents,
         ]
         self.vertical_rewards = [True, True]
-        extras_shape = (env_lvl6.extra_feature_shape[0] + env_lvl6.n_agents * 4,)
+        extras_shape = (env_lvl6.extra_feature_shape[0] + env_lvl6.n_agents * 4 + 2,)
         super().__init__(env_lvl6, extra_feature_shape=extras_shape)
         self.world = env_lvl6.world
         self.extra_reward = extra_reward

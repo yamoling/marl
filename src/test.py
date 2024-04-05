@@ -22,6 +22,10 @@ if __name__ == "__main__":
         [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
         [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
         [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.NORTH.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
+        [Action.STAY.value, Action.STAY.value, Action.EAST.value, Action.STAY.value],
     ]
     actions2 = [
         [Action.SOUTH.value] * 4,
