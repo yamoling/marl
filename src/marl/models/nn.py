@@ -80,7 +80,7 @@ class RecurrentNN(NN):
         if not mode:
             # Set test mode: save training hidden states
             self.saved_hidden_states = self.hidden_states
-            self.hidden_states = None
+            self.reset_hidden_states()
         else:
             # Set train mode
             if not self.training:
@@ -242,7 +242,7 @@ class MAICNN(NN):
         if not mode:
             # Set test mode: save training hidden states
             self.saved_hidden_states = self.hidden_states
-            self.hidden_states = None
+            self.reset_hidden_states(1)
         else:
             # Set train mode
             if not self.training:
@@ -285,7 +285,6 @@ class MAICNN(NN):
 
         In this case, the RNN considers hidden states=None.
         """
-        #saved_hidden_states = self.hidden_states
         self.test_mode = False
         bs = obs.shape[1]
         self.reset_hidden_states(bs)

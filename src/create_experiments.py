@@ -300,7 +300,7 @@ def create_lle_baseline(args: Arguments):
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
     test_interval = 5000
-    env = lle.LLE.level(3, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(4, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -428,8 +428,8 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ppo_lle()
         #exp = create_lle(args)
-        #exp = create_lle_maic(args)
-        exp = create_lle_maicRQN(args)
+        exp = create_lle_maic(args)
+        #exp = create_lle_maicRQN(args)
         #exp = create_lle_baseline(args)
         print(exp.logdir)
         if args.run:
