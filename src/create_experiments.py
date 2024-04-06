@@ -375,7 +375,7 @@ def create_lle_maicRQN(args: Arguments):
 
     gamma = 0.95
     # Add the MAICNetwork (MAICAgent)
-    qnetwork = marl.nn.model_bank.MAICNetworkRQN.from_env(env, opt)
+    qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,

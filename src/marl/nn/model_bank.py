@@ -895,7 +895,7 @@ class MAICNetwork(MAICNN):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
     
 
-class MAICNetworkRQN(RecurrentQNetwork):
+class MAICNetworkRDQN(RecurrentQNetwork):
     """
     Source : https://github.com/mansicer/MAIC
     """
