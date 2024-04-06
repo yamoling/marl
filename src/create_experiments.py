@@ -358,10 +358,10 @@ def create_lle_maic(args: Arguments):
             logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
-def create_lle_maic2(args: Arguments):
+def create_lle_maicRQN(args: Arguments):
     n_steps = 200_000
     test_interval = 5000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -376,13 +376,14 @@ def create_lle_maic2(args: Arguments):
 
     gamma = 0.95
     # Add the MAICNetwork (MAICAgent)
-    qnetwork = marl.nn.model_bank.MAICNetworkBis.from_env(env, opt)
+    qnetwork = marl.nn.model_bank.MAICNetworkRQN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         50_000,
     )
+    bs = 32
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -392,7 +393,7 @@ def create_lle_maic2(args: Arguments):
         #target_updater=SoftUpdate(0.01),
         target_updater=HardUpdate(200),
         lr=5e-4,
-        batch_size=32,
+        batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),
@@ -409,7 +410,7 @@ def create_lle_maic2(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC2-HARD-{env.name}"
+        logdir = f"logs/MAICRQN-{bs}-{env.name}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -429,8 +430,8 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ppo_lle()
         #exp = create_lle(args)
-        exp = create_lle_maic(args)
-        #exp = create_lle_maic2(args)
+        #exp = create_lle_maic(args)
+        exp = create_lle_maicRQN(args)
         #exp = create_lle_baseline(args)
         print(exp.logdir)
         if args.run:

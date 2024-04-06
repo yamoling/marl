@@ -72,7 +72,7 @@ class RecurrentNN(NN):
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 
-    def reset_hidden_states(self, bs=1):
+    def reset_hidden_states(self, bs=Optional[int]):
         """Reset the hidden states"""
         self.hidden_states = None
 
@@ -158,15 +158,11 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
 
         In this case, the RNN considers hidden states=None.
         """
-        #saved_hidden_states = self.hidden_states
-        self.test_mode = False
-        bs = obs.shape[1]
-        qvalues = []
-        self.reset_hidden_states(bs)
-        for t in range(len(obs)): # case of Episode Batch
-            qvalues.append(self.forward(obs[t], extras[t]))
-        #self.hidden_states = saved_hidden_states
-        return torch.stack(qvalues, dim=0) 
+        saved_hidden_states = self.hidden_states
+        self.hidden_states = None
+        qvalues = self.forward(obs, extras)
+        self.hidden_states = saved_hidden_states
+        return qvalues
 
 
 class ActorCriticNN(NN, ABC):

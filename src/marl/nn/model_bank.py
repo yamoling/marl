@@ -895,7 +895,7 @@ class MAICNetwork(MAICNN):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
     
 
-class MAICNetworkBis(RecurrentQNetwork):
+class MAICNetworkRQN(RecurrentQNetwork):
     """
     Source : https://github.com/mansicer/MAIC
     """
@@ -959,13 +959,6 @@ class MAICNetworkBis(RecurrentQNetwork):
                 obs = torch.concat((obs, extras), dim=-1)
         else:
             # When LAYERED
-            # *dims, channels, height, width = obs.shape
-            # bs = dims[0]
-            # n_agents = dims[1]
-            # obs = torch.reshape(obs, (bs*n_agents, -1))
-            # if extras is not None:
-            #     extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-            #     obs = torch.concat((obs, extras), dim=-1)
             *dims, channels, height, width = obs.shape
             total_batch = math.prod(dims)
             if (len(dims) == 2):
@@ -1018,9 +1011,7 @@ class MAICNetworkBis(RecurrentQNetwork):
 
         returns = {}
 
-        # if self.args.mi_loss_weight > 0:
         returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
-        # if self.args.entropy_loss_weight > 0:
         query = self.w_query(h.detach()).unsqueeze(1)
         key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
         alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
@@ -1029,6 +1020,21 @@ class MAICNetworkBis(RecurrentQNetwork):
         self.hidden_states = h.view(bs, self.n_agents, -1)
 
         return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
+    
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the Q-values for a batch of observations (multiple episodes) during training.
+
+        In this case, the RNN considers hidden states=None.
+        """
+        self.test_mode = False
+        bs = obs.shape[1]
+        qvalues = []
+        self.reset_hidden_states(bs)
+        for t in range(len(obs)): # case of Episode Batch
+            qvalues.append(self.forward(obs[t], extras[t]))
+
+        return torch.stack(qvalues, dim=0) 
 
     def calculate_action_mi_loss(self, h, bs, latent_embed, q):
         latent_embed = latent_embed.view(bs * self.n_agents, 2, self.n_agents, self.latent_dim)

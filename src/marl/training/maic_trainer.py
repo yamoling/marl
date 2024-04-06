@@ -5,7 +5,6 @@ from rlenv import Transition, Episode
 from marl.models import Trainer, Mixer, EpisodeMemory, Policy, MAICNN
 from marl.models.batch import EpisodeBatch
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
-from rlenv.models import Observation
 from marl.utils import defaults_to
 
 from copy import deepcopy
