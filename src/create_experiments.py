@@ -336,7 +336,6 @@ def create_lle_maic(args: Arguments):
         mixer=marl.qlearning.VDN(env.n_agents),
         #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
-        #target_updater=HardUpdate(200),
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         grad_norm_clipping=10,
@@ -390,8 +389,7 @@ def create_lle_maicRQN(args: Arguments):
         memory=memory,
         optimiser="adam",
         double_qlearning=True,
-        #target_updater=SoftUpdate(0.01),
-        target_updater=HardUpdate(200),
+        target_updater=SoftUpdate(0.01),
         lr=5e-4,
         batch_size=bs,
         train_interval=(1, "episode"),
