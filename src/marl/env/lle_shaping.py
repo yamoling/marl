@@ -1,6 +1,6 @@
 import numpy as np
 from rlenv.wrappers import RLEnvWrapper
-from rlenv import Observation
+from rlenv import Observation, DiscreteSpace
 from dataclasses import dataclass
 from serde import serde
 from lle import LLE, Action
@@ -45,7 +45,7 @@ class LLEShaping(RLEnvWrapper):
 class LLEShapeEachLaser(RLEnvWrapper):
     extra_reward: float
 
-    def __init__(self, env_lvl6: LLE, extra_reward: float, enable_reward: bool):
+    def __init__(self, env_lvl6: LLE, extra_reward: float, enable_reward: bool, multi_objective: bool = False):
         # Whether the rewards for reaching lines 4, 5, 6 and 7 can still be collected by each agent
         self.rewards = [
             [True] * env_lvl6.n_agents,
@@ -54,14 +54,19 @@ class LLEShapeEachLaser(RLEnvWrapper):
             [True] * env_lvl6.n_agents,
         ]
         self.vertical_rewards = [True, True]
-        extras_shape = (env_lvl6.extra_feature_shape[0] + env_lvl6.n_agents * 4 + 2,)
-        super().__init__(env_lvl6, extra_feature_shape=extras_shape)
+        extras_shape = (env_lvl6.extra_feature_shape[0] + env_lvl6.n_agents * 4,)
+        if multi_objective:
+            reward_space = DiscreteSpace(env_lvl6.reward_size + 1, env_lvl6.reward_space.labels + ["shaping"])
+        else:
+            reward_space = env_lvl6.reward_space
+        super().__init__(env_lvl6, extra_feature_shape=extras_shape, reward_space=reward_space)
         self.world = env_lvl6.world
         self.extra_reward = extra_reward
         self.enable_reward = enable_reward
 
     def add_extra_information(self, obs: Observation):
-        extra = np.concatenate([np.array(self.rewards).reshape(-1), self.vertical_rewards])
+        extra = np.array(self.rewards).reshape(-1)
+        # extra = np.concatenate([np.array(self.rewards).reshape(-1), self.vertical_rewards])
         extra = np.tile(extra, (self.n_agents, 1))
         obs.extras = np.concatenate([obs.extras, extra], axis=-1)
         return obs

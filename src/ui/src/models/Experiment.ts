@@ -45,7 +45,8 @@ export interface Dataset {
 
 export function toCSV(datasets: readonly Dataset[], ticks: number[]) {
     const csv = []
-    const firstLine = "time_step," + datasets.map(ds => `${ds.label}_mean,${ds.label}_plus_std,${ds.label}_minus_std,${ds.label}_plus95,${ds.label}_minus95`).join(",");
+    let firstLine = "time-step," + datasets.map(ds => `${ds.label}-mean,${ds.label}-plus-std,${ds.label}-minus-std,${ds.label}-plus95,${ds.label}-minus95`).join(",");
+    firstLine = firstLine.replaceAll("[", "-").replaceAll("]", "-").replaceAll(" ", "-").replaceAll("_", "-").replaceAll("--", "-");
     csv.push(firstLine);
     for (let i = 0; i < ticks.length; i++) {
         const csvLine = datasets.reduce((acc, ds) => {

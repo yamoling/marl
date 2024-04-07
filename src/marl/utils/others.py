@@ -34,6 +34,7 @@ class GPU:
     used_memory: int
     utilization: float
     memory_usage: float
+    """Memory usage between 0 and 1"""
 
     def __init__(self, index: int):
         self.device = torch.device(f"cuda:{index}")
@@ -43,7 +44,6 @@ class GPU:
         self.used_memory = self.total_memory - self.free_memory
         self.utilization = torch.cuda.utilization(self.device)
         self.memory_usage = self.used_memory / self.total_memory
-        """Memory usage between 0 and 1"""
 
 
 def list_gpus() -> list[GPU]:
@@ -57,8 +57,8 @@ def get_device(device: Literal["auto", "cuda", "cpu"] = "auto") -> torch.device:
         if not torch.cuda.is_available():
             return torch.device("cpu")
         devices = list_gpus()
-        # Order the GPUs by utilisation * memory_usage
-        devices.sort(key=lambda g: g.utilization * g.memory_usage)
+        # Order the GPUs by utilisation * memory_usage, prevent absorbing 0 values with +1e-2
+        devices.sort(key=lambda g: (g.utilization + 1e-2) * (g.memory_usage + 1e-2))
         for gpu in devices:
             if gpu.memory_usage < 0.85:
                 return gpu.device

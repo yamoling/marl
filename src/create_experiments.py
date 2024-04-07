@@ -125,21 +125,17 @@ def create_lle(args: Arguments):
     # env = marl.env.EnvPool(envs)
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
     width, height = env.width, env.height
-    from marl.env.lle_shaping import LLEShaping, LLEShapeEachLaser
-    from marl.env.lle_curriculum import LaserCurriculum
+    from marl.env.lle_shaping import LLEShapeEachLaser
 
-    # env = LLEShaping(env, reward_for_blocking=0.025)
-    env = LLEShapeEachLaser(env, 0.5, enable_reward=False)
-
-    # width, height = env.width, env.height
-    # env = curriculum(env, n_steps)
-    # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
-
+    # env = LLEShapeEachLaser(env, 0.5, enable_reward=True, multi_objective=True)
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
     test_env = None
     # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    # test_env = LLEShapeEachLaser(test_env, 0.5, enable_reward=False)
+    # test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
+    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
     # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     # eps_schedule = MultiSchedule(
     #     {

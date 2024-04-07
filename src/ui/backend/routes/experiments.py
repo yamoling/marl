@@ -37,7 +37,8 @@ def list_running_experiments(logdir: str):
 
 @app.route("/experiment/<path:logdir>", methods=["GET"])
 def get_experiment(logdir: str):
-    return Experiment.get_parameters(logdir)
+    exp = state.get_experiment(logdir)
+    return to_json(exp)
 
 
 @app.route("/experiment/load/<path:logdir>", methods=["POST"])

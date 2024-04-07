@@ -1,49 +1,34 @@
 import time
 import marl
 import lle
-from rlenv import RLEnv
+from rlenv import RLEnv, Builder
 from lle import WorldState, LLE, Action
 from marl.env.lle_shaping import LLEShaping, LLEShapeEachLaser
 from marl.env.lle_curriculum import LaserCurriculum
-from marl.models import Experiment, SimpleRunner, RLAlgo
+from marl.models import Experiment, SimpleRunner, RLAlgo, Run
+from marl.qlearning import DQN
 from itertools import permutations
 
 
 if __name__ == "__main__":
-    env = LLEShapeEachLaser(LLE.level(6), 0.5, True)
-    print(env)
-    env.reset()
-    env.render("human")
+    env = LLE.level(6)
+    env = Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    exp = Experiment.load("logs/vdn-baseline")
+    run = Run.load("logs/vdn-baseline/run_2024-03-26_14:24:27.140843_seed=4")
+
+    algo = exp.algo
+    assert isinstance(algo, DQN)
+    algo.load(run.get_saved_algo_dir(1_000_000))
+
+    values = []
+    algo.set_testing()
     actions = [
-        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.WEST.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.NORTH.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.SOUTH.value, Action.STAY.value],
-        [Action.STAY.value, Action.STAY.value, Action.EAST.value, Action.STAY.value],
-    ]
-    actions2 = [
         [Action.SOUTH.value] * 4,
         [Action.SOUTH.value] * 4,
         [Action.SOUTH.value] * 4,
-        [Action.SOUTH.value] * 3 + [Action.STAY.value],
-        [Action.STAY.value, Action.SOUTH.value, Action.SOUTH.value, Action.WEST.value],
-        [Action.WEST.value, Action.SOUTH.value, Action.STAY.value, Action.SOUTH.value],
-        [Action.STAY.value, Action.EAST.value, Action.WEST.value, Action.STAY.value],
-        [Action.SOUTH.value, Action.EAST.value, Action.SOUTH.value, Action.SOUTH.value],
-        [Action.SOUTH.value, Action.EAST.value] + [Action.SOUTH.value] * 2,
-        [Action.SOUTH.value, Action.EAST.value] + [Action.SOUTH.value] * 2,
         [Action.SOUTH.value] * 4,
     ]
-    score = 0
+
+    obs = env.reset()
     for action in actions:
-        obs, reward, done, truncated, info = env.step(action)
-        score += reward
-        print(reward, score)
-        env.render("human")
-        input("Press Enter to continue...")
+        env.step(action)
