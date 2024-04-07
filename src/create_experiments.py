@@ -237,10 +237,11 @@ def create_lle(args: Arguments):
 
 def create_lle_baseline(args: Arguments):
     # use Episode update -> use reshape in the nn
-    n_steps = 200_000
+    n_steps = 600_000
     test_interval = 5000
     gamma = 0.95
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = lle.ObservationType.PARTIAL_7x7
+    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -248,7 +249,7 @@ def create_lle_baseline(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=50_000,
+        n_steps=150_000,
     )
     trainer = DQNTrainer(
         qnetwork,
@@ -277,7 +278,7 @@ def create_lle_baseline(args: Arguments):
     elif args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/qnetwork-{env.name}"
+        logdir = f"logs/baseline-qnetwork-{env.name}-{obs_type}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
@@ -300,7 +301,8 @@ def create_lle_baseline(args: Arguments):
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
     test_interval = 5000
-    env = lle.LLE.level(4, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = lle.ObservationType.PARTIAL_7x7
+    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -320,7 +322,7 @@ def create_lle_maic(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        150_000,
+        250_000,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
@@ -344,7 +346,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC-7x7-{batch_size}-{env.name}"
+        logdir = f"logs/MAIC-{batch_size}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -428,6 +430,7 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ppo_lle()
         #exp = create_lle(args)
+        #exp = create_lle_baseline(args)
         exp = create_lle_maic(args)
         #exp = create_lle_maicRQN(args)
         #exp = create_lle_baseline(args)
