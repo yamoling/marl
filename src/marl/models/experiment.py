@@ -18,7 +18,7 @@ from rlenv.models import EpisodeBuilder, RLEnv, Transition
 from marl.policy_gradient import PPO, DDPG
 from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
-from marl.utils.others import get_device
+from marl.utils.others import DeviceStr, get_device
 from .batch import TransitionBatch
 
 from .algo import RLAlgo
@@ -194,7 +194,7 @@ class Experiment:
         seed: int,
         quiet: bool = False,
         n_tests: int = 1,
-        device: Literal["auto", "cpu", "cuda"] = "auto",
+        device: DeviceStr = "auto",
         fill_strategy: Literal["fill", "conservative"] = "conservative",
         estimated_memory_GB: int = 0,
         run_in_new_process=False,

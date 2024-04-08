@@ -16,7 +16,7 @@ do
     n_running=$(jobs | wc -l | xargs)
     if [ $n_running -lt $max_parallel_runs ]
     then
-        python src/run.py ${logdir} --n-tests=${n_tests} --seed=${run_num} --quiet&
+        python src/run.py ${logdir} --n-tests=${n_tests} --seed=${run_num} --quiet --fill-strategy=fill --estimated-memory-MB=3000&
         run_num=$((run_num+1))
     fi
     sleep 5

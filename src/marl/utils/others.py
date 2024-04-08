@@ -22,14 +22,21 @@ def seed(seed_value: int, env: Optional[RLEnv] = None):
         env.seed(seed_value)
 
 
+DeviceStr = Literal["auto", "cpu", "cuda", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cuda:4", "cuda:5", "cuda:6", "cuda:7"]
+
+
 @serde
 @dataclass
 class GPU:
     index: int
     name: str
     total_memory: int
+    """Total memory (MB)"""
     used_memory: int
+    """Used memory (MB)"""
     utilization: float
+    free_memory: int
+    """Free memory (MB)"""
     memory_usage: float
     """Memory usage between 0 and 1"""
 
@@ -37,7 +44,9 @@ class GPU:
         self.device = torch.device(f"cuda:{index}")
         self.index = index
         self.name = torch.cuda.get_device_name(index)
-        self.free_memory, self.total_memory = torch.cuda.mem_get_info(self.device)
+        free_memory, total_memory = torch.cuda.mem_get_info(self.device)
+        self.free_memory = free_memory // (1024 * 1024)
+        self.total_memory = total_memory // (1024 * 1024)
         self.used_memory = self.total_memory - self.free_memory
         self.utilization = torch.cuda.utilization(self.device)
         self.memory_usage = self.used_memory / self.total_memory
@@ -49,10 +58,10 @@ def list_gpus() -> list[GPU]:
 
 
 def get_device(
-    device: Literal["auto", "cuda", "cpu"] = "auto",
+    device: DeviceStr = "auto",
     fit_strategy: Literal["fill", "conservative"] = "conservative",
-    estimated_memory_GB: int = 0,
-) -> torch.device:
+    estimated_memory_MB: int = 0,
+):
     """
     Get the given (GPU) device that fits the requirements.
 
@@ -61,8 +70,10 @@ def get_device(
         - fit_strategy:
             - "fill": Fit the process in the GPU that has the least free memory.
             - "conservative": Fit the process in the GPU that has the most free memory.
-        - estimated_memory_GB: Estimated memory usage in GB.
+        - estimated_memory_MB: Estimated memory usage in MB.
     """
+    if device != "auto":
+        return torch.device(device)
 
     def fill(gpus: list[GPU], estimated_memory: int):
         gpus.sort(key=lambda gpu: gpu.free_memory)
@@ -78,21 +89,19 @@ def get_device(
                 return gpu.device
         return None
 
-    if device == "auto" or device == "" or device is None:
-        if not torch.cuda.is_available():
-            return torch.device("cpu")
-        devices = list_gpus()
-        match fit_strategy:
-            case "fill":
-                gpu = fill(devices, estimated_memory_GB)
-            case "conservative":
-                gpu = conservative(devices, estimated_memory_GB)
-            case _:
-                raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'fill' or 'conservative'")
-        if gpu is None:
-            return torch.device("cpu")
-        return gpu
-    return torch.device(device)
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+    devices = list_gpus()
+    match fit_strategy:
+        case "fill":
+            gpu = fill(devices, estimated_memory_MB)
+        case "conservative":
+            gpu = conservative(devices, estimated_memory_MB)
+        case _:
+            raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'fill' or 'conservative'")
+    if gpu is None:
+        return torch.device("cpu")
+    return gpu
 
 
 T = TypeVar("T")

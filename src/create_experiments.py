@@ -12,14 +12,10 @@ from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
 
 
-class Arguments(tap.TypedArgs):
+class Arguments(RunArguments):
     override: bool = tap.arg(default=False, help="Override the existing experiment directory")
-    delay: int = tap.arg(default=5, help="Delay between two consecutive runs.")
-    name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
-    n_tests: int = tap.arg(default=1, help="Number of tests to run")
-    n_runs: int = tap.arg(default=1, help="Number of runs to start. Only applies if 'run' is True.")
 
 
 def create_smac(args: Arguments):
@@ -188,8 +184,8 @@ def create_lle(args: Arguments):
         test_policy=marl.policy.ArgMax(),
     )
 
-    if args.name is not None:
-        logdir = f"logs/{args.name}"
+    if args.logdir is not None:
+        logdir = f"logs/{args.logdir}"
     elif args.debug:
         logdir = "logs/debug"
     else:
