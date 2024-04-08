@@ -17,7 +17,12 @@ class CategoricalPolicy(Policy):
     def get_action(self, values, available_actions):
         values[available_actions == 0] = -np.inf
         values = torch.from_numpy(values)
+        
+        # probs= torch.nn.functional.softmax(values, dim=1)
+        # dist = torch.distributions.Categorical(probs=probs)
+        
         dist = torch.distributions.Categorical(logits=values)
+        
         actions = dist.sample()
         return actions.numpy(force=True)
 

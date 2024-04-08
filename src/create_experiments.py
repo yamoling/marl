@@ -98,12 +98,15 @@ def create_ddpg_lle(args: Arguments):
 
 
 def create_ppo_lle(args: Arguments):
-    n_steps = 300_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    n_steps = 500_000
+    env = lle.LLE.level(3, lle.ObservationType.LAYERED)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(20)
+
+    logits_clip_low = -2
+    logits_clip_high = 2
 
     trainer = PPOTrainer(
         network=ac_network,
@@ -118,10 +121,23 @@ def create_ppo_lle(args: Arguments):
         clip_eps=0.2,
         c1=1,
         c2=0.01,
+        logits_clip_low=logits_clip_low,
+        logits_clip_high=logits_clip_high
     )
 
-    algo = marl.policy_gradient.PPO(ac_network=ac_network, train_policy=marl.policy.CategoricalPolicy(), test_policy=marl.policy.ArgMax(), extra_policy=marl.policy.ExtraPolicy(env.n_agents), extra_policy_every=100)
-    logdir = f"logs/{env.name}-TEST-PPO"
+    algo = marl.policy_gradient.PPO(
+        ac_network=ac_network, 
+        train_policy=marl.policy.CategoricalPolicy(), 
+        test_policy=marl.policy.ArgMax(), 
+        # extra_policy=marl.policy.ExtraPolicy(env.n_agents), 
+        # extra_policy_every=50,
+        logits_clip_low=logits_clip_low,
+        logits_clip_high=logits_clip_high
+    )
+    # logdir = f"logs/{env.name}-PPO-5"
+    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip"
+    if args.debug:
+        logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
@@ -296,8 +312,8 @@ def create_lle_maic(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        exp = create_ddpg_lle(args)
-        # exp = create_ppo_lle(args)
+        # exp = create_ddpg_lle(args)
+        exp = create_ppo_lle(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)

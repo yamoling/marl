@@ -10,7 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
-
+import torch
 
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
@@ -245,7 +245,14 @@ class Experiment:
         for action in actions:
             values.append(self.algo.value(obs))
             if isinstance(self.algo, (PPO, DDPG)):
-                qvalues.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
+                logits = self.algo.actions_logits(obs)
+                dist = torch.distributions.Categorical(logits=logits)
+                # probs
+                qvalues.append(dist.probs.unsqueeze(-1).tolist())
+                print(self.algo.value(obs))
+                # logits
+                # qvalues.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
+
             obs_, reward, done, truncated, info = self.test_env.step(action)
             episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
             frames.append(encode_b64_image(self.test_env.render("rgb_array")))
