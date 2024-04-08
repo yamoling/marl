@@ -18,6 +18,7 @@ from rlenv.models import EpisodeBuilder, RLEnv, Transition
 from marl.policy_gradient import PPO, DDPG
 from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
+from marl.utils.others import get_device
 from .batch import TransitionBatch
 
 from .algo import RLAlgo
@@ -194,6 +195,8 @@ class Experiment:
         quiet: bool = False,
         n_tests: int = 1,
         device: Literal["auto", "cpu", "cuda"] = "auto",
+        fill_strategy: Literal["fill", "conservative"] = "conservative",
+        estimated_memory_GB: int = 0,
         run_in_new_process=False,
     ):
         """Train the RLAlgo on the environment according to the experiment parameters."""
@@ -201,7 +204,8 @@ class Experiment:
             # Parent process returns directly
             if os.fork() != 0:
                 return
-        runner = self.create_runner().to(device)
+        gpu = get_device(device, fill_strategy, estimated_memory_GB)
+        runner = self.create_runner().to(gpu)
         runner.run(self.logdir, seed, n_tests, quiet)
         if run_in_new_process:
             exit(0)

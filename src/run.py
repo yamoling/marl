@@ -14,6 +14,8 @@ class Arguments(tap.TypedArgs):
     )
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
+    estimated_memory_GB: int = tap.arg(default=0, help="Estimated memory in GB for the 'auto' device")
+    fill_strategy: Literal["fill", "conservative"] = tap.arg(default="conservative")
 
 
 def main(args: Arguments):
@@ -27,12 +29,12 @@ def main(args: Arguments):
         seed = args.seed + run_num
         if args.quiet is None:
             args.quiet = True
-        experiment.run(seed, args.quiet, args.n_tests, args.device, True)
+        experiment.run(seed, args.quiet, args.n_tests, args.device, args.fill_strategy, args.estimated_memory_GB, True)
         # Sleep for some time for each child process to allocate GPUs properly
         time.sleep(args.delay)
     if args.quiet is None:
         args.quiet = False
-    experiment.run(args.seed + args.n_runs - 1, args.quiet, args.n_tests, args.device, False)
+    experiment.run(args.seed + args.n_runs - 1, args.quiet, args.n_tests, args.device, args.fill_strategy, args.estimated_memory_GB, False)
 
 
 if __name__ == "__main__":

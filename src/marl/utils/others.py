@@ -22,9 +22,6 @@ def seed(seed_value: int, env: Optional[RLEnv] = None):
         env.seed(seed_value)
 
 
-T = TypeVar("T")
-
-
 @serde
 @dataclass
 class GPU:
@@ -51,20 +48,54 @@ def list_gpus() -> list[GPU]:
     return [GPU(i) for i in range(torch.cuda.device_count())]
 
 
-def get_device(device: Literal["auto", "cuda", "cpu"] = "auto") -> torch.device:
-    """Get the given device"""
+def get_device(
+    device: Literal["auto", "cuda", "cpu"] = "auto",
+    fit_strategy: Literal["fill", "conservative"] = "conservative",
+    estimated_memory_GB: int = 0,
+) -> torch.device:
+    """
+    Get the given (GPU) device that fits the requirements.
+
+    Arguments:
+        - device: "auto" (default), "cuda" or "cpu"
+        - fit_strategy:
+            - "fill": Fit the process in the GPU that has the least free memory.
+            - "conservative": Fit the process in the GPU that has the most free memory.
+        - estimated_memory_GB: Estimated memory usage in GB.
+    """
+
+    def fill(gpus: list[GPU], estimated_memory: int):
+        gpus.sort(key=lambda gpu: gpu.free_memory)
+        for gpu in gpus:
+            if gpu.free_memory > estimated_memory:
+                return gpu.device
+        return None
+
+    def conservative(gpus: list[GPU], estimated_memory: int):
+        gpus.sort(key=lambda gpu: gpu.free_memory, reverse=True)
+        for gpu in gpus:
+            if gpu.free_memory > estimated_memory:
+                return gpu.device
+        return None
+
     if device == "auto" or device == "" or device is None:
         if not torch.cuda.is_available():
             return torch.device("cpu")
         devices = list_gpus()
-        # Order the GPUs by utilisation * memory_usage, prevent absorbing 0 values with +1e-2
-        devices.sort(key=lambda g: (g.utilization + 1e-2) * (g.memory_usage + 1e-2))
-        for gpu in devices:
-            if gpu.memory_usage < 0.85:
-                return gpu.device
-        # Fallback to CPU if no GPU is available
-        return torch.device("cpu")
+        match fit_strategy:
+            case "fill":
+                gpu = fill(devices, estimated_memory_GB)
+            case "conservative":
+                gpu = conservative(devices, estimated_memory_GB)
+            case _:
+                raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'fill' or 'conservative'")
+        if gpu is None:
+            return torch.device("cpu")
+        return gpu
     return torch.device(device)
+
+
+T = TypeVar("T")
 
 
 def defaults_to(value: T | None, default: Callable[[], T]) -> T:
