@@ -975,47 +975,47 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         h = self.rnn(x, h_in)
         q = self.fc2(h)
 
-        latent_parameters = self.embed_net(h)
-        latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
-            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
-        )
+        # latent_parameters = self.embed_net(h)
+        # latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+        #     torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
+        # )
 
-        latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+        # latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
 
-        if self.test_mode:
-            latent = latent_embed[:, : self.n_agents * self.latent_dim]
-        else:
-            gaussian_embed = D.Normal(
-                latent_embed[:, : self.n_agents * self.latent_dim],
-                (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
-            )
-            latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
-        latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+        # if self.test_mode:
+        #     latent = latent_embed[:, : self.n_agents * self.latent_dim]
+        # else:
+        #     gaussian_embed = D.Normal(
+        #         latent_embed[:, : self.n_agents * self.latent_dim],
+        #         (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+        #     )
+        #     latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
+        # latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
 
-        h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+        # h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        # msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
 
-        query = self.w_query(h).unsqueeze(1)
-        key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
-        for i in range(self.n_agents):
-            alpha[:, i, i] = -1e9
-        alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+        # query = self.w_query(h).unsqueeze(1)
+        # key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        # alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        # for i in range(self.n_agents):
+        #     alpha[:, i, i] = -1e9
+        # alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
 
-        if self.test_mode:
-            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+        # if self.test_mode:
+        #     alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
 
-        gated_msg = alpha * msg
+        # gated_msg = alpha * msg
 
-        return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+        return_q = q #+ torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
 
         returns = {}
 
-        returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
-        query = self.w_query(h.detach()).unsqueeze(1)
-        key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
-        returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
+        # returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
+        # query = self.w_query(h.detach()).unsqueeze(1)
+        # key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        # alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
+        # returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
 
         self.hidden_states = h.view(bs, self.n_agents, -1)
 

@@ -80,7 +80,7 @@ class RecurrentNN(NN):
         if not mode:
             # Set test mode: save training hidden states
             self.saved_hidden_states = self.hidden_states
-            self.reset_hidden_states()
+            self.reset_hidden_states(1)
         else:
             # Set train mode
             if not self.training:
