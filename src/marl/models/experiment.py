@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
+import torch
 from tqdm import tqdm
 
 
@@ -192,22 +193,23 @@ class Experiment:
     def run(
         self,
         seed: int,
+        fill_strategy: Literal["fill", "conservative"],
+        required_memory_MB: int,
         quiet: bool = False,
         n_tests: int = 1,
-        device: DeviceStr = "auto",
-        fill_strategy: Literal["fill", "conservative"] = "conservative",
-        estimated_memory_GB: int = 0,
         run_in_new_process=False,
     ):
         """Train the RLAlgo on the environment according to the experiment parameters."""
         if run_in_new_process:
             # Parent process returns directly
-            if os.fork() != 0:
-                return
-        gpu = get_device(device, fill_strategy, estimated_memory_GB)
-        runner = self.create_runner().to(gpu)
+            pid = os.fork()
+            if pid != 0:
+                return pid
+        device = get_device("auto", fill_strategy, required_memory_MB)
+        runner = self.create_runner().to(device)
         runner.run(self.logdir, seed, n_tests, quiet)
         if run_in_new_process:
+            # Child process exits after the run
             exit(0)
 
     def test_on_other_env(

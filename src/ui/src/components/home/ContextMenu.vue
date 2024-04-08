@@ -1,5 +1,6 @@
 <template>
     <TestOnOtherEnvironment ref="modal" />
+    <NewRun ref="newRunModal" />
     <div ref="contextMenu" class="context-menu">
         <ul>
             <li @click="() => rename()">
@@ -18,7 +19,7 @@
                 <font-awesome-icon :icon="['fas', 'box-archive']" class="pe-2" />
                 Archive
             </li>
-            <li>
+            <li @click="() => newRunModal.showModal(clickedExperiment)">
                 <font-awesome-icon :icon="['fas', 'person-running']" class="pe-2" />
                 Start a new run
             </li>
@@ -29,10 +30,12 @@
 import { ref } from 'vue';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import TestOnOtherEnvironment from '../modals/TestOnOtherEnv.vue';
+import NewRun from '../modals/NewRun.vue';
 import { Experiment } from '../../models/Experiment';
 
 const contextMenu = ref({} as HTMLDivElement);
 const modal = ref({} as typeof TestOnOtherEnvironment)
+const newRunModal = ref({} as typeof NewRun)
 const clickedExperiment = ref({} as Experiment);
 const experimentStore = useExperimentStore();
 
@@ -76,5 +79,9 @@ function archive() {
     const newLogdir = currentLogdir.replace("logs/", "archives/")
     console.log(newLogdir);
     experimentStore.rename(currentLogdir, newLogdir);
+}
+
+function newRun() {
+
 }
 </script>

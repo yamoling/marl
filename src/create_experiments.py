@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 
 class Arguments(RunArguments):
+    logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
     override: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
@@ -123,17 +124,15 @@ def create_lle(args: Arguments):
     width, height = env.width, env.height
     from marl.env.lle_shaping import LLEShapeEachLaser
     from marl.env.lle_curriculum import LaserCurriculum
+    from marl.env import ZeroPunishment
 
-    env = LaserCurriculum(env)
+    env = ZeroPunishment(env)
 
     # env = LLEShapeEachLaser(env, 0.5, enable_reward=True, multi_objective=True)
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    test_env = rlenv.Builder(lle.LLE.level(6)).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
-    # test_env = LLEShapeEachLaser(test_env, 0.5, enable_reward=False)
-    # test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
-    # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
+    test_env = (
+        rlenv.Builder(lle.LLE.level(6, lle.ObservationType.LAYERED)).agent_id().time_limit(width * height // 2, add_extra=True).build()
+    )
     qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     # eps_schedule = MultiSchedule(
@@ -185,21 +184,22 @@ def create_lle(args: Arguments):
     )
 
     if args.logdir is not None:
-        logdir = f"logs/{args.logdir}"
+        if not args.logdir.startswith("logs/"):
+            args.logdir = "logs/" + args.logdir
     elif args.debug:
-        logdir = "logs/debug"
+        args.logdir = "logs/debug"
     else:
-        logdir = f"logs/qnetwork-{env.name}"
+        args.logdir = f"logs/qnetwork-{env.name}"
         if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
+            args.logdir += f"-{trainer.mixer.name}"
         else:
-            logdir += "-iql"
+            args.logdir += "-iql"
         if trainer.ir_module is not None:
-            logdir += f"-{trainer.ir_module.name}"
+            args.logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
+            args.logdir += "-PER"
     return marl.Experiment.create(
-        logdir,
+        args.logdir,
         algo=algo,
         trainer=trainer,
         env=env,

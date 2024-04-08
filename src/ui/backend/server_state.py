@@ -1,4 +1,5 @@
 import os
+import subprocess
 from typing import Optional
 from marl.models import Experiment, ReplayEpisode
 
@@ -23,6 +24,13 @@ class ServerState:
         experiment = Experiment.load(logdir)
         self.experiments[logdir] = experiment
         return experiment
+
+    def new_runs(self, logdir: str, n_runs: int, n_tests: int, seed: int):
+        command = f"python src/run.py {logdir} --n-runs={n_runs} --n-tests={n_tests} --seed={seed} --device=auto"
+        print(command)
+        return
+        # Start a completely detached new run
+        p = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def get_experiment(self, logdir: str) -> Experiment:
         if logdir not in self.experiments:

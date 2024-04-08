@@ -108,6 +108,15 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return await resp.text();
     }
 
+
+    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number) {
+        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns }, "POST");
+        if (!resp.ok) {
+            alert("Failed to start new run: " + await resp.text());
+            return;
+        }
+    }
+
     return {
         loading,
         experiments,
@@ -120,6 +129,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         remove,
         rename,
         testOnOtherEnvironment,
-        getEnvImage
+        getEnvImage,
+        newRun
     };
 });
