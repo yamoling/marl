@@ -70,8 +70,12 @@ class Experiment:
         test_env: Optional[RLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
-        if test_env is None:
+        if test_env is not None:
+            if not env.has_same_inouts(test_env):
+                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
+        else:
             test_env = deepcopy(env)
+
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
 

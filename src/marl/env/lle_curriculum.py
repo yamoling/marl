@@ -132,8 +132,7 @@ class LaserCurriculum(RLEnvWrapper):
         - < 300k: enable bottom laser with 50% probability with a random colour
         - < 400k: enable bot + top laser with 50% probability. Top laser has a random colour.
         - < 500k: enable bot + top laser with 50% probability. Both lasers have a random colour.
-        - < 600k: enable all lasers with random colours.
-        - < 700k: enable all lasers with original colours.
+        - > 600k: enable all lasers with random colours.
         """
         if self.t < 100_000:
             self.world.disable_laser_source(self.top_left_laser)
@@ -149,17 +148,17 @@ class LaserCurriculum(RLEnvWrapper):
         elif self.t < 500_000:
             self.randomize(self.bot_laser, 0.5, 1.0)
             self.randomize(self.top_laser, 0.5, 1.0)
-        elif self.t < 600_000:
+        else:  # if self.t < 600_000:
             self.randomize(self.bot_laser, 1.0, 1.0)
             self.randomize(self.top_laser, 1.0, 1.0)
             self.randomize(self.top_left_laser, 1.0, 1.0)
-        elif self.t < 700_000:
-            self.world.enable_laser_source(self.top_left_laser)
-            self.world.enable_laser_source(self.bot_laser)
-            self.world.enable_laser_source(self.top_laser)
-            self.world.set_laser_colour(self.top_laser, 0)
-            self.world.set_laser_colour(self.bot_laser, 1)
-            self.world.set_laser_colour(self.top_left_laser, 2)
+        # elif self.t < 700_000:
+        #     self.world.enable_laser_source(self.top_left_laser)
+        #     self.world.enable_laser_source(self.bot_laser)
+        #     self.world.enable_laser_source(self.top_laser)
+        #     self.world.set_laser_colour(self.top_laser, 0)
+        #     self.world.set_laser_colour(self.bot_laser, 1)
+        #     self.world.set_laser_colour(self.top_left_laser, 2)
 
         return super().reset()
 

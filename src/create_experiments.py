@@ -126,10 +126,13 @@ def create_lle(args: Arguments):
     env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
     width, height = env.width, env.height
     from marl.env.lle_shaping import LLEShapeEachLaser
+    from marl.env.lle_curriculum import LaserCurriculum
+
+    env = LaserCurriculum(env)
 
     # env = LLEShapeEachLaser(env, 0.5, enable_reward=True, multi_objective=True)
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    test_env = None
+    test_env = rlenv.Builder(lle.LLE.level(6)).agent_id().time_limit(width * height // 2, add_extra=True).build()
     # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
     # test_env = LLEShapeEachLaser(test_env, 0.5, enable_reward=False)
     # test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
