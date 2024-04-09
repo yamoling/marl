@@ -71,7 +71,7 @@ def create_smac(args: Arguments):
 
 def create_ddpg_lle(args: Arguments):
     n_steps = 10_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    env = lle.LLE.level(2).obs_type(lle.ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
@@ -88,7 +88,7 @@ def create_ddpg_lle(args: Arguments):
 
 def create_ppo_lle(args: Arguments):
     n_steps = 300_000
-    env = lle.LLE.level(2, lle.ObservationType.LAYERED)
+    env = lle.LLE.level(2).obs_type(lle.ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -118,10 +118,10 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.from_file("maps/lvl6-no-gems", lle.ObservationType.LAYERED)
+    env = LLE.level(6).obs_type(lle.ObservationType.LAYERED).death_strategy("stay").build()
     width, height = env.width, env.height
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    test_env = LLE.from_file("maps/lvl6-no-gems", lle.ObservationType.LAYERED)
+    test_env = LLE.level(6).obs_type(lle.ObservationType.LAYERED).death_strategy("stay").build()
     test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
@@ -193,7 +193,7 @@ def create_lle(args: Arguments):
 
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
-    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(2).obs_type(lle.ObservationType.PARTIAL_7x7).state_type(lle.ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
