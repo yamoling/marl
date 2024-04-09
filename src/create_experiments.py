@@ -7,7 +7,7 @@ import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from lle import WorldState
+from lle import WorldState, LLE
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
 
@@ -118,31 +118,13 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
-    # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
+    env = LLE.from_file("maps/lvl6-no-gems", lle.ObservationType.LAYERED)
     width, height = env.width, env.height
-    from marl.env.lle_shaping import LLEShapeEachLaser
-    from marl.env.lle_curriculum import LaserCurriculum
-    from marl.env import ZeroPunishment
-
-    env = ZeroPunishment(env)
-
-    # env = LLEShapeEachLaser(env, 0.5, enable_reward=True, multi_objective=True)
     env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    test_env = (
-        rlenv.Builder(lle.LLE.level(6, lle.ObservationType.LAYERED)).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    )
+    test_env = LLE.from_file("maps/lvl6-no-gems", lle.ObservationType.LAYERED)
+    test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
-    # eps_schedule = MultiSchedule(
-    #     {
-    #         0: LinearSchedule(1, 0.05, 150_000),
-    #         300_000: LinearSchedule(1, 0.05, 150_000),
-    #         600_000: LinearSchedule(1, 0.05, 150_000),
-    #     }
-    # )
-    # train_policy = marl.policy.EpsilonGreedy(eps_schedule)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
@@ -274,6 +256,7 @@ def main(args: Arguments):
         exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)
+        shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
         if args.run:
             run_args = RunArguments(
                 logdir=exp.logdir,
