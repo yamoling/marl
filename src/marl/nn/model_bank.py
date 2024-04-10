@@ -470,17 +470,19 @@ class PolicyNetworkMLP(NN):
         return self.nn.forward(obs)
 
 
-def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: list[int]):
+def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: list[int], min_output_size=1024):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
     channels, height, width = input_shape
     paddings = [0 for _ in filters]
     n_padded = 0
     output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides, paddings)
-    while output_w < 0 or output_h < 0:
+    output_size = filters[-1] * output_w * output_h
+    while output_w <= 1 or output_h <= 1 or output_size < min_output_size:
         # Add paddings if the output size is negative
         paddings[n_padded % len(paddings)] += 1
         n_padded += 1
         output_w, output_h = conv2d_size_out(width, height, kernel_sizes, strides, paddings)
+        output_size = filters[-1] * output_w * output_h
     assert output_h > 0 and output_w > 0, f"Input size = {input_shape}, output witdh = {output_w}, output height = {output_h}"
     modules = []
     for f, k, s, p in zip(filters, kernel_sizes, strides, paddings):
@@ -488,7 +490,6 @@ def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: 
         modules.append(torch.nn.ReLU())
         channels = f
     modules.append(torch.nn.Flatten())
-    output_size = output_h * output_w * filters[-1]
     return torch.nn.Sequential(*modules), output_size
 
 
@@ -715,8 +716,8 @@ class MAICNetwork(MAICNN):
             activation_func,
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
         )
-        #n_inputs = input_shape[0] + extras_shape[0] # When FLATTENED
-        n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape) # When LAYERED
+        # n_inputs = input_shape[0] + extras_shape[0] # When FLATTENED
+        n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape)  # When LAYERED
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
@@ -744,10 +745,10 @@ class MAICNetwork(MAICNN):
         *dims, channels, height, width = obs.shape
         bs = dims[0]
         n_agents = dims[1]
-        obs = torch.reshape(obs, (bs*n_agents, -1))
+        obs = torch.reshape(obs, (bs * n_agents, -1))
         if extras is not None:
-                extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                obs = torch.concat((obs, extras), dim=-1)
+            extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+            obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
         h_in = hidden_state.reshape(-1, self.args.rnn_hidden_dim)
