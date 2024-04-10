@@ -4,11 +4,20 @@
 # up to max_parallel_runs to run at the same time.
 # Whenever a job finishes, a new job is started until all jobs are done.
 
-max_parallel_runs=3
+# Sleep 3 hours
+sleep 10800
+nohup python src/run.py logs/no-death-no-punishment/ --n-runs=10 --n-tests=1 --seed=5&
+# Sleep 3 hours
+sleep 10800
+nohup python src/run.py logs/no-death-no-punishment/ --n-runs=10 --n-tests=1 --seed=1&
+# Sleep 3 hours
+exit 0
+
+max_parallel_runs=10
 total_n_runs=30
 run_num=10
 n_tests=1
-logdir=logs/vdn-baseline-256
+logdir=logs/no-death-no-punishment
 
 
 while [ $run_num -lt $total_n_runs ]

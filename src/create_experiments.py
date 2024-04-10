@@ -1,13 +1,12 @@
 import shutil
 import marl
-import lle
 import rlenv
 from typing import Optional
 import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from lle import WorldState, LLE
+from lle import WorldState, LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
 
@@ -71,7 +70,7 @@ def create_smac(args: Arguments):
 
 def create_ddpg_lle(args: Arguments):
     n_steps = 10_000
-    env = lle.LLE.level(2).obs_type(lle.ObservationType.LAYERED).build()
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_DActor_CCritic.from_env(env)
@@ -88,7 +87,7 @@ def create_ddpg_lle(args: Arguments):
 
 def create_ppo_lle(args: Arguments):
     n_steps = 300_000
-    env = lle.LLE.level(2).obs_type(lle.ObservationType.LAYERED).build()
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -118,11 +117,14 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(lle.ObservationType.LAYERED).death_strategy("stay").build()
-    width, height = env.width, env.height
-    env = rlenv.Builder(env).agent_id().time_limit(width * height // 2, add_extra=True).build()
-    test_env = LLE.level(6).obs_type(lle.ObservationType.LAYERED).death_strategy("stay").build()
-    test_env = rlenv.Builder(test_env).agent_id().time_limit(width * height // 2, add_extra=True).build()
+    from marl.env.zero_punishment import ZeroPunishment
+
+    file = "maps/0b"
+    lle = LLE.from_file(file).obs_type(ObservationType.LAYERED).death_strategy("stay").build()
+    env = ZeroPunishment(lle)
+    env = rlenv.Builder(env).agent_id().time_limit(lle.width * lle.height // 2, add_extra=True).build()
+    test_env = None
+
     qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
@@ -130,18 +132,6 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=200_000,
     )
-    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512)),
-    #     reward_size=env.reward_size,
-    #     normalise_rewards=False,
-    #     # gamma=gamma,
-    # )
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     td_error_clipping=5.0,
-    # )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -193,7 +183,7 @@ def create_lle(args: Arguments):
 
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
-    env = lle.LLE.level(2).obs_type(lle.ObservationType.PARTIAL_7x7).state_type(lle.ObservationType.FLATTENED).build()
+    env = LLE.level(2).obs_type(ObservationType.PARTIAL_7x7).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
     # TODO : improve args
     opt = SimpleNamespace()
