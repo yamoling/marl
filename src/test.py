@@ -27,5 +27,9 @@ def get_memory_usage_by_pid(pid: int):
     return total
 
 
+from marl.env.b_shaping import BShaping
+
 if __name__ == "__main__":
-    print(get_memory_usage_by_pid(1644092))
+    # print(get_memory_usage_by_pid(1644092))
+    env = LLE.from_file("maps/1b").build()
+    env = BShaping(env, 1.0, 0)
