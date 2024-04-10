@@ -20,14 +20,15 @@ class Arguments(tap.TypedArgs):
 
 
 def print_status(experiment):
-    from marl import Run
+    from marl import Experiment
 
-    runs = list[Run](experiment.runs)
-    print(f"Experiment {experiment.logdir} has {len(runs)} runs")
+    exp: Experiment = experiment
+    runs = list(exp.runs)
+    print(f"Experiment {exp.logdir} has {len(runs)} runs")
     if len(runs) == 0:
         print("No runs in experiment")
         return 0
-    max_steps = experiment.n_steps
+    max_steps = exp.n_steps
     actives = 0
     for run in runs:
         pid = run.get_pid()
@@ -72,7 +73,8 @@ def list_active_runs(args: ListArguments):
         directory = os.path.join(root, directory)
         try:
             exp = marl.Experiment.load(directory)
-            print_status(exp)
+            if exp.is_running:
+                print_status(exp)
         except FileNotFoundError:
             continue
         except Exception:

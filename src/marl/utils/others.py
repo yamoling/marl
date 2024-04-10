@@ -38,6 +38,8 @@ class GPU:
     """Free memory (MB)"""
     memory_usage: float
     """Memory usage between 0 and 1"""
+    utilization: float
+    """Utilization between 0 and 1"""
 
     def __init__(self, index: int):
         self.name = f"cuda:{index}"  # type: ignore
@@ -48,6 +50,7 @@ class GPU:
         self.total_memory = total_memory // (1024 * 1024)
         self.used_memory = self.total_memory - self.free_memory
         self.memory_usage = self.used_memory / self.total_memory
+        self.utilization = torch.cuda.utilization(self.device) / 100
 
 
 def list_gpus() -> list[GPU]:
@@ -81,7 +84,8 @@ def get_device(
         return None
 
     def conservative(gpus: list[GPU], estimated_memory: int):
-        gpus.sort(key=lambda gpu: gpu.free_memory, reverse=True)
+        # The more utilization, the less the sorting score
+        gpus.sort(key=lambda gpu: gpu.free_memory * (1.1 - gpu.utilization), reverse=True)
         for gpu in gpus:
             if gpu.free_memory > estimated_memory:
                 return gpu

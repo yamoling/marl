@@ -114,23 +114,29 @@ def create_ppo_lle(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 200_000
     test_interval = 5000
     gamma = 0.95
     from marl.env.zero_punishment import ZeroPunishment
+    from marl.env.random_initial_pos import RandomInitialPos
 
-    file = "maps/0b"
-    lle = LLE.from_file(file).obs_type(ObservationType.LAYERED).death_strategy("stay").build()
-    env = ZeroPunishment(lle)
+    file = "maps/1b"
+    file = "maps/lvl6-no-gems"
+    builder = LLE.from_file(file)
+    lle = builder.obs_type(ObservationType.LAYERED).death_strategy("stay").build()
+    env = lle
+    # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
+    env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(lle.width * lle.height // 2, add_extra=True).build()
     test_env = None
 
-    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
+    # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
+    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=200_000,
+        n_steps=50_000,
     )
     trainer = DQNTrainer(
         qnetwork,

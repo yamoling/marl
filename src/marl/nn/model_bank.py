@@ -42,7 +42,7 @@ class MLP(QNetwork):
     def from_env(cls, env: RLEnv, hidden_sizes: Optional[Iterable[int]] = None):
         if hidden_sizes is None:
             hidden_sizes = (64,)
-        return MLP(
+        return cls(
             env.observation_shape[0],
             env.extra_feature_shape[0],
             tuple(hidden_sizes),
@@ -180,6 +180,67 @@ class CNN(QNetwork):
         extras = extras.view(bs, *self.extras_shape)
         res = self.linear.forward(features, extras)
         return res.view(*dims, *self.output_shape)
+
+
+class IndependentCNN(QNetwork):
+    """
+    CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
+    concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
+    """
+
+    def __init__(
+        self,
+        n_agents: int,
+        input_shape: tuple[int, ...],
+        extras_size: int,
+        output_shape: tuple[int, ...],
+        mlp_sizes: tuple[int, ...] = (64, 64),
+    ):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(input_shape, (extras_size,), output_shape)
+        self.n_agents = n_agents
+        kernel_sizes = [3, 3, 3]
+        strides = [1, 1, 1]
+        filters = [32, 64, 64]
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.layer_sizes = (n_features + extras_size, *mlp_sizes, math.prod(output_shape))
+        linears = []
+        for _ in range(n_agents):
+            layers = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
+            for i in range(len(mlp_sizes) - 1):
+                layers.append(torch.nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))
+                layers.append(torch.nn.ReLU())
+            layers.append(torch.nn.Linear(mlp_sizes[-1], math.prod(output_shape)))
+            linears.append(torch.nn.Sequential(*layers))
+        self.linears = torch.nn.ModuleList(linears)
+
+    def to(self, device: torch.device, dtype: torch.dtype | None = None, non_blocking=True):
+        self.linears.to(device, dtype, non_blocking)
+        return super().to(device, dtype, non_blocking)
+
+    @classmethod
+    def from_env(cls, env: RLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        # For transitions, the shape is (batch_size, n_agents, channels, height, width)
+        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
+        batch_size, n_agents, channels, height, width = obs.shape
+        # Transpose to (batch_size, n_agents, channels, height, width)
+        obs = obs.transpose(0, 1)
+        extras = extras.transpose(0, 1)
+        # Reshape to be able forward the CNN
+        obs = obs.reshape(-1, channels, height, width)
+        features = self.cnn.forward(obs)
+        # Reshape to retrieve the 'agent' dimension
+        features = torch.reshape(features, (n_agents, batch_size, -1))
+        features = torch.concatenate((features, extras), dim=-1)
+        res = []
+        for agent_feature, linear in zip(features, self.linears):
+            res.append(linear.forward(agent_feature))
+        res = torch.stack(res)
+        res = res.transpose(0, 1)
+        return res.reshape(batch_size, n_agents, *self.output_shape)
 
 
 class CNN_DActor_CCritic(ActorCriticNN):
