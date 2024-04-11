@@ -2,8 +2,7 @@ import time
 import typed_argparse as tap
 
 from typing import Literal, Optional
-from torch.multiprocessing import Pool
-from multiprocessing.pool import AsyncResult
+from multiprocessing.pool import Pool, AsyncResult
 
 
 class Arguments(tap.TypedArgs):
@@ -14,7 +13,6 @@ class Arguments(tap.TypedArgs):
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu"] | int = tap.arg(default="auto")
-    estimated_memory_MB: int = tap.arg(default=3_000, help="Estimated memory in GB for the 'auto' device")
     gpu_strategy: Literal["fill", "conservative"] = tap.arg(default="conservative")
 
     @property
@@ -33,7 +31,7 @@ class Arguments(tap.TypedArgs):
         return 1
 
 
-def start_run(args: Arguments, run_num: int):
+def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
     import marl
 
     print(f"Starting run {run_num} with seed {args.seed + run_num}")
@@ -43,7 +41,7 @@ def start_run(args: Arguments, run_num: int):
     experiment.run(
         seed=args.seed + run_num,
         fill_strategy=args.gpu_strategy,
-        required_memory_MB=args.estimated_memory_MB,
+        required_memory_MB=estimated_gpu_memory,
         quiet=run_num > 0,
         device=args.device,
         n_tests=args.n_tests,
@@ -51,14 +49,21 @@ def start_run(args: Arguments, run_num: int):
 
 
 def main(args: Arguments):
+    from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
+
+    # NOTE: within a docker, the pids do not match so we have to retrieve the pids unreliably
+    initial_pids = get_gpu_processes()
+    estimated_gpu_memory = 0
     with Pool(args.n_processes) as pool:
         handles = list[AsyncResult]()
         for run_num in range(args.n_runs):
-            h = pool.apply_async(start_run, (args, run_num))
+            h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))
             handles.append(h)
             # If it is not the last process, wait a bit to let the time to allocate the GPUs correctly.
             if run_num != args.n_runs - 1:
                 time.sleep(args.delay)
+                new_pids = get_gpu_processes() - initial_pids
+                estimated_gpu_memory = get_max_gpu_usage(new_pids)
 
         for h in handles:
             h.get()

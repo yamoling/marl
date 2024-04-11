@@ -5,9 +5,6 @@ import subprocess
 from dataclasses import dataclass
 
 
-DeviceStr = Literal["auto", "cpu", "cuda", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cuda:4", "cuda:5", "cuda:6", "cuda:7"]
-
-
 @serde
 @dataclass
 class GPU:
@@ -49,6 +46,23 @@ def list_gpus() -> list[GPU]:
             )
         )
     return res
+
+
+def get_gpu_processes():
+    cmd = "nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits"
+    csv = subprocess.check_output(cmd, shell=True).decode().strip()
+    return set(map(int, csv.split("\n")))
+
+
+def get_max_gpu_usage(pids: set[int]):
+    cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
+    csv = subprocess.check_output(cmd, shell=True).decode().strip()
+    max_memory = 0
+    for line in csv.split("\n"):
+        pid, used_memory = map(int, line.split(","))
+        if pid in pids:
+            max_memory = max(max_memory, used_memory)
+    return max_memory
 
 
 def get_device(
