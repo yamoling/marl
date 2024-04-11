@@ -1,11 +1,9 @@
 import time
-import torch
 import typed_argparse as tap
 
 from typing import Literal, Optional
-from multiprocessing.pool import Pool, AsyncResult
-
-from marl.utils.others import DeviceStr
+from torch.multiprocessing import Pool
+from multiprocessing.pool import AsyncResult
 
 
 class Arguments(tap.TypedArgs):
@@ -15,25 +13,30 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
-    device: DeviceStr = tap.arg(default="auto")
+    device: Literal["auto", "cpu"] | int = tap.arg(default="auto")
     estimated_memory_MB: int = tap.arg(default=3_000, help="Estimated memory in GB for the 'auto' device")
     gpu_strategy: Literal["fill", "conservative"] = tap.arg(default="conservative")
 
     @property
     def n_processes(self):
         if self._n_processes is not None:
-            return self._n_processes
+            return min(self._n_processes, self.n_runs)
 
         # If we have GPUs, then start as many runs as there are GPUs
-        if torch.cuda.is_available():
-            return torch.cuda.device_count()
-        # Otherwise, start only one run at a time
+        import subprocess
+
+        cmd = "nvidia-smi --list-gpus | wc -l"
+        n_gpus = int(subprocess.check_output(cmd, shell=True).decode().strip())
+        if n_gpus > 0:
+            return min(n_gpus, self.n_runs)
+        # Otherwise, start only one run at a time on the cpu
         return 1
 
 
 def start_run(args: Arguments, run_num: int):
     import marl
 
+    print(f"Starting run {run_num} with seed {args.seed + run_num}")
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
     experiment = marl.Experiment.load(args.logdir)

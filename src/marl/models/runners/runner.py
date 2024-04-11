@@ -5,7 +5,6 @@ from rlenv import RLEnv
 import torch
 from marl.models.algo import RLAlgo
 from marl.models.trainer import Trainer
-from marl.utils.others import DeviceStr
 
 
 class Runner(ABC):
@@ -21,7 +20,7 @@ class Runner(ABC):
     def run(self, *args, **kwargs):
         pass
 
-    def to(self, device: DeviceStr | torch.device):
+    def to(self, device: Literal["auto", "cpu"] | int | torch.device):
         if isinstance(device, str):
             from marl.utils import get_device
 

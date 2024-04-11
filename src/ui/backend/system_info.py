@@ -4,7 +4,7 @@ from serde.json import to_json
 from websockets.server import serve, WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosed
 import psutil
-from marl.utils.others import list_gpus
+from marl.utils import list_gpus
 
 
 stop = False

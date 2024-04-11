@@ -18,7 +18,7 @@ from rlenv.models import EpisodeBuilder, RLEnv, Transition
 from marl.policy_gradient import PPO, DDPG
 from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
-from marl.utils.others import DeviceStr, get_device
+from marl.utils.gpu import get_device
 from .batch import TransitionBatch
 
 from .algo import RLAlgo
@@ -195,7 +195,7 @@ class Experiment:
         fill_strategy: Literal["fill", "conservative"],
         required_memory_MB: int,
         quiet: bool = False,
-        device: DeviceStr = "auto",
+        device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
     ):
         """Train the RLAlgo on the environment according to the experiment parameters."""
