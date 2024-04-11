@@ -64,11 +64,20 @@ class Run:
         with open(actions_file, "r") as f:
             return json.load(f)
 
+    def get_train_actions(self, time_step: int) -> list[list[int]]:
+        train_directory = self.train_dir(time_step)
+        actions_file = os.path.join(train_directory, ACTIONS)
+        with open(actions_file, "r") as f:
+            return json.load(f)
+
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.rundir, "test", f"{time_step}")
         if test_num is not None:
             test_dir = os.path.join(test_dir, f"{test_num}")
         return test_dir
+
+    def train_dir(self, time_step: int):
+        return os.path.join(self.rundir, "train", f"{time_step}")
 
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
@@ -235,6 +244,10 @@ class RunHandle:
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
+        train_dir = self.run.train_dir(time_step - len(episode))
+        os.makedirs(train_dir)
+        with open(os.path.join(train_dir, ACTIONS), "w") as a:
+            json.dump(episode.actions.tolist(), a)
 
     def log_train_step(self, metrics: dict[str, float], time_step: int):
         self.training_data_logger.log(metrics, time_step)

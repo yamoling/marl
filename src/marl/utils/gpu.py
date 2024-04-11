@@ -66,7 +66,7 @@ def get_max_gpu_usage(pids: set[int]):
 
 
 def get_device(
-    device: Literal["auto", "cpu"] | int,
+    device: Literal["auto", "cpu"] | int = "auto",
     fit_strategy: Literal["fill", "conservative"] = "conservative",
     estimated_memory_MB: int = 0,
 ):

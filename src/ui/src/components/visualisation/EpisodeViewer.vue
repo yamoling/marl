@@ -32,7 +32,10 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-auto mx-auto">
+                        <div v-if="episode" class="col-auto mx-auto">
+                            <p v-if="currentStep > 0">
+                                Reward: {{ episode.episode.rewards[currentStep - 1] }}
+                            </p>
                             <img :src="'data:image/jpg;base64, ' + currentFrame" />
                         </div>
                     </div>

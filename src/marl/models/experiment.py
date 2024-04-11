@@ -208,7 +208,7 @@ class Experiment:
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,
-        device: Literal["auto", "cpu", "cuda"] = "auto",
+        device: Literal["auto", "cpu"] = "auto",
     ):
         """
         Test the RLAlgo on an other environment but with the same parameters.

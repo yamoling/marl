@@ -12,6 +12,7 @@ class DelayedReward:
     reward: float
     delay: int
     countdown: int
+    i_condition: int
 
     def __init__(self, reward: float, delay: int):
         self.started = False
@@ -29,22 +30,23 @@ class DelayedReward:
 
     def reset(self):
         self.countdown = self.delay + 1
+        self.started = False
 
-    def agent_enter(self):
+    def activate(self):
         self.started = True
 
 
 @dataclass
 class DelayedRewardHandler:
-    rewards: list[dict[Position, DelayedReward]]
+    rewards: list[dict[int, DelayedReward]]
     extras_size: int
 
-    def __init__(self, n_agents: int, positions: list[list[Position]], delay: int, reward: float):
+    def __init__(self, n_agents: int, i_positions: list[list[int]], delay: int, reward: float):
         self.rewards = [{} for _ in range(n_agents)]
-        for agent_id, agent_positions in enumerate(positions):
-            for pos in agent_positions:
-                self.rewards[agent_id][pos] = DelayedReward(reward, delay)
-        self.extras_size = sum(len(p) for p in positions)
+        for agent_id, agent_rows in enumerate(i_positions):
+            for row in agent_rows:
+                self.rewards[agent_id][row] = DelayedReward(reward, delay)
+        self.extras_size = sum(len(p) for p in i_positions)
 
     def get_state(self):
         res = []
@@ -56,11 +58,11 @@ class DelayedRewardHandler:
                     res.append(reward.countdown / (reward.delay + 1))
         return np.array(res, dtype=np.float32)
 
-    def step(self, agents_positions: list[Position]):
-        for reward_dict, pos in zip(self.rewards, agents_positions):
-            delayed_reward = reward_dict.get(pos)
+    def trigger(self, agents_positions: list[Position]):
+        for reward_dict, (i, _) in zip(self.rewards, agents_positions):
+            delayed_reward = reward_dict.get(i)
             if delayed_reward is not None:
-                delayed_reward.agent_enter()
+                delayed_reward.activate()
 
         total = 0.0
         for reward_dict in self.rewards:
@@ -85,11 +87,11 @@ class BShaping(RLEnvWrapper):
         # - the exits are on the bottom
         # - the lasers are horizontal
         # - lasers do not cross
-        reward_positions = [list[Position]() for _ in range(world.n_agents)]
+        reward_positions = [list[int]() for _ in range(world.n_agents)]
         for (i, j), laser in world.lasers:
             for agent_id in range(world.n_agents):
                 if laser.agent_id != agent_id:
-                    reward_positions[agent_id].append((i + 1, j))
+                    reward_positions[agent_id].append(i + 1)
         self.delayed_rewards = DelayedRewardHandler(world.n_agents, reward_positions, delay, extra_reward)
         extras_shape = (env.extra_feature_shape[0] + self.delayed_rewards.extras_size,)
         super().__init__(env, extra_feature_shape=extras_shape)
@@ -108,6 +110,6 @@ class BShaping(RLEnvWrapper):
 
     def step(self, actions):
         obs, reward, done, truncated, info = self.wrapped.step(actions)
-        reward += self.delayed_rewards.step(self.world.agents_positions)
+        reward += self.delayed_rewards.trigger(self.world.agents_positions)
         obs = self.add_extra_information(obs)
         return obs, reward, done, truncated, info

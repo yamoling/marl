@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 
 class Arguments(RunArguments):
+    reward_delay: int = tap.arg(help="The number of steps before the reward is given")
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
     override: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
@@ -125,16 +126,15 @@ def create_lle(args: Arguments):
     file = "maps/2b-bis"
     # file = "maps/lvl6-no-gems"
     builder = LLE.from_file(file)
-    lle = builder.obs_type(ObservationType.LAYERED).death_strategy("stay").build()
+    lle = builder.obs_type(ObservationType.LAYERED).build()
     env = lle
     env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = BShaping(env, lle.world, 1, 0)
+    env = BShaping(env, lle.world, 1, args.reward_delay)
     # env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(lle.width * lle.height // 2, add_extra=True).build()
-    test_env = None
 
     # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
-    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -186,7 +186,6 @@ def create_lle(args: Arguments):
         env=env,
         test_interval=test_interval,
         n_steps=n_steps,
-        test_env=test_env,
     )
 
 

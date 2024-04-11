@@ -11,7 +11,7 @@ class Arguments(tap.TypedArgs):
     dest: str = tap.arg(positional=True, help="The directory to save the results of the test")
     env_logdir: str = tap.arg(positional=True, help="The directory of the environment to test the algorithm on")
     n_tests: int = tap.arg(default=5, help="Number of tests to run")
-    device: Literal["auto", "cpu", "cuda"] = tap.arg(default="auto")
+    device: Literal["auto", "cpu"] = tap.arg(default="auto")
     quiet: bool = tap.arg(default=False, help="Run the tests quietly")
 
 

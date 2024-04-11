@@ -34,7 +34,6 @@ class Arguments(tap.TypedArgs):
 def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
     import marl
 
-    print(f"Starting run {run_num} with seed {args.seed + run_num}")
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
     experiment = marl.Experiment.load(args.logdir)
