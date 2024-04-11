@@ -41,7 +41,7 @@ class DelayedRewardHandler:
     rewards: list[dict[int, DelayedReward]]
     extras_size: int
 
-    def __init__(self, n_agents: int, i_positions: list[list[int]], delay: int, reward: float):
+    def __init__(self, n_agents: int, i_positions: list[set[int]], delay: int, reward: float):
         self.rewards = [{} for _ in range(n_agents)]
         for agent_id, agent_rows in enumerate(i_positions):
             for row in agent_rows:
@@ -87,11 +87,11 @@ class BShaping(RLEnvWrapper):
         # - the exits are on the bottom
         # - the lasers are horizontal
         # - lasers do not cross
-        reward_positions = [list[int]() for _ in range(world.n_agents)]
-        for (i, j), laser in world.lasers:
+        reward_positions = [set[int]() for _ in range(world.n_agents)]
+        for (i, _), laser in world.lasers:
             for agent_id in range(world.n_agents):
                 if laser.agent_id != agent_id:
-                    reward_positions[agent_id].append(i + 1)
+                    reward_positions[agent_id].add(i + 1)
         self.delayed_rewards = DelayedRewardHandler(world.n_agents, reward_positions, delay, extra_reward)
         extras_shape = (env.extra_feature_shape[0] + self.delayed_rewards.extras_size,)
         super().__init__(env, extra_feature_shape=extras_shape)
