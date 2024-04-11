@@ -1,9 +1,9 @@
 import numpy as np
 from rlenv.wrappers import RLEnvWrapper
-from rlenv import Observation, DiscreteSpace
+from rlenv import Observation, RLEnv
 from dataclasses import dataclass
 from serde import serde
-from lle import LLE, Action, Position, AgentId
+from lle import LLE, Position, World
 
 
 @dataclass
@@ -11,26 +11,26 @@ class DelayedReward:
     reward: float
     delay: int
     consumed: bool
-    current_delay: int
+    countdown: int
 
     def __init__(self, reward: float, delay: int):
         self.consumed = False
         self.reward = reward
         self.delay = delay
-        self.current_delay = 0
+        self.countdown = delay
 
     def step(self) -> float:
         if self.consumed:
             return 0
-        self.current_delay += 1
-        if self.current_delay <= self.delay:
+        self.countdown -= 1
+        if self.countdown >= 0:
             return 0
         self.consumed = True
         return self.reward
 
     def reset(self):
         self.consumed = False
-        self.current_delay = 0
+        self.countdown = self.delay
 
 
 @dataclass
@@ -69,24 +69,23 @@ class DelayedRewardHandler:
 @serde
 @dataclass
 class BShaping(RLEnvWrapper):
-    extra_reward: float
+    """Bottleneck shaping"""
 
-    def __init__(self, env: LLE, extra_reward: float, delay: int):
+    def __init__(self, env: RLEnv, world: World, extra_reward: float, delay: int):
         # Assumes that
         # - the start positions are on top
         # - the exits are on the bottom
         # - the lasers are horizontal
         # - lasers do not cross
-        reward_positions = [list[Position]() for _ in range(env.n_agents)]
-        for (i, j), laser in env.world.lasers:
-            for agent_id in range(env.n_agents):
+        reward_positions = [list[Position]() for _ in range(world.n_agents)]
+        for (i, j), laser in world.lasers:
+            for agent_id in range(world.n_agents):
                 if laser.agent_id != agent_id:
                     reward_positions[agent_id].append((i + 1, j))
-        self.delayed_rewards = DelayedRewardHandler(env.n_agents, reward_positions, delay, extra_reward)
-
+        self.delayed_rewards = DelayedRewardHandler(world.n_agents, reward_positions, delay, extra_reward)
         extras_shape = (env.extra_feature_shape[0] + self.delayed_rewards.extras_size,)
         super().__init__(env, extra_feature_shape=extras_shape)
-        self.world = env.world
+        self.world = world
 
     def add_extra_information(self, obs: Observation):
         extra = self.delayed_rewards.get_state()

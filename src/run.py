@@ -3,6 +3,7 @@ import torch
 import polars as pl
 import subprocess
 import typed_argparse as tap
+import multiprocessing as mp
 
 import time
 
@@ -42,28 +43,22 @@ def main(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
     experiment = marl.Experiment.load(args.logdir)
-
-    pid = experiment.run(
-        seed=args.seed,
-        fill_strategy="conservative",
-        required_memory_MB=0,
-        quiet=False,
-        n_tests=args.n_tests,
-        run_in_new_process=args.n_runs > 1,  # If there is a single run, then simply run it in the main process
-    )
-
-    # All following processes are run in the background
-    for run_num in range(1, args.n_runs):
-        time.sleep(args.delay)
-        experiment.run(
-            seed=args.seed + run_num,
-            fill_strategy="conservative",
-            required_memory_MB=args.estimated_memory_MB,
-            quiet=True,
-            n_tests=args.n_tests,
-            run_in_new_process=True,
-        )
-        # Sleep for some time for each child process to allocate GPUs properly
+    with mp.Pool(args.n_runs) as pool:
+        for run_num in range(args.n_runs):
+            pool.apply_async(
+                experiment.run,
+                kwds={
+                    "self": experiment,
+                    "seed": args.seed + run_num,
+                    "fill_strategy": "conservative",
+                    "required_memory_MB": args.estimated_memory_MB,
+                    "quiet": run_num == 0,
+                    "device": args.device,
+                    "n_tests": args.n_tests,
+                },
+            )
+            # Let some time for the child process to allocate the GPU
+            time.sleep(args.delay)
 
 
 if __name__ == "__main__":

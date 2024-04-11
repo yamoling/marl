@@ -119,19 +119,22 @@ def create_lle(args: Arguments):
     gamma = 0.95
     from marl.env.zero_punishment import ZeroPunishment
     from marl.env.random_initial_pos import RandomInitialPos
+    from marl.env.b_shaping import BShaping
 
-    file = "maps/1b"
-    file = "maps/lvl6-no-gems"
+    # file = "maps/1b"
+    file = "maps/2b-bis"
+    # file = "maps/lvl6-no-gems"
     builder = LLE.from_file(file)
     lle = builder.obs_type(ObservationType.LAYERED).death_strategy("stay").build()
     env = lle
-    # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = ZeroPunishment(env)
+    env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
+    env = BShaping(env, lle.world, 1, 0)
+    # env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(lle.width * lle.height // 2, add_extra=True).build()
     test_env = None
 
     # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
-    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_sizes=(256, 256))
+    qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -167,7 +170,7 @@ def create_lle(args: Arguments):
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/qnetwork-{env.name}"
+        args.logdir = f"logs/{env.name}"
         if trainer.mixer is not None:
             args.logdir += f"-{trainer.mixer.name}"
         else:
@@ -254,14 +257,8 @@ def main(args: Arguments):
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
         if args.run:
-            run_args = RunArguments(
-                logdir=exp.logdir,
-                n_tests=args.n_tests,
-                seed=0,
-                n_runs=args.n_runs,
-                delay=args.delay,
-            )
-            run_experiment(run_args)
+            args.logdir = exp.logdir
+            run_experiment(args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
         if not args.override:
