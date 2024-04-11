@@ -3,34 +3,35 @@ from rlenv.wrappers import RLEnvWrapper
 from rlenv import Observation, RLEnv
 from dataclasses import dataclass
 from serde import serde
-from lle import LLE, Position, World
+from lle import Position, World
 
 
 @dataclass
 class DelayedReward:
+    started: bool
     reward: float
     delay: int
-    consumed: bool
     countdown: int
 
     def __init__(self, reward: float, delay: int):
-        self.consumed = False
+        self.started = False
         self.reward = reward
         self.delay = delay
         self.countdown = delay
 
-    def step(self) -> float:
-        if self.consumed:
-            return 0
+    def step(self):
+        if not self.started or self.countdown < 0:
+            return 0.0
         self.countdown -= 1
-        if self.countdown >= 0:
-            return 0
-        self.consumed = True
-        return self.reward
+        if self.countdown == 0:
+            return self.reward
+        return 0.0
 
     def reset(self):
-        self.consumed = False
-        self.countdown = self.delay
+        self.countdown = self.delay + 1
+
+    def agent_enter(self):
+        self.started = True
 
 
 @dataclass
@@ -49,15 +50,22 @@ class DelayedRewardHandler:
         res = []
         for reward_dict in self.rewards:
             for _, reward in reward_dict.items():
-                res.append(not reward.consumed)
+                if reward.countdown < 0:
+                    res.append(-1)
+                else:
+                    res.append(reward.countdown / (reward.delay + 1))
         return np.array(res, dtype=np.float32)
 
     def step(self, agents_positions: list[Position]):
-        total = 0.0
         for reward_dict, pos in zip(self.rewards, agents_positions):
             delayed_reward = reward_dict.get(pos)
             if delayed_reward is not None:
-                total += delayed_reward.step()
+                delayed_reward.agent_enter()
+
+        total = 0.0
+        for reward_dict in self.rewards:
+            for _, reward in reward_dict.items():
+                total += reward.step()
         return total
 
     def reset(self):
@@ -100,6 +108,6 @@ class BShaping(RLEnvWrapper):
 
     def step(self, actions):
         obs, reward, done, truncated, info = self.wrapped.step(actions)
-        obs = self.add_extra_information(obs)
         reward += self.delayed_rewards.step(self.world.agents_positions)
+        obs = self.add_extra_information(obs)
         return obs, reward, done, truncated, info
