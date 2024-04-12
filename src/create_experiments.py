@@ -12,9 +12,6 @@ from types import SimpleNamespace
 
 
 class Arguments(RunArguments):
-    map_file: str = tap.arg(help="The map file to use")
-    reward_in_laser: bool = tap.arg(default=False, help="Whether the reward is given in the laser or not")
-    reward_delay: int = tap.arg(help="The number of steps before the reward is given")
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
     overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
@@ -73,7 +70,7 @@ def create_smac(args: Arguments):
 
 def create_ddpg_lle(args: Arguments):
     n_steps = 500_000
-    env = lle.LLE.level(2, obs_type=lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
@@ -95,7 +92,7 @@ def create_ddpg_lle(args: Arguments):
 
 def create_ppo_lle(args: Arguments):
     n_steps = 500_000
-    env = lle.LLE.level(3, lle.ObservationType.LAYERED)
+    env = LLE.level(3).obs_type(ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
