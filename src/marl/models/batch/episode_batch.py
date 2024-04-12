@@ -37,6 +37,10 @@ class EpisodeBatch(Batch):
     #     return normalized_returns
 
     @cached_property
+    def probs(self):
+        raise NotImplementedError()
+
+    @cached_property
     def obs(self):
         obs = np.array([e.obs.data for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(obs).transpose(1, 0).to(self.device)

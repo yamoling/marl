@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import os
+from typing import Optional
 from serde import serde
 import torch
 import numpy as np
@@ -17,7 +18,7 @@ class PPO(RLAlgo):
         ac_network: nn.ActorCriticNN,
         train_policy: Policy,
         test_policy: Policy,
-        extra_policy: Policy = None,
+        extra_policy: Optional[Policy] = None,
         extra_policy_every: int = 100,
         logits_clip_low: float = -10,
         logits_clip_high: float = 10,
@@ -35,7 +36,7 @@ class PPO(RLAlgo):
         self.extra_policy = extra_policy
         self.extra_policy_every = extra_policy_every
         self.episode_counter = 1
-        
+
         self.logits_clip_low = logits_clip_low
         self.logits_clip_high = logits_clip_high
 
@@ -48,7 +49,7 @@ class PPO(RLAlgo):
             # logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)  # clamp logits to avoid overflow
 
             actions = self.policy.get_action(logits.cpu().numpy(), observation.available_actions)
-            return actions#.numpy(force=True)
+            return actions  # .numpy(force=True)
 
     def actions_logits(self, obs: Observation):
         obs_data = torch.tensor(obs.data).to(self.device, non_blocking=True)

@@ -17,13 +17,13 @@ class MAICTrainer(Trainer):
         maic_network: MAICNN,
         train_policy: Policy,
         memory: EpisodeMemory,
+        mixer: Mixer,
         gamma: float = 0.99,
         batch_size: int = 16,
         lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
-        mixer: Optional[Mixer] = None,
         train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
         grad_norm_clipping: Optional[float] = None,
     ):
@@ -65,9 +65,9 @@ class MAICTrainer(Trainer):
         if isinstance(self.target_updater, HardUpdate):
             logs = logs | self.target_updater.update(episode_num)
         else:
-            logs = logs | self.target_updater.update(time_step)   
+            logs = logs | self.target_updater.update(time_step)
         return logs
-    
+
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
@@ -107,11 +107,11 @@ class MAICTrainer(Trainer):
 
         # Calculate the Q-Values necessary for the target
         next_values = self._next_state_value(batch)
-   
+
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == mixed_qvalues.shape == batch.masks.shape
         # Calculate 1-step Q-Learning targets
         qtargets = batch.rewards + self.gamma * (1 - batch.dones) * next_values
-        
+
         # Td-error
         td_error = mixed_qvalues - qtargets.detach()
 
@@ -148,7 +148,7 @@ class MAICTrainer(Trainer):
             loss_dict[k] /= batch._max_episode_len
         total_loss /= batch._max_episode_len
         return total_loss, loss_dict
-    
+
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         """
         Update to call after each step. Should be run when update_after_each == "step".

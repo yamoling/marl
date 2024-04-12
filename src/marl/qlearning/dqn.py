@@ -91,4 +91,4 @@ class RDQN(DQN):
         self.qnetwork: RecurrentQNetwork
 
     def new_episode(self):
-        self.qnetwork.reset_hidden_states(1)
+        self.qnetwork.reset_hidden_states()

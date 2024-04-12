@@ -72,7 +72,7 @@ class RecurrentNN(NN):
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 
-    def reset_hidden_states(self, bs=Optional[int]):
+    def reset_hidden_states(self, bs: Optional[int] = None):
         """Reset the hidden states"""
         self.hidden_states = None
 
@@ -128,7 +128,7 @@ class QNetwork(NN):
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
         return self.forward(obs, extras)
-    
+
     def set_testing(self, test_mode: bool = True):
         """Set the network in testing mode"""
         self.test_mode = test_mode
@@ -233,7 +233,7 @@ class MAICNN(NN):
         super().__init__(input_shape, extras_shape, output_shape)
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
-    
+
     @abstractmethod
     def reset_hidden_states(self, bs=1):
         """Reset the hidden states"""
@@ -274,12 +274,12 @@ class MAICNN(NN):
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> ...:
         """Compute the Q-values"""
-    
+
     def set_testing(self, test_mode: bool = True):
         """Set the network in testing mode"""
         self.test_mode = test_mode
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor):
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
@@ -291,14 +291,14 @@ class MAICNN(NN):
         qvalues = []
         logs = []
         losses = []
-        for t in range(len(obs)): # case of Episode Batch
+        for t in range(len(obs)):  # case of Episode Batch
             current_q_values, returns_ = self.forward(obs[t], extras[t])
             qvalues.append(current_q_values)
             if "logs" in returns_:
                 logs.append(returns_["logs"])
                 del returns_["logs"]
             losses.append(returns_)
-        
+
         qvalues = torch.stack(qvalues, dim=0)
 
         return qvalues, logs, losses
