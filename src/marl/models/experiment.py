@@ -11,12 +11,15 @@ from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
 import torch
+from tqdm import tqdm
+
 
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl.policy_gradient import PPO, DDPG
 from marl.qlearning import DQN
 from marl.utils import encode_b64_image, exceptions, stats
+from marl.utils.gpu import get_device
 from .batch import TransitionBatch
 
 from .algo import RLAlgo
@@ -69,8 +72,12 @@ class Experiment:
         test_env: Optional[RLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
-        if test_env is None:
+        if test_env is not None:
+            if not env.has_same_inouts(test_env):
+                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
+        else:
             test_env = deepcopy(env)
+
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
 
@@ -113,6 +120,13 @@ class Experiment:
         """Get the parameters of an experiment."""
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
             return json.load(f)
+
+    def move(self, new_logdir: str):
+        """Move an experiment to a new directory."""
+        os.makedirs(new_logdir, exist_ok=False)
+        shutil.move(self.logdir, new_logdir)
+        self.logdir = new_logdir
+        self.save()
 
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)
@@ -179,19 +193,38 @@ class Experiment:
     def run(
         self,
         seed: int,
+        fill_strategy: Literal["fill", "conservative"],
+        required_memory_MB: int,
         quiet: bool = False,
+        device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
-        device: Literal["auto", "cpu", "cuda"] = "auto",
-        run_in_new_process=False,
     ):
-        if run_in_new_process:
-            # Parent process returns directly
-            if os.fork() != 0:
-                return
-        runner = self.create_runner().to(device)
-        runner.train(self.logdir, seed, n_tests, quiet)
-        if run_in_new_process:
-            exit(0)
+        """Train the RLAlgo on the environment according to the experiment parameters."""
+        runner = self.create_runner().to(get_device(device, fill_strategy, required_memory_MB))
+        runner.run(self.logdir, seed, n_tests, quiet)
+
+    def test_on_other_env(
+        self,
+        test_env: RLEnv,
+        new_logdir: str,
+        n_tests: int,
+        quiet: bool = False,
+        device: Literal["auto", "cpu"] = "auto",
+    ):
+        """
+        Test the RLAlgo on an other environment but with the same parameters.
+
+        This methods loads the experiment parameters at every test step and run the test on the given environment.
+        """
+        new_experiment = Experiment.create(new_logdir, self.algo, self.trainer, self.env, self.n_steps, self.test_interval, test_env)
+        runner = new_experiment.create_runner().to(device)
+        runs = sorted(list(self.runs), key=lambda run: run.rundir)
+        for i, base_run in enumerate(runs):
+            new_run = Run.create(new_experiment.logdir, base_run.seed)
+            with new_run as run_handle:
+                for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
+                    self.algo.load(base_run.get_saved_algo_dir(time_step))
+                    runner.test(n_tests, time_step, run_handle=run_handle, quiet=True)
 
     def create_runner(self):
         return SimpleRunner(
@@ -248,16 +281,16 @@ class Experiment:
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
                 # qvalues.append(dist.probs.unsqueeze(-1).tolist())
-                
+
                 # logits
                 logits = self.algo.actions_logits(obs).unsqueeze(-1).tolist()
-                logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]                
+                logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
                 qvalues.append(logits)
 
                 # state-action value
-                probs = dist.probs.unsqueeze(0)
+                probs = dist.probs.unsqueeze(0)  # type: ignore
                 state = torch.tensor(obs.state).to(self.algo.device, non_blocking=True).unsqueeze(0)
-                value = self.algo.state_action_value(state, probs)               
+                value = self.algo.state_action_value(state, probs)
                 values.append(value)
                 print(value)
 
@@ -272,12 +305,10 @@ class Experiment:
 
                 # state value
                 value = self.algo.value(obs)
-                values.append()
                 print(value)
 
             else:
                 values.append(self.algo.value(obs))
-
 
             obs_, reward, done, truncated, info = self.test_env.step(action)
             episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))

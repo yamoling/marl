@@ -19,6 +19,7 @@ class SimpleRunner(Runner):
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
+        self._env.seed(step_num)
         obs = self._env.reset()
         self._algo.new_episode()
         initial_value = self._algo.value(obs)
@@ -46,7 +47,7 @@ class SimpleRunner(Runner):
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def train(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
+    def run(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
         """Start the training loop"""
         marl.seed(seed, self._env)
         self.randomize()

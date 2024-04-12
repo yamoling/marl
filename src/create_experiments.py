@@ -1,24 +1,24 @@
 import shutil
 import marl
-import lle
 import rlenv
 from typing import Optional
 import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from lle import WorldState
+from lle import WorldState, LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
 
 
-class Arguments(tap.TypedArgs):
-    delay: int = tap.arg(default=5, help="Delay between two consecutive runs.")
-    name: Optional[str] = tap.arg(default=None, help="Name of the experimentto create (overrides 'debug').")
+class Arguments(RunArguments):
+    map_file: str = tap.arg(help="The map file to use")
+    reward_in_laser: bool = tap.arg(default=False, help="Whether the reward is given in the laser or not")
+    reward_delay: int = tap.arg(help="The number of steps before the reward is given")
+    logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
+    overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
-    n_tests: int = tap.arg(default=1, help="Number of tests to run")
-    n_runs: int = tap.arg(default=1, help="Number of runs to start. Only applies if 'run' is True.")
 
 
 def create_smac(args: Arguments):
@@ -78,7 +78,7 @@ def create_ddpg_lle(args: Arguments):
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
     memory = marl.models.TransitionMemory(5_000)
-    
+
     train_policy = marl.policy.CategoricalPolicy()
     test_policy = marl.policy.ArgMax()
 
@@ -118,17 +118,17 @@ def create_ppo_lle(args: Arguments):
         c1=1,
         c2=0.01,
         logits_clip_low=logits_clip_low,
-        logits_clip_high=logits_clip_high
+        logits_clip_high=logits_clip_high,
     )
 
     algo = marl.policy_gradient.PPO(
-        ac_network=ac_network, 
-        train_policy=marl.policy.CategoricalPolicy(), 
-        test_policy=marl.policy.ArgMax(), 
-        # extra_policy=marl.policy.ExtraPolicy(env.n_agents), 
+        ac_network=ac_network,
+        train_policy=marl.policy.CategoricalPolicy(),
+        test_policy=marl.policy.ArgMax(),
+        # extra_policy=marl.policy.ExtraPolicy(env.n_agents),
         # extra_policy_every=50,
         logits_clip_low=logits_clip_low,
-        logits_clip_high=logits_clip_high
+        logits_clip_high=logits_clip_high,
     )
     # logdir = f"logs/{env.name}-PPO-5"
     logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip4"
@@ -137,68 +137,32 @@ def create_ppo_lle(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def curriculum(env: lle.LLE, n_steps: int):
-    world = env.world
-    env.reset()
-    i_positions = list(range(world.height - 1, -1, -1))
-    j_positions = [3] * len(i_positions)
-    initial_states = list[WorldState]()
-    exclude_i = [6]
-    for i, j in zip(i_positions, j_positions):
-        if i in exclude_i:
-            continue
-        start_positions = [(i, j + n) for n in range(world.n_agents)]
-        initial_states.append(WorldState(start_positions, [False] * world.n_gems))
-    interval = n_steps // len(initial_states)
-    return marl.env.CurriculumLearning(env, initial_states, interval)
-
-
 def create_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 300_000
     test_interval = 5000
     gamma = 0.95
-    # envs = [lle.LLE.level(i, lle.ObservationType.LAYERED_PADDED, state_type=lle.ObservationType.FLATTENED) for i in range(1, 7)]
-    # env = marl.env.EnvPool(envs)
-    env = lle.LLE.level(6, lle.ObservationType.LAYERED, multi_objective=False)
-    from marl.env.lle_shaping import LLEShaping
+    from marl.env.zero_punishment import ZeroPunishment
+    from marl.env.random_initial_pos import RandomInitialPos
+    from marl.env.b_shaping import BShaping
 
-    env = LLEShaping(env, reward_for_blocking=0.1)
-    # width, height = env.width, env.height
-    # env = curriculum(env, n_steps)
-    # env = marl.env.lle_curriculum.RandomInitialStates(env, True)
-    # from marl.env import ExtraObjective
+    # file = "maps/1b"
+    # file = "maps/lvl6-no-gems"
+    builder = LLE.from_file(args.map_file)
+    lle = builder.obs_type(ObservationType.LAYERED).build()
+    env = lle
+    env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
+    env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
+    # env = ZeroPunishment(env)
+    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 1.5), add_extra=True).build()
 
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-    # test_env = lle.LLE.level(6, lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    # test_env = rlenv.Builder(test_env).agent_id().time_limit(78, add_extra=True).build()
-    test_env = None
+    # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    # eps_schedule = MultiSchedule(
-    #     {
-    #         0: LinearSchedule(1, 0.05, 150_000),
-    #         300_000: LinearSchedule(1, 0.05, 150_000),
-    #         600_000: LinearSchedule(1, 0.05, 150_000),
-    #     }
-    # )
-    # train_policy = marl.policy.EpsilonGreedy(eps_schedule)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=200_000,
+        n_steps=50_000,
     )
-    # rnd = marl.intrinsic_reward.RandomNetworkDistillation(
-    #     target=marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], 512),
-    #     normalise_rewards=False,
-    #     # gamma=gamma,
-    # )
-    rnd = None
-    # memory = marl.models.PrioritizedMemory(
-    #     memory=memory,
-    #     alpha=0.6,
-    #     beta=marl.utils.Schedule.linear(0.4, 1.0, n_steps),
-    #     td_error_clipping=5.0,
-    # )
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -213,7 +177,7 @@ def create_lle(args: Arguments):
         mixer=marl.qlearning.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        ir_module=None,
+        # ir_module=rnd,
     )
 
     algo = marl.qlearning.DQN(
@@ -222,28 +186,28 @@ def create_lle(args: Arguments):
         test_policy=marl.policy.ArgMax(),
     )
 
-    if args.name is not None:
-        logdir = f"logs/{args.name}"
+    if args.logdir is not None:
+        if not args.logdir.startswith("logs/"):
+            args.logdir = "logs/" + args.logdir
     elif args.debug:
-        logdir = "logs/debug"
+        args.logdir = "logs/debug"
     else:
-        logdir = f"logs/qnetwork-{env.name}"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if trainer.ir_module is not None:
-            logdir += f"-{trainer.ir_module.name}"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
+        args.logdir = f"logs/bottleneck-{args.map_file.replace('maps/', 'map=')}-delay={args.reward_delay}"
+        # if trainer.mixer is not None:
+        #     args.logdir += f"-{trainer.mixer.name}"
+        # else:
+        #     args.logdir += "-iql"
+        # if trainer.ir_module is not None:
+        #     args.logdir += f"-{trainer.ir_module.name}"
+        # if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+        #     args.logdir += "-PER"
     return marl.Experiment.create(
-        logdir,
+        args.logdir,
         algo=algo,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
         n_steps=n_steps,
-        test_env=test_env,
     )
 
 
@@ -350,7 +314,7 @@ def create_lle_maic(args: Arguments):
         memory=memory,
         gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),
-        #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
@@ -372,6 +336,7 @@ def create_lle_maic(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+
 
 def create_lle_maicRQN(args: Arguments):
     n_steps = 600_000
@@ -395,11 +360,7 @@ def create_lle_maicRQN(args: Arguments):
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
     eps_steps = 200_000
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        eps_steps
-    )
+    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
     bs = 32
     trainer = DQNTrainer(
         qnetwork,
@@ -440,7 +401,6 @@ def create_lle_maicRQN(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
-
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
@@ -449,22 +409,18 @@ def main(args: Arguments):
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)
+        shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
         if args.run:
-            run_args = RunArguments(
-                logdir=exp.logdir,
-                n_tests=args.n_tests,
-                seed=0,
-                n_runs=args.n_runs,
-                delay=args.delay,
-            )
-            run_experiment(run_args)
+            args.logdir = exp.logdir
+            run_experiment(args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
-        response = ""
-        response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
-        if response.lower() != "y":
-            print("Experiment not created.")
-            return
+        if not args.overwrite:
+            response = ""
+            response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
+            if response.lower() != "y":
+                print("Experiment not created.")
+                return
         shutil.rmtree(e.logdir)
         return main(args)
 

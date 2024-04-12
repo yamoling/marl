@@ -37,7 +37,7 @@ class RandomNetworkDistillation(IRModule):
         normalise_rewards only works with EpisodeBatch.
         """
         super().__init__()
-        # RND should output one intrinsic reward objective
+        # RND should output one intrinsic reward per objective
         if len(target.output_shape) != 2 or target.output_shape[0] != reward_size:
             raise ValueError("RND target should output a tensor of shape (reward_size, embedding)")
         self.target = target

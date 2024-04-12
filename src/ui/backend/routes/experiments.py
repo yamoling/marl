@@ -3,8 +3,9 @@ from flask import request
 from http import HTTPStatus
 from serde.json import to_json
 import json
-from marl.models import Experiment
+import cv2
 from marl.utils.exceptions import ExperimentVersionMismatch
+from marl.utils import encode_b64_image
 
 
 @app.route("/experiment/replay/<path:path>")
@@ -35,7 +36,8 @@ def list_running_experiments(logdir: str):
 
 @app.route("/experiment/<path:logdir>", methods=["GET"])
 def get_experiment(logdir: str):
-    return Experiment.get_parameters(logdir)
+    exp = state.get_experiment(logdir)
+    return to_json(exp)
 
 
 @app.route("/experiment/load/<path:logdir>", methods=["POST"])
@@ -63,10 +65,11 @@ def rename_experiment():
     logdir = json_data["logdir"]
     new_logdir = json_data["newLogdir"]
     exp = state.get_experiment(logdir)
-    exp.copy(new_logdir, copy_runs=True)
+    exp.move(new_logdir)
+    # exp.copy(new_logdir, copy_runs=True)
     state.unload_experiment(logdir)
     state.load_experiment(new_logdir)
-    exp.delete()
+    # exp.delete()
     return ("", HTTPStatus.NO_CONTENT)
 
 
@@ -76,6 +79,43 @@ def delete_experiment(logdir: str):
         exp = state.get_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
-        return ("", HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return str(e), HTTPStatus.NOT_FOUND
+    except AttributeError:  # From version mismatch, for instance
+        import shutil
+
+        shutil.rmtree(logdir)
+    return ("", HTTPStatus.NO_CONTENT)
+
+
+@app.route("/experiment/image/<seed>/<path:logdir>")
+def get_env_image(seed: str, logdir: str):
+    exp = state.get_experiment(logdir)
+    exp.env.seed(int(seed))
+    exp.env.reset()
+    image = exp.env.render(mode="rgb_array")
+    image = cv2.resize(image, (100, 100))
+    return encode_b64_image(image)
+
+
+@app.route("/experiment/test-on-other-env", methods=["POST"])
+def test_on_other_env():
+    json_data = request.json
+    if json_data is None:
+        return ("", HTTPStatus.BAD_REQUEST)
+    logdir = json_data["logdir"]
+    new_logdir = json_data["newLogdir"]
+    env_logdir = json_data["envLogdir"]
+    n_tests = json_data["nTests"]
+    exp = state.get_experiment(logdir)
+    test_env = state.get_experiment(env_logdir).test_env
+
+    import threading
+
+    def start():
+        exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
+
+    threading.Thread(target=start).start()
+
+    # The parent just returns
+    return ""
