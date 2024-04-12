@@ -237,11 +237,11 @@ def create_lle(args: Arguments):
 
 def create_lle_baseline(args: Arguments):
     # use Episode update -> use reshape in the nn
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = lle.ObservationType.LAYERED
+    env = lle.LLE.level(6, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -300,10 +300,10 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -362,10 +362,10 @@ def create_lle_maic(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 def create_lle_maicRQN(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -434,10 +434,9 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ppo_lle()
         #exp = create_lle(args)
-        #exp = create_lle_baseline(args)
+        exp = create_lle_baseline(args)
         #exp = create_lle_maic(args)
-        exp = create_lle_maicRQN(args)
-        #exp = create_lle_baseline(args)
+        #exp = create_lle_maicRQN(args)
         print(exp.logdir)
         if args.run:
             run_args = RunArguments(
