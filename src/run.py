@@ -20,13 +20,18 @@ class Arguments(tap.TypedArgs):
         if self._n_processes is not None:
             return min(self._n_processes, self.n_runs)
 
-        # If we have GPUs, then start as many runs as there are GPUs
-        import subprocess
-
-        cmd = "nvidia-smi --list-gpus | wc -l"
-        n_gpus = int(subprocess.check_output(cmd, shell=True).decode().strip())
-        if n_gpus > 0:
-            return min(n_gpus, self.n_runs)
+        try:
+            # If we have GPUs, then start as many runs as there are GPUs
+            import subprocess
+            cmd = "nvidia-smi --list-gpus"
+            output = subprocess.check_output(cmd, shell=True).decode()
+            if "failed" in output:
+                return 1
+            n_gpus = int(len(output.splitlines()))
+            if n_gpus > 0:
+                return min(n_gpus, self.n_runs)
+        except subprocess.CalledProcessError:
+            pass
         # Otherwise, start only one run at a time on the cpu
         return 1
 
