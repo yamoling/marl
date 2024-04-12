@@ -57,6 +57,10 @@ def get_gpu_processes():
         csv = subprocess.check_output(cmd, shell=True).decode().strip()
         return set(map(int, csv.split("\n")))
     except subprocess.CalledProcessError:
+        # No GPU available
+        return set[int]()
+    except ValueError:
+        # No processes
         return set[int]()
 
 

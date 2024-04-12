@@ -50,7 +50,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
 
 
 def test_rnd_linear():
-    env = LLE.level(2)
+    env = LLE.level(2).build()
     target = marl.nn.model_bank.MLP(
         input_size=env.observation_shape[0],
         extras_size=env.extra_feature_shape[0],
@@ -61,6 +61,6 @@ def test_rnd_linear():
 
 
 def test_rnd_conv():
-    env = LLE.level(2, ObservationType.LAYERED)
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).build()
     target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (512,))
     _test_rnd_no_reward_normalisation(env, target)
