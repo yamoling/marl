@@ -49,6 +49,7 @@ class CNetTrainer(Trainer):
         return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
+        # TODO : recompute the value before updating the episode instead of using the last value set by choose_action (no gradient) 
         episode_from_agent = self.agents.get_episode()
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))
 

@@ -46,10 +46,12 @@ class DQN(RLAlgo):
 
     def set_testing(self):
         self.policy = self.test_policy
+        self.qnetwork.set_testing(True)
         self.qnetwork.eval()
 
     def set_training(self):
         self.policy = self.train_policy
+        self.qnetwork.set_testing(False)
         self.qnetwork.train()
 
     def save(self, to_directory: str):
@@ -89,4 +91,4 @@ class RDQN(DQN):
         self.qnetwork: RecurrentQNetwork
 
     def new_episode(self):
-        self.qnetwork.reset_hidden_states()
+        self.qnetwork.reset_hidden_states(1)

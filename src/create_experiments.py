@@ -247,10 +247,76 @@ def create_lle(args: Arguments):
     )
 
 
+def create_lle_baseline(args: Arguments):
+    # use Episode update -> use reshape in the nn
+    n_steps = 600_000
+    test_interval = 5000
+    gamma = 0.95
+    obs_type = lle.ObservationType.PARTIAL_7x7
+    env = lle.LLE.level(4, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    test_env = None
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    memory = marl.models.EpisodeMemory(5000)
+    steps_eps = 200_000
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=steps_eps,
+    )
+    trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=32,
+        train_interval=(1, "episode"),
+        gamma=gamma,
+        mixer=marl.qlearning.VDN(env.n_agents),
+        grad_norm_clipping=10,
+        ir_module=None,
+    )
+
+    algo = marl.qlearning.DQN(
+        qnetwork=qnetwork,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    if args.name is not None:
+        logdir = f"logs/{args.name}"
+    elif args.debug:
+        logdir = "logs/debug"
+    else:
+        logdir = f"logs/baseline-qnetwork-eps{steps_eps}-{env.name}-{obs_type}"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if trainer.ir_module is not None:
+            logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
+    return marl.Experiment.create(
+        logdir,
+        algo=algo,
+        trainer=trainer,
+        env=env,
+        test_interval=test_interval,
+        n_steps=n_steps,
+        test_env=test_env,
+    )
+
+
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
-    env = lle.LLE.level(2, lle.ObservationType.PARTIAL_7x7, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=False).build()
+    test_interval = 5000
+    obs_type = lle.ObservationType.PARTIAL_7x7
+    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
     opt.n_agents = env.n_agents
@@ -262,13 +328,15 @@ def create_lle_maic(args: Arguments):
     opt.mi_loss_weight = 0.001
     opt.entropy_loss_weight = 0.01
 
+    gamma = 0.95
+    eps_steps = 200_000
     # Add the MAICNetwork (MAICAgent)
     maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        50_000,
+        eps_steps,
     )
     # Add the MAICAlgo (MAICMAC)
     algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
@@ -276,12 +344,13 @@ def create_lle_maic(args: Arguments):
     # Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
         args=opt,
-        maic_algo=algo,
+        maic_network=maic_network,
         train_policy=train_policy,
         batch_size=batch_size,
         memory=memory,
+        gamma=gamma,
         mixer=marl.qlearning.VDN(env.n_agents),
-        # mixer=marl.qlearning.QMix(env.n_agents), TODO: try with QMix : state needed
+        #mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
@@ -291,7 +360,7 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC{batch_size}-{env.name}"
+        logdir = f"logs/MAIC-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -302,7 +371,74 @@ def create_lle_maic(args: Arguments):
             logdir += "-iql"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+
+def create_lle_maicRQN(args: Arguments):
+    n_steps = 600_000
+    test_interval = 5000
+    obs_type = lle.ObservationType.PARTIAL_7x7
+    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    # TODO : improve args
+    opt = SimpleNamespace()
+    opt.n_agents = env.n_agents
+    opt.latent_dim = 8
+    opt.nn_hidden_size = 64
+    opt.rnn_hidden_dim = 64
+    opt.attention_dim = 32
+    opt.var_floor = 0.002
+    opt.mi_loss_weight = 0.001
+    opt.entropy_loss_weight = 0.01
+
+    gamma = 0.95
+    # Add the MAICNetwork (MAICAgent)
+    qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
+    memory = marl.models.EpisodeMemory(5000)
+    eps_steps = 200_000
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        eps_steps
+    )
+    bs = 32
+    trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=bs,
+        train_interval=(1, "episode"),
+        gamma=gamma,
+        mixer=marl.qlearning.VDN(env.n_agents),
+        grad_norm_clipping=10,
+        ir_module=None,
+    )
+
+    algo = marl.qlearning.RDQN(
+        qnetwork=qnetwork,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    if args.debug:
+        logdir = "logs/debug"
+    else:
+        logdir = f"logs/MAICRQN-NoComm--{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        if trainer.double_qlearning:
+            logdir += "-double"
+        else:
+            logdir += "-single"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+
 
 
 def main(args: Arguments):
