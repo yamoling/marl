@@ -143,12 +143,12 @@ def create_lle(args: Arguments):
     from marl.env.b_shaping import BShaping
 
     # file = "maps/1b"
-    # file = "maps/lvl6-no-gems"
-    builder = LLE.from_file(args.map_file)
+    file = "maps/2b-ter"
+    builder = LLE.from_file(file)
     lle = builder.obs_type(ObservationType.LAYERED).build()
     env = lle
     env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
+    # env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
     # env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 1.5), add_extra=True).build()
 
@@ -189,7 +189,7 @@ def create_lle(args: Arguments):
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/bottleneck-{args.map_file.replace('maps/', 'map=')}-delay={args.reward_delay}"
+        args.logdir = f"logs/bottleneck-map={file}-baseline"
         # if trainer.mixer is not None:
         #     args.logdir += f"-{trainer.mixer.name}"
         # else:
@@ -213,8 +213,8 @@ def create_lle_baseline(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    obs_type = lle.ObservationType.LAYERED
-    env = lle.LLE.level(6, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -247,8 +247,8 @@ def create_lle_baseline(args: Arguments):
         test_policy=marl.policy.ArgMax(),
     )
 
-    if args.name is not None:
-        logdir = f"logs/{args.name}"
+    if args.logdir is not None:
+        logdir = f"logs/{args.logdir}"
     elif args.debug:
         logdir = "logs/debug"
     else:
@@ -275,8 +275,8 @@ def create_lle_baseline(args: Arguments):
 def create_lle_maic(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -338,8 +338,8 @@ def create_lle_maic(args: Arguments):
 def create_lle_maicRQN(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -401,13 +401,13 @@ def create_lle_maicRQN(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_ppo_lle()
-        # exp = create_lle(args)
-        exp = create_lle_baseline(args)
+        # exp = create_ddpg_lle(args)
+        # exp = create_ppo_lle(args)
+        exp = create_lle(args)
         # exp = create_lle_maic(args)
         # exp = create_lle_maicRQN(args)
         print(exp.logdir)
-        shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
+        shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
