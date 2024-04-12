@@ -213,8 +213,8 @@ def create_lle_baseline(args: Arguments):
     n_steps = 600_000
     test_interval = 5000
     gamma = 0.95
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -247,8 +247,8 @@ def create_lle_baseline(args: Arguments):
         test_policy=marl.policy.ArgMax(),
     )
 
-    if args.name is not None:
-        logdir = f"logs/{args.name}"
+    if args.logdir is not None:
+        logdir = f"logs/{args.logdir}"
     elif args.debug:
         logdir = "logs/debug"
     else:
@@ -275,8 +275,8 @@ def create_lle_baseline(args: Arguments):
 def create_lle_maic(args: Arguments):
     n_steps = 600_000
     test_interval = 5000
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -338,8 +338,8 @@ def create_lle_maic(args: Arguments):
 def create_lle_maicRQN(args: Arguments):
     n_steps = 600_000
     test_interval = 5000
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()

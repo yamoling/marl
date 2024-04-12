@@ -23,8 +23,11 @@ class Arguments(tap.TypedArgs):
         try:
             # If we have GPUs, then start as many runs as there are GPUs
             import subprocess
-            cmd = "nvidia-smi --list-gpus | wc -l"
-            n_gpus = int(subprocess.check_output(cmd, shell=True).decode().strip())
+            cmd = "nvidia-smi --list-gpus"
+            output = subprocess.check_output(cmd, shell=True).decode()
+            if "failed" in output:
+                return 1
+            n_gpus = int(len(output.splitlines()))
             if n_gpus > 0:
                 return min(n_gpus, self.n_runs)
         except subprocess.CalledProcessError:
