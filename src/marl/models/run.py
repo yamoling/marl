@@ -31,10 +31,12 @@ TIMESTAMP_COL = "timestamp_sec"
 @dataclass
 class Run:
     rundir: str
+    seed: int
 
     def __init__(self, rundir: str):
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
+        self.seed = int(os.path.basename(rundir).split("=")[1])
 
     @staticmethod
     def create(logdir: str, seed: int):
@@ -62,11 +64,20 @@ class Run:
         with open(actions_file, "r") as f:
             return json.load(f)
 
+    def get_train_actions(self, time_step: int) -> list[list[int]]:
+        train_directory = self.train_dir(time_step)
+        actions_file = os.path.join(train_directory, ACTIONS)
+        with open(actions_file, "r") as f:
+            return json.load(f)
+
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.rundir, "test", f"{time_step}")
         if test_num is not None:
             test_dir = os.path.join(test_dir, f"{test_num}")
         return test_dir
+
+    def train_dir(self, time_step: int):
+        return os.path.join(self.rundir, "train", f"{time_step}")
 
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
@@ -132,12 +143,28 @@ class Run:
     def training_data_filename(self):
         return os.path.join(self.rundir, TRAINING_DATA)
 
-    def get_progress(self, max_n_steps: int) -> float:
+    @property
+    def latest_train_step(self) -> int:
         try:
             df = pl.read_csv(self.train_filename, ignore_errors=True)
-            return df.select(pl.last(TIME_STEP_COL)).item() / max_n_steps
+            return df.select(pl.last(TIME_STEP_COL)).item()
         except (pl.NoDataError, pl.ColumnNotFoundError):
-            return 0.0
+            return 0
+
+    @property
+    def latest_test_step(self) -> int:
+        try:
+            df = pl.read_csv(self.test_filename, ignore_errors=True)
+            return df.select(pl.last(TIME_STEP_COL)).item()
+        except (pl.NoDataError, pl.ColumnNotFoundError):
+            return 0
+
+    @property
+    def latest_time_step(self) -> int:
+        return max(self.latest_test_step, self.latest_train_step)
+
+    def get_progress(self, max_n_steps: int) -> float:
+        return self.latest_time_step / max_n_steps
 
     def delete(self):
         try:
@@ -217,6 +244,10 @@ class RunHandle:
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
+        train_dir = self.run.train_dir(time_step - len(episode))
+        os.makedirs(train_dir)
+        with open(os.path.join(train_dir, ACTIONS), "w") as a:
+            json.dump(episode.actions.tolist(), a)
 
-    def log_train_step(self, metrics: dict[str, float], time_step: int):
-        self.training_data_logger.log(metrics, time_step)
+    def log_train_step(self, training_logs: dict[str, float], time_step: int):
+        self.training_data_logger.log(training_logs, time_step)

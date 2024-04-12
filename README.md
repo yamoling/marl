@@ -32,6 +32,6 @@ $ python src/serve.py
 
 To serve the files in development mode, you need two terminals.
 ```bash
-$ cd src/ui && bun run serve  # In one terminal
-$ python src/serve.py         # In an other terminal
+$ cd src/ui && bun run dev  # In one terminal
+$ python src/serve.py       # In an other terminal
 ```

@@ -4,6 +4,7 @@ from typing import Literal, Optional
 from rlenv import RLEnv
 import torch
 from marl.models.algo import RLAlgo
+from marl.utils import get_device
 from marl.models.trainer import Trainer
 
 
@@ -17,18 +18,15 @@ class Runner(ABC):
         self._test_env = test_env
 
     @abstractmethod
-    def test(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
         pass
 
-    @abstractmethod
-    def train(self, *args, **kwargs):
-        pass
-
-    def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
-        if isinstance(device, str):
-            from marl.utils import get_device
-
-            device = get_device(device)
+    def to(self, device: Literal["auto", "cpu"] | int | torch.device):
+        match device:
+            case str():
+                device = get_device(device)
+            case int():
+                device = torch.device(device)
         self._algo.to(device)
         self._trainer.to(device)
         return self

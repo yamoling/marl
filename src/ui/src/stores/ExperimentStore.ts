@@ -3,6 +3,7 @@ import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
+import { fetchWithJSON } from "../utils";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
@@ -79,11 +80,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function rename(logdir: string, newLogdir: string) {
-        const resp = await fetch(`${HTTP_URL}/experiment/rename`, {
-            method: "POST",
-            body: JSON.stringify({ logdir, newLogdir }),
-            headers: { "Content-Type": "application/json" }
-        });
+        const resp = await fetchWithJSON(`${HTTP_URL}/experiment/rename`, { logdir, newLogdir });
         if (!resp.ok) {
             alert("Failed to rename experiment: " + await resp.text());
             return;
@@ -101,6 +98,25 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
+        await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
+        refresh()
+    }
+
+    async function getEnvImage(logdir: String, seed: number): Promise<string> {
+        const resp = await fetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`);
+        return await resp.text();
+    }
+
+
+    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number) {
+        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns }, "POST");
+        if (!resp.ok) {
+            alert("Failed to start new run: " + await resp.text());
+            return;
+        }
+    }
+
     return {
         loading,
         experiments,
@@ -111,6 +127,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         unloadExperiment,
         getTestEpisodes,
         remove,
-        rename
+        rename,
+        testOnOtherEnvironment,
+        getEnvImage,
+        newRun
     };
 });

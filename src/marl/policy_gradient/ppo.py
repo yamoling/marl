@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import os
+from typing import Optional
 from serde import serde
 import torch
 import numpy as np
@@ -17,8 +18,10 @@ class PPO(RLAlgo):
         ac_network: nn.ActorCriticNN,
         train_policy: Policy,
         test_policy: Policy,
-        extra_policy: Policy = None,
+        extra_policy: Optional[Policy] = None,
         extra_policy_every: int = 100,
+        logits_clip_low: float = -10,
+        logits_clip_high: float = 10,
     ):
         super().__init__()
         self.device = get_device()
@@ -34,21 +37,26 @@ class PPO(RLAlgo):
         self.extra_policy_every = extra_policy_every
         self.episode_counter = 1
 
+        self.logits_clip_low = logits_clip_low
+        self.logits_clip_high = logits_clip_high
+
     def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
 
             logits, _ = self.network.forward(obs_data, obs_extras)  # get action logits
+            # logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)  # clamp logits to avoid overflow
 
             actions = self.policy.get_action(logits.cpu().numpy(), observation.available_actions)
-            return actions#.numpy(force=True)
+            return actions  # .numpy(force=True)
 
     def actions_logits(self, obs: Observation):
         obs_data = torch.tensor(obs.data).to(self.device, non_blocking=True)
         obs_extras = torch.tensor(obs.extras).to(self.device, non_blocking=True)
         logits, value = self.network.forward(obs_data, obs_extras)
-        logits[torch.tensor(obs.available_actions) == 0] = -1  # mask unavailable actions
+        # logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)
+        logits[torch.tensor(obs.available_actions) == 0] = -10  # mask unavailable actions
         return logits
 
     def value(self, obs: Observation) -> float:

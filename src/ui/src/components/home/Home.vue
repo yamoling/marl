@@ -1,17 +1,6 @@
 <template>
     <div class="row">
-        <div ref="contextMenu" class="context-menu">
-            <ul>
-                <li @click="() => rename()">
-                    <font-awesome-icon :icon="['far', 'pen-to-square']" class="pe-2" />
-                    Rename
-                </li>
-                <li @click="() => remove()">
-                    <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
-                    Delete
-                </li>
-            </ul>
-        </div>
+        <ContextMenu ref="contextMenu" />
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -56,7 +45,7 @@
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)"
                                 @click="() => resultsStore.load(exp.logdir)"
-                                @contextmenu="(e) => openContextMenu(e, exp.logdir)">
+                                @contextmenu="(e) => openContextMenu(e, exp)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -75,11 +64,12 @@
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
                                 <td>
-                                    <RouterLink class="btn btn-sm btn-success me-1" :to="'/inspect/' + exp.logdir"
+                                    <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + exp.logdir"
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
-                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                    <button v-if="resultsStore.results.has(exp.logdir)"
+                                        class="btn btn-sm btn-outline-primary me-1 mb-1"
                                         @click="() => downloadDatasets(exp.logdir)">
                                         <font-awesome-icon :icon="['fas', 'download']" />
                                     </button>
@@ -113,7 +103,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Dataset, toCSV } from '../../models/Experiment';
+import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
 import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
@@ -122,6 +112,7 @@ import { useExperimentStore } from '../../stores/ExperimentStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
 import { useColourStore } from '../../stores/ColourStore';
+import ContextMenu from './ContextMenu.vue';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
@@ -130,16 +121,17 @@ const colours = useColourStore();
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
+const contextMenu = ref({} as typeof ContextMenu);
 
 const selectedMetrics = ref(["score [train]"]);
-const contextMenuLogdir = ref(null as string | null);
-
 
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
     return res;
 });
+
+const loadedExperiments = computed(() => resultsStore.results.keys())
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
@@ -205,37 +197,12 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     }
 }
 
-const contextMenu = ref({} as HTMLDivElement);
 
 // Function to open context menu
-function openContextMenu(e: MouseEvent, logdir: string) {
-    contextMenuLogdir.value = logdir;
+function openContextMenu(e: MouseEvent, exp: Experiment) {
     e.preventDefault()
-    contextMenu.value.style.left = `${e.x}px`;
-    contextMenu.value.style.top = `${e.y}px`;
-    contextMenu.value.style.display = 'block';
+    contextMenu.value.show(exp, e.x, e.y);
 }
-
-function rename() {
-    if (contextMenuLogdir.value === null) return;
-    const logdir = contextMenuLogdir.value;
-    const newLogdir = prompt("Enter new name for the experiment", logdir);
-    if (newLogdir === null) return;
-    experimentStore.rename(logdir, newLogdir);
-}
-
-function remove() {
-    const logdir = contextMenuLogdir.value;
-    if (logdir === null) return;
-    if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
-        experimentStore.remove(logdir);
-    }
-}
-
-document.addEventListener('click', () => {
-    contextMenu.value.style.display = 'none';
-    contextMenuLogdir.value = null;
-});
 
 
 </script>

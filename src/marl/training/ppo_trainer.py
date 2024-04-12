@@ -26,6 +26,8 @@ class PPOTrainer(Trainer):
         c1: float = 0.5,  # C1 and C2 from the paper equation 9
         c2: float = 0.01,
         n_epochs: int = 5,
+        logits_clip_low: float = -10,
+        logits_clip_high: float = 10,
     ):
         super().__init__(train_every, update_interval)
         self.network = network
@@ -47,6 +49,9 @@ class PPOTrainer(Trainer):
         self.device = network.device
         self.batch = self._make_graph()
         self.update_num = 0
+        
+        self.logits_clip_low = logits_clip_low
+        self.logits_clip_high = logits_clip_high
 
         self.to(self.device)
 
@@ -71,13 +76,19 @@ class PPOTrainer(Trainer):
             returns[i] = batch.rewards[i] + self.gamma * returns[i + 1] * (1 - batch.dones[i])
         return returns
 
-    def get_value_and_action_probs(self, observation, extras, available_actions, actions) -> tuple[torch.Tensor, np.ndarray]:
+    def get_value_and_action_probs(self, observation, extras, available_actions, actions):
         with torch.no_grad():
             logits, value = self.network.forward(observation, extras)
+            # logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)
             logits[available_actions == 0] = -torch.inf
+            
+            # probs = torch.nn.functional.softmax(logits, dim=-1)
+            # dist = torch.distributions.Categorical(probs=probs)
+
             dist = torch.distributions.Categorical(logits=logits)
 
-            return value, dist.log_prob(actions).numpy(force=True)
+            # return value, dist.log_prob(actions).numpy(force=True)
+            return value, dist.log_prob(actions)
 
     def _update(self, time_step: int):
         self.update_num += 1
@@ -94,11 +105,12 @@ class PPOTrainer(Trainer):
         batch_values = []
         batch_log_probs = []
         for i in range(mem_len):
-            value, prob = self.get_value_and_action_probs(batch.obs[i], batch.extras[i], batch.available_actions[i], batch.actions[i])
+            value, log_probs = self.get_value_and_action_probs(batch.obs[i], batch.extras[i], batch.available_actions[i], batch.actions[i])
             batch_values.append(value)
-            batch_log_probs.append(prob)
+            batch_log_probs.append(log_probs)
         batch_values = torch.stack(batch_values).to(self.device)
-        batch_log_probs = torch.tensor(np.array(batch_log_probs)).to(self.device)
+        # batch_log_probs = torch.tensor(np.array(batch_log_probs)).to(self.device)
+        batch_log_probs = torch.stack(batch_log_probs).to(self.device)
 
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
@@ -129,11 +141,20 @@ class PPOTrainer(Trainer):
                 values = batch_values[b]
 
                 new_logits, new_values = self.network.forward(obs, extras)
-
+                
+                # new_logits = torch.clamp(new_logits, self.logits_clip_low, self.logits_clip_high)
                 new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
-
-                dist = torch.distributions.Categorical(logits=new_logits)
-                new_log_probs = dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
+                
+                # probs = torch.nn.functional.softmax(new_logits, dim=-1)
+                # new_dist = torch.distributions.Categorical(probs=probs)
+                
+                new_dist = torch.distributions.Categorical(logits=new_logits)
+                
+                
+                # probs = self.test_policy.get_probs()
+                # new_probs = torch.nn.functional.softmax(new_logits, dim=-1)
+                new_log_probs = new_dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
+                # new_log_probs = torch.log(probs + 1e-20).view(old_log_probs.shape)
 
                 # Compute ratio between new and old probabilities in the log space (basically importance sampling)
                 rho = torch.exp(new_log_probs - old_log_probs)
@@ -148,14 +169,19 @@ class PPOTrainer(Trainer):
                 critic_loss = torch.mean((new_values.reshape(returns.shape) - returns) ** 2)
 
                 # Entropy loss
-                entropy_loss: torch.Tensor = torch.mean(dist.entropy())
+                entropy_loss: torch.Tensor = torch.mean(new_dist.entropy())
 
                 self.optimiser.zero_grad()
                 # Maximize actor loss, minimize critic loss and maximize entropy loss
                 loss = -actore_loss + self.c1 * critic_loss - self.c2 * entropy_loss
                 loss.backward()
+                # for name, param in self.network.named_parameters():
+                #     if param.grad is not None:
+                #         print(f'Parameter: {name}, Gradient: {param.grad}')
+                #     else:
+                #         print(f'Parameter: {name}, Gradient: None')
                 self.optimiser.step()
-        return {}
+        return {"actor_loss": actore_loss.item(), "critic_loss": critic_loss.item(), "entropy_loss": entropy_loss.item(), "rho": rho.mean().item()}
 
     def to(self, device: torch.device):
         self.device = device

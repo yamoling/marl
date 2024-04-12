@@ -10,10 +10,11 @@ from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
 
 T = TypeVar("T")
+B = TypeVar("B", bound=Batch)
 
 
 @dataclass
-class ReplayMemory(Generic[T], ABC):
+class ReplayMemory(Generic[B, T], ABC):
     """Parent class of any ReplayMemory"""
 
     max_size: int
@@ -32,7 +33,7 @@ class ReplayMemory(Generic[T], ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def sample(self, batch_size: int) -> Batch:
+    def sample(self, batch_size: int) -> B:
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.randint(0, len(self), batch_size)
         return self.get_batch(indices)
@@ -49,7 +50,7 @@ class ReplayMemory(Generic[T], ABC):
         return len(self) == self.max_size
 
     @abstractmethod
-    def get_batch(self, indices: Iterable[int]) -> Batch:
+    def get_batch(self, indices: Iterable[int]) -> B:
         """Create a `Batch` from the given indices"""
 
     def __len__(self) -> int:
@@ -59,7 +60,7 @@ class ReplayMemory(Generic[T], ABC):
         return self._memory[index]
 
 
-class TransitionMemory(ReplayMemory[Transition]):
+class TransitionMemory(ReplayMemory[TransitionBatch, Transition]):
     """Replay Memory that stores Transitions"""
 
     def __init__(self, max_size: int):
@@ -70,7 +71,7 @@ class TransitionMemory(ReplayMemory[Transition]):
         return TransitionBatch(transitions)
 
 
-class EpisodeMemory(ReplayMemory[Episode]):
+class EpisodeMemory(ReplayMemory[EpisodeBatch, Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
     def __init__(self, max_size: int):

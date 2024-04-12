@@ -65,3 +65,7 @@ class TransitionBatch(Batch):
     @cached_property
     def masks(self):
         return torch.ones(self.size).to(self.device)
+
+    @cached_property
+    def probs(self):
+        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device)
