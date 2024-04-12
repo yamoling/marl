@@ -1,11 +1,12 @@
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
-
+import torch
 import marl
 
 from marl.models.trainer import Trainer
 from marl.models.algo import RLAlgo
 from marl.models.run import Run, RunHandle
+from marl.policy_gradient import DDPG
 
 from .runner import Runner
 
@@ -29,7 +30,13 @@ class SimpleRunner(Runner):
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
-            transition = Transition(obs, action, reward, done, info, obs_, truncated)
+            if (isinstance(self._algo, DDPG)):  # needs old probs because off policy training
+                logits = self._algo.actions_logits(obs)
+                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy()
+                transition = Transition(obs, action, reward, done, info, obs_, truncated, probs)
+            else:
+                transition = Transition(obs, action, reward, done, info, obs_, truncated)            
+
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)

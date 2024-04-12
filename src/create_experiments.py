@@ -77,16 +77,10 @@ def create_ddpg_lle(args: Arguments):
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
+    memory = marl.models.TransitionMemory(5_000)
     
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=400_000,
-    )
+    train_policy = marl.policy.CategoricalPolicy()
     test_policy = marl.policy.ArgMax()
-
-
 
     trainer = DDPGTrainer(
         network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95
@@ -94,6 +88,8 @@ def create_ddpg_lle(args: Arguments):
 
     algo = marl.policy_gradient.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
     logdir = f"logs/{env.name}-TEST-DDPG"
+    if args.debug:
+        logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
@@ -312,8 +308,8 @@ def create_lle_maic(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_ddpg_lle(args)
-        exp = create_ppo_lle(args)
+        exp = create_ddpg_lle(args)
+        # exp = create_ppo_lle(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)

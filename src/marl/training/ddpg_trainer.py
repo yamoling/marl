@@ -32,7 +32,7 @@ class DDPGTrainer(Trainer):
         self.lr = lr
         self.tau = tau
 
-
+        # self.optimiser = self._make_optimizer(optimiser, self.network.parameters())
         self.policy_optimiser =  torch.optim.Adam(self.network.policy_parameters, self.lr)
         self.value_optimiser =  torch.optim.Adam(self.network.value_parameters, self.lr)
 
@@ -80,36 +80,39 @@ class DDPGTrainer(Trainer):
         rewards = batch.rewards.squeeze(-1)
         states = batch.states
         states_ = batch.states_
+        probs = batch.probs
         with torch.no_grad():        
+
+            # get next actions
             new_logits, _ = self.network.forward(obs_, extras_)
             # new_logits, _ = self.target_network.forward(obs_, extras_)
             new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
             new_logits = new_logits.reshape(actions.shape[0], actions.shape[1], -1)
-            new_actions = torch.argmax(new_logits, dim=2)
+            new_probs = torch.distributions.Categorical(logits=new_logits).probs
 
-            new_actions_formated = torch.nn.functional.one_hot(new_actions, new_logits.shape[-1])
-            # new_values = self.target_network.value(states_ , extras_, new_actions_formated)
-            new_values = self.network.value(states_ , extras_, new_actions_formated)
+            # get next values
+            new_values = self.network.value(states_ , extras_, new_probs)
+            # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
-        
 
-        actions_formated = torch.nn.functional.one_hot(actions, new_logits.shape[-1])
-        old_value = self.network.value(states, extras, actions_formated)
+
+        old_value = self.network.value(states, extras, probs)
 
         value_loss = torch.nn.functional.mse_loss(old_value, target_values) 
         self.value_optimiser.zero_grad()
-        value_loss.backward()
+        value_loss.backward()      
         self.value_optimiser.step()
 
 
+        # get actions
         logits_current_policy, _ = self.network.forward(obs, extras)
+        
         # reshape and mask unavailable actions
         logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)
         logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
-        actions_current_policy = torch.argmax(logits_current_policy, dim=2)
-        actions_current_policy_formatted = torch.nn.functional.one_hot(actions_current_policy, new_logits.shape[-1])
+        probs_current_policy = torch.distributions.Categorical(logits=logits_current_policy).probs
 
-        actor_loss = self.network.value(states, extras, actions_current_policy_formatted)
+        actor_loss = self.network.value(states, extras, probs_current_policy)
         actor_loss = -actor_loss.mean()
 
         self.policy_optimiser.zero_grad()
@@ -117,7 +120,7 @@ class DDPGTrainer(Trainer):
         self.policy_optimiser.step()
 
         # self._update_networks()
-        return {}
+        return {"value_loss": value_loss.item(), "actor_loss": actor_loss.item()}
 
     def randomize(self):
         self.network.randomize()
