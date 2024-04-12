@@ -455,7 +455,12 @@ class CNN_ActorCritic(ActorCriticNN):
         return features
 
     def policy(self, obs: torch.Tensor):
-        return self.policy_network(obs)
+        logits = self.policy_network(obs)
+        logits = torch.clip(logits, min=0,max=4)
+        # scaled_logits = logits / 10
+        # logits = logits.clamp(min=1e-6, max=5)
+        return logits
+        # return scaled_logits
 
     def value(self, obs: torch.Tensor):
         return self.value_network(obs)

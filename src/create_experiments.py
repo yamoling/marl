@@ -135,7 +135,7 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high
     )
     # logdir = f"logs/{env.name}-PPO-5"
-    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip"
+    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip4"
     if args.debug:
         logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
