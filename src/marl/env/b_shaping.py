@@ -81,7 +81,7 @@ class DelayedRewardHandler:
 class BShaping(RLEnvWrapper):
     """Bottleneck shaping"""
 
-    def __init__(self, env: RLEnv, world: World, extra_reward: float, delay: int):
+    def __init__(self, env: RLEnv, world: World, extra_reward: float, delay: int, reward_in_laser: bool):
         # Assumes that
         # - the start positions are on top
         # - the exits are on the bottom
@@ -90,8 +90,9 @@ class BShaping(RLEnvWrapper):
         reward_positions = [set[int]() for _ in range(world.n_agents)]
         for (i, _), laser in world.lasers:
             for agent_id in range(world.n_agents):
-                if laser.agent_id != agent_id:
-                    reward_positions[agent_id].add(i + 1)
+                if reward_in_laser:
+                    reward_positions[agent_id].add(i)
+                reward_positions[agent_id].add(i + 1)
         self.delayed_rewards = DelayedRewardHandler(world.n_agents, reward_positions, delay, extra_reward)
         extras_shape = (env.extra_feature_shape[0] + self.delayed_rewards.extras_size,)
         super().__init__(env, extra_feature_shape=extras_shape)

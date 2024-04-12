@@ -12,9 +12,11 @@ from types import SimpleNamespace
 
 
 class Arguments(RunArguments):
+    map_file: str = tap.arg(help="The map file to use")
+    reward_in_laser: bool = tap.arg(default=False, help="Whether the reward is given in the laser or not")
     reward_delay: int = tap.arg(help="The number of steps before the reward is given")
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
-    override: bool = tap.arg(default=False, help="Override the existing experiment directory")
+    overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
 
@@ -115,7 +117,7 @@ def create_ppo_lle(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 200_000
+    n_steps = 300_000
     test_interval = 5000
     gamma = 0.95
     from marl.env.zero_punishment import ZeroPunishment
@@ -123,15 +125,14 @@ def create_lle(args: Arguments):
     from marl.env.b_shaping import BShaping
 
     # file = "maps/1b"
-    file = "maps/2b-bis"
     # file = "maps/lvl6-no-gems"
-    builder = LLE.from_file(file)
+    builder = LLE.from_file(args.map_file)
     lle = builder.obs_type(ObservationType.LAYERED).build()
     env = lle
     env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = BShaping(env, lle.world, 1, args.reward_delay)
+    env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
     # env = ZeroPunishment(env)
-    env = rlenv.Builder(env).agent_id().time_limit(lle.width * lle.height // 2, add_extra=True).build()
+    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 1.5), add_extra=True).build()
 
     # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -170,15 +171,15 @@ def create_lle(args: Arguments):
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/{env.name}"
-        if trainer.mixer is not None:
-            args.logdir += f"-{trainer.mixer.name}"
-        else:
-            args.logdir += "-iql"
-        if trainer.ir_module is not None:
-            args.logdir += f"-{trainer.ir_module.name}"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            args.logdir += "-PER"
+        args.logdir = f"logs/bottleneck-{args.map_file.replace('maps/', 'map=')}-delay={args.reward_delay}"
+        # if trainer.mixer is not None:
+        #     args.logdir += f"-{trainer.mixer.name}"
+        # else:
+        #     args.logdir += "-iql"
+        # if trainer.ir_module is not None:
+        #     args.logdir += f"-{trainer.ir_module.name}"
+        # if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+        #     args.logdir += "-PER"
     return marl.Experiment.create(
         args.logdir,
         algo=algo,
@@ -260,7 +261,7 @@ def main(args: Arguments):
             run_experiment(args)
             # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
-        if not args.override:
+        if not args.overwrite:
             response = ""
             response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
             if response.lower() != "y":

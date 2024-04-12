@@ -249,5 +249,5 @@ class RunHandle:
         with open(os.path.join(train_dir, ACTIONS), "w") as a:
             json.dump(episode.actions.tolist(), a)
 
-    def log_train_step(self, metrics: dict[str, float], time_step: int):
-        self.training_data_logger.log(metrics, time_step)
+    def log_train_step(self, training_logs: dict[str, float], time_step: int):
+        self.training_data_logger.log(training_logs, time_step)

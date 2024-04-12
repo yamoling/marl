@@ -106,7 +106,7 @@ export function confidenceInterval(mean: number[], std: number[], nSamples: numb
 }
 
 export function clip(values: number[], min: number[], max: number[]) {
-    const result = new Array(values.length);
+    const result = new Array<number>(values.length);
     for (let i = 0; i < values.length; i++) {
         result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
     }

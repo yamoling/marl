@@ -64,11 +64,12 @@
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
                                 <td>
-                                    <RouterLink class="btn btn-sm btn-success me-1" :to="'/inspect/' + exp.logdir"
+                                    <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + exp.logdir"
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
-                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                    <button v-if="resultsStore.results.has(exp.logdir)"
+                                        class="btn btn-sm btn-outline-primary me-1 mb-1"
                                         @click="() => downloadDatasets(exp.logdir)">
                                         <font-awesome-icon :icon="['fas', 'download']" />
                                     </button>
@@ -129,6 +130,8 @@ const metrics = computed(() => {
     resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
     return res;
 });
+
+const loadedExperiments = computed(() => resultsStore.results.keys())
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
