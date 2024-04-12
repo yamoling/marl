@@ -143,12 +143,12 @@ def create_lle(args: Arguments):
     from marl.env.b_shaping import BShaping
 
     # file = "maps/1b"
-    # file = "maps/lvl6-no-gems"
-    builder = LLE.from_file(args.map_file)
+    file = "maps/2b-ter"
+    builder = LLE.from_file(file)
     lle = builder.obs_type(ObservationType.LAYERED).build()
     env = lle
     env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
+    # env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
     # env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 1.5), add_extra=True).build()
 
@@ -189,7 +189,7 @@ def create_lle(args: Arguments):
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/bottleneck-{args.map_file.replace('maps/', 'map=')}-delay={args.reward_delay}"
+        args.logdir = f"logs/bottleneck-map={file}-baseline"
         # if trainer.mixer is not None:
         #     args.logdir += f"-{trainer.mixer.name}"
         # else:
@@ -402,11 +402,11 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
-        exp = create_ppo_lle(args)
-        # exp = create_lle(args)
+        # exp = create_ppo_lle(args)
+        exp = create_lle(args)
         # exp = create_lle_maic(args)
         print(exp.logdir)
-        shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
+        shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
