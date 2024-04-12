@@ -12,9 +12,6 @@ from types import SimpleNamespace
 
 
 class Arguments(RunArguments):
-    map_file: str = tap.arg(help="The map file to use")
-    reward_in_laser: bool = tap.arg(default=False, help="Whether the reward is given in the laser or not")
-    reward_delay: int = tap.arg(help="The number of steps before the reward is given")
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
     overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
@@ -73,7 +70,7 @@ def create_smac(args: Arguments):
 
 def create_ddpg_lle(args: Arguments):
     n_steps = 500_000
-    env = lle.LLE.level(2, obs_type=lle.ObservationType.LAYERED, state_type=lle.ObservationType.FLATTENED)
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
@@ -95,7 +92,7 @@ def create_ddpg_lle(args: Arguments):
 
 def create_ppo_lle(args: Arguments):
     n_steps = 500_000
-    env = lle.LLE.level(3, lle.ObservationType.LAYERED)
+    env = LLE.level(3).obs_type(ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -213,11 +210,11 @@ def create_lle(args: Arguments):
 
 def create_lle_baseline(args: Arguments):
     # use Episode update -> use reshape in the nn
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    obs_type = lle.ObservationType.LAYERED
+    env = lle.LLE.level(6, obs_type=obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -276,10 +273,10 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -339,10 +336,10 @@ def create_lle_maic(args: Arguments):
 
 
 def create_lle_maicRQN(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = lle.ObservationType.PARTIAL_7x7
-    env = lle.LLE.level(4, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
+    env = lle.LLE.level(6, obs_type, state_type=lle.ObservationType.FLATTENED, multi_objective=False)
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -404,10 +401,11 @@ def create_lle_maicRQN(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        exp = create_ddpg_lle(args)
-        # exp = create_ppo_lle(args)
+        # exp = create_ppo_lle()
         # exp = create_lle(args)
+        exp = create_lle_baseline(args)
         # exp = create_lle_maic(args)
+        # exp = create_lle_maicRQN(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/create_experiment.py")
         if args.run:

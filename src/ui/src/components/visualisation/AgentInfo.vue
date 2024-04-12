@@ -16,8 +16,9 @@
                     </th>
                 </tr>
             </thead>
-            <tbody v-if="currentQvalues.length > 0">
-                <tr v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+            <tbody>
+                <tr v-if="currentQvalues.length > 0"
+                    v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                     <th scope="row" class="text-capitalize"> {{ objective }} </th>
                     <td v-for="action in currentQvalues.length"
                         :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
@@ -25,6 +26,18 @@
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
+                <tr v-if="episode?.logits">
+                    <th> <b>Logits</b></th>
+                    <td v-for="logit in episode.logits[currentStep][0]">
+                        {{ logit[0].toFixed(4) }}
+                    </td>
+                </tr>
+                <tr v-if="episode?.probs">
+                    <th> <b>Probs</b></th>
+                    <td v-for="prob in episode.probs[currentStep][0]">
+                        {{ prob[0].toFixed(4) }}
+                    </td>
+                </tr>
             </tbody>
             <tfoot v-if="experiment.env.reward_space.size > 1">
                 <tr>
