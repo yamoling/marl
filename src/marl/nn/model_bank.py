@@ -336,7 +336,9 @@ class DDPG_NN_TEST(ActorCriticNN):
         return self.policy(features), 0
 
     def policy(self, obs: torch.Tensor):
-        return self.policy_network(obs)
+        logits = self.policy_network(obs)
+        # clipped_logits = torch.clamp(logits, 0, 4)
+        return logits
     
     def value(self, state: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
         actions = actions.view(actions.shape[0], -1)
