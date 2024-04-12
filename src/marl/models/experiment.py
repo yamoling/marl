@@ -273,6 +273,8 @@ class Experiment:
         episode = EpisodeBuilder()
         values = []
         qvalues = []
+        llogits = []
+        pprobs = []
         self.algo.new_episode()
         self.algo.set_testing()
         for action in actions:
@@ -280,12 +282,11 @@ class Experiment:
                 logits = self.algo.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
-                # qvalues.append(dist.probs.unsqueeze(-1).tolist())
-
+                pprobs.append(dist.probs.unsqueeze(-1).tolist())
                 # logits
                 logits = self.algo.actions_logits(obs).unsqueeze(-1).tolist()
                 logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
-                qvalues.append(logits)
+                llogits.append(logits)
 
                 # state-action value
                 probs = dist.probs.unsqueeze(0)  # type: ignore
@@ -294,14 +295,14 @@ class Experiment:
                 values.append(value)
                 print(value)
 
-            if isinstance(self.algo, PPO):
+            if isinstance(self.algo, (PPO)):
                 logits = self.algo.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
-                # qvalues.append(dist.probs.unsqueeze(-1).tolist())
+                pprobs.append(dist.probs.unsqueeze(-1).tolist())
 
                 # logits
-                qvalues.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
+                llogits.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
 
                 # state value
                 value = self.algo.value(obs)
@@ -326,4 +327,6 @@ class Experiment:
             frames=frames,
             metrics=episode.metrics,
             state_values=values,
+            probs=pprobs,
+            logits=llogits,
         )

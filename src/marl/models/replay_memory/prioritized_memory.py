@@ -2,13 +2,13 @@ from typing import Optional
 from sumtree import SumTree
 import torch
 from dataclasses import dataclass
-from .replay_memory import ReplayMemory, T
+from .replay_memory import ReplayMemory, T, B
 from marl.models import Batch
 from marl.utils import Schedule
 
 
 @dataclass
-class PrioritizedMemory(ReplayMemory[T]):
+class PrioritizedMemory(ReplayMemory[B, T]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -17,7 +17,7 @@ class PrioritizedMemory(ReplayMemory[T]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    memory: ReplayMemory[T]
+    memory: ReplayMemory[B, T]
     alpha: Schedule
     beta: Schedule
     eps: float
@@ -26,7 +26,7 @@ class PrioritizedMemory(ReplayMemory[T]):
 
     def __init__(
         self,
-        memory: ReplayMemory[T],
+        memory: ReplayMemory[B, T],
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
         eps: float = 1e-2,
@@ -59,7 +59,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         self.tree.add(self.max_priority)
         self.memory.add(item)
 
-    def sample(self, batch_size: int) -> Batch:
+    def sample(self, batch_size: int):
         # Sample the indices from the sumtree, proportional to their priority
         self.sampled_indices, priorities = self.tree.sample(batch_size)
 
@@ -92,7 +92,7 @@ class PrioritizedMemory(ReplayMemory[T]):
         batch.importance_sampling_weights = weights / torch.max(weights)
         return batch
 
-    def get_batch(self, indices: list[int]) -> Batch:
+    def get_batch(self, indices: list[int]):
         return self.memory.get_batch(indices)
 
     def __len__(self) -> int:
