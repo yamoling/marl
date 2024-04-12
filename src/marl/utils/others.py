@@ -1,6 +1,5 @@
 import base64
 import cv2
-import torch
 import numpy as np
 from serde import serde
 from typing import Callable, Optional, TypeVar, Literal
@@ -23,48 +22,6 @@ def seed(seed_value: int, env: Optional[RLEnv] = None):
 
 
 T = TypeVar("T")
-
-
-@serde
-@dataclass
-class GPU:
-    index: int
-    name: str
-    total_memory: int
-    used_memory: int
-    utilization: float
-    memory_usage: float
-
-    def __init__(self, index: int):
-        self.device = torch.device(f"cuda:{index}")
-        self.index = index
-        self.name = torch.cuda.get_device_name(index)
-        self.free_memory, self.total_memory = torch.cuda.mem_get_info(self.device)
-        self.used_memory = self.total_memory - self.free_memory
-        self.utilization = torch.cuda.utilization(self.device)
-        self.memory_usage = self.used_memory / self.total_memory
-        """Memory usage between 0 and 1"""
-
-
-def list_gpus() -> list[GPU]:
-    """List all available GPU devices"""
-    return [GPU(i) for i in range(torch.cuda.device_count())]
-
-
-def get_device(device: Literal["auto", "cuda", "cpu"] = "auto") -> torch.device:
-    """Get the given device"""
-    if device == "auto" or device == "" or device is None:
-        if not torch.cuda.is_available():
-            return torch.device("cpu")
-        devices = list_gpus()
-        # Order the GPUs by utilisation * memory_usage
-        devices.sort(key=lambda g: g.utilization * g.memory_usage)
-        for gpu in devices:
-            if gpu.memory_usage < 0.85:
-                return gpu.device
-        # Fallback to CPU if no GPU is available
-        return torch.device("cpu")
-    return torch.device(device)
 
 
 def defaults_to(value: T | None, default: Callable[[], T]) -> T:

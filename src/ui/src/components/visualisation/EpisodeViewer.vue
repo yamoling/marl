@@ -1,5 +1,5 @@
 <template>
-    <div ref="modal" id="oerfhdskj" class="modal fade" tabindex="-1">
+    <div ref="modal" class="modal fade" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
@@ -32,7 +32,10 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-auto mx-auto">
+                        <div v-if="episode" class="col-auto mx-auto">
+                            <p v-if="currentStep > 0">
+                                Reward: {{ episode.episode.rewards[currentStep - 1] }}
+                            </p>
                             <img :src="'data:image/jpg;base64, ' + currentFrame" />
                         </div>
                     </div>
@@ -106,9 +109,8 @@ function changeStep(event: KeyboardEvent) {
 async function viewEpisode(episodeDirectory: string) {
     episode.value = null;
     loading.value = true;
-    (new Modal("#" + modal.value.id)).show()
+    (new Modal(modal.value)).show()
     const replay = await replayStore.getEpisode(episodeDirectory);
-    console.log(replay)
     episode.value = replay;
     currentStep.value = 0;
     if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
