@@ -31,8 +31,11 @@ class GPU:
 
 def list_gpus() -> list[GPU]:
     """List all available GPU devices"""
-    cmd = "nvidia-smi  --format=csv,noheader,nounits --query-gpu=memory.total,memory.used,memory.free,utilization.gpu"
-    csv = subprocess.check_output(cmd, shell=True).decode().strip()
+    try:
+        cmd = "nvidia-smi  --format=csv,noheader,nounits --query-gpu=memory.total,memory.used,memory.free,utilization.gpu"
+        csv = subprocess.check_output(cmd, shell=True).decode().strip()
+    except subprocess.CalledProcessError:
+        return []
     res = []
     for i, line in enumerate(csv.split("\n")):
         total_memory, used_memory, free_memory, utilization = map(int, line.split(","))
@@ -49,20 +52,26 @@ def list_gpus() -> list[GPU]:
 
 
 def get_gpu_processes():
-    cmd = "nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits"
-    csv = subprocess.check_output(cmd, shell=True).decode().strip()
-    return set(map(int, csv.split("\n")))
+    try:
+        cmd = "nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits"
+        csv = subprocess.check_output(cmd, shell=True).decode().strip()
+        return set(map(int, csv.split("\n")))
+    except subprocess.CalledProcessError:
+        return set[int]()
 
 
 def get_max_gpu_usage(pids: set[int]):
-    cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
-    csv = subprocess.check_output(cmd, shell=True).decode().strip()
-    max_memory = 0
-    for line in csv.split("\n"):
-        pid, used_memory = map(int, line.split(","))
-        if pid in pids:
-            max_memory = max(max_memory, used_memory)
-    return max_memory
+    try:
+        cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
+        csv = subprocess.check_output(cmd, shell=True).decode().strip()
+        max_memory = 0
+        for line in csv.split("\n"):
+            pid, used_memory = map(int, line.split(","))
+            if pid in pids:
+                max_memory = max(max_memory, used_memory)
+        return max_memory
+    except subprocess.CalledProcessError:
+        return 0
 
 
 def get_device(
