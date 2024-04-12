@@ -10,6 +10,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from serde.json import to_json
 from serde import serde
+import torch
 from tqdm import tqdm
 
 
@@ -275,9 +276,40 @@ class Experiment:
         self.algo.new_episode()
         self.algo.set_testing()
         for action in actions:
-            values.append(self.algo.value(obs))
-            if isinstance(self.algo, (PPO, DDPG)):
-                qvalues.append(self.algo.actions_logits(obs).tolist())
+            if isinstance(self.algo, DDPG):
+                logits = self.algo.actions_logits(obs)
+                dist = torch.distributions.Categorical(logits=logits)
+                # probs
+                # qvalues.append(dist.probs.unsqueeze(-1).tolist())
+
+                # logits
+                logits = self.algo.actions_logits(obs).unsqueeze(-1).tolist()
+                logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
+                qvalues.append(logits)
+
+                # state-action value
+                probs = dist.probs.unsqueeze(0)  # type: ignore
+                state = torch.tensor(obs.state).to(self.algo.device, non_blocking=True).unsqueeze(0)
+                value = self.algo.state_action_value(state, probs)
+                values.append(value)
+                print(value)
+
+            if isinstance(self.algo, PPO):
+                logits = self.algo.actions_logits(obs)
+                dist = torch.distributions.Categorical(logits=logits)
+                # probs
+                # qvalues.append(dist.probs.unsqueeze(-1).tolist())
+
+                # logits
+                qvalues.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
+
+                # state value
+                value = self.algo.value(obs)
+                print(value)
+
+            else:
+                values.append(self.algo.value(obs))
+
             obs_, reward, done, truncated, info = self.test_env.step(action)
             episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
             frames.append(encode_b64_image(self.test_env.render("rgb_array")))
