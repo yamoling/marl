@@ -123,7 +123,6 @@ class Experiment:
 
     def move(self, new_logdir: str):
         """Move an experiment to a new directory."""
-        os.makedirs(new_logdir, exist_ok=False)
         shutil.move(self.logdir, new_logdir)
         self.logdir = new_logdir
         self.save()
