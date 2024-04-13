@@ -135,7 +135,7 @@ def create_ppo_lle(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 300_000
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
     from marl.env.zero_punishment import ZeroPunishment
@@ -143,14 +143,15 @@ def create_lle(args: Arguments):
     from marl.env.b_shaping import BShaping
 
     # file = "maps/1b"
-    file = "maps/2b-ter"
-    builder = LLE.from_file(file)
-    lle = builder.obs_type(ObservationType.LAYERED).build()
+    #file = "maps/2b-ter"
+    #builder = LLE.from_file(file)
+    builder = LLE.level(6)
+    lle = builder.obs_type(ObservationType.LAYERED).state_type(ObservationType.FLATTENED).build()
     env = lle
-    env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
+    # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
     # env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
     # env = ZeroPunishment(env)
-    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 1.5), add_extra=True).build()
+    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 2), add_extra=True).build()
 
     # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -160,6 +161,8 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=50_000,
     )
+    mixer = marl.qlearning.mixers.QPlex2.from_env(env)
+    # mixer = marl.qlearning.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -171,7 +174,7 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=mixer,
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
         # ir_module=rnd,
@@ -189,15 +192,15 @@ def create_lle(args: Arguments):
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/bottleneck-map={file}-baseline"
-        # if trainer.mixer is not None:
-        #     args.logdir += f"-{trainer.mixer.name}"
-        # else:
-        #     args.logdir += "-iql"
-        # if trainer.ir_module is not None:
-        #     args.logdir += f"-{trainer.ir_module.name}"
-        # if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-        #     args.logdir += "-PER"
+        args.logdir = f"logs/{env.name}"
+        if trainer.mixer is not None:
+            args.logdir += f"-{trainer.mixer.name}"
+        else:
+            args.logdir += "-iql"
+        if trainer.ir_module is not None:
+            args.logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            args.logdir += "-PER"
     return marl.Experiment.create(
         args.logdir,
         algo=algo,
