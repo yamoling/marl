@@ -336,7 +336,7 @@ def create_lle_maic(args: Arguments):
 
 
 def create_lle_maicRQN(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 300_000
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
@@ -353,10 +353,9 @@ def create_lle_maicRQN(args: Arguments):
     opt.entropy_loss_weight = 0.01
 
     gamma = 0.95
-    # Add the MAICNetwork (MAICAgent)
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
-    eps_steps = 200_000
+    eps_steps = 50_000
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
     bs = 32
     trainer = DQNTrainer(
@@ -384,7 +383,7 @@ def create_lle_maicRQN(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAICRQN-NoComm--{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        logdir = f"logs/MAICRQN-NoComm-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -403,9 +402,9 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
         # exp = create_ppo_lle(args)
-        exp = create_lle(args)
+        # exp = create_lle(args)
         # exp = create_lle_maic(args)
-        # exp = create_lle_maicRQN(args)
+        exp = create_lle_maicRQN(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:

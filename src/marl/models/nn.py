@@ -72,7 +72,7 @@ class RecurrentNN(NN):
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 
-    def reset_hidden_states(self, bs: Optional[int] = None):
+    def reset_hidden_states(self):
         """Reset the hidden states"""
         self.hidden_states = None
 
@@ -80,7 +80,7 @@ class RecurrentNN(NN):
         if not mode:
             # Set test mode: save training hidden states
             self.saved_hidden_states = self.hidden_states
-            self.reset_hidden_states(1)
+            self.reset_hidden_states()
         else:
             # Set train mode
             if not self.training:

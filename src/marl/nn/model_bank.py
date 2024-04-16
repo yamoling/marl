@@ -1006,11 +1006,11 @@ class MAICNetworkRDQN(RecurrentQNetwork):
             activation_func,
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
         )
-
-        if len(input_shape) == 1:
-            n_inputs = input_shape[0] + extras_shape[0]  # When FLATTENED
-        else:
-            n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]  # When LAYERED
+        # Use layered partial obs
+        # if len(input_shape) == 1:
+        #     n_inputs = input_shape[0] + extras_shape[0]  # When FLATTENED
+        #else:
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]  # When LAYERED
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
@@ -1023,71 +1023,74 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
         self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
-    def reset_hidden_states(self, bs):
-        """Reset the hidden states"""
-        self.hidden_states = self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_().unsqueeze(0).expand(bs or 1, self.n_agents, -1)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        if len(obs.shape) == 3:
-            # When FLATTENED
-            bs, n_agents, obs_size = obs.shape
-            obs = torch.reshape(obs, (-1, obs_size))
-            if extras is not None:
-                extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                obs = torch.concat((obs, extras), dim=-1)
+        # Use partial Layered dims
+        # if len(obs.shape) == 3:
+        #     # When FLATTENED
+        #     bs, n_agents, obs_size = obs.shape
+        #     obs = torch.reshape(obs, (-1, obs_size))
+        #     if extras is not None:
+        #         extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
+        #         obs = torch.concat((obs, extras), dim=-1)
+        
+        # When LAYERED
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3
+        total_batch = math.prod(dims)
+        if is_batch:
+            steps = dims[0]
+            bs = dims[1]
         else:
-            # When LAYERED
-            *dims, channels, height, width = obs.shape
-            total_batch = math.prod(dims)
-            if len(dims) == 2:
-                bs = dims[0]
-            else:
-                bs = dims[1]
-            # obs = obs.view(bs, channels, height, width)
-            obs = obs.reshape(total_batch, -1)
+            steps = 1
+            bs = dims[0]
+
+        obs = obs.reshape(total_batch, -1)
+        if extras is not None:
             extras = extras.reshape(total_batch, *self.extras_shape)
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
-        h = self.rnn(x, self.hidden_states)
-        self.hidden_states = h
-        q = self.fc2(h)
+        self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(self.hidden_states)
 
-        # latent_parameters = self.embed_net(h)
-        # latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
-        #     torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
-        # )
+        latent_parameters = self.embed_net(self.hidden_states)
+        latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
+        )
 
-        # latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+        latent_embed = latent_parameters.reshape(steps * bs * self.n_agents, self.n_agents * self.latent_dim * 2)
 
-        # if self.test_mode:
-        #     latent = latent_embed[:, : self.n_agents * self.latent_dim]
-        # else:
-        #     gaussian_embed = D.Normal(
-        #         latent_embed[:, : self.n_agents * self.latent_dim],
-        #         (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
-        #     )
-        #     latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
-        # latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+        if self.test_mode:
+            latent = latent_embed[:, : self.n_agents * self.latent_dim]
+        else:
+            gaussian_embed = D.Normal(
+                latent_embed[:, : self.n_agents * self.latent_dim],
+                (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+            )
+            latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
 
-        # h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-        # msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+        latent = latent.reshape(steps * bs * self.n_agents * self.n_agents, self.latent_dim)
 
-        # query = self.w_query(h).unsqueeze(1)
-        # key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        # alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
-        # for i in range(self.n_agents):
-        #     alpha[:, i, i] = -1e9
-        # alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+        h_repeat = self.hidden_states.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(steps, bs, self.n_agents, self.n_agents, self.n_actions)
 
-        # if self.test_mode:
-        #     alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+        query = self.w_query(self.hidden_states).unsqueeze(2)
+        key = self.w_key(latent).reshape(steps * bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(steps, bs, self.n_agents, self.n_agents)
+        for i in range(self.n_agents):
+            alpha[:, i, i] = -1e9
+        alpha = F.softmax(alpha, dim=-1).reshape(steps, bs, self.n_agents, self.n_agents, 1)
 
-        # gated_msg = alpha * msg
+        if self.test_mode:
+            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
 
-        return_q = q  # + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+        gated_msg = alpha * msg
 
-        returns = {}
+        return_q = q  + torch.sum(gated_msg, dim=1).view(steps * bs * self.n_agents, self.n_actions)
+
+        #returns = {}
 
         # returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
         # query = self.w_query(h.detach()).unsqueeze(1)
@@ -1097,43 +1100,28 @@ class MAICNetworkRDQN(RecurrentQNetwork):
 
         return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """
-        Compute the Q-values for a batch of observations (multiple episodes) during training.
+    # def calculate_action_mi_loss(self, h, bs, latent_embed, q):
+    #     latent_embed = latent_embed.view(bs * self.n_agents, 2, self.n_agents, self.latent_dim)
+    #     g1 = D.Normal(
+    #         latent_embed[:, 0, :, :].reshape(-1, self.latent_dim), latent_embed[:, 1, :, :].reshape(-1, self.latent_dim) ** (1 / 2)
+    #     )
+    #     hi = h.view(bs, self.n_agents, 1, -1).repeat(1, 1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
 
-        In this case, the RNN considers hidden states=None.
-        """
-        self.test_mode = False
-        bs = obs.shape[1]
-        qvalues = []
-        self.reset_hidden_states(bs)
-        for t in range(len(obs)):  # case of Episode Batch
-            qvalues.append(self.forward(obs[t], extras[t]))
+    #     selected_action = torch.max(q, dim=1)[1].unsqueeze(-1)
+    #     one_hot_a = torch.zeros(selected_action.shape[0], self.n_actions).to(self.device).scatter(1, selected_action, 1)
+    #     one_hot_a = one_hot_a.view(bs, 1, self.n_agents, -1).repeat(1, self.n_agents, 1, 1)
+    #     one_hot_a = one_hot_a.view(bs * self.n_agents * self.n_agents, -1)
 
-        return torch.stack(qvalues, dim=0)
+    #     latent_infer = self.inference_net(torch.cat([hi, one_hot_a], dim=-1)).view(bs * self.n_agents * self.n_agents, -1)
+    #     latent_infer[:, self.latent_dim :] = torch.clamp(torch.exp(latent_infer[:, self.latent_dim :]), min=self.args.var_floor)
+    #     g2 = D.Normal(latent_infer[:, : self.latent_dim], latent_infer[:, self.latent_dim :] ** (1 / 2))
+    #     mi_loss = kl_divergence(g1, g2).sum(-1).mean()
+    #     return mi_loss * self.args.mi_loss_weight
 
-    def calculate_action_mi_loss(self, h, bs, latent_embed, q):
-        latent_embed = latent_embed.view(bs * self.n_agents, 2, self.n_agents, self.latent_dim)
-        g1 = D.Normal(
-            latent_embed[:, 0, :, :].reshape(-1, self.latent_dim), latent_embed[:, 1, :, :].reshape(-1, self.latent_dim) ** (1 / 2)
-        )
-        hi = h.view(bs, self.n_agents, 1, -1).repeat(1, 1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-
-        selected_action = torch.max(q, dim=1)[1].unsqueeze(-1)
-        one_hot_a = torch.zeros(selected_action.shape[0], self.n_actions).to(self.device).scatter(1, selected_action, 1)
-        one_hot_a = one_hot_a.view(bs, 1, self.n_agents, -1).repeat(1, self.n_agents, 1, 1)
-        one_hot_a = one_hot_a.view(bs * self.n_agents * self.n_agents, -1)
-
-        latent_infer = self.inference_net(torch.cat([hi, one_hot_a], dim=-1)).view(bs * self.n_agents * self.n_agents, -1)
-        latent_infer[:, self.latent_dim :] = torch.clamp(torch.exp(latent_infer[:, self.latent_dim :]), min=self.args.var_floor)
-        g2 = D.Normal(latent_infer[:, : self.latent_dim], latent_infer[:, self.latent_dim :] ** (1 / 2))
-        mi_loss = kl_divergence(g1, g2).sum(-1).mean()
-        return mi_loss * self.args.mi_loss_weight
-
-    def calculate_entropy_loss(self, alpha):
-        alpha = torch.clamp(alpha, min=1e-4)
-        entropy_loss = -(alpha * torch.log2(alpha)).sum(-1).mean()
-        return entropy_loss * self.args.entropy_loss_weight
+    # def calculate_entropy_loss(self, alpha):
+    #     alpha = torch.clamp(alpha, min=1e-4)
+    #     entropy_loss = -(alpha * torch.log2(alpha)).sum(-1).mean()
+    #     return entropy_loss * self.args.entropy_loss_weight
 
     @classmethod
     def from_env(cls, env: RLEnv, args):
