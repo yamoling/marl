@@ -60,7 +60,7 @@ class DDPG(RLAlgo):
         return logits
 
     def state_action_value(self, state: Observation,actions: npt.NDArray[np.float32]):
-        value = self.network.value(state, None, actions)
+        value = self.network.value(state, None, actions) # type: ignore
         return value.item() 
 
     def save(self, to_path: str):

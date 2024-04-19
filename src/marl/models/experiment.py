@@ -281,7 +281,7 @@ class Experiment:
                 logits = self.algo.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
-                pprobs.append(dist.probs.unsqueeze(-1).tolist())
+                pprobs.append(dist.probs.unsqueeze(-1).tolist()) # type: ignore
                 # logits
                 logits = self.algo.actions_logits(obs).unsqueeze(-1).tolist()
                 logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
@@ -290,7 +290,7 @@ class Experiment:
                 # state-action value
                 probs = dist.probs.unsqueeze(0)  # type: ignore
                 state = torch.tensor(obs.state).to(self.algo.device, non_blocking=True).unsqueeze(0)
-                value = self.algo.state_action_value(state, probs)
+                value = self.algo.state_action_value(state, probs) # type: ignore
                 values.append(value)
                 print(value)
 
@@ -298,7 +298,7 @@ class Experiment:
                 logits = self.algo.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
-                pprobs.append(dist.probs.unsqueeze(-1).tolist())
+                pprobs.append(dist.probs.unsqueeze(-1).tolist()) # type: ignore
 
                 # logits
                 llogits.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())

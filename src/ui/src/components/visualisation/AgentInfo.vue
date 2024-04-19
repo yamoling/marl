@@ -26,13 +26,13 @@
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
-                <tr v-if="episode?.logits">
+                <tr v-if="episode?.logits && episode.logits.length > currentStep">
                     <th> <b>Logits</b></th>
                     <td v-for="logit in episode.logits[currentStep][0]">
                         {{ logit[0].toFixed(4) }}
                     </td>
                 </tr>
-                <tr v-if="episode?.probs">
+                <tr v-if="episode?.probs && episode.probs.length > currentStep">
                     <th> <b>Probs</b></th>
                     <td v-for="prob in episode.probs[currentStep][0]">
                         {{ prob[0].toFixed(4) }}

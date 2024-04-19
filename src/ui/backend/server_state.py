@@ -67,7 +67,10 @@ class GarbageCollector(Thread):
     def run(self):
         while True:
             time.sleep(60)
+            to_unload = []
             for logdir, timestamp in self.state.last_accessed.items():
                 if time.time() - timestamp > self.timeout_s:
-                    self.state.unload_experiment(logdir)
-                    del self.state.last_accessed[logdir]
+                    to_unload.append(logdir)
+            for logdir in to_unload:
+                self.state.unload_experiment(logdir)
+                del self.state.last_accessed[logdir]

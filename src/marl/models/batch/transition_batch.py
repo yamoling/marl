@@ -68,4 +68,4 @@ class TransitionBatch(Batch):
 
     @cached_property
     def probs(self):
-        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device) # type:ignore

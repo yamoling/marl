@@ -244,10 +244,10 @@ class RunHandle:
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
-        train_dir = self.run.train_dir(time_step - len(episode))
-        os.makedirs(train_dir)
-        with open(os.path.join(train_dir, ACTIONS), "w") as a:
-            json.dump(episode.actions.tolist(), a)
+        # train_dir = self.run.train_dir(time_step - len(episode))
+        # os.makedirs(train_dir)
+        # with open(os.path.join(train_dir, ACTIONS), "w") as a:
+        #     json.dump(episode.actions.tolist(), a)
 
     def log_train_step(self, training_logs: dict[str, float], time_step: int):
         self.training_data_logger.log(training_logs, time_step)

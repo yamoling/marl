@@ -100,29 +100,29 @@ def round_col(df: pl.DataFrame, col_name: str, round_value: int):
 def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
     if len(df) == 0:
         return df
-    grouped = df.groupby(col_name)
-    cols = [col for col in df.columns if col not in ["time_step", "timestamp_sec"]]
+    grouped = df.group_by(col_name)
+    cols = [col for col in df.columns if col != col_name]
     res = grouped.agg(
-        [pl.mean(col).alias(f"mean_{col}") for col in cols]
-        + [pl.std(col).alias(f"std_{col}") for col in cols]
-        + [pl.min(col).alias(f"min_{col}") for col in cols]
-        + [pl.max(col).alias(f"max_{col}") for col in cols]
-    ).sort("time_step")
+        [pl.mean(col).alias(f"mean-{col}") for col in cols]
+        + [pl.std(col).alias(f"std-{col}") for col in cols]
+        + [pl.min(col).alias(f"min-{col}") for col in cols]
+        + [pl.max(col).alias(f"max-{col}") for col in cols]
+    ).sort(col_name)
 
     # Compute confidence intervals for 95% confidence
     # https://stackoverflow.com/questions/28242593/correct-way-to-obtain-confidence-interval-with-scipy
     confidence_intervals = []
-    counts = grouped.count().sort("time_step")["count"]
+    counts = grouped.len().sort(col_name)["len"]
     scale = (counts**0.5).to_numpy().astype(np.float32)
     for col in cols:
-        mean = res[f"mean_{col}"].to_numpy().astype(np.float32)
+        mean = res[f"mean-{col}"].to_numpy().astype(np.float32)
         # Avoid zero std with +1e-8, otherwise a "inf" * 0 will be computed by scipy, leading to NaN
-        std = res[f"std_{col}"].to_numpy().astype(np.float32) + 1e-8
+        std = res[f"std-{col}"].to_numpy().astype(np.float32) + 1e-8
         # Use scipy.stats.t if the sample size is small (then degree of freedom, df, is n_samples - 1)
         # Use scipy.stats.norm if the sample size is large
         lower, upper = sp.norm.interval(0.95, loc=mean, scale=std / scale)
         ci95 = (upper - lower) / 2
-        new_col = pl.Series(name=f"ci95_{col}", values=ci95)
+        new_col = pl.Series(name=f"ci95-{col}", values=ci95)
         # new_col = 0.95 * res[f"std_{col}"] / n_samples**0.5
         # new_col = new_col.alias(f"ci95_{col}")
         confidence_intervals.append(new_col)
@@ -130,11 +130,11 @@ def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
     res = res.with_columns(confidence_intervals)
     if replace_inf:
         for series in res.select(pl.col(pl.FLOAT_DTYPES)):
-            # Type hinting
-            series: pl.Series
             mask = series.is_infinite() | series.is_nan()
             series[mask] = 1e20
-            res.replace(series.name, series)
+            res = res.with_columns(series)
+            # Formerly:
+            # res.replace(series.name, series)
     return res
 
 
@@ -164,11 +164,11 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
                 logdir=logdir,
                 ticks=ticks,
                 label=label,
-                mean=df_stats[f"mean_{col}"].to_list(),
-                std=df_stats[f"std_{col}"].to_list(),
-                min=df_stats[f"min_{col}"].to_list(),
-                max=df_stats[f"max_{col}"].to_list(),
-                ci95=df_stats[f"ci95_{col}"].to_list(),
+                mean=df_stats[f"mean-{col}"].to_list(),
+                std=df_stats[f"std-{col}"].to_list(),
+                min=df_stats[f"min-{col}"].to_list(),
+                max=df_stats[f"max-{col}"].to_list(),
+                ci95=df_stats[f"ci95-{col}"].to_list(),
             )
         )
     return res

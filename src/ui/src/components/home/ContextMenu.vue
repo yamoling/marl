@@ -85,3 +85,31 @@ function newRun() {
 
 }
 </script>
+
+
+<style>
+.context-menu {
+    width: fit-content;
+    position: fixed;
+    display: none;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    padding: 5px;
+    z-index: 1000;
+}
+
+.context-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.context-menu ul li {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.context-menu ul li:hover {
+    background-color: #f0f0f0;
+}
+</style>

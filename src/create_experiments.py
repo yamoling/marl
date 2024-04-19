@@ -149,7 +149,7 @@ def create_lle(args: Arguments):
     lle = builder.obs_type(ObservationType.LAYERED).state_type(ObservationType.FLATTENED).build()
     env = lle
     # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    # env = BShaping(env, lle.world, 1, args.reward_delay, args.reward_in_laser)
+    env = BShaping(env, lle.world, 1, 0, True)
     # env = ZeroPunishment(env)
     env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 2), add_extra=True).build()
 
@@ -161,7 +161,8 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=50_000,
     )
-    mixer = marl.qlearning.mixers.QPlex2.from_env(env)
+    mixer = marl.qlearning.mixers.QMix.from_env(env)
+    # mixer = marl.qlearning.mixers.QPlex2.from_env(env)
     # mixer = marl.qlearning.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,

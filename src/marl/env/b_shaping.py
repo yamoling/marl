@@ -3,7 +3,7 @@ from rlenv.wrappers import RLEnvWrapper
 from rlenv import Observation, RLEnv
 from dataclasses import dataclass
 from serde import serde
-from lle import Position, World
+from lle import Position, World, Direction
 
 
 @dataclass
@@ -89,6 +89,8 @@ class BShaping(RLEnvWrapper):
         # - lasers do not cross
         reward_positions = [set[int]() for _ in range(world.n_agents)]
         for (i, _), laser in world.lasers:
+            if laser.direction not in [Direction.EAST, Direction.WEST]:
+                continue
             for agent_id in range(world.n_agents):
                 if reward_in_laser:
                     reward_positions[agent_id].add(i)

@@ -25,6 +25,7 @@ class Arguments(tap.TypedArgs):
             import subprocess
             cmd = "nvidia-smi --list-gpus"
             output = subprocess.check_output(cmd, shell=True).decode()
+            # The driver exists but no GPU is available (for instance, the eGPU is disconnected)
             if "failed" in output:
                 return 1
             n_gpus = int(len(output.splitlines()))
@@ -55,9 +56,10 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
 def main(args: Arguments):
     from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
 
-    # NOTE: within a docker, the pids do not match so we have to retrieve the pids unreliably
+    # NOTE: within a docker, the pids do not match with the host, so we have to retrieve the pids "unreliably"
     initial_pids = get_gpu_processes()
     estimated_gpu_memory = 0
+    print(f"Running on {args.n_processes} processes")
     with Pool(args.n_processes) as pool:
         handles = list[AsyncResult]()
         for run_num in range(args.n_runs):

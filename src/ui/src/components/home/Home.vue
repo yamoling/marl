@@ -1,6 +1,7 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenu" />
+        <RunHover ref="runHover"/>
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -22,16 +23,18 @@
                     <thead>
                         <tr>
                             <th> </th>
+                            <th> </th>
+                            <th> Progress </th>
                             <th class="sortable" @click="() => sortBy('logdir')">
-                                Log directory
+                                Directory
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('env')">
-                                Environment
+                                Env
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('algo')">
-                                Algorithm
+                                Algo
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('date')">
@@ -44,7 +47,7 @@
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)"
-                                @click="() => resultsStore.load(exp.logdir)"
+                                @click="() => onExperimentClicked(exp.logdir)"
                                 @contextmenu="(e) => openContextMenu(e, exp)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
@@ -55,12 +58,27 @@
                                     </template>
                                 </td>
                                 <td>
-                                    <font-awesome-icon v-if="experimentStore.runningExperiments.has(exp.logdir)"
-                                        :icon="['fas', 'spinner']" spin />
-                                    {{ exp.logdir }}
+                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]" :icon="['fas', 'person-running']" class="fa-bounce"/>
                                 </td>
-                                <td> {{ exp.env.name }} </td>
-                                <td> {{ exp.algo.name }} </td>
+                                <td>
+                                    <template v-if="experimentProgresses[exp.logdir]">
+                                        {{ (experimentProgresses[exp.logdir] * 100).toFixed(1) }}% <br>
+                                    </template>
+                                </td>
+                                <td>
+                                    {{ exp.logdir.replace("logs/", "") }}
+                                </td>
+                                <td>
+                                    {{exp.env.name}}
+                                </td>
+                                <td> 
+                                    <template v-if="exp.trainer.mixer">
+                                        {{ exp.trainer.mixer.name }}    
+                                    </template>
+                                    <template v-else>
+                                        {{ exp.algo.name }}
+                                    </template>    
+                                </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
                                 <td>
@@ -109,19 +127,24 @@ import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
+import { useRunStore } from '../../stores/RunStore';
+import { useColourStore } from '../../stores/ColourStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
-import { useColourStore } from '../../stores/ColourStore';
 import ContextMenu from './ContextMenu.vue';
+import RunHover from './RunHover.vue';
+import { Run } from '../../models/Run';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
 const colours = useColourStore();
+const runStore = useRunStore();
 
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 const contextMenu = ref({} as typeof ContextMenu);
+const runHover = ref({} as typeof RunHover)
 
 const selectedMetrics = ref(["score [train]"]);
 
@@ -131,7 +154,18 @@ const metrics = computed(() => {
     return res;
 });
 
-const loadedExperiments = computed(() => resultsStore.results.keys())
+
+const experimentProgresses = computed(() => {
+    const res = {} as {[key:string]: number};
+    experimentStore.experiments.forEach(exp => {
+        const runs = runStore.runs.get(exp.logdir) ?? [];
+        const nRuns = runs.length;
+        const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
+        res[exp.logdir] = progress;
+    });
+    return res;
+});
+
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
@@ -148,6 +182,11 @@ const datasetPerLabel = computed(() => {
 });
 
 
+function onExperimentClicked(logdir: string) {
+    resultsStore.load(logdir);
+    runStore.refresh(logdir);
+}
+
 function downloadDatasets(logdir: string) {
     const results = resultsStore.results.get(logdir);
     if (results === undefined) {
@@ -158,6 +197,15 @@ function downloadDatasets(logdir: string) {
     downloadStringAsFile(csv, `${logdir}.csv`);
 }
 
+
+function showHover(logdir: string) {
+    const runs = runStore.runs.get(logdir);
+    if (runs === undefined) {
+        alert("No such logdir to show");
+        return;
+    }
+    runHover.value.show(runs);
+}
 
 const emits = defineEmits<{
     (event: "experiment-selected", logdir: string): void
@@ -215,30 +263,5 @@ function openContextMenu(e: MouseEvent, exp: Experiment) {
 .sortable:hover {
     cursor: pointer;
     text-decoration: underline;
-}
-
-.context-menu {
-    width: fit-content;
-    position: fixed;
-    display: none;
-    background-color: #fff;
-    border: 1px solid #ccc;
-    padding: 5px;
-    z-index: 1000;
-}
-
-.context-menu ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.context-menu ul li {
-    padding: 5px 10px;
-    cursor: pointer;
-}
-
-.context-menu ul li:hover {
-    background-color: #f0f0f0;
 }
 </style>
