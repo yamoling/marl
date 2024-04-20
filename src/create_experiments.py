@@ -92,10 +92,12 @@ def create_ddpg_lle(args: Arguments):
 
 def create_ppo_lle(args: Arguments):
     n_steps = 500_000
-    env = LLE.level(3).obs_type(ObservationType.LAYERED).build()
+    walkable_lasers = True
+    env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
+    # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(20)
 
     logits_clip_low = -2
@@ -104,13 +106,14 @@ def create_ppo_lle(args: Arguments):
     trainer = PPOTrainer(
         network=ac_network,
         memory=memory,
-        gamma=0.95,
-        batch_size=5,
+        gamma=0.99,
+        batch_size=2,
         lr_critic=1e-4,
         lr_actor=1e-4,
         optimiser="adam",
         train_every="step",
-        update_interval=20,
+        update_interval=8,
+        n_epochs=5,
         clip_eps=0.2,
         c1=1,
         c2=0.01,
@@ -121,14 +124,21 @@ def create_ppo_lle(args: Arguments):
     algo = marl.policy_gradient.PPO(
         ac_network=ac_network,
         train_policy=marl.policy.CategoricalPolicy(),
+    #     train_policy=marl.policy.EpsilonGreedy.linear(
+    #     1.0,
+    #     0.05,
+    #     n_steps=300_000,
+    # ),
         test_policy=marl.policy.ArgMax(),
         # extra_policy=marl.policy.ExtraPolicy(env.n_agents),
         # extra_policy_every=50,
         logits_clip_low=logits_clip_low,
         logits_clip_high=logits_clip_high,
     )
-    # logdir = f"logs/{env.name}-PPO-5"
-    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip4"
+
+    logdir = f"logs/PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}"
+    logdir += "-epsGreedy" if isinstance(algo.train_policy, marl.policy.EpsilonGreedy) else ""
+    logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
     if args.debug:
         logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
@@ -402,8 +412,8 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
-        # exp = create_ppo_lle(args)
-        exp = create_lle(args)
+        exp = create_ppo_lle(args)
+        # exp = create_lle(args)
         # exp = create_lle_maic(args)
         # exp = create_lle_maicRQN(args)
         print(exp.logdir)

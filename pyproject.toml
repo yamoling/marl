@@ -30,7 +30,7 @@ branch = "dev"
 
 [tool.poetry.dependencies.rlenv]
 git = "https://github.com/yamoling/rlenv.git"
-branch = "dev"
+branch = "main"
 
 
 [tool.poetry.group.dev.dependencies]
