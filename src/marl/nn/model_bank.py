@@ -830,7 +830,7 @@ class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pyt
         return cls(env.observation_shape, env.extra_feature_shape, opt.game_action_space_total, opt)
 
 
-class MAICNetwork(MAICNN): # DEPRECATED
+class MAICNetwork(MAICNN):
     """
     Source : https://github.com/mansicer/MAIC
     """
@@ -860,13 +860,10 @@ class MAICNetwork(MAICNN): # DEPRECATED
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
         )
 
-        if len(input_shape) == 1:
-            n_inputs = input_shape[0] + extras_shape[0]  # When FLATTENED
-        else:
-            n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape)  # When LAYERED
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
-        self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
         self.msg_net = nn.Sequential(
@@ -876,34 +873,26 @@ class MAICNetwork(MAICNN): # DEPRECATED
         self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
         self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
-    def reset_hidden_states(self, bs):
-        """Reset the hidden states"""
-        self.hidden_states = self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_().unsqueeze(0).expand(bs, self.n_agents, -1)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        if len(obs.shape) == 3:
-            # When FLATTENED
-            bs, n_agents, obs_size = obs.shape
-            obs = torch.reshape(obs, (-1, obs_size))
-            if extras is not None:
-                extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                obs = torch.concat((obs, extras), dim=-1)
-        else:
-            # When LAYERED
-            *dims, channels, height, width = obs.shape
-            total_batch = math.prod(dims)
-            bs = dims[0]
-            # obs = obs.view(bs, channels, height, width)
-            obs = obs.reshape(total_batch, -1)
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, -1)
+        if extras is not None:
             extras = extras.reshape(total_batch, *self.extras_shape)
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
 
-        h = self.rnn(x, self.hidden_states)
-        q = self.fc2(h)
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
 
-        latent_parameters = self.embed_net(h)
+        latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
         )
@@ -919,10 +908,10 @@ class MAICNetwork(MAICNN): # DEPRECATED
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
         latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
 
-        h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        h_repeat = x.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
         msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
 
-        query = self.w_query(h).unsqueeze(1)
+        query = self.w_query(x).unsqueeze(1)
         key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
         alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
@@ -939,9 +928,9 @@ class MAICNetwork(MAICNN): # DEPRECATED
         returns = {}
 
         # if self.args.mi_loss_weight > 0:
-        returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
+        returns["mi_loss"] = self.calculate_action_mi_loss(x, bs, latent_embed, return_q)
         # if self.args.entropy_loss_weight > 0:
-        query = self.w_query(h.detach()).unsqueeze(1)
+        query = self.w_query(x.detach()).unsqueeze(1)
         key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
         alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
         returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
@@ -1006,10 +995,9 @@ class MAICNetworkRDQN(RecurrentQNetwork):
             nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
         )
 
-        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]  # When LAYERED
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0] 
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
-        #self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 

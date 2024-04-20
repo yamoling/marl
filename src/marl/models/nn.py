@@ -235,15 +235,15 @@ class MAICNN(NN):
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 
-    @abstractmethod
-    def reset_hidden_states(self, bs=1):
+    def reset_hidden_states(self):
         """Reset the hidden states"""
+        self.hidden_states = None
 
     def train(self, mode: bool = True):
         if not mode:
             # Set test mode: save training hidden states
             self.saved_hidden_states = self.hidden_states
-            self.reset_hidden_states(1)
+            self.reset_hidden_states()
         else:
             # Set train mode
             if not self.training:
@@ -287,19 +287,31 @@ class MAICNN(NN):
         In this case, the RNN considers hidden states=None.
         """
         self.test_mode = False
-        bs = obs.shape[1]
-        self.reset_hidden_states(bs)
-        qvalues = []
+        saved_hidden_states = self.hidden_states
+        self.reset_hidden_states()
         logs = []
         losses = []
-        for t in range(len(obs)):  # case of Episode Batch
-            current_q_values, returns_ = self.forward(obs[t], extras[t])
-            qvalues.append(current_q_values)
-            if "logs" in returns_:
-                logs.append(returns_["logs"])
-                del returns_["logs"]
-            losses.append(returns_)
+        q_values, returns_ = self.forward(obs, extras)
+        if "logs" in returns_:
+            logs.append(returns_["logs"])
+            del returns_["logs"]
+        losses.append(returns_)
+        self.hidden_states = saved_hidden_states
+        return q_values, logs, losses
+        # self.test_mode = False
+        # bs = obs.shape[1]
+        # self.reset_hidden_states(bs)
+        # qvalues = []
+        # logs = []
+        # losses = []
+        # for t in range(len(obs)):  # case of Episode Batch
+        #     current_q_values, returns_ = self.forward(obs[t], extras[t])
+        #     qvalues.append(current_q_values)
+        #     if "logs" in returns_:
+        #         logs.append(returns_["logs"])
+        #         del returns_["logs"]
+        #     losses.append(returns_)
 
-        qvalues = torch.stack(qvalues, dim=0)
+        # qvalues = torch.stack(qvalues, dim=0)
 
-        return qvalues, logs, losses
+        # return qvalues, logs, losses

@@ -144,9 +144,9 @@ class MAICTrainer(Trainer):
                 if str(k).endswith("loss"):
                     loss_dict[k] = loss_dict.get(k, 0) + v
                     total_loss += v
-        for k in loss_dict.keys():
-            loss_dict[k] /= batch._max_episode_len
-        total_loss /= batch._max_episode_len
+        # for k in loss_dict.keys():
+        #     loss_dict[k] /= batch._max_episode_len
+        # total_loss /= batch._max_episode_len
         return total_loss, loss_dict
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
