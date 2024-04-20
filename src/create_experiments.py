@@ -288,6 +288,8 @@ def create_lle_maic(args: Arguments):
     opt.mi_loss_weight = 0.001
     opt.entropy_loss_weight = 0.01
 
+    opt.com = False
+
     gamma = 0.95
     eps_steps = 50_000
     # Add the MAICNetwork (MAICAgent)
@@ -320,7 +322,8 @@ def create_lle_maic(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAIC-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
+        name = "MAIC-NoCOM" if not opt.com else "MAIC"
+        logdir = f"logs/{name}-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -349,6 +352,8 @@ def create_lle_maicRDQN(args: Arguments):
     opt.var_floor = 0.002
     opt.mi_loss_weight = 0.001
     opt.entropy_loss_weight = 0.01
+
+    opt.com = True
 
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
@@ -381,7 +386,8 @@ def create_lle_maicRDQN(args: Arguments):
     if args.debug:
         logdir = "logs/debug"
     else:
-        logdir = f"logs/MAICRDQN-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        name = "MAICRDQN-NoCOM" if not opt.com else "MAICRDQN"
+        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -401,8 +407,8 @@ def main(args: Arguments):
         # exp = create_ddpg_lle(args)
         # exp = create_ppo_lle(args)
         # exp = create_lle(args)
-        exp = create_lle_maic(args)
-        # exp = create_lle_maicRDQN(args)
+        #exp = create_lle_maic(args)
+        exp = create_lle_maicRDQN(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:

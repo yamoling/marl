@@ -843,35 +843,35 @@ class MAICNetwork(MAICNN):
         self.latent_dim = args.latent_dim
         self.n_actions = output_size
 
-        NN_HIDDEN_SIZE = args.nn_hidden_size
-        activation_func = nn.LeakyReLU()
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
 
-        self.embed_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
-        )
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
 
-        self.inference_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
-        )
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
+
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
         n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
-
-        self.msg_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
-        )
-
-        self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
-        self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)        
 
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
@@ -892,6 +892,9 @@ class MAICNetwork(MAICNN):
         x, self.hidden_states = self.rnn(x, self.hidden_states)
         q = self.fc2(x)
 
+        if not self.args.com:
+            return q.view(*dims, *self.output_shape).unsqueeze(-1), {}
+        
         latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
@@ -978,35 +981,35 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         self.latent_dim = args.latent_dim
         self.n_actions = output_size
 
-        NN_HIDDEN_SIZE = args.nn_hidden_size
-        activation_func = nn.LeakyReLU()
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
 
-        self.embed_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
-        )
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
 
-        self.inference_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
-        )
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
+
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
         n_inputs = reduce(operator.mul, input_shape) + extras_shape[0] 
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
-
-        self.msg_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
-        )
-
-        self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
-        self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
@@ -1027,6 +1030,9 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         x, self.hidden_states = self.rnn(x, self.hidden_states)
         q = self.fc2(x)
 
+        if not self.args.com:
+            return q.view(*dims, *self.output_shape).unsqueeze(-1)
+        
         latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
