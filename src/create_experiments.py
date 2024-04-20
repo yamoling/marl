@@ -272,10 +272,10 @@ def create_lle_baseline(args: Arguments):
     )
 
 def create_lle_maicRDQN(args: Arguments):
-    n_steps = 300_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(2).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
+    env = LLE.level(5).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = SimpleNamespace()
@@ -291,7 +291,7 @@ def create_lle_maicRDQN(args: Arguments):
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
-    eps_steps = 50_000
+    eps_steps = 200_000
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
     bs = 32
     trainer = DQNTrainer(
