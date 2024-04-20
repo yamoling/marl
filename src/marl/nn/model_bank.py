@@ -830,7 +830,7 @@ class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pyt
         return cls(env.observation_shape, env.extra_feature_shape, opt.game_action_space_total, opt)
 
 
-class MAICNetwork(MAICNN):
+class MAICNetwork(MAICNN): # DEPRECATED
     """
     Source : https://github.com/mansicer/MAIC
     """
@@ -901,7 +901,6 @@ class MAICNetwork(MAICNN):
         x = F.relu(self.fc1(obs))
 
         h = self.rnn(x, self.hidden_states)
-        self.hidden_states = h
         q = self.fc2(h)
 
         latent_parameters = self.embed_net(h)
@@ -1013,7 +1012,8 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]  # When LAYERED
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
-        self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        #self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
         self.msg_net = nn.Sequential(
@@ -1039,12 +1039,8 @@ class MAICNetworkRDQN(RecurrentQNetwork):
 
         is_batch = len(dims) == 3
         total_batch = math.prod(dims)
-        if is_batch:
-            steps = dims[0]
-            bs = dims[1]
-        else:
-            steps = 1
-            bs = dims[0]
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
 
         obs = obs.reshape(total_batch, -1)
         if extras is not None:
@@ -1052,76 +1048,109 @@ class MAICNetworkRDQN(RecurrentQNetwork):
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
-        self.hidden_states = self.rnn(x, self.hidden_states)
-        q = self.fc2(self.hidden_states)
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
 
-        latent_parameters = self.embed_net(self.hidden_states)
+        #return q.view(*dims, *self.output_shape).unsqueeze(-1)
+        h_n_reshaped = x
+
+        latent_parameters = self.embed_net(h_n_reshaped)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
         )
 
-        latent_embed = latent_parameters.reshape(steps * bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+        latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
 
         if self.test_mode:
             latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
             gaussian_embed = D.Normal(
-                latent_embed[:, : self.n_agents * self.latent_dim],
-                (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+                latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
             )
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
+        latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
 
-        latent = latent.reshape(steps * bs * self.n_agents * self.n_agents, self.latent_dim)
+        h_repeat = h_n_reshaped.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
 
-        h_repeat = self.hidden_states.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(steps, bs, self.n_agents, self.n_agents, self.n_actions)
-
-        query = self.w_query(self.hidden_states).unsqueeze(2)
-        key = self.w_key(latent).reshape(steps * bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(steps, bs, self.n_agents, self.n_agents)
+        query = self.w_query(h_n_reshaped).unsqueeze(1)
+        key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
             alpha[:, i, i] = -1e9
-        alpha = F.softmax(alpha, dim=-1).reshape(steps, bs, self.n_agents, self.n_agents, 1)
+        alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
 
         if self.test_mode:
             alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
 
         gated_msg = alpha * msg
 
-        return_q = q  + torch.sum(gated_msg, dim=1).view(steps * bs * self.n_agents, self.n_actions)
-
-        #returns = {}
-
-        # returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
-        # query = self.w_query(h.detach()).unsqueeze(1)
-        # key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        # alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
-        # returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
+        return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
 
         return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
 
-    # def calculate_action_mi_loss(self, h, bs, latent_embed, q):
-    #     latent_embed = latent_embed.view(bs * self.n_agents, 2, self.n_agents, self.latent_dim)
-    #     g1 = D.Normal(
-    #         latent_embed[:, 0, :, :].reshape(-1, self.latent_dim), latent_embed[:, 1, :, :].reshape(-1, self.latent_dim) ** (1 / 2)
-    #     )
-    #     hi = h.view(bs, self.n_agents, 1, -1).repeat(1, 1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        # latent_parameters = self.embed_net(h)
+        # latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+        #     torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
+        # )
 
-    #     selected_action = torch.max(q, dim=1)[1].unsqueeze(-1)
-    #     one_hot_a = torch.zeros(selected_action.shape[0], self.n_actions).to(self.device).scatter(1, selected_action, 1)
-    #     one_hot_a = one_hot_a.view(bs, 1, self.n_agents, -1).repeat(1, self.n_agents, 1, 1)
-    #     one_hot_a = one_hot_a.view(bs * self.n_agents * self.n_agents, -1)
+        # if is_batch:
+        #     latent_embed = latent_parameters.reshape(steps * bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+        # else:
+        #     latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
 
-    #     latent_infer = self.inference_net(torch.cat([hi, one_hot_a], dim=-1)).view(bs * self.n_agents * self.n_agents, -1)
-    #     latent_infer[:, self.latent_dim :] = torch.clamp(torch.exp(latent_infer[:, self.latent_dim :]), min=self.args.var_floor)
-    #     g2 = D.Normal(latent_infer[:, : self.latent_dim], latent_infer[:, self.latent_dim :] ** (1 / 2))
-    #     mi_loss = kl_divergence(g1, g2).sum(-1).mean()
-    #     return mi_loss * self.args.mi_loss_weight
+        # if self.test_mode:
+        #     latent = latent_embed[:, : self.n_agents * self.latent_dim]
+        # else:
+        #     gaussian_embed = D.Normal(
+        #         latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+        #     )
+        #     latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
 
-    # def calculate_entropy_loss(self, alpha):
-    #     alpha = torch.clamp(alpha, min=1e-4)
-    #     entropy_loss = -(alpha * torch.log2(alpha)).sum(-1).mean()
-    #     return entropy_loss * self.args.entropy_loss_weight
+        # if is_batch:  
+        #     latent = latent.reshape(steps * bs * self.n_agents * self.n_agents, self.latent_dim)
+        # else:
+        #     latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+
+        # h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(steps * bs * self.n_agents * self.n_agents, -1)
+
+        # if is_batch:
+        #     msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(steps, bs, self.n_agents, self.n_agents, self.n_actions)
+        # else:
+        #     msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+
+        # # Compute attention weights
+        # query = self.w_query(h).unsqueeze(1)
+        # key = self.w_key(latent).view(steps * bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        
+        # alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(steps, bs, self.n_agents, self.n_agents)
+
+        # for i in range(self.n_agents):
+        #     alpha[:, :, i, i] = -1e9
+        # alpha = F.softmax(alpha, dim=-1).view(steps, bs, self.n_agents, self.n_agents, 1)
+
+        # if self.test_mode:
+        #     alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+
+        # gated_msg = alpha * msg
+
+        # return_q = q + torch.sum(gated_msg, dim=2).view(steps * bs * self.n_agents, self.n_actions)
+
+        # query = self.w_query(h).unsqueeze(1)
+        # key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        # alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        # for i in range(self.n_agents):
+        #     alpha[:, i, i] = -1e9
+        # alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+
+        # if self.test_mode:
+        #     alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+
+        # gated_msg = alpha * msg
+
+        # return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+
+        # return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
     def from_env(cls, env: RLEnv, args):

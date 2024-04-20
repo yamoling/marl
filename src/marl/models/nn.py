@@ -158,8 +158,9 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
 
         In this case, the RNN considers hidden states=None.
         """
+        self.test_mode = False
         saved_hidden_states = self.hidden_states
-        self.hidden_states = None
+        self.reset_hidden_states()
         qvalues = self.forward(obs, extras)
         self.hidden_states = saved_hidden_states
         return qvalues
