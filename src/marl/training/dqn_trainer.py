@@ -18,7 +18,7 @@ from serde import serialize
 class DQNTrainer(Trainer):
     qnetwork: QNetwork
     policy: Policy
-    memory: ReplayMemory
+    memory: ReplayMemory[Batch, Episode | Transition]
     gamma: float
     batch_size: int
     target_updater: TargetParametersUpdater

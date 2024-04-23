@@ -192,8 +192,8 @@ class Experiment:
     def run(
         self,
         seed: int,
-        fill_strategy: Literal["fill", "conservative"],
-        required_memory_MB: int,
+        fill_strategy: Literal["fill", "conservative"] = "conservative",
+        required_memory_MB: int = 0,
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,

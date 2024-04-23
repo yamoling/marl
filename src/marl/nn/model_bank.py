@@ -652,7 +652,6 @@ def conv2d_size_out(input_width: int, input_height: int, kernel_sizes: list[int]
 class ACNetwork(ActorCriticNN):
     def __init__(self, input_shape: tuple[int], extras_shape: tuple, output_shape: tuple):
         super().__init__(input_shape, extras_shape, output_shape)
-        print(input_shape)
         self.common = torch.nn.Sequential(
             torch.nn.Linear(*input_shape, 128),
             torch.nn.ReLU(),

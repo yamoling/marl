@@ -138,9 +138,9 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    from marl.env.zero_punishment import ZeroPunishment
-    from marl.env.random_initial_pos import RandomInitialPos
-    from marl.env.b_shaping import BShaping
+    from marl.env.wrappers.zero_punishment import ZeroPunishment
+    from marl.env.wrappers.random_initial_pos import RandomInitialPos
+    from marl.env.wrappers.b_shaping import BShaping
 
     # file = "maps/1b"
     #file = "maps/2b-ter"

@@ -46,7 +46,8 @@ const nTests = ref(1);
 const seed = ref(0);
 
 function start() {
-    store.newRun(experiment.value.logdir, nRuns.value, seed.value, nTests.value);
+    alert("Todo")
+    // store.newRun(experiment.value.logdir, nRuns.value, seed.value, nTests.value);
 }
 
 
