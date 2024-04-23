@@ -143,15 +143,15 @@ def create_lle(args: Arguments):
     from marl.env.wrappers.b_shaping import BShaping
 
     # file = "maps/1b"
-    #file = "maps/2b-ter"
-    #builder = LLE.from_file(file)
-    builder = LLE.level(6)
-    lle = builder.obs_type(ObservationType.LAYERED).state_type(ObservationType.FLATTENED).build()
+    file = "maps/zid"
+    builder = LLE.from_file(file)
+    # builder = LLE.level(6)
+    lle = builder.obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
     env = lle
     # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    env = BShaping(env, lle.world, 1, 0, True)
+    # env = BShaping(env, lle.world, 1, 0, True)
     # env = ZeroPunishment(env)
-    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width * lle.height / 2), add_extra=True).build()
+    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width + lle.height), add_extra=True).build()
 
     # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -161,9 +161,9 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=50_000,
     )
-    mixer = marl.qlearning.mixers.QMix.from_env(env)
+    # mixer = marl.qlearning.mixers.QMix.from_env(env)
     # mixer = marl.qlearning.mixers.QPlex2.from_env(env)
-    # mixer = marl.qlearning.VDN.from_env(env)
+    mixer = marl.qlearning.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
