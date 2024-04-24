@@ -9,6 +9,7 @@ import torch.distributions as D
 from torch.distributions import kl_divergence
 import math
 from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN
+from marl.utils import MaicParameters
 
 from functools import reduce
 import operator
@@ -835,7 +836,7 @@ class MAICNetwork(MAICNN):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MaicParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -871,8 +872,7 @@ class MAICNetwork(MAICNN):
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)        
-
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)      
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         *dims, channels, height, width = obs.shape
@@ -964,7 +964,7 @@ class MAICNetwork(MAICNN):
         return entropy_loss * self.args.entropy_loss_weight
 
     @classmethod
-    def from_env(cls, env: RLEnv, args):
+    def from_env(cls, env: RLEnv, args: MaicParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -973,7 +973,7 @@ class MAICNetworkRDQN(RecurrentQNetwork):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -1011,28 +1011,7 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
-
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-
-        *dims, channels, height, width = obs.shape
-
-        is_batch = len(dims) == 3 # episode batch ?
-        total_batch = math.prod(dims)
-
-        bs = math.prod(dims[:-1]) if is_batch else 1
-
-        obs = obs.reshape(total_batch, -1)
-        if extras is not None:
-            extras = extras.reshape(total_batch, *self.extras_shape)
-            obs = torch.concat((obs, extras), dim=-1)
-
-        x = F.relu(self.fc1(obs))
-        x, self.hidden_states = self.rnn(x, self.hidden_states)
-        q = self.fc2(x)
-
-        if not self.args.com:
-            return q.view(*dims, *self.output_shape).unsqueeze(-1)
-        
+    def _compute_messages(self, x, bs):
         latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
@@ -1064,10 +1043,32 @@ class MAICNetworkRDQN(RecurrentQNetwork):
 
         gated_msg = alpha * msg
 
-        return_q = q + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+        return torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
 
-        return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, -1)
+        if extras is not None:
+            extras = extras.reshape(total_batch, *self.extras_shape)
+            obs = torch.concat((obs, extras), dim=-1)
+
+        x = F.relu(self.fc1(obs))
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
+
+        if self.args.com:
+            q += self._compute_messages(x, bs)
+
+        return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env(cls, env: RLEnv, args):
+    def from_env(cls, env: RLEnv, args: MaicParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)

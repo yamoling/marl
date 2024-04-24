@@ -5,7 +5,7 @@ from typing import Optional
 import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
-from marl.utils import ExperimentAlreadyExistsException
+from marl.utils import ExperimentAlreadyExistsException, MaicParameters
 from lle import WorldState, LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
@@ -278,17 +278,7 @@ def create_lle_maic(args: Arguments):
     env = LLE.level(2).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = SimpleNamespace()
-    opt.n_agents = env.n_agents
-    opt.latent_dim = 8
-    opt.nn_hidden_size = 64
-    opt.rnn_hidden_dim = 64
-    opt.attention_dim = 32
-    opt.var_floor = 0.002
-    opt.mi_loss_weight = 0.001
-    opt.entropy_loss_weight = 0.01
-
-    opt.com = False
+    opt = MaicParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     eps_steps = 50_000
@@ -343,17 +333,7 @@ def create_lle_maicRDQN(args: Arguments):
     env = LLE.level(5).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = SimpleNamespace()
-    opt.n_agents = env.n_agents
-    opt.latent_dim = 8
-    opt.nn_hidden_size = 64
-    opt.rnn_hidden_dim = 64
-    opt.attention_dim = 32
-    opt.var_floor = 0.002
-    opt.mi_loss_weight = 0.001
-    opt.entropy_loss_weight = 0.01
-
-    opt.com = True
+    opt = MaicParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
