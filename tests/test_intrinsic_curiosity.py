@@ -13,7 +13,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
     transitions = []
     obs = env.reset()
     for _ in range(64):
-        action = np.array([Action.STAY.value, Action.STAY.value], dtype=np.int32)
+        action = np.array([Action.STAY.value, Action.STAY.value], dtype=np.int64)
         obs_, r, done, truncated, info = env.step(action)
         transitions.append(Transition(obs, action, r, done, info, obs_, truncated))
         obs = obs_
@@ -29,7 +29,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
         + [[Action.WEST.value, Action.STAY.value]] * 5
     )
     for action in actions:
-        action = np.array(action, dtype=np.int32)
+        action = np.array(action, dtype=np.int64)
         obs_, r, done, truncated, info = env.step(action)
         transitions.append(Transition(obs, action, r, done, info, obs_, truncated))
         obs = obs_

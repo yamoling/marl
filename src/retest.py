@@ -21,7 +21,15 @@ def main(args: Arguments):
     exp = Experiment.load(args.logdir)
     env = Experiment.load(args.env_logdir).test_env
 
+    print(f"Creating new experiment {args.dest}")
+    print(f"-- Getting training from {args.logdir} (env: {exp.env.name})")
+    print(f"-- Testing environment on {env.name} (from: {args.env_logdir})")
+
     if not exp.env.has_same_inouts(env):
+        print(env.action_space.shape, exp.env.action_space.shape)
+        print(env.observation_shape, exp.env.observation_shape)
+        print(env.extra_feature_shape, exp.env.extra_feature_shape)
+
         raise ValueError("The environment of the experiment and the test environment must have the same inputs and outputs")
     exp.test_on_other_env(env, args.dest, args.n_tests, args.quiet, device=args.device)
 

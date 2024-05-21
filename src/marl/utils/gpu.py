@@ -80,7 +80,7 @@ def get_max_gpu_usage(pids: set[int]):
 
 def get_device(
     device: Literal["auto", "cpu"] | int = "auto",
-    fit_strategy: Literal["fill", "conservative"] = "conservative",
+    fit_strategy: Literal["scatter", "group"] = "scatter",
     estimated_memory_MB: int = 0,
 ):
     """
@@ -89,21 +89,21 @@ def get_device(
     Arguments:
         - device: "auto" (default), "cuda" or "cpu"
         - fit_strategy:
-            - "fill": Fit the process in the GPU that has the least free memory.
-            - "conservative": Fit the process in the GPU that has the most free memory.
+            - "group": Fit the process in the GPU that has the least free memory (group all possible runs on a single GPU).
+            - "scatter": Fit the process in the GPU that has the most free memory (scatter runs across all GPUs).
         - estimated_memory_MB: Estimated memory usage in MB.
     """
     if device != "auto":
         return torch.device(device)
 
-    def fill(gpus: list[GPU], estimated_memory: int):
+    def grouped_fit(gpus: list[GPU], estimated_memory: int):
         gpus.sort(key=lambda gpu: gpu.free_memory)
         for gpu in gpus:
             if gpu.free_memory > estimated_memory:
                 return gpu
         return None
 
-    def conservative(gpus: list[GPU], estimated_memory: int):
+    def scattered_fit(gpus: list[GPU], estimated_memory: int):
         # The more utilization, the less the sorting score
         gpus.sort(key=lambda gpu: gpu.free_memory * (1.1 - gpu.utilization), reverse=True)
         for gpu in gpus:
@@ -115,10 +115,10 @@ def get_device(
         return torch.device("cpu")
     devices = list_gpus()
     match fit_strategy:
-        case "fill":
-            gpu = fill(devices, estimated_memory_MB)
-        case "conservative":
-            gpu = conservative(devices, estimated_memory_MB)
+        case "group":
+            gpu = grouped_fit(devices, estimated_memory_MB)
+        case "scatter":
+            gpu = scattered_fit(devices, estimated_memory_MB)
         case _:
             raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'fill' or 'conservative'")
     if gpu is None:

@@ -13,7 +13,7 @@ class Arguments(tap.TypedArgs):
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu"] | int = tap.arg(default="auto")
-    gpu_strategy: Literal["fill", "conservative"] = tap.arg(default="conservative")
+    gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
 
     @property
     def n_processes(self):
@@ -23,6 +23,7 @@ class Arguments(tap.TypedArgs):
         try:
             # If we have GPUs, then start as many runs as there are GPUs
             import subprocess
+
             cmd = "nvidia-smi --list-gpus"
             output = subprocess.check_output(cmd, shell=True).decode()
             # The driver exists but no GPU is available (for instance, the eGPU is disconnected)

@@ -6,7 +6,7 @@ import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.utils import ExperimentAlreadyExistsException
-from lle import WorldState, LLE, ObservationType
+from lle import LLE, Direction, ObservationType, Position
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
 
@@ -128,7 +128,7 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high,
     )
     # logdir = f"logs/{env.name}-PPO-5"
-    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy != None}-clip4"
+    logdir = f"logs/{env.name}-PPO-gamma{trainer.gamma}-steps{n_steps}-EP_{algo.extra_policy is not None}-clip4"
     if args.debug:
         logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
@@ -138,22 +138,14 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    from marl.env.wrappers.zero_punishment import ZeroPunishment
-    from marl.env.wrappers.random_initial_pos import RandomInitialPos
-    from marl.env.wrappers.b_shaping import BShaping
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
+    from marl.env.wrappers import PotentialShaping, RandomizedLasers
 
-    # file = "maps/1b"
-    file = "maps/zid"
-    builder = LLE.from_file(file)
-    # builder = LLE.level(6)
-    lle = builder.obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
-    env = lle
-    # env = RandomInitialPos(env, 0, 1, 0, lle.width - 1)
-    # env = BShaping(env, lle.world, 1, 0, True)
-    # env = ZeroPunishment(env)
-    env = rlenv.Builder(env).agent_id().time_limit(int(lle.width + lle.height), add_extra=True).build()
+    lasers = dict[Position, Direction]({(0, 1): Direction.EAST, (4, 0): Direction.SOUTH, (6, 12): Direction.SOUTH})
+    env = RandomizedLasers(env)
+    env = PotentialShaping(env, env.world, lasers, gamma)
+    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
-    # qnetwork = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(256, 256))
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(
@@ -161,8 +153,6 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=50_000,
     )
-    # mixer = marl.qlearning.mixers.QMix.from_env(env)
-    # mixer = marl.qlearning.mixers.QPlex2.from_env(env)
     mixer = marl.qlearning.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,

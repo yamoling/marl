@@ -1,86 +1,22 @@
-from typing import Any
-from numpy import int32, ndarray
-from run import Arguments, main as run_main
-from lle import LLE, Action
-import marl
-import numpy as np
-import polars as pl
-import rlenv
-import random
-from marl.training import DQNTrainer, SoftUpdate
-from marl.env.wrappers.random_initial_pos import RandomInitialPos
+def make_env():
+    from lle import LLE, ObservationType
 
-from marl.env.wrappers.prevent_actions import PreventActions
-
-def get_action():
-    action = input("Action: ")
-    match action.strip().lower():
-        case "n" | "z":
-            return Action.NORTH
-        case "s":
-            return Action.SOUTH
-        case "e" | "d":
-            return Action.EAST
-        case "w" | "q":
-            return Action.WEST
-        case other:
-            return None
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).build()
+    source = env.world.laser_sources[4, 0]
+    env.world.set_laser_colour(source, 1)
+    return env
 
 
-def play(env: LLE):
-    print("New game")
-    env.reset()
-    env.render("human")
-    print("Available:", env.available_actions())
-    action = get_action()
-    while action:
-        action = [action.value]
-        _, _, done, _, _ = env.step(action)
-        print("Available:", env.available_actions())
-        env.render("human")
-        if done:
-            break
-        action = get_action()
+def main():
+    from marl import Experiment
 
-from marl.utils import RandomAlgo
-from marl.training import NoTrain
+    exp = Experiment.load("logs/shaping-test-lvl6")
+    env = make_env()
 
-def exit_rate():
-    files= [
-        "logs/exploration-bw-0/run_2024-04-19_16:10:05.216887_seed=0/train.csv",
-        "logs/exploration-bw-1/run_2024-04-19_16:10:15.270965_seed=0/train.csv",
-        "logs/exploration-bw-2/run_2024-04-19_16:10:25.463659_seed=0/train.csv",
-        "logs/exploration-bw-3/run_2024-04-19_16:10:36.094510_seed=0/train.csv",
-        "logs/exploration-bw-4/run_2024-04-19_16:10:46.659614_seed=0/train.csv",
-        "logs/exploration-bw-5/run_2024-04-19_16:10:56.694036_seed=0/train.csv"
-    ]
-    for f in files:
-        df = pl.read_csv(f)
-        x = df.mean()
-        print(x)
+    # if not exp.env.has_same_inouts(env):
+    #    raise ValueError("The environment of the experiment and the test environment must have the same inputs and outputs")
+    exp.test_on_other_env(env, "logs/vdn-shaped-test-modified-laser", 1, False, device="auto")
+
 
 if __name__ == "__main__":
-    # exit_rate()
-    # exit()
-    filenames = []
-    time_limit = 14
-    for width in range(6):
-        env = rlenv.Builder(PreventActions(width)).time_limit(time_limit).build()
-        # input("Press enter to start")
-        # img = env.render("rgb_array")
-        # import cv2
-        # cv2.imwrite("exploration.png", img)
-        # exit(0)
-        algo = RandomAlgo(env)
-        trainer = NoTrain()
-        exp = marl.Experiment.create(f"logs/exploration-bw-{width}-{time_limit}", algo, trainer, env, 200_000, 0)
-        exp.run(0, "conservative", 0, n_tests=0)
-        run = list(exp.runs)[0]
-        filenames.append(run.train_filename)
-    for f in filenames:
-        print(f)
-        df = pl.read_csv(f).mean()
-        print(df)
-        
-    
-    
+    main()
