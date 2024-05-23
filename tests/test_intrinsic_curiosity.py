@@ -37,11 +37,11 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
 
     irs = []
     # Train RND
-    for _ in range(2000):
+    for t in range(2000):
         ir = rnd.compute(train_batch).mean().item()
         irs.append(ir)
         assert ir >= 0
-        rnd.update(_)
+        rnd.update(t)
     initial_ir = sum(irs[0:100]) / 100
     ir_train_set = rnd.compute(train_batch).mean().item()
     ir_test_set = rnd.compute(test_batch).mean().item()
@@ -50,17 +50,17 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
 
 
 def test_rnd_linear():
-    env = LLE.level(2).build()
+    env = LLE.level(2).obs_type(ObservationType.FLATTENED).build()
     target = marl.nn.model_bank.MLP(
         input_size=env.observation_shape[0],
         extras_size=env.extra_feature_shape[0],
         hidden_sizes=(64, 64, 64),
-        output_shape=(512,),
+        output_shape=(env.reward_size, 512),
     )
     _test_rnd_no_reward_normalisation(env, target)
 
 
 def test_rnd_conv():
     env = LLE.level(2).obs_type(ObservationType.LAYERED).build()
-    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (512,))
+    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512))
     _test_rnd_no_reward_normalisation(env, target)

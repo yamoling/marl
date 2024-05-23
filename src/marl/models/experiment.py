@@ -73,8 +73,7 @@ class Experiment:
     ) -> "Experiment":
         """Create a new experiment."""
         if test_env is not None:
-            if not env.has_same_inouts(test_env):
-                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
+            RLEnv.assert_same_inouts(env, test_env)
         else:
             test_env = deepcopy(env)
 

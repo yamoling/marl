@@ -24,8 +24,7 @@ def test_episode_batch_returns():
     episodes = []
     GAMMA = 0.9
     for i in range(5):
-        MockEnv.END_GAME = i + 1  # type: ignore
-        env = MockEnv(2)
+        env = MockEnv(2, end_game=i + 1)
         episodes.append(generate_episode(env))
 
     batch = EpisodeBatch(episodes)
