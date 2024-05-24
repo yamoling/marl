@@ -142,8 +142,8 @@ def create_lle(args: Arguments):
     from marl.env.wrappers import PotentialShaping, RandomizedLasers
 
     lasers = dict[Position, Direction]({(0, 1): Direction.WEST, (4, 0): Direction.SOUTH, (6, 12): Direction.SOUTH})
-    env = RandomizedLasers(env)
-    env = PotentialShaping(env, env.world, lasers, gamma)
+    # env = RandomizedLasers(env)
+    env = PotentialShaping(env, env.world, lasers, gamma, reward_value=0.05)
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 

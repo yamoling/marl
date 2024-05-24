@@ -57,8 +57,6 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
 def main(args: Arguments):
     from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
 
-    start_run(args, 0, 0)
-    exit()
     # NOTE: within a docker, the pids do not match with the host, so we have to retrieve the pids "unreliably"
     initial_pids = get_gpu_processes()
     estimated_gpu_memory = 0
