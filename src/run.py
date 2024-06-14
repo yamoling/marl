@@ -6,6 +6,7 @@ from multiprocessing.pool import Pool, AsyncResult
 
 
 class Arguments(tap.TypedArgs):
+    debug: bool = tap.arg(help="Enable debug mode")
     logdir: str = tap.arg(positional=True, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
     _n_processes: Optional[int] = tap.arg("--n-processes", default=None, help="Maximal number of simultaneous processes to use")
@@ -55,6 +56,10 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
 
 
 def main(args: Arguments):
+    if args.debug:
+        start_run(args, 0, 0)
+        return
+
     from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
 
     # NOTE: within a docker, the pids do not match with the host, so we have to retrieve the pids "unreliably"

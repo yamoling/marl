@@ -139,12 +139,7 @@ def create_lle(args: Arguments):
     test_interval = 5000
     gamma = 0.95
     env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
-    from marl.env.wrappers import PotentialShaping, RandomizedLasers
-
-    lasers = dict[Position, Direction]({(0, 1): Direction.WEST, (4, 0): Direction.SOUTH, (6, 12): Direction.SOUTH})
-    # env = RandomizedLasers(env)
-    env = PotentialShaping(env, env.world, lasers, gamma, reward_value=0.05)
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    env = rlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -152,7 +147,7 @@ def create_lle(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=50_000,
+        n_steps=500_000,
     )
     mixer = marl.qlearning.VDN.from_env(env)
     trainer = DQNTrainer(
