@@ -533,13 +533,9 @@ class CNN_ActorCritic(ActorCriticNN):
 
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
-        logits = torch.clip(logits, min=0, max=4)
-        # scaled_logits = logits / 10
-        # logits = logits.clamp(min=1e-6, max=5)
-        return logits
-        # return scaled_logits
+        return logits        
 
-    def value(self, obs: torch.Tensor):
+    def value(self, obs: torch.Tensor): # type: ignore
         return self.value_network(obs)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
@@ -557,6 +553,12 @@ class CNN_ActorCritic(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
+class Clipped_CNN_ActorCritic(CNN_ActorCritic):
+        
+    def policy(self, obs: torch.Tensor):
+        logits = self.policy_network(obs)
+        logits = torch.clip(logits, min=0, max=4)
+        return logits
 
 class SimpleActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int], extras_shape: tuple[int, ...], output_shape: tuple[int]):
