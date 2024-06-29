@@ -201,7 +201,7 @@ def create_lle(args: Arguments):
 
 def create_lle_baseline(args: Arguments):
     # use Episode update -> use reshape in the nn
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
     obs_type = ObservationType.PARTIAL_7x7
@@ -264,7 +264,7 @@ def create_lle_baseline(args: Arguments):
 
 
 def create_lle_maic(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
@@ -327,7 +327,7 @@ def create_lle_maic(args: Arguments):
 
 
 def create_lle_maicRQN(args: Arguments):
-    n_steps = 600_000
+    n_steps = 1_000_000
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
@@ -396,6 +396,7 @@ def main(args: Arguments):
         # exp = create_ppo_lle(args)
         exp = create_lle(args)
         # exp = create_lle_maic(args)
+        # exp = create_lle_maicRQN(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
