@@ -25,8 +25,8 @@ python-dotenv = "^1.0.1"
 # laser-learning-environment = "^0.2.0"
 
 [tool.poetry.dependencies.lle]
-git = "https://github.com/yamoling/lle.git"
-branch = "dev"
+git = "https://github.com/bhouart/lle.git"
+branch = "test"
 
 [tool.poetry.dependencies.rlenv]
 git = "https://github.com/yamoling/rlenv.git"

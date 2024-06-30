@@ -17,7 +17,7 @@ class DDPGTrainer(Trainer):
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,
-        lr: float = 1e-3,
+        lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
         update_interval: int = 5,
@@ -91,6 +91,7 @@ class DDPGTrainer(Trainer):
             new_probs = torch.distributions.Categorical(logits=new_logits).probs
 
             # get next values
+            # new_values = self.network.value(states_ , extras_, new_logits)
             new_values = self.network.value(states_ , extras_, new_probs)
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
@@ -113,10 +114,17 @@ class DDPGTrainer(Trainer):
         probs_current_policy = torch.distributions.Categorical(logits=logits_current_policy).probs
 
         actor_loss = self.network.value(states, extras, probs_current_policy)
+        # actor_loss = self.network.value(states, extras, logits_current_policy)
         actor_loss = -actor_loss.mean()
 
         self.policy_optimiser.zero_grad()
         actor_loss.backward()
+        for name, param in self.network.named_parameters():
+            if param.grad is not None:
+                pass
+                # print(f'Parameter: {name}, Gradient: {param.grad}')
+            else:
+                print(f'Parameter: {name}, Gradient: None')
         self.policy_optimiser.step()
 
         # self._update_networks()

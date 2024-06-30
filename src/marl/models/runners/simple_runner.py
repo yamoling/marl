@@ -33,7 +33,8 @@ class SimpleRunner(Runner):
                 truncated = True
             if (isinstance(self._algo, DDPG)):  # needs old probs because off policy training
                 logits = self._algo.actions_logits(obs)
-                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy()
+                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy() # does not keep noise for update part
+                # tmp = logits.cpu().detach().numpy()
                 transition = Transition(obs, action, reward, done, info, obs_, truncated, probs)
             else:
                 transition = Transition(obs, action, reward, done, info, obs_, truncated)            

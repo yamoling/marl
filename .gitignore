@@ -9,7 +9,6 @@ __pycache__/
 
 # C extensions
 *.so
-
 # Distribution / packaging
 .Python
 build/
@@ -196,3 +195,4 @@ poetry.lock
 
 # Include the marl/env package (excluded by 'env' above in this file)
 !src/marl/env
+myenv/*

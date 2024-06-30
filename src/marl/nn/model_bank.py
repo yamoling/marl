@@ -386,7 +386,8 @@ class DDPG_NN_TEST(ActorCriticNN):
         )
 
         self.value_network = torch.nn.Sequential(
-            torch.nn.Linear(state_size + n_actions * n_agents, 128),
+            # torch.nn.Linear(state_size + n_actions * n_agents, 128),
+            torch.nn.Linear(n_features + n_actions * n_agents, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
@@ -414,7 +415,12 @@ class DDPG_NN_TEST(ActorCriticNN):
 
     def value(self, state: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
         actions = actions.view(actions.shape[0], -1)
-        features = torch.cat((state, actions), dim=1)
+        # features = torch.cat((state, actions), dim=1)
+        features = self._cnn_forward(state)
+        print(features.shape)
+        print(actions.shape)
+        features = torch.cat((features, actions), dim=1)
+        # print(features.shape)
         return self.value_network(features).squeeze()
 
     @classmethod
