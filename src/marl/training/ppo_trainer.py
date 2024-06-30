@@ -11,6 +11,13 @@ import numpy as np
 
 
 class PPOTrainer(Trainer):
+    gamma: float
+    batch_size: int
+    update_interval: int
+    n_epochs: int
+    c1: float
+    c2: float
+
     def __init__(
         self,
         network: ActorCriticNN,

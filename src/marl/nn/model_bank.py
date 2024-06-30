@@ -444,6 +444,11 @@ class DDPG_NN_TEST(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
+class Clipped_DDPG_NN(DDPG_NN_TEST):
+    def policy(self, obs: torch.Tensor):
+        logits = self.policy_network(obs)
+        logits = torch.clip(logits, min=0, max=4)
+        return logits
 
 class RCNN(RecurrentQNetwork):
     """
