@@ -70,7 +70,7 @@ def create_smac(args: Arguments):
 
 def create_ddpg_lle(args: Arguments):
     n_steps = 500_000
-    env = LLE.level(1).obs_type(ObservationType.LAYERED).state_type(ObservationType.LAYERED).build()
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.LAYERED).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
@@ -80,21 +80,22 @@ def create_ddpg_lle(args: Arguments):
     test_policy = marl.policy.ArgMax()
 
     trainer = DDPGTrainer(
-        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95
+        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95, lr=1e-5
     )
 
     algo = marl.policy_gradient.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
-    logdir = f"logs/{env.name}-TEST-DDPG"
+    # logdir = f"logs/{env.name}-TEST-DDPG"
+    logdir = "logs/ddpg_lvl2_lr_1e-5"
     if args.debug:
         logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 def create_ppo_lle(args: Arguments):
-    n_steps = 500_000
+    n_steps = 1_000_000
     walkable_lasers = True
     # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
-    env = LLE.level(2).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
+    env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
@@ -107,17 +108,17 @@ def create_ppo_lle(args: Arguments):
     trainer = PPOTrainer(
         network=ac_network,
         memory=memory,
-        gamma=0.95,
+        gamma=0.99,
         batch_size=2,
-        lr_critic=5e-4,
-        lr_actor=5e-4,
+        lr_critic=1e-4,
+        lr_actor=1e-4,
         optimiser="adam",
         train_every="step",
         update_interval=8,
         n_epochs=4,
         clip_eps=0.2,
         c1=0.5,
-        c2=0.1,
+        c2=0.01,
         logits_clip_low=logits_clip_low,
         logits_clip_high=logits_clip_high,
     )
@@ -137,9 +138,10 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high,
     )
 
-    logdir = f"logs/PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}-C2_{trainer.c2}-C1_{trainer.c1}"
-    logdir += "-epsGreedy" if isinstance(algo.train_policy, marl.policy.EpsilonGreedy) else ""
-    logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
+    # logdir = f"logs/PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}-C2_{trainer.c2}-C1_{trainer.c1}"
+    # logdir += "-epsGreedy" if isinstance(algo.train_policy, marl.policy.EpsilonGreedy) else ""
+    # logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
+    logdir = "logs/ppo_lvl3_default"
     if args.debug:
         logdir = "logs/debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
