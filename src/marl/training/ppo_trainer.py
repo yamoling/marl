@@ -6,8 +6,11 @@ from marl.models import Batch
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.models.trainer import Trainer
 from marl.models.nn import ActorCriticNN
+from marl.nn.model_bank import CNN_ActorCritic
 from marl.training import nodes
 import numpy as np
+
+from marl.utils import schedule
 
 
 class PPOTrainer(Trainer):
@@ -33,6 +36,9 @@ class PPOTrainer(Trainer):
         c1: float = 0.5,  # C1 and C2 from the paper equation 9
         c2: float = 0.01,
         n_epochs: int = 5,
+        c1_schedule: schedule.Schedule | None = None,   # overrides c1 if not None
+        c2_schedule: schedule.Schedule | None = None,   # overrides c2 if not None
+        softmax_temp_schedule: schedule.Schedule | None = None, # overrides network temp if not None
         logits_clip_low: float = -10,
         logits_clip_high: float = 10,
     ):
@@ -49,6 +55,10 @@ class PPOTrainer(Trainer):
         self.c1 = c1
         self.c2 = c2
         self.n_epochs = n_epochs
+
+        self.c1_schedule = c1_schedule
+        self.c2_schedule = c2_schedule
+        self.softmax_temp_schedule = softmax_temp_schedule
 
         self.parameters = list(self.network.parameters())
         self.optimiser = self._make_optimizer(optimiser)
@@ -188,7 +198,22 @@ class PPOTrainer(Trainer):
                 #     else:
                 #         print(f'Parameter: {name}, Gradient: None')
                 self.optimiser.step()
-        return {"actor_loss": actore_loss.item(), "critic_loss": critic_loss.item(), "entropy_loss": entropy_loss.item(), "rho": rho.mean().item()}
+        self._update_schedulers(time_step)
+        return {"actor_loss": actore_loss.item(), "critic_loss": critic_loss.item(), "entropy_loss": entropy_loss.item(), "rho": rho.mean().item(), "c1": self.c1, "c2": self.c2, "temperature": self.network.temperature}
+
+    def _update_schedulers(self, time_step: int):
+        if self.c1_schedule is not None:
+            self.c1_schedule.update(time_step)  # update value
+            self.c1 = self.c1_schedule.value    # assign value
+        
+        if self.c2_schedule is not None:
+            self.c2_schedule.update(time_step)
+            self.c2 = self.c2_schedule.value
+        
+        if self.softmax_temp_schedule is not None:
+            if (isinstance(self.network, CNN_ActorCritic)):
+                self.softmax_temp_schedule.update(time_step)
+                self.network.temperature = self.softmax_temp_schedule.value
 
     def to(self, device: torch.device):
         self.device = device

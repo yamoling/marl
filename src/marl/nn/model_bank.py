@@ -514,7 +514,8 @@ class CNN_ActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
-
+        self.temperature = 1.0
+        
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
@@ -544,6 +545,7 @@ class CNN_ActorCritic(ActorCriticNN):
 
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
+        logits = logits / self.temperature
         return logits        
 
     def value(self, obs: torch.Tensor): # type: ignore

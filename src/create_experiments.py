@@ -9,7 +9,7 @@ from marl.utils import ExperimentAlreadyExistsException
 from lle import WorldState, LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from types import SimpleNamespace
-
+from marl.utils import schedule
 
 class Arguments(RunArguments):
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
@@ -92,13 +92,19 @@ def create_ddpg_lle(args: Arguments):
 
 
 def create_ppo_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 300_000
     walkable_lasers = True
+    temperature = 10
     # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
+    ac_network.temperature = temperature
+    
+    entropy_schedule = schedule.LinearSchedule(0.05, 0.001, round(2/3 * n_steps))
+    temperature_schedule = schedule.LinearSchedule(50, 1, round(2/3 * n_steps))
+    
     # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(20)
 
@@ -119,6 +125,8 @@ def create_ppo_lle(args: Arguments):
         clip_eps=0.2,
         c1=0.5,
         c2=0.01,
+        c2_schedule=entropy_schedule,
+        softmax_temp_schedule=temperature_schedule,
         logits_clip_low=logits_clip_low,
         logits_clip_high=logits_clip_high,
     )
@@ -414,8 +422,8 @@ def create_lle_maicRQN(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        exp = create_ddpg_lle(args)
-        # exp = create_ppo_lle(args)
+        # exp = create_ddpg_lle(args)
+        exp = create_ppo_lle(args)
         # exp = create_lle_baseline(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
