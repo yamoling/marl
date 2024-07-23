@@ -17,7 +17,7 @@ from tqdm import tqdm
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl.policy_gradient import PPO, DDPG
-from marl.qlearning import DQN
+from marl.qlearning import DQN, RDQN
 from marl.utils import encode_b64_image, exceptions, stats
 from marl.utils.gpu import get_device
 from .batch import TransitionBatch
@@ -316,9 +316,14 @@ class Experiment:
             frames.append(encode_b64_image(self.test_env.render("rgb_array")))
             obs = obs_
         episode = episode.build()
+        
         if isinstance(self.algo, DQN):
-            batch = TransitionBatch(list(episode.transitions()))
-            qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
+            if isinstance(self.algo, RDQN):
+                for transition in episode.transitions():
+                    qvalues.append(self.algo.qnetwork.forward(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)).detach().cpu().tolist())
+            else:
+                batch = TransitionBatch(list(episode.transitions()))
+                qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
 
         return ReplayEpisode(
             directory=episode_folder,
