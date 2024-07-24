@@ -49,7 +49,7 @@ class PPOTrainer(Trainer):
         self.device = network.device
         self.batch = self._make_graph()
         self.update_num = 0
-        
+
         self.logits_clip_low = logits_clip_low
         self.logits_clip_high = logits_clip_high
 
@@ -81,7 +81,7 @@ class PPOTrainer(Trainer):
             logits, value = self.network.forward(observation, extras)
             # logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)
             logits[available_actions == 0] = -torch.inf
-            
+
             # probs = torch.nn.functional.softmax(logits, dim=-1)
             # dist = torch.distributions.Categorical(probs=probs)
 
@@ -141,16 +141,15 @@ class PPOTrainer(Trainer):
                 values = batch_values[b]
 
                 new_logits, new_values = self.network.forward(obs, extras)
-                
+
                 # new_logits = torch.clamp(new_logits, self.logits_clip_low, self.logits_clip_high)
                 new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
-                
+
                 # probs = torch.nn.functional.softmax(new_logits, dim=-1)
                 # new_dist = torch.distributions.Categorical(probs=probs)
-                
+
                 new_dist = torch.distributions.Categorical(logits=new_logits)
-                
-                
+
                 # probs = self.test_policy.get_probs()
                 # new_probs = torch.nn.functional.softmax(new_logits, dim=-1)
                 new_log_probs = new_dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
@@ -162,7 +161,7 @@ class PPOTrainer(Trainer):
                 # Actor surrogate loss
                 surrogate_1 = rho * advantages[b]
                 surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
-                actore_loss = torch.min(surrogate_1, surrogate_2).mean()
+                actor_loss = torch.min(surrogate_1, surrogate_2).mean()
 
                 # Value estimation loss
                 returns = advantages[b] + values.reshape(advantages[b].shape)
@@ -173,7 +172,7 @@ class PPOTrainer(Trainer):
 
                 self.optimiser.zero_grad()
                 # Maximize actor loss, minimize critic loss and maximize entropy loss
-                loss = -actore_loss + self.c1 * critic_loss - self.c2 * entropy_loss
+                loss = -actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
                 loss.backward()
                 # for name, param in self.network.named_parameters():
                 #     if param.grad is not None:
@@ -181,15 +180,20 @@ class PPOTrainer(Trainer):
                 #     else:
                 #         print(f'Parameter: {name}, Gradient: None')
                 self.optimiser.step()
-        return {"actor_loss": actore_loss.item(), "critic_loss": critic_loss.item(), "entropy_loss": entropy_loss.item(), "rho": rho.mean().item()}
+        return {
+            "actor_loss": actor_loss.item(),
+            "critic_loss": critic_loss.item(),
+            "entropy_loss": entropy_loss.item(),
+            "rho": rho.mean().item(),
+        }
 
     def to(self, device: torch.device):
         self.device = device
-        self.batch.to(device)
+        self.network.to(device)
         return self
 
     def randomize(self):
-        self.batch.randomize()
+        self.network.randomize()
 
     def _make_graph(self):
         batch = nodes.ValueNode[Batch](None)  # type: ignore
