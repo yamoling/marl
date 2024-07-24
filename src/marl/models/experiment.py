@@ -18,6 +18,7 @@ from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl.policy_gradient import PPO, DDPG
 from marl.qlearning import DQN, RDQN
+from marl.models.nn import MAIC
 from marl.utils import encode_b64_image, exceptions, stats
 from marl.utils.gpu import get_device
 from .batch import TransitionBatch
@@ -275,6 +276,8 @@ class Experiment:
         qvalues = []
         llogits = []
         pprobs = []
+        messages = []
+        received_messages = []
         self.algo.new_episode()
         self.algo.set_testing()
         for action in actions:
@@ -320,7 +323,16 @@ class Experiment:
         if isinstance(self.algo, DQN):
             if isinstance(self.algo, RDQN):
                 for transition in episode.transitions():
-                    qvalues.append(self.algo.qnetwork.forward(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)).detach().cpu().tolist())
+                    if isinstance(self.algo.qnetwork, MAIC):
+                        current_qvalues, gated_messages, received_message = self.algo.qnetwork.get_values_and_comms(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras))
+                        
+                        qvalues.append(current_qvalues.detach().cpu().tolist())
+                        if len(gated_messages):
+                            messages.append(gated_messages.detach().cpu().tolist())
+                        if len(received_message):
+                            received_messages.append(received_message.detach().cpu().tolist())
+                    else:
+                        qvalues.append(self.algo.qnetwork.forward(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)).detach().cpu().tolist())
             else:
                 batch = TransitionBatch(list(episode.transitions()))
                 qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
@@ -334,4 +346,6 @@ class Experiment:
             state_values=values,
             probs=pprobs,
             logits=llogits,
+            messages=messages,
+            received_messages=received_messages
         )

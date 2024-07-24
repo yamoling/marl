@@ -1,4 +1,4 @@
-from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN
+from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC
 from .dru import DRU
 from .algo import RLAlgo
 from .updatable import Updatable
@@ -23,6 +23,7 @@ __all__ = [
     "RecurrentQNetwork",
     "QNetwork",
     "MAICNN",
+    "MAIC",
     "DRU",
     "RLAlgo",
     "Updatable",

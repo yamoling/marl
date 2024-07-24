@@ -18,6 +18,8 @@ export interface ReplayEpisode {
     qvalues?: number[][][][],
     logits?: number[][][][],
     probs?: number[][][][],
+    messages?: number[][][][],
+    received_messages?: number[][][],
     frames: string[]
 }
 

@@ -229,6 +229,12 @@ class Mixer(NN):
         self.load_state_dict(torch.load(filename))
 
 
+class MAIC(ABC):
+    @abstractmethod
+    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute the Q-values and return Q-values and Computed messages"""
+
+
 class MAICNN(NN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)

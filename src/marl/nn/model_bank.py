@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import kl_divergence
 import math
-from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN
+from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN, MAIC
 from marl.utils import MaicParameters
 
 from functools import reduce
@@ -968,7 +968,7 @@ class MAICNetwork(MAICNN):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
-class MAICNetworkRDQN(RecurrentQNetwork):
+class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
     """
     Source : https://github.com/mansicer/MAIC
     """
@@ -1045,11 +1045,9 @@ class MAICNetworkRDQN(RecurrentQNetwork):
 
         gated_msg = alpha * msg
 
-        return torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
-
-
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-
+        return gated_msg
+    
+    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor):
         *dims, channels, height, width = obs.shape
 
         is_batch = len(dims) == 3 # episode batch ?
@@ -1066,10 +1064,18 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         x, self.hidden_states = self.rnn(x, self.hidden_states)
         q = self.fc2(x)
 
+        messages = []
         if self.args.com:
-            q += self._compute_messages(x, bs)
+            gated_msg = self._compute_messages(x, bs)
+            messages = torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+            q += messages
 
-        return q.view(*dims, *self.output_shape).unsqueeze(-1)
+        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages
+    
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+
+        q_values, _, _ = self.get_values_and_comms(obs, extras)
+        return q_values
 
     @classmethod
     def from_env(cls, env: RLEnv, args: MaicParameters):
