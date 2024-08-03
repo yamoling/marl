@@ -327,10 +327,10 @@ def create_lle_maic(args: Arguments):
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 def create_lle_maicRDQN(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 2_000_000
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
+    env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = MaicParameters(n_agents=env.n_agents, com=True)
@@ -367,7 +367,7 @@ def create_lle_maicRDQN(args: Arguments):
         logdir = "logs/debug"
     else:
         name = "MAICRDQN-NoCOM" if not opt.com else "MAICRDQN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        logdir = f"logs/{name}-{bs}-eps{eps_steps}-steps{n_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -434,6 +434,60 @@ def create_lle_maicCNN(args: Arguments):
             logdir += "-PER"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
+def create_lle_maicCNNRDQN(args: Arguments):
+    n_steps = 1_000_000
+    test_interval = 5000
+    obs_type = ObservationType.PARTIAL_7x7
+    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
+    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    # TODO : improve args
+    opt = MaicParameters(n_agents=env.n_agents, com=True)
+
+    gamma = 0.95
+    qnetwork = marl.nn.model_bank.MAICNetworkCNNRDQN.from_env(env, opt)
+    memory = marl.models.EpisodeMemory(5000)
+    eps_steps = 150_000
+    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
+    bs = 64
+    trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=bs,
+        train_interval=(1, "episode"),
+        gamma=gamma,
+        mixer=marl.qlearning.VDN(env.n_agents),
+        grad_norm_clipping=10,
+        ir_module=None,
+    )
+
+    algo = marl.qlearning.DQN(
+        qnetwork=qnetwork,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    if args.debug:
+        logdir = "logs/debug"
+    else:
+        name = "MAICCNNRDQN-NoCOM" if not opt.com else "MAICCNNDRQN"
+        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        if trainer.double_qlearning:
+            logdir += "-double"
+        else:
+            logdir += "-single"
+        if trainer.mixer is not None:
+            logdir += f"-{trainer.mixer.name}"
+        else:
+            logdir += "-iql"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            logdir += "-PER"
+    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+
 
 def main(args: Arguments):
     try:
@@ -443,7 +497,8 @@ def main(args: Arguments):
         # exp = create_lle(args)
         #exp = create_lle_maic(args)
         # exp = create_lle_maicRDQN(args)
-        exp = create_lle_maicCNN(args)
+        # exp = create_lle_maicCNN(args)
+        exp = create_lle_maicCNNRDQN(args)
         # exp = create_lle_baseline(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
