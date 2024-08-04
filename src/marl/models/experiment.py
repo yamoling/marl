@@ -278,6 +278,7 @@ class Experiment:
         pprobs = []
         messages = []
         received_messages = []
+        init_qvalues = []
         self.algo.new_episode()
         self.algo.set_testing()
         for action in actions:
@@ -321,18 +322,14 @@ class Experiment:
         episode = episode.build()
         
         if isinstance(self.algo, DQN):
-            if isinstance(self.algo, RDQN):
+            if isinstance(self.algo.qnetwork, MAIC):
                 for transition in episode.transitions():
-                    if isinstance(self.algo.qnetwork, MAIC):
-                        current_qvalues, gated_messages, received_message = self.algo.qnetwork.get_values_and_comms(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras))
-                        
-                        qvalues.append(current_qvalues.detach().cpu().tolist())
-                        if len(gated_messages):
-                            messages.append(gated_messages.detach().cpu().tolist())
-                        if len(received_message):
-                            received_messages.append(received_message.detach().cpu().tolist())
-                    else:
-                        qvalues.append(self.algo.qnetwork.forward(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)).detach().cpu().tolist())
+                    current_qvalues, gated_messages, received_message, current_init_qvalues = self.algo.qnetwork.get_values_and_comms(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras))
+                    qvalues.append(current_qvalues.detach().cpu().tolist())
+                    if gated_messages is not None and len(received_message) > 0:
+                        messages.append(gated_messages.detach().cpu().tolist())
+                        received_messages.append(received_message.detach().cpu().tolist())
+                        init_qvalues.append(current_init_qvalues.detach().cpu().tolist())                        
             else:
                 batch = TransitionBatch(list(episode.transitions()))
                 qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
@@ -347,5 +344,6 @@ class Experiment:
             probs=pprobs,
             logits=llogits,
             messages=messages,
-            received_messages=received_messages
+            received_messages=received_messages,
+            init_qvalues = init_qvalues
         )

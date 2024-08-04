@@ -231,7 +231,7 @@ class Mixer(NN):
 
 class MAIC(ABC):
     @abstractmethod
-    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute the Q-values and return Q-values and Computed messages"""
 
 

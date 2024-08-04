@@ -54,6 +54,12 @@
                         {{ message.toFixed(4) }}
                     </td>
                 </tr>   
+                <tr v-if="episode?.init_qvalues && episode.init_qvalues.length > currentStep">
+                    <th> <b>Init Qvalues</b></th>
+                    <td v-for="qvalue in episode.init_qvalues[currentStep][agentNum]">
+                        {{ qvalue.toFixed(4) }}
+                    </td>
+                </tr> 
                 <!-- <tr v-if="episode?.messages && episode.messages.length > 0">
                     <th> <b>Messages</b></th>
                     <template v-for="messages in episode.messages[0][currentStep][agentNum]">

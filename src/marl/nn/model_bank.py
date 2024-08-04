@@ -1066,17 +1066,18 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
 
         messages = []
         gated_msg = None
+        init_qvalues = q.detach().clone()
 
         if self.args.com:
             gated_msg = self._compute_messages(x, bs)
             messages = torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
             q += messages
 
-        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages
+        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
     
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
 
-        q_values, _, _ = self.get_values_and_comms(obs, extras)
+        q_values, _, _, _ = self.get_values_and_comms(obs, extras)
         return q_values
 
     @classmethod
@@ -1308,17 +1309,18 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
 
         messages = []
         gated_msg = None
+        init_qvalues = q.detach().clone()
 
         if self.args.com:
             gated_msg = self._compute_messages(x, bs)
             messages = torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
             q += messages
 
-        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages
+        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
     
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
 
-        q_values, _, _ = self.get_values_and_comms(obs, extras)
+        q_values, _, _, _ = self.get_values_and_comms(obs, extras)
         return q_values
 
     @classmethod
