@@ -86,7 +86,7 @@ class Run:
     def test_metrics(self):
         try:
             return pl.read_csv(self.test_filename, ignore_errors=True)
-        except (pl.NoDataError, FileNotFoundError):
+        except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
     def train_metrics(self, delta_x: int):
@@ -95,20 +95,22 @@ class Run:
             # None values for some metrics. We ignore these episodes.
             df = pl.read_csv(self.train_filename, ignore_errors=True)
             # Round the time step to match the closest test interval
-            df = stats.round_col(df, TIME_STEP_COL, delta_x)
-            # Compute the mean of the metrics for each time step
-            df = df.groupby(TIME_STEP_COL).mean()
+            if delta_x != 0:
+                df = stats.round_col(df, TIME_STEP_COL, delta_x)
+                # Compute the mean of the metrics for each time step
+                df = df.group_by(TIME_STEP_COL).mean()
             return df
-        except (pl.NoDataError, FileNotFoundError):
+        except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
     def training_data(self, delta_x: int):
         try:
             df = pl.read_csv(self.training_data_filename)
-            df = stats.round_col(df, TIME_STEP_COL, delta_x)
-            df = df.groupby(TIME_STEP_COL).mean()
+            if delta_x != 0:
+                df = stats.round_col(df, TIME_STEP_COL, delta_x)
+                df = df.group_by(TIME_STEP_COL).mean()
             return df
-        except (pl.NoDataError, FileNotFoundError):
+        except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
     @property
@@ -148,7 +150,7 @@ class Run:
         try:
             df = pl.read_csv(self.train_filename, ignore_errors=True)
             return df.select(pl.last(TIME_STEP_COL)).item()
-        except (pl.NoDataError, pl.ColumnNotFoundError):
+        except (pl.exceptions.NoDataError, pl.ColumnNotFoundError):
             return 0
 
     @property
@@ -156,7 +158,7 @@ class Run:
         try:
             df = pl.read_csv(self.test_filename, ignore_errors=True)
             return df.select(pl.last(TIME_STEP_COL)).item()
-        except (pl.NoDataError, pl.ColumnNotFoundError):
+        except (pl.exceptions.NoDataError, pl.ColumnNotFoundError):
             return 0
 
     @property
