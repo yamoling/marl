@@ -2,12 +2,22 @@ import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
 import { Experiment } from "../models/Experiment";
 import { ReplayEpisodeSummary } from "../models/Episode";
-import { ref } from "vue";
+import { computed, ref } from "vue";
+import { fetchWithJSON } from "../utils";
+import { useRunStore } from "./RunStore";
 
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
-    const runningExperiments = ref(new Set<string>());
+    const isRunning = computed(() => {
+        const res = {} as {[logdir: string]: boolean};
+        runStore.runs.forEach((runs, logdir) => {
+            res[logdir] = runs.some(run => run.pid != null);
+        });
+        return res;
+    });
+    // const runningExperiments = ref(new Set<string>());
+    const runStore = useRunStore();
     refresh();
 
     async function refresh() {
@@ -19,13 +29,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             }
             experiments.value = await resp.json() as Experiment[];
             for (const exp of experiments.value) {
-                refreshRunning(exp.logdir).then((running) => {
-                    if (running) {
-                        runningExperiments.value.add(exp.logdir);
-                    } else {
-                        runningExperiments.value.delete(exp.logdir);
-                    }
-                });
+                runStore.refresh(exp.logdir);
             }
         } catch (e: any) {
             throw new Error("Failed to load experiments: " + e.message);
@@ -57,7 +61,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             return false;
         }
     }
-
     /**
      * Ask the backend to load an experiment, which is required to 
      * replay an episode.
@@ -79,11 +82,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
     async function rename(logdir: string, newLogdir: string) {
-        const resp = await fetch(`${HTTP_URL}/experiment/rename`, {
-            method: "POST",
-            body: JSON.stringify({ logdir, newLogdir }),
-            headers: { "Content-Type": "application/json" }
-        });
+        const resp = await fetchWithJSON(`${HTTP_URL}/experiment/rename`, { logdir, newLogdir });
         if (!resp.ok) {
             alert("Failed to rename experiment: " + await resp.text());
             return;
@@ -97,20 +96,41 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
             alert("Failed to delete experiment: " + await res.text())
         } else {
             experiments.value = experiments.value.filter(exp => exp.logdir !== logdir);
-            runningExperiments.value.delete(logdir);
+            runStore.remove(logdir);
+        }
+    }
+
+    async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
+        await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
+        refresh()
+    }
+
+    async function getEnvImage(logdir: String, seed: number): Promise<string> {
+        const resp = await fetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`);
+        return await resp.text();
+    }
+
+
+    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number) {
+        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns }, "POST");
+        if (!resp.ok) {
+            alert("Failed to start new run: " + await resp.text());
+            return;
         }
     }
 
     return {
         loading,
         experiments,
-        runningExperiments,
+        isRunning,
         refresh,
         getExperiment,
         loadExperiment,
         unloadExperiment,
         getTestEpisodes,
         remove,
-        rename
+        rename,
+        testOnOtherEnvironment,
+        getEnvImage,
     };
 });

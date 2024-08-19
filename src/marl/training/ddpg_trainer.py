@@ -3,6 +3,8 @@ from typing import Any, Literal
 from rlenv import Episode, Transition
 
 import torch
+from marl.models import Batch, Policy
+from marl.models import NN
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.models.trainer import Trainer
 from marl.models.nn import ActorCriticNN
@@ -15,6 +17,7 @@ class DDPGTrainer(Trainer):
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,
+        lr: float = 1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
         update_interval: int = 5,
@@ -22,15 +25,17 @@ class DDPGTrainer(Trainer):
     ):
         super().__init__(update_type=train_every, update_interval=update_interval)
         self.network = network
-        self.target_network = deepcopy(network)
+        # self.target_network = deepcopy(network)
         self.memory = memory
         self.batch_size = batch_size
         self.gamma = gamma
+        self.lr = lr
         self.tau = tau
 
-        self.parameters = list(self.network.parameters())
-        self.target_params = list(self.target_network.parameters())
-        self.optimiser = self._make_optimizer(optimiser)
+        # self.optimiser = self._make_optimizer(optimiser, self.network.parameters())
+        self.policy_optimiser =  torch.optim.Adam(self.network.policy_parameters, self.lr)
+        self.value_optimiser =  torch.optim.Adam(self.network.value_parameters, self.lr)
+
         self.step_num = 0
         self.device = network.device
         self.to(device=self.device)
@@ -47,23 +52,24 @@ class DDPGTrainer(Trainer):
         self.memory.add(transition)
         return self._update(time_step)
 
-    def _update_networks(self):
-        for param, target in zip(self.parameters, self.target_params):
-            new_value = (1 - self.tau) * target.data + self.tau * param.data
-            target.data.copy_(new_value, non_blocking=True)
+    # def _update_networks(self):
+    #     for param, target in zip(self.network.policy_parameters, self.target_network.policy_parameters):
+    #         new_value = (1 - self.tau) * target.data + self.tau * param.data
+    #         target.data.copy_(new_value, non_blocking=True)
+
+    #     for param, target in zip(self.network.value_parameters, self.target_network.value_parameters):
+    #         new_value = (1 - self.tau) * target.data + self.tau * param.data
+    #         target.data.copy_(new_value, non_blocking=True)
 
     def _update(self, time_step: int):
         self.step_num += 1
         if self.step_num % self.update_interval != 0:
             return {}
-
-        # TODO: Implement the update method
-
+        
         if not self.memory.can_sample(self.batch_size):
             return {}
 
         batch = self.memory.sample(self.batch_size).to(self.device)
-        # batch = self.memory.get_batch(self.batch_size).to(self.device)
         obs = batch.obs
         extras = batch.extras
         actions = batch.actions
@@ -71,53 +77,73 @@ class DDPGTrainer(Trainer):
         obs_ = batch.obs_
         extras_ = batch.extras_
         available_actions = batch.available_actions
-        rewards = batch.rewards
-        with torch.no_grad():
-            new_logits, _ = self.target_network(obs_, extras_)
-            new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
-            new_actions = torch.argmax(new_logits, dim=2)
+        rewards = batch.rewards.squeeze(-1)
+        states = batch.states
+        states_ = batch.states_
+        probs = batch.probs
+        with torch.no_grad():        
 
-            new_actions_formated = torch.zeros_like(new_logits)  # one hot encoding
-            for i in range(len(new_actions)):
-                action_set = new_actions[i]
-                for n in range(len(action_set)):
-                    new_actions_formated[i, n, action_set[n]] = 1
-            new_values = self.target_network.value(obs_, extras_, new_actions_formated)
+            # get next actions
+            new_logits, _ = self.network.forward(obs_, extras_)
+            # new_logits, _ = self.target_network.forward(obs_, extras_)
+            new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
+            new_logits = new_logits.reshape(actions.shape[0], actions.shape[1], -1)
+            new_probs = torch.distributions.Categorical(logits=new_logits).probs
+
+            # get next values
+            # new_values = self.network.value(states_ , extras_, new_logits)
+            new_values = self.network.value(states_ , extras_, new_probs)
+            # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
-        actions_formated = torch.zeros_like(new_logits)  # one hot encoding
-        for i in range(len(actions)):
-            action_set = actions[i]
-            for n in range(len(action_set)):
-                actions_formated[i, n, action_set[n]] = 1
-        old_value = self.network.value(obs, extras_, actions_formated)
 
-        value_loss = torch.nn.functional.mse_loss(old_value, target_values)
+        old_value = self.network.value(states, extras, probs)
 
-        actor_loss = self.network.value(obs, extras, actions_formated)
+        value_loss = torch.nn.functional.mse_loss(old_value, target_values) 
+        self.value_optimiser.zero_grad()
+        value_loss.backward()      
+        self.value_optimiser.step()
+
+
+        # get actions
+        logits_current_policy, _ = self.network.forward(obs, extras)
+        
+        # reshape and mask unavailable actions
+        logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)
+        logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
+        probs_current_policy = torch.distributions.Categorical(logits=logits_current_policy).probs
+
+        actor_loss = self.network.value(states, extras, probs_current_policy)
+        # actor_loss = self.network.value(states, extras, logits_current_policy)
         actor_loss = -actor_loss.mean()
 
-        self.optimiser.zero_grad()
-        loss = value_loss + actor_loss
-        loss.backward()
-        self.optimiser.step()
-        self._update_networks()
-        return {}
+        self.policy_optimiser.zero_grad()
+        actor_loss.backward()
+        for name, param in self.network.named_parameters():
+            if param.grad is not None:
+                pass
+                # print(f'Parameter: {name}, Gradient: {param.grad}')
+            else:
+                print(f'Parameter: {name}, Gradient: None')
+        self.policy_optimiser.step()
+
+        # self._update_networks()
+        return {"value_loss": value_loss.item(), "actor_loss": actor_loss.item()}
 
     def randomize(self):
         self.network.randomize()
-        self.target_network.randomize()
+        # self.target_network.randomize()
 
     def to(self, device: torch.device):
         self.network.to(device)
-        self.target_network.to(device)
+        # self.target_network.to(device)
         self.device = device
         return self
 
-    def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):
+    def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"], parameters):
         if optimiser == "adam":
-            return torch.optim.Adam(self.parameters)
+            return torch.optim.Adam(parameters, self.lr)
         elif optimiser == "rmsprop":
-            return torch.optim.RMSprop(self.parameters)
+            return torch.optim.RMSprop(parameters, self.lr)
         else:
             raise ValueError(f"Unknown optimizer: {optimiser}")

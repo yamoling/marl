@@ -1,3 +1,4 @@
+from rlenv import RLEnv
 import torch
 
 from torch import nn
@@ -129,3 +130,9 @@ class QPlex(Mixer):
         advantages = advantages.detach()
         q_tot = self.dueling_mixing(advantages, values, states, one_hot_actions)
         return q_tot.view(*dims)
+
+
+    @classmethod
+    def from_env(cls, env: RLEnv, adv_hypernet_embed: int = 64, transformation=True):
+        assert len(env.state_shape) == 1
+        return QPlex(env.n_agents, env.n_actions, env.state_shape[0], adv_hypernet_embed, transformation)

@@ -1,3 +1,4 @@
+from rlenv import RLEnv
 import torch
 
 from marl.models.nn import Mixer
@@ -13,3 +14,7 @@ class VDN(Mixer):
 
     def load(self, directory: str):
         return
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        return VDN(env.n_agents)

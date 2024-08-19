@@ -6,6 +6,7 @@ from .maic_trainer import MAICTrainer
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 from .ppo_trainer import PPOTrainer
 from .ddpg_trainer import DDPGTrainer
+from .no_train import NoTrain
 
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "TargetParametersUpdater",
     "SoftUpdate",
     "HardUpdate",
+    "NoTrain",
 ]

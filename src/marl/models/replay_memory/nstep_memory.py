@@ -20,7 +20,7 @@ class NStepMemory(TransitionMemory):
         r = item.reward
         # Update the rewards of the last n transitions backward
         for i in range(1, min(self._n, self._episode_len)):
-            r = self._gamma * r
+            r = r * self._gamma
             self._memory[-i].reward += r
 
         # Add the new transition to the memory

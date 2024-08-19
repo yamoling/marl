@@ -36,7 +36,7 @@ def test_qmix_value():
     algo = marl.qlearning.DQN(trainer.qnetwork, trainer.policy)
     runner = marl.Experiment.create("logs/test", algo, trainer, env, 10_000, 10_000).create_runner()
     runner.to(device)
-    runner.train("logs/test", 0, 0)
+    runner.run("logs/test", 0, 0)
 
     # Expected results shown in the paper
     expected = {
@@ -105,7 +105,7 @@ def test_qplex():
         # Train the model for 500 time steps.
         # If it converged, the test passes.
         # If it did not converge, we train for an additional 500 time steps (at most 10 times).
-        runner.train("logs/test", 0, 0)
+        runner.run("logs/test", 0, 0)
 
         # Then check if the learned Q-function matches the expected qvalues
         obs = env.reset()
@@ -159,7 +159,7 @@ def test_mixers():
     exp = marl.Experiment.create("logs/test", algo, trainer, env, 2000, 10_000)
     runner = exp.create_runner()
     runner.to(device)
-    runner.train("logs/test", 0, 0)
+    runner.run("logs/test", 0, 0)
 
     # Expected results shown in the paper
     expected_qatten = [

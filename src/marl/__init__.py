@@ -10,7 +10,7 @@ from . import training
 from . import qlearning
 from . import policy_gradient
 from . import env
-
+from . import other
 
 from .utils import seed
 
@@ -25,6 +25,7 @@ __all__ = [
     "logging",
     "nn",
     "intrinsic_reward",
+    "other",
     "policy",
     "training",
     "qlearning",

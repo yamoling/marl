@@ -1,17 +1,7 @@
 <template>
     <div class="row">
-        <div ref="contextMenu" class="context-menu">
-            <ul>
-                <li @click="() => rename()">
-                    <font-awesome-icon :icon="['far', 'pen-to-square']" class="pe-2" />
-                    Rename
-                </li>
-                <li @click="() => remove()">
-                    <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
-                    Delete
-                </li>
-            </ul>
-        </div>
+        <ContextMenu ref="contextMenu" />
+        <RunHover ref="runHover"/>
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -33,16 +23,18 @@
                     <thead>
                         <tr>
                             <th> </th>
+                            <th> </th>
+                            <th> Progress </th>
                             <th class="sortable" @click="() => sortBy('logdir')">
-                                Log directory
+                                Directory
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('env')">
-                                Environment
+                                Env
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('algo')">
-                                Algorithm
+                                Algo
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
                             </th>
                             <th class="sortable" @click="() => sortBy('date')">
@@ -55,8 +47,8 @@
                     <tbody style="cursor: pointer;">
                         <template v-for="exp in sortedExperiments">
                             <tr v-if="searchMatch(searchString, exp.logdir)"
-                                @click="() => resultsStore.load(exp.logdir)"
-                                @contextmenu="(e) => openContextMenu(e, exp.logdir)">
+                                @click="() => onExperimentClicked(exp.logdir)"
+                                @contextmenu="(e) => openContextMenu(e, exp)">
                                 <td class="text-center">
                                     <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
                                         :icon="['fas', 'spinner']" spin />
@@ -66,26 +58,42 @@
                                     </template>
                                 </td>
                                 <td>
-                                    <font-awesome-icon v-if="experimentStore.runningExperiments.has(exp.logdir)"
-                                        :icon="['fas', 'spinner']" spin />
-                                    {{ exp.logdir }}
+                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]" :icon="['fas', 'person-running']" class="fa-bounce"/>
                                 </td>
-                                <td> {{ exp.env.name }} </td>
-                                <td> {{ exp.algo.name }} </td>
+                                <td>
+                                    <template v-if="experimentProgresses[exp.logdir]">
+                                        {{ (experimentProgresses[exp.logdir] * 100).toFixed(1) }}% <br>
+                                    </template>
+                                </td>
+                                <td>
+                                    {{ exp.logdir.replace("logs/", "") }}
+                                </td>
+                                <td>
+                                    {{exp.env.name}}
+                                </td>
+                                <td> 
+                                    <template v-if="exp.trainer.mixer">
+                                        {{ exp.trainer.mixer.name }}    
+                                    </template>
+                                    <template v-else>
+                                        {{ exp.algo.name }}
+                                    </template>    
+                                </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
                                 <td>
-                                    <RouterLink class="btn btn-sm btn-success me-1" :to="'/inspect/' + exp.logdir"
+                                    <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + exp.logdir"
                                         @click.stop title="Inspect experiment">
                                         <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                                     </RouterLink>
+                                    <button v-if="resultsStore.results.has(exp.logdir)"
+                                        class="btn btn-sm btn-outline-primary me-1 mb-1"
+                                        @click="() => downloadDatasets(exp.logdir)">
+                                        <font-awesome-icon :icon="['fas', 'download']" />
+                                    </button>
                                     <button v-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
                                         @click.stop="() => resultsStore.unload(exp.logdir)">
                                         <font-awesome-icon :icon="['far', 'circle-xmark']" />
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-primary"
-                                        @click="() => downloadDatasets(exp.logdir)">
-                                        <font-awesome-icon :icon="['fas', 'download']" />
                                     </button>
                                 </td>
                             </tr>
@@ -113,33 +121,51 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Dataset, toCSV } from '../../models/Experiment';
+import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
 import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
+import { useRunStore } from '../../stores/RunStore';
+import { useColourStore } from '../../stores/ColourStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
-import { useColourStore } from '../../stores/ColourStore';
+import ContextMenu from './ContextMenu.vue';
+import RunHover from './RunHover.vue';
+import { Run } from '../../models/Run';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
 const colours = useColourStore();
+const runStore = useRunStore();
 
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
+const contextMenu = ref({} as typeof ContextMenu);
+const runHover = ref({} as typeof RunHover)
 
 const selectedMetrics = ref(["score [train]"]);
-const contextMenuLogdir = ref(null as string | null);
-
 
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
     return res;
 });
+
+
+const experimentProgresses = computed(() => {
+    const res = {} as {[key:string]: number};
+    experimentStore.experiments.forEach(exp => {
+        const runs = runStore.runs.get(exp.logdir) ?? [];
+        const nRuns = runs.length;
+        const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
+        res[exp.logdir] = progress;
+    });
+    return res;
+});
+
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
@@ -156,6 +182,11 @@ const datasetPerLabel = computed(() => {
 });
 
 
+function onExperimentClicked(logdir: string) {
+    resultsStore.load(logdir);
+    runStore.refresh(logdir);
+}
+
 function downloadDatasets(logdir: string) {
     const results = resultsStore.results.get(logdir);
     if (results === undefined) {
@@ -166,6 +197,15 @@ function downloadDatasets(logdir: string) {
     downloadStringAsFile(csv, `${logdir}.csv`);
 }
 
+
+function showHover(logdir: string) {
+    const runs = runStore.runs.get(logdir);
+    if (runs === undefined) {
+        alert("No such logdir to show");
+        return;
+    }
+    runHover.value.show(runs);
+}
 
 const emits = defineEmits<{
     (event: "experiment-selected", logdir: string): void
@@ -205,37 +245,12 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     }
 }
 
-const contextMenu = ref({} as HTMLDivElement);
 
 // Function to open context menu
-function openContextMenu(e: MouseEvent, logdir: string) {
-    contextMenuLogdir.value = logdir;
+function openContextMenu(e: MouseEvent, exp: Experiment) {
     e.preventDefault()
-    contextMenu.value.style.left = `${e.x}px`;
-    contextMenu.value.style.top = `${e.y}px`;
-    contextMenu.value.style.display = 'block';
+    contextMenu.value.show(exp, e.x, e.y);
 }
-
-function rename() {
-    if (contextMenuLogdir.value === null) return;
-    const logdir = contextMenuLogdir.value;
-    const newLogdir = prompt("Enter new name for the experiment", logdir);
-    if (newLogdir === null) return;
-    experimentStore.rename(logdir, newLogdir);
-}
-
-function remove() {
-    const logdir = contextMenuLogdir.value;
-    if (logdir === null) return;
-    if (confirm(`Are you sure you want to delete the experiment ${logdir}?`)) {
-        experimentStore.remove(logdir);
-    }
-}
-
-document.addEventListener('click', () => {
-    contextMenu.value.style.display = 'none';
-    contextMenuLogdir.value = null;
-});
 
 
 </script>
@@ -248,30 +263,5 @@ document.addEventListener('click', () => {
 .sortable:hover {
     cursor: pointer;
     text-decoration: underline;
-}
-
-.context-menu {
-    width: fit-content;
-    position: fixed;
-    display: none;
-    background-color: #fff;
-    border: 1px solid #ccc;
-    padding: 5px;
-    z-index: 1000;
-}
-
-.context-menu ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.context-menu ul li {
-    padding: 5px 10px;
-    cursor: pointer;
-}
-
-.context-menu ul li:hover {
-    background-color: #f0f0f0;
 }
 </style>

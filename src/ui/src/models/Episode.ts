@@ -16,6 +16,11 @@ export interface ReplayEpisode {
         [key: string]: number
     },
     qvalues?: number[][][][],
+    logits?: number[][][][],
+    probs?: number[][][][],
+    messages?: number[][][][],
+    received_messages?: number[][][],
+    init_qvalues?: number[][][],
     frames: string[]
 }
 

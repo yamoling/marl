@@ -1,26 +1,25 @@
-import torch
-from typing import Literal
 from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
 from tqdm import tqdm
-
+import torch
 import marl
 
-from .trainer import Trainer
-from .algo import RLAlgo
-from .run import Run, RunHandle
+from marl.models.trainer import Trainer
+from marl.models.algo import RLAlgo
+from marl.models.run import Run, RunHandle
+from marl.policy_gradient import DDPG
+
+from .runner import Runner
 
 
-class Runner:
+class SimpleRunner(Runner):
     def __init__(self, env: RLEnv, algo: RLAlgo, trainer: Trainer, test_interval: int, n_steps: int, test_env: RLEnv):
-        self._trainer = trainer
-        self._env = env
-        self._algo = algo
+        super().__init__(algo, env, trainer, test_env)
         self._test_interval = test_interval
         self._max_step = n_steps
-        self._test_env = test_env
 
     def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
         episode = EpisodeBuilder()
+        self._env.seed(step_num)
         obs = self._env.reset()
         self._algo.new_episode()
         initial_value = self._algo.value(obs)
@@ -32,7 +31,13 @@ class Runner:
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
-            transition = Transition(obs, action, reward, done, info, obs_, truncated)
+            if isinstance(self._algo, DDPG):  # needs old probs because off policy training
+                logits = self._algo.actions_logits(obs)
+                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy()  # type: ignore
+                transition = Transition(obs, action, reward, done, info, obs_, truncated, probs)  # type: ignore
+            else:
+                transition = Transition(obs, action, reward, done, info, obs_, truncated)
+
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
@@ -42,7 +47,7 @@ class Runner:
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def train(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
+    def run(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
         """Start the training loop"""
         marl.seed(seed, self._env)
         self.randomize()
@@ -66,6 +71,7 @@ class Runner:
             self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
+            self._algo.new_episode()
             intial_value = self._algo.value(obs)
             while not episode.is_finished:
                 action = self._algo.choose_action(obs)
@@ -75,18 +81,5 @@ class Runner:
                 obs = new_obs
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
-        run_handle.log_tests(episodes, self._test_env, self._algo, time_step)
+        run_handle.log_tests(episodes, self._algo, time_step)
         self._algo.set_training()
-
-    def randomize(self):
-        self._algo.randomize()
-        self._trainer.randomize()
-
-    def to(self, device: Literal["cpu", "auto", "cuda"] | torch.device):
-        if isinstance(device, str):
-            from marl.utils import get_device
-
-            device = get_device(device)
-        self._algo.to(device)
-        self._trainer.to(device)
-        return self

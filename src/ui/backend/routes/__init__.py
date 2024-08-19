@@ -27,6 +27,7 @@ def run(port: int, debug=False):
     from . import runners
     from . import results
     from . import experiments
+    from . import runs
 
     try:
         app.run(port=port, debug=debug)

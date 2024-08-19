@@ -16,8 +16,9 @@
                     </th>
                 </tr>
             </thead>
-            <tbody v-if="currentQvalues.length > 0">
-                <tr v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+            <tbody>
+                <tr v-if="currentQvalues.length > 0"
+                    v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                     <th scope="row" class="text-capitalize"> {{ objective }} </th>
                     <td v-for="action in currentQvalues.length"
                         :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
@@ -25,6 +26,49 @@
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
+                <tr v-if="episode?.logits && episode.logits.length > currentStep">
+                    <th> <b>Logits</b></th>
+                    <td v-for="logit in episode.logits[currentStep][agentNum]">
+                        {{ logit[0].toFixed(4) }}
+                    </td>
+                </tr>
+                <tr v-if="episode?.probs && episode.probs.length > currentStep">
+                    <th> <b>Probs</b></th>
+                    <td v-for="prob in episode.probs[currentStep][agentNum]">
+                        {{ prob[0].toFixed(4) }}
+                    </td>
+                </tr>
+                <template v-if="episode?.messages && episode.messages.length > currentStep"
+                    v-for="(messages, index) in episode.messages[currentStep][0][agentNum]">
+                    <tr>
+                        <th>
+                            <b>Message to {{ index }}</b>
+                        </th>
+                        <td v-for="message in messages">
+                            {{ message.toFixed(4) }}
+                        </td>
+                    </tr>
+                </template>
+                <tr v-if="episode?.received_messages && episode.received_messages.length > currentStep">
+                    <th> <b>Received Messages</b></th>
+                    <td v-for="message in episode.received_messages[currentStep][agentNum]">
+                        {{ message.toFixed(4) }}
+                    </td>
+                </tr>
+                <tr v-if="episode?.init_qvalues && episode.init_qvalues.length > currentStep">
+                    <th> <b>Init Qvalues</b></th>
+                    <td v-for="qvalue in episode.init_qvalues[currentStep][agentNum]">
+                        {{ qvalue.toFixed(4) }}
+                    </td>
+                </tr>
+                <!-- <tr v-if="episode?.messages && episode.messages.length > 0">
+                    <th> <b>Messages</b></th>
+                    <template v-for="messages in episode.messages[0][currentStep][agentNum]">
+                        <td>
+                           {{ messages }}
+                        </td> 
+                    </template>
+                </tr> -->
             </tbody>
             <tfoot v-if="experiment.env.reward_space.size > 1">
                 <tr>

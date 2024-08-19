@@ -13,7 +13,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
     transitions = []
     obs = env.reset()
     for _ in range(64):
-        action = np.array([Action.STAY.value, Action.STAY.value], dtype=np.int32)
+        action = np.array([Action.STAY.value, Action.STAY.value], dtype=np.int64)
         obs_, r, done, truncated, info = env.step(action)
         transitions.append(Transition(obs, action, r, done, info, obs_, truncated))
         obs = obs_
@@ -29,7 +29,7 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
         + [[Action.WEST.value, Action.STAY.value]] * 5
     )
     for action in actions:
-        action = np.array(action, dtype=np.int32)
+        action = np.array(action, dtype=np.int64)
         obs_, r, done, truncated, info = env.step(action)
         transitions.append(Transition(obs, action, r, done, info, obs_, truncated))
         obs = obs_
@@ -37,11 +37,11 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
 
     irs = []
     # Train RND
-    for _ in range(2000):
+    for t in range(2000):
         ir = rnd.compute(train_batch).mean().item()
         irs.append(ir)
         assert ir >= 0
-        rnd.update(_)
+        rnd.update(t)
     initial_ir = sum(irs[0:100]) / 100
     ir_train_set = rnd.compute(train_batch).mean().item()
     ir_test_set = rnd.compute(test_batch).mean().item()
@@ -50,17 +50,17 @@ def _test_rnd_no_reward_normalisation(env: LLE, target: NN):
 
 
 def test_rnd_linear():
-    env = LLE.level(2)
+    env = LLE.level(2).obs_type(ObservationType.FLATTENED).build()
     target = marl.nn.model_bank.MLP(
         input_size=env.observation_shape[0],
         extras_size=env.extra_feature_shape[0],
         hidden_sizes=(64, 64, 64),
-        output_shape=(512,),
+        output_shape=(env.reward_size, 512),
     )
     _test_rnd_no_reward_normalisation(env, target)
 
 
 def test_rnd_conv():
-    env = LLE.level(2, ObservationType.LAYERED)
-    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (512,))
+    env = LLE.level(2).obs_type(ObservationType.LAYERED).build()
+    target = marl.nn.model_bank.CNN(env.observation_shape, env.extra_feature_shape[0], (env.reward_size, 512))
     _test_rnd_no_reward_normalisation(env, target)

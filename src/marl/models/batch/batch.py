@@ -124,6 +124,11 @@ class Batch(ABC):
     def masks(self) -> torch.Tensor:
         """Masks (for padded episodes)"""
 
+    @abstractmethod  # type: ignore
+    @cached_property
+    def probs(self) -> torch.Tensor:
+        """Probabilities"""
+
     def to(self, device: torch.device):
         """Send the tensors to the given device"""
         self.device = device

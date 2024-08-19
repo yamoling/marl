@@ -18,7 +18,7 @@ from serde import serialize
 class DQNTrainer(Trainer):
     qnetwork: QNetwork
     policy: Policy
-    memory: ReplayMemory
+    memory: ReplayMemory[Batch, Episode | Transition]
     gamma: float
     batch_size: int
     target_updater: TargetParametersUpdater
@@ -108,7 +108,7 @@ class DQNTrainer(Trainer):
         batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
-
+ 
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)

@@ -1,3 +1,4 @@
+from rlenv import RLEnv
 import torch
 
 from marl.models.nn import Mixer
@@ -45,6 +46,11 @@ class QPlex2(Mixer):
             AbsLayer(),
         )
 
+    @classmethod
+    def from_env(cls, env: RLEnv, adv_hypernet_embed: int = 64, transformation=True):
+        assert len(env.state_shape) == 1
+        return QPlex2(env.n_agents, env.n_actions, env.state_shape[0], adv_hypernet_embed, transformation)
+
     def transformation(
         self,
         states: torch.Tensor,
@@ -85,7 +91,8 @@ class QPlex2(Mixer):
         *_args,
         **_kwargs,
     ) -> torch.Tensor:
-        *dims, _ = qvalues.shape
+        # Ignore n_actions, n_objective dimensions
+        *dims, _, n_objectives = qvalues.shape
         qvalues = qvalues.view(-1, self.n_agents)
         states = states.reshape(-1, self.state_size)
         one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
@@ -100,4 +107,4 @@ class QPlex2(Mixer):
         # and it seems not to work when we remove it.
         advantages = advantages.detach()
         q_tot = self.dueling_mixing(advantages, values, states, one_hot_actions)
-        return q_tot.view(*dims)
+        return q_tot.view(*dims, n_objectives)
