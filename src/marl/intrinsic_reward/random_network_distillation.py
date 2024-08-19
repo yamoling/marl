@@ -25,7 +25,6 @@ class RandomNetworkDistillation(IRModule):
     def __init__(
         self,
         target: NN,
-        reward_size: int,
         update_ratio: float = 0.25,
         normalise_rewards=True,
         ir_weight: Optional[Schedule] = None,
@@ -38,7 +37,7 @@ class RandomNetworkDistillation(IRModule):
         """
         super().__init__()
         # RND should output one intrinsic reward per objective
-        if len(target.output_shape) != 2 or target.output_shape[0] != reward_size:
+        if len(target.output_shape) != 2:
             raise ValueError("RND target should output a tensor of shape (reward_size, embedding)")
         self.target = target
         self.predictor_head = deepcopy(target)
