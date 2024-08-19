@@ -1,4 +1,4 @@
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Sequence
 from dataclasses import dataclass
 from rlenv import Observation
 from rlenv.models import RLEnv
@@ -9,7 +9,7 @@ import torch.distributions as D
 from torch.distributions import kl_divergence
 import math
 from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN, MAIC
-from marl.utils import MaicParameters
+from marl.algo.qlearning.maic import MAICParameters
 
 from functools import reduce
 import operator
@@ -40,7 +40,7 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env(cls, env: RLEnv, hidden_sizes: Optional[Iterable[int]] = None):
+    def from_env(cls, env: RLEnv, hidden_sizes: Optional[Sequence[int]] = None):
         if hidden_sizes is None:
             hidden_sizes = (64,)
         return cls(
@@ -445,11 +445,13 @@ class DDPG_NN_TEST(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
+
 class Clipped_DDPG_NN(DDPG_NN_TEST):
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
         logits = torch.clip(logits, min=0, max=4)
         return logits
+
 
 class RCNN(RecurrentQNetwork):
     """
@@ -516,7 +518,7 @@ class CNN_ActorCritic(ActorCriticNN):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
         self.temperature = 1.0
-        
+
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
@@ -547,9 +549,9 @@ class CNN_ActorCritic(ActorCriticNN):
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
         logits = logits / self.temperature
-        return logits        
+        return logits
 
-    def value(self, obs: torch.Tensor): # type: ignore
+    def value(self, obs: torch.Tensor):  # type: ignore
         return self.value_network(obs)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
@@ -567,39 +569,43 @@ class CNN_ActorCritic(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
+
 class Clipped_CNN_ActorCritic(CNN_ActorCritic):
-        
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
         logits = torch.clip(logits, min=0, max=4)
         return logits
 
+
 class SimpleActorCritic(ActorCriticNN):
-    def __init__(self, input_shape: tuple[int], extras_shape: tuple[int, ...], output_shape: tuple[int]):
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.common = torch.nn.Sequential(
-            torch.nn.Linear(*input_shape, 256),
+    def __init__(self, input_size: int, extras_size: int, n_actions: int):
+        super().__init__((input_size,), (extras_size,), output_shape=(n_actions,))
+        self.policy_network = torch.nn.Sequential(
+            torch.nn.Linear(input_size + extras_size, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, 256),
             torch.nn.ReLU(),
+            torch.nn.Linear(256, n_actions),
         )
-        self.policy_network = torch.nn.Sequential(
-            torch.nn.Linear(256, *output_shape),
-            torch.nn.Softmax(dim=-1),
+        self.value_network = torch.nn.Sequential(
+            torch.nn.Linear(input_size + extras_size, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 1),
         )
-
-        self.value_network = torch.nn.Linear(256, 1)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        obs = torch.cat((obs, extras), dim=-1)
-        x = self.common(obs)
+        x = torch.cat((obs, extras), dim=-1)
         return self.policy_network(x), self.value_network(x)
 
-    def policy(self, obs: torch.Tensor):
-        return self.policy_network(obs)
+    def policy(self, x: torch.Tensor, extras: torch.Tensor):
+        x = torch.cat((x, extras), dim=-1)
+        return self.policy_network(x)
 
-    def value(self, obs: torch.Tensor):
-        return self.value_network(obs)
+    def value(self, x: torch.Tensor, extras: torch.Tensor):
+        x = torch.cat((x, extras), dim=-1)
+        return self.value_network(x)
 
     @property
     def value_parameters(self):
@@ -608,6 +614,12 @@ class SimpleActorCritic(ActorCriticNN):
     @property
     def policy_parameters(self):
         return list(self.common.parameters()) + list(self.policy_network.parameters())
+
+    @classmethod
+    def from_env(cls, env: RLEnv):
+        assert len(env.observation_shape) == 1
+        assert len(env.extra_feature_shape) == 1
+        return SimpleActorCritic(env.observation_shape[0], env.extra_feature_shape[0], env.n_actions)
 
 
 class PolicyNetworkMLP(NN):
@@ -663,71 +675,6 @@ def conv2d_size_out(input_width: int, input_height: int, kernel_sizes: list[int]
         width = (width + 2 * pad - (kernel_size - 1) - 1) // stride + 1
         height = (height + 2 * pad - (kernel_size - 1) - 1) // stride + 1
     return width, height
-
-
-class ACNetwork(ActorCriticNN):
-    def __init__(self, input_shape: tuple[int], extras_shape: tuple, output_shape: tuple):
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.common = torch.nn.Sequential(
-            torch.nn.Linear(*input_shape, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
-        )
-        self.policy_network = torch.nn.Linear(128, *output_shape)
-        self.value_network = torch.nn.Linear(128, 1)
-
-    def policy(self, obs: torch.Tensor):
-        obs = self.common(obs)
-        return self.policy_network(obs)
-
-    def value(self, obs: torch.Tensor):
-        obs = self.common(obs)
-        return self.value_network(obs)
-
-    def forward(self, x):
-        x = self.common(x)
-        return self.policy_network(x), self.value_network(x)
-
-    @property
-    def value_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.common.parameters()) + list(self.value_network.parameters())
-
-    @property
-    def policy_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.common.parameters()) + list(self.policy_network.parameters())
-
-
-class ACNetwork2(ActorCriticNN):
-    def __init__(self, input_shape: tuple[int], extras_shape: tuple, output_shape: tuple):
-        super().__init__(input_shape, extras_shape, output_shape)
-        self.value_network = torch.nn.Sequential(
-            torch.nn.Linear(*input_shape, 128), torch.nn.ReLU(), torch.nn.Linear(128, 128), torch.nn.ReLU(), torch.nn.Linear(128, 1)
-        )
-        self.policy_network = torch.nn.Sequential(
-            torch.nn.Linear(*input_shape, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, *output_shape),
-        )
-
-    def policy(self, obs: torch.Tensor):
-        return self.policy_network(obs)
-
-    def value(self, obs: torch.Tensor):
-        return self.value_network(obs)
-
-    def forward(self, x):
-        return self.policy_network(x), self.value_network(x)
-
-    @property
-    def value_parameters(self):
-        return self.value_network.parameters()
-
-    @property
-    def policy_parameters(self):
-        return self.policy_network.parameters()
 
 
 class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pytorch ### Not working
@@ -850,7 +797,7 @@ class MAICNetwork(MAICNN):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MaicParameters):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -886,12 +833,12 @@ class MAICNetwork(MAICNN):
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)      
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         *dims, channels, height, width = obs.shape
 
-        is_batch = len(dims) == 3 # episode batch ?
+        is_batch = len(dims) == 3  # episode batch ?
         total_batch = math.prod(dims)
 
         bs = math.prod(dims[:-1]) if is_batch else 1
@@ -908,7 +855,7 @@ class MAICNetwork(MAICNN):
 
         if not self.args.com:
             return q.view(*dims, *self.output_shape).unsqueeze(-1), {}
-        
+
         latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
@@ -978,7 +925,7 @@ class MAICNetwork(MAICNN):
         return entropy_loss * self.args.entropy_loss_weight
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MaicParameters):
+    def from_env(cls, env: RLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -987,7 +934,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -1021,7 +968,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
             self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
             self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
-        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0] 
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
@@ -1060,11 +1007,11 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         gated_msg = alpha * msg
 
         return gated_msg
-    
+
     def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor):
         *dims, channels, height, width = obs.shape
 
-        is_batch = len(dims) == 3 # episode batch ?
+        is_batch = len(dims) == 3  # episode batch ?
         total_batch = math.prod(dims)
 
         bs = math.prod(dims[:-1]) if is_batch else 1
@@ -1088,14 +1035,13 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
             q += messages
 
         return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
-    
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
 
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         q_values, _, _, _ = self.get_values_and_comms(obs, extras)
         return q_values
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MaicParameters):
+    def from_env(cls, env: RLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -1104,7 +1050,7 @@ class MAICNetworkCNN(QNetwork):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -1146,7 +1092,7 @@ class MAICNetworkCNN(QNetwork):
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         cnn_output_dim = n_features + self.extras_shape[0]
 
-        self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim) # TODO: rename the parameter
+        self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim)  # TODO: rename the parameter
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
     def _compute_messages(self, x, bs):
@@ -1183,12 +1129,10 @@ class MAICNetworkCNN(QNetwork):
 
         return torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
 
-
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-
         *dims, channels, height, width = obs.shape
 
-        is_batch = len(dims) == 3 # episode batch ?
+        is_batch = len(dims) == 3  # episode batch ?
         total_batch = math.prod(dims)
 
         bs = math.prod(dims[:-1]) if is_batch else 1
@@ -1201,7 +1145,7 @@ class MAICNetworkCNN(QNetwork):
 
         if extras is not None:
             x = torch.concat((x, extras), dim=-1)
-        
+
         x = F.relu(self.fc1(x))
         q = self.fc2(x)
 
@@ -1211,16 +1155,16 @@ class MAICNetworkCNN(QNetwork):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MaicParameters):
+    def from_env(cls, env: RLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
-    
+
 
 class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
     """
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -1299,11 +1243,11 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         gated_msg = alpha * msg
 
         return gated_msg
-    
+
     def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor):
         *dims, channels, height, width = obs.shape
 
-        is_batch = len(dims) == 3 # episode batch ?
+        is_batch = len(dims) == 3  # episode batch ?
         total_batch = math.prod(dims)
 
         bs = math.prod(dims[:-1]) if is_batch else 1
@@ -1331,12 +1275,11 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
             q += messages
 
         return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
-    
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
 
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         q_values, _, _, _ = self.get_values_and_comms(obs, extras)
         return q_values
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MaicParameters):
+    def from_env(cls, env: RLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)

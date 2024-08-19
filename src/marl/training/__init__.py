@@ -1,17 +1,16 @@
-from . import nodes
-from .dqn_node_trainer import DQNNodeTrainer
+from .trainer import Trainer
+from .no_train import NoTrain
 from .dqn_trainer import DQNTrainer
 from .cnet_trainer import CNetTrainer
 from .maic_trainer import MAICTrainer
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 from .ppo_trainer import PPOTrainer
 from .ddpg_trainer import DDPGTrainer
-from .no_train import NoTrain
 
 
 __all__ = [
-    "nodes",
-    "DQNNodeTrainer",
+    "Trainer",
+    "NoTrain",
     "DQNTrainer",
     "PPOTrainer",
     "DDPGTrainer",
@@ -20,5 +19,4 @@ __all__ = [
     "TargetParametersUpdater",
     "SoftUpdate",
     "HardUpdate",
-    "NoTrain",
 ]

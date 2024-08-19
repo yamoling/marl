@@ -7,8 +7,10 @@ import torch.nn.functional as F
 import numpy as np
 import numpy.typing as npt
 from rlenv import Observation
-from marl.models import RLAlgo, nn, Policy
+from marl.models import nn, Policy
 from marl.utils import get_device
+
+from ..algo import RLAlgo
 
 
 @serde
@@ -59,9 +61,9 @@ class DDPG(RLAlgo):
         logits[torch.tensor(obs.available_actions) == 0] = -torch.inf
         return logits
 
-    def state_action_value(self, state: Observation,actions: npt.NDArray[np.float32]):
-        value = self.network.value(state, None, actions) # type: ignore
-        return value.item() 
+    def state_action_value(self, state: Observation, actions: npt.NDArray[np.float32]):
+        value = self.network.value(state, None, actions)  # type: ignore
+        return value.item()
 
     def save(self, to_path: str):
         os.makedirs(to_path, exist_ok=True)

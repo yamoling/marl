@@ -1,18 +1,20 @@
-from typing import Any, Literal
-from rlenv import Episode, Transition, Observation
+from typing import Literal
 
-import torch
-from marl.models import Batch
-from marl.models.replay_memory.replay_memory import ReplayMemory
-from marl.models.trainer import Trainer
-from marl.models.nn import ActorCriticNN
-from marl.nn.model_bank import CNN_ActorCritic
-from marl.training import nodes
+from dataclasses import dataclass
 import numpy as np
+import torch
+from rlenv import Episode, Transition
 
+from marl.models import Batch
+from marl.models.nn import ActorCriticNN
+from marl.models.replay_memory.replay_memory import ReplayMemory
+from marl.nn.model_bank import CNN_ActorCritic
 from marl.utils import schedule
 
+from .trainer import Trainer
 
+
+@dataclass
 class PPOTrainer(Trainer):
     gamma: float
     batch_size: int
@@ -20,6 +22,7 @@ class PPOTrainer(Trainer):
     n_epochs: int
     c1: float
     c2: float
+    memory: ReplayMemory[Batch, Transition | Episode]
 
     def __init__(
         self,
@@ -64,7 +67,6 @@ class PPOTrainer(Trainer):
         self.optimiser = self._make_optimizer(optimiser)
         self.update_num = 0
         self.device = network.device
-        self.batch = self._make_graph()
         self.update_num = 0
 
         self.logits_clip_low = logits_clip_low
@@ -158,6 +160,7 @@ class PPOTrainer(Trainer):
                 values = batch_values[b]
 
                 new_logits, new_values = self.network.forward(obs, extras)
+                new_logits = new_logits.view(-1)
 
                 # new_logits = torch.clamp(new_logits, self.logits_clip_low, self.logits_clip_high)
                 new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
@@ -169,7 +172,8 @@ class PPOTrainer(Trainer):
 
                 # probs = self.test_policy.get_probs()
                 # new_probs = torch.nn.functional.softmax(new_logits, dim=-1)
-                new_log_probs = new_dist.log_prob(actions.view(-1)).view(old_log_probs.shape)
+                new_log_probs = new_dist.log_prob(actions.view(-1))
+                new_log_probs = new_log_probs.view(old_log_probs.shape)
                 # new_log_probs = torch.log(probs + 1e-20).view(old_log_probs.shape)
 
                 # Compute ratio between new and old probabilities in the log space (basically importance sampling)
@@ -185,7 +189,7 @@ class PPOTrainer(Trainer):
                 critic_loss = torch.mean((new_values.reshape(returns.shape) - returns) ** 2)
 
                 # Entropy loss
-                entropy_loss: torch.Tensor = torch.mean(new_dist.entropy())
+                entropy_loss = torch.mean(new_dist.entropy())
 
                 self.optimiser.zero_grad()
                 # Maximize actor loss, minimize critic loss and maximize entropy loss
@@ -198,15 +202,17 @@ class PPOTrainer(Trainer):
                 #         print(f'Parameter: {name}, Gradient: None')
                 self.optimiser.step()
         self._update_schedulers(time_step)
-        return {
+        logs = {
             "actor_loss": actor_loss.item(),
             "critic_loss": critic_loss.item(),
             "entropy_loss": entropy_loss.item(),
             "rho": rho.mean().item(),
             "c1": self.c1,
             "c2": self.c2,
-            "temperature": self.network.temperature,
         }
+        if isinstance(self.network, CNN_ActorCritic):
+            logs = logs | {"temperature": self.network.temperature}
+        return logs
 
     def _update_schedulers(self, time_step: int):
         if self.c1_schedule is not None:
@@ -229,10 +235,6 @@ class PPOTrainer(Trainer):
 
     def randomize(self):
         self.network.randomize()
-
-    def _make_graph(self):
-        batch = nodes.ValueNode[Batch](None)  # type: ignore
-        return batch
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):
         match optimiser:

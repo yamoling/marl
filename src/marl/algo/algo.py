@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Any
 
 import numpy as np
 from dataclasses import dataclass
@@ -19,7 +18,7 @@ class RLAlgo(ABC):
         raise NotImplementedError("Not implemented for this algorithm")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray[np.int32, Any]:
+    def choose_action(self, observation: Observation) -> np.ndarray:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):
@@ -29,9 +28,9 @@ class RLAlgo(ABC):
         This is required for recurrent algorithms, such as R-DQN, that need to reset their hidden states.
         """
 
-    @abstractmethod
-    def value(self, observation: Observation) -> float:
+    def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""
+        return 0.0
 
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""

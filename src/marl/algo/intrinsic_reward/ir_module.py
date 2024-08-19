@@ -10,7 +10,7 @@ from marl.models import Batch, Updatable
 @serde
 @dataclass
 class IRModule(Updatable):
-    """Intrinsic Reward Module."""
+    """Intrinsic Reward Module: a class that adds intrinsic rewards."""
 
     name: str
 

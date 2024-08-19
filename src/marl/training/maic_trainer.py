@@ -1,19 +1,22 @@
-import torch
-
-from typing import Literal, Any, Optional
-from rlenv import Transition, Episode
-from marl.models import Trainer, Mixer, EpisodeMemory, Policy, MAICNN
-from marl.models.batch import EpisodeBatch
-from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
-from marl.utils import defaults_to
-
 from copy import deepcopy
+from typing import Any, Literal, Optional
+
+import torch
+from rlenv import Episode, Transition
+
+from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
+from marl.models.batch import EpisodeBatch
+from marl.utils import defaults_to
+from marl.algo.qlearning.maic import MAICParameters
+
+from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
+from .trainer import Trainer
 
 
 class MAICTrainer(Trainer):
     def __init__(
         self,
-        args,
+        args: MAICParameters,
         maic_network: MAICNN,
         train_policy: Policy,
         memory: EpisodeMemory,
@@ -40,6 +43,7 @@ class MAICTrainer(Trainer):
         self.double_qlearning = double_qlearning
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
+        self.device = torch.device("cpu")
 
         self.update_num = 0
 

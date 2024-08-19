@@ -6,8 +6,9 @@ import torch
 from marl.models import Batch, Policy
 from marl.models import NN
 from marl.models.replay_memory.replay_memory import ReplayMemory
-from marl.models.trainer import Trainer
 from marl.models.nn import ActorCriticNN
+
+from .trainer import Trainer
 
 
 class DDPGTrainer(Trainer):
@@ -33,8 +34,8 @@ class DDPGTrainer(Trainer):
         self.tau = tau
 
         # self.optimiser = self._make_optimizer(optimiser, self.network.parameters())
-        self.policy_optimiser =  torch.optim.Adam(self.network.policy_parameters, self.lr)
-        self.value_optimiser =  torch.optim.Adam(self.network.value_parameters, self.lr)
+        self.policy_optimiser = torch.optim.Adam(self.network.policy_parameters, self.lr)
+        self.value_optimiser = torch.optim.Adam(self.network.value_parameters, self.lr)
 
         self.step_num = 0
         self.device = network.device
@@ -65,7 +66,7 @@ class DDPGTrainer(Trainer):
         self.step_num += 1
         if self.step_num % self.update_interval != 0:
             return {}
-        
+
         if not self.memory.can_sample(self.batch_size):
             return {}
 
@@ -81,8 +82,7 @@ class DDPGTrainer(Trainer):
         states = batch.states
         states_ = batch.states_
         probs = batch.probs
-        with torch.no_grad():        
-
+        with torch.no_grad():
             # get next actions
             new_logits, _ = self.network.forward(obs_, extras_)
             # new_logits, _ = self.target_network.forward(obs_, extras_)
@@ -92,22 +92,20 @@ class DDPGTrainer(Trainer):
 
             # get next values
             # new_values = self.network.value(states_ , extras_, new_logits)
-            new_values = self.network.value(states_ , extras_, new_probs)
+            new_values = self.network.value(states_, extras_, new_probs)
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
-
         old_value = self.network.value(states, extras, probs)
 
-        value_loss = torch.nn.functional.mse_loss(old_value, target_values) 
+        value_loss = torch.nn.functional.mse_loss(old_value, target_values)
         self.value_optimiser.zero_grad()
-        value_loss.backward()      
+        value_loss.backward()
         self.value_optimiser.step()
-
 
         # get actions
         logits_current_policy, _ = self.network.forward(obs, extras)
-        
+
         # reshape and mask unavailable actions
         logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)
         logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
@@ -124,7 +122,7 @@ class DDPGTrainer(Trainer):
                 pass
                 # print(f'Parameter: {name}, Gradient: {param.grad}')
             else:
-                print(f'Parameter: {name}, Gradient: None')
+                print(f"Parameter: {name}, Gradient: None")
         self.policy_optimiser.step()
 
         # self._update_networks()

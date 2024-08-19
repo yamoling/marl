@@ -6,8 +6,10 @@ import torch
 import numpy as np
 import numpy.typing as npt
 from rlenv import Observation
-from marl.models import RLAlgo, nn, Policy
+from marl.models import nn, Policy
 from marl.utils import get_device
+
+from ..algo import RLAlgo
 
 
 @serde
@@ -17,7 +19,7 @@ class PPO(RLAlgo):
         self,
         ac_network: nn.ActorCriticNN,
         train_policy: Policy,
-        test_policy: Policy,
+        test_policy: Optional[Policy] = None,
         extra_policy: Optional[Policy] = None,
         extra_policy_every: int = 100,
         logits_clip_low: float = -10,

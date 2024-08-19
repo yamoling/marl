@@ -8,7 +8,9 @@ import numpy as np
 import torch
 from rlenv.models import Observation
 
-from marl.models import RLAlgo, Policy, QNetwork, RecurrentQNetwork
+from marl.models import Policy, QNetwork, RecurrentQNetwork
+
+from ..algo import RLAlgo
 
 
 @serde
