@@ -1,22 +1,27 @@
-def make_env():
-    from lle import LLE, ObservationType
+import networkx as nx
+from icecream import ic
+from marl.other.subgoal import LocalGraph
+import matplotlib.pyplot as plt
+import numpy as np
 
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).build()
-    source = env.world.laser_sources[4, 0]
-    env.world.set_laser_colour(source, 1)
-    return env
+np.random.seed(0)
+g = LocalGraph()
+
+trajectory1 = np.random.choice([0, 2, 4], size=50).tolist()
+trajectory2 = np.random.choice([1, 3, 5], size=50).tolist()
+
+bottleneck = [trajectory1[-1], 5, trajectory2[0]]
+ic(bottleneck)
+g.add_trajectory(trajectory1 + [5] + trajectory2)
+
+pos = nx.planar_layout(g.graph)
+nx.draw(g.graph, pos=pos, with_labels=True)
+labels = nx.get_edge_attributes(g.graph, "weight")
+nx.draw_networkx_edge_labels(g.graph, pos, edge_labels=labels)
+plt.draw()
+plt.show()
+
+print(g.graph)
 
 
-def main():
-    from marl import Experiment
-
-    exp = Experiment.load("logs/shaping-test-lvl6")
-    env = make_env()
-
-    # if not exp.env.has_same_inouts(env):
-    #    raise ValueError("The environment of the experiment and the test environment must have the same inputs and outputs")
-    exp.test_on_other_env(env, "logs/vdn-shaped-test-modified-laser", 1, False, device="auto")
-
-
-if __name__ == "__main__":
-    main()
+g.partition()
