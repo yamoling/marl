@@ -8,11 +8,16 @@ from datetime import datetime
 from rlenv import Episode, RLEnv
 from typing import Optional
 from dataclasses import dataclass
-from marl.models.algo import RLAlgo
-from marl.utils import CorruptExperimentException, stats
+from marl.algo import RLAlgo
+from marl.exceptions import (
+    CorruptExperimentException,
+    TestEnvNotSavedException,
+    RunProcessNotFound,
+    NotRunningExcception,
+    AlreadyRunningException,
+)
+from marl.utils import stats
 from marl import logging
-from marl.utils import exceptions
-from marl.utils.exceptions import TestEnvNotSavedException
 from .replay_episode import ReplayEpisodeSummary
 
 
@@ -130,8 +135,8 @@ class Run:
                 os.kill(pid, signal.SIGINT)
                 return
             except ProcessLookupError:
-                raise exceptions.RunProcessNotFound(self.rundir, pid)
-        raise exceptions.NotRunningExcception(self.rundir)
+                raise RunProcessNotFound(self.rundir, pid)
+        raise NotRunningExcception(self.rundir)
 
     @property
     def test_filename(self):
@@ -204,7 +209,7 @@ class Run:
     def __enter__(self):
         pid = self.get_pid()
         if pid is not None:
-            raise exceptions.AlreadyRunningException(self.rundir, pid)
+            raise AlreadyRunningException(self.rundir, pid)
         with open(self.pid_filename, "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(

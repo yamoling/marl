@@ -4,7 +4,7 @@ from http import HTTPStatus
 from serde.json import to_json
 import json
 import cv2
-from marl.utils.exceptions import ExperimentVersionMismatch
+from marl.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
 
 

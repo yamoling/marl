@@ -3,14 +3,16 @@ import torch
 from typing import Any, Literal, Optional
 from copy import deepcopy
 from rlenv import Transition, Episode
-from marl.models import QNetwork, Mixer, ReplayMemory, Trainer, Policy, PrioritizedMemory
+from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
 from marl.models.batch import EpisodeBatch, Batch
-from marl.intrinsic_reward import IRModule
+from marl.algo import IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 from marl.utils import defaults_to
 
 from dataclasses import dataclass
 from serde import serialize
+
+from .trainer import Trainer
 
 
 @serialize
@@ -108,7 +110,7 @@ class DQNTrainer(Trainer):
         batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
- 
+
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)

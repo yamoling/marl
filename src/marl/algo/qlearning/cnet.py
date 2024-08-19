@@ -12,9 +12,11 @@ from rlenv import Episode
 from marl.utils import DotDic
 
 from typing import Optional
-
-from marl.models import RLAlgo, Policy, DRU
+from marl.models import Policy, DRU
 from marl.nn.model_bank import CNet
+
+
+from ..algo import RLAlgo
 
 
 class EpisodeCommWrapper:
@@ -158,7 +160,7 @@ class EpisodeCommWrapper:
         self.episodes = []
 
 
-class CNetAlgo(RLAlgo):
+class CNet(RLAlgo):
     STEP_MINUS_1_ID = -3
     STEP_ID = -2
     STEP_PLUS_1_ID = -1
@@ -252,17 +254,17 @@ class CNetAlgo(RLAlgo):
         obs, extras = self.to_tensor(observation)
         comm = None
         if opt.comm_enabled:
-            comm = self.episode.step_records[CNetAlgo.STEP_ID].comm.clone()
+            comm = self.episode.step_records[CNet.STEP_ID].comm.clone()
 
         # Get prev action
         prev_action = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
         prev_message = torch.zeros(opt.game_nagents, dtype=torch.long).to(self.device)
         if opt.model_action_aware:
             if step_greater_0:
-                prev_action = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_t.to(self.device)
+                prev_action = self.episode.step_records[CNet.STEP_MINUS_1_ID].a_t.to(self.device)
             if not opt.model_dial:
                 if step_greater_0:
-                    prev_message = self.episode.step_records[CNetAlgo.STEP_MINUS_1_ID].a_comm_t.to(self.device)
+                    prev_message = self.episode.step_records[CNet.STEP_MINUS_1_ID].a_comm_t.to(self.device)
             if not opt.model_dial:
                 prev_action = (prev_action, prev_message)
         # agent_idx = torch.tensor(agent_idx, dtype=torch.long).to(self.device)
@@ -271,12 +273,12 @@ class CNetAlgo(RLAlgo):
             "obs": obs,
             "extras": extras,
             "messages": comm.to(self.device),  # type: ignore
-            "hidden": self.episode.step_records[CNetAlgo.STEP_ID].hidden.to(self.device),
+            "hidden": self.episode.step_records[CNet.STEP_ID].hidden.to(self.device),
             "prev_action": prev_action,
             #'agent_index': agent_idx
         }
-        self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t = observation.available_actions
-        self.episode.step_records[CNetAlgo.STEP_ID].agent_inputs = agent_inputs
+        self.episode.step_records[CNet.STEP_ID].avail_a_t = observation.available_actions
+        self.episode.step_records[CNet.STEP_ID].agent_inputs = agent_inputs
 
         # Compute model output (Q function + message bits)
         return self.model.forward(**agent_inputs)
@@ -289,18 +291,18 @@ class CNetAlgo(RLAlgo):
 
             # Compute model output (Q function + message bits)
             hidden_t, q_t = self.compute_qvalues_and_hidden(observation)
-            self.episode.step_records[CNetAlgo.STEP_PLUS_1_ID].hidden = hidden_t
+            self.episode.step_records[CNet.STEP_PLUS_1_ID].hidden = hidden_t
             # Choose next action and comm using eps-greedy selector
-            avail_actions = self.episode.step_records[CNetAlgo.STEP_ID].avail_a_t
+            avail_actions = self.episode.step_records[CNet.STEP_ID].avail_a_t
             (action, action_value), (comm_vector, comm_action, comm_value) = self.select_action_and_comm(q_t, avail_actions)
 
             # Store action + comm
-            self.episode.step_records[CNetAlgo.STEP_ID].a_t = torch.tensor(action).to(self.device)
-            self.episode.step_records[CNetAlgo.STEP_ID].q_a_t = action_value
-            self.episode.step_records[CNetAlgo.STEP_PLUS_1_ID].comm = comm_vector
+            self.episode.step_records[CNet.STEP_ID].a_t = torch.tensor(action).to(self.device)
+            self.episode.step_records[CNet.STEP_ID].q_a_t = action_value
+            self.episode.step_records[CNet.STEP_PLUS_1_ID].comm = comm_vector
             if not opt.model_dial:
-                self.episode.step_records[CNetAlgo.STEP_ID].a_comm_t = comm_action
-                self.episode.step_records[CNetAlgo.STEP_ID].q_comm_t = comm_value
+                self.episode.step_records[CNet.STEP_ID].a_comm_t = comm_action
+                self.episode.step_records[CNet.STEP_ID].q_comm_t = comm_value
         return action
 
     def fill_target_values(self, episode):
@@ -487,7 +489,7 @@ class CNetAlgo(RLAlgo):
         return self.episode
 
     def get_step_record(self):
-        return self.episode.step_records[CNetAlgo.STEP_ID]  # Get the step record of time t
+        return self.episode.step_records[CNet.STEP_ID]  # Get the step record of time t
 
     def clear_last_record(self):  # When the episode is done
         return 0

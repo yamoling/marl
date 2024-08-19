@@ -1,23 +1,19 @@
-from abc import ABC, abstractmethod
-
-from marl.models import Trainer
-from rlenv import Transition, Episode
-from marl.qlearning import CNetAlgo, EpisodeCommWrapper
-
 from dataclasses import dataclass
-from serde import serialize
-from typing import Literal, Any
-from typing_extensions import Self
-
-import numpy as np
+from typing import Any
 
 import torch
+from rlenv import Episode, Transition
+from serde import serialize
+
+from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper
+
+from .trainer import Trainer
 
 
 @serialize
 @dataclass
 class CNetTrainer(Trainer):
-    def __init__(self, opt, agents: CNetAlgo):
+    def __init__(self, opt, agents: CNet):
         super().__init__("episode", opt.bs)
         self.opt = opt
         self.agents = agents
@@ -49,7 +45,7 @@ class CNetTrainer(Trainer):
         return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
-        # TODO : recompute the value before updating the episode instead of using the last value set by choose_action (no gradient) 
+        # TODO : recompute the value before updating the episode instead of using the last value set by choose_action (no gradient)
         episode_from_agent = self.agents.get_episode()
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))  # type: ignore
 

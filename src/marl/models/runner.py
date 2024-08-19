@@ -1,35 +1,46 @@
-from rlenv.models import RLEnv, Episode, EpisodeBuilder, Transition
-from tqdm import tqdm
+from copy import deepcopy
+from typing import Literal, Optional
+from rlenv import Episode, EpisodeBuilder, RLEnv, Transition
 import torch
+from tqdm import tqdm
 import marl
-
-from marl.models.trainer import Trainer
-from marl.models.algo import RLAlgo
+from marl.algo import RLAlgo, DDPG
 from marl.models.run import Run, RunHandle
-from marl.policy_gradient import DDPG
+from marl.utils import get_device
+from marl.algo.random_algo import RandomAlgo
+from marl.training import Trainer, NoTrain
 
-from .runner import Runner
 
+class Runner:
+    def __init__(
+        self,
+        env: RLEnv,
+        algo: Optional[RLAlgo] = None,
+        trainer: Optional[Trainer] = None,
+        test_env: Optional[RLEnv] = None,
+    ):
+        self._trainer = trainer or NoTrain()
+        self._env = env
+        self._algo = algo or RandomAlgo(env)
+        if test_env is None:
+            test_env = deepcopy(env)
+        self._test_env = test_env
 
-class SimpleRunner(Runner):
-    def __init__(self, env: RLEnv, algo: RLAlgo, trainer: Trainer, test_interval: int, n_steps: int, test_env: RLEnv):
-        super().__init__(algo, env, trainer, test_env)
-        self._test_interval = test_interval
-        self._max_step = n_steps
-
-    def _train_episode(self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle):
+    def _train_episode(
+        self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle, max_step: int, test_interval: int
+    ):
         episode = EpisodeBuilder()
         self._env.seed(step_num)
         obs = self._env.reset()
         self._algo.new_episode()
         initial_value = self._algo.value(obs)
-        while not episode.is_finished and step_num < self._max_step:
+        while not episode.is_finished and step_num < max_step:
             step_num += 1
-            if self._test_interval != 0 and step_num % self._test_interval == 0:
+            if test_interval != 0 and step_num % test_interval == 0:
                 self.test(n_tests, step_num, quiet, run_handle)
             action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
-            if step_num == self._max_step:
+            if step_num == max_step:
                 truncated = True
             if isinstance(self._algo, DDPG):  # needs old probs because off policy training
                 logits = self._algo.actions_logits(obs)
@@ -47,27 +58,44 @@ class SimpleRunner(Runner):
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
 
-    def run(self, logdir: str, seed: int, n_tests: int, quiet: bool = False):
+    def run(
+        self,
+        logdir: str,
+        seed: int = 0,
+        n_tests: int = 1,
+        n_steps: int = 1_000_000,
+        test_interval: int = 5_000,
+        quiet: bool = False,
+    ):
         """Start the training loop"""
         marl.seed(seed, self._env)
         self.randomize()
+        max_step = n_steps
         episode_num = 0
         step = 0
-        pbar = tqdm(total=self._max_step, desc="Training", unit="Step", leave=True, disable=quiet)
+        pbar = tqdm(total=n_steps, desc="Training", unit="Step", leave=True, disable=quiet)
         with Run.create(logdir, seed) as run:
             self.test(n_tests, 0, quiet, run)
-            while step < self._max_step:
-                episode = self._train_episode(step, episode_num, n_tests, quiet, run)
+            while step < max_step:
+                episode = self._train_episode(
+                    step_num=step,
+                    episode_num=episode_num,
+                    n_tests=n_tests,
+                    quiet=quiet,
+                    run_handle=run,
+                    max_step=max_step,
+                    test_interval=test_interval,
+                )
                 episode_num += 1
                 step += len(episode)
                 pbar.update(len(episode))
         pbar.close()
 
-    def test(self, ntests: int, time_step: int, quiet: bool, run_handle: RunHandle):
+    def test(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle):
         """Test the agent"""
         self._algo.set_testing()
         episodes = list[Episode]()
-        for test_num in tqdm(range(ntests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+        for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
             obs = self._test_env.reset()
@@ -82,4 +110,21 @@ class SimpleRunner(Runner):
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
         run_handle.log_tests(episodes, self._algo, time_step)
+        if not quiet:
+            avg_score = sum(e.score for e in episodes) / n_tests
+            print(f"{time_step:9d} Average score: {avg_score}")
         self._algo.set_training()
+
+    def to(self, device: Literal["auto", "cpu"] | int | torch.device):
+        match device:
+            case str():
+                device = get_device(device)
+            case int():
+                device = torch.device(device)
+        self._algo.to(device)
+        self._trainer.to(device)
+        return self
+
+    def randomize(self):
+        self._algo.randomize()
+        self._trainer.randomize()

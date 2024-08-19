@@ -5,11 +5,11 @@ from typing import Optional
 import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
-from marl.utils import ExperimentAlreadyExistsException, MaicParameters
+from marl.exceptions import ExperimentAlreadyExistsException
+from marl.algo.qlearning.maic import MAICParameters
 from lle import WorldState, LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
-from types import SimpleNamespace
-from marl.utils import schedule
+from marl.utils import Schedule
 
 
 class Arguments(RunArguments):
@@ -38,7 +38,7 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.qlearning.mixers.QPlex(
+        mixer=marl.algo.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
             state_size=env.state_shape[0],
@@ -49,7 +49,7 @@ def create_smac(args: Arguments):
         grad_norm_clipping=10,
     )
 
-    algo = marl.qlearning.RDQN(
+    algo = marl.algo.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=test_policy,
@@ -84,7 +84,7 @@ def create_ddpg_lle(args: Arguments):
         network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95, lr=1e-5
     )
 
-    algo = marl.policy_gradient.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
+    algo = marl.algo.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
     # logdir = f"logs/{env.name}-TEST-DDPG"
     logdir = "logs/ddpg_lvl2_lr_1e-5"
     if args.debug:
@@ -103,8 +103,8 @@ def create_ppo_lle(args: Arguments):
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     ac_network.temperature = temperature
 
-    entropy_schedule = schedule.LinearSchedule(0.05, 0.001, round(2 / 3 * n_steps))
-    temperature_schedule = schedule.LinearSchedule(50, 1, round(2 / 3 * n_steps))
+    entropy_schedule = Schedule.linear(0.05, 0.001, round(2 / 3 * n_steps))
+    temperature_schedule = Schedule.linear(50, 1, round(2 / 3 * n_steps))
 
     # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(20)
@@ -132,7 +132,7 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high,
     )
 
-    algo = marl.policy_gradient.PPO(
+    algo = marl.algo.PPO(
         ac_network=ac_network,
         train_policy=marl.policy.CategoricalPolicy(),
         #     train_policy=marl.policy.EpsilonGreedy.linear(
@@ -171,7 +171,7 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=500_000,
     )
-    mixer = marl.qlearning.VDN.from_env(env)
+    mixer = marl.algo.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -189,7 +189,7 @@ def create_lle(args: Arguments):
         # ir_module=rnd,
     )
 
-    algo = marl.qlearning.DQN(
+    algo = marl.algo.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -249,12 +249,12 @@ def create_lle_baseline(args: Arguments):
         batch_size=64,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.algo.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.qlearning.DQN(
+    algo = marl.algo.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -292,7 +292,7 @@ def create_lle_maic(args: Arguments):
     env = LLE.level(2).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = MaicParameters(n_agents=env.n_agents, com=True)
+    opt = MAICParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     eps_steps = 50_000
@@ -305,7 +305,7 @@ def create_lle_maic(args: Arguments):
         eps_steps,
     )
     # Add the MAICAlgo (MAICMAC)
-    algo = marl.qlearning.MAICAlgo(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
+    algo = marl.algo.MAIC(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
     batch_size = 32
     # Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
@@ -315,7 +315,7 @@ def create_lle_maic(args: Arguments):
         batch_size=batch_size,
         memory=memory,
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.algo.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -348,7 +348,7 @@ def create_lle_maicRDQN(args: Arguments):
     env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = MaicParameters(n_agents=env.n_agents, com=True)
+    opt = MAICParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
@@ -367,12 +367,12 @@ def create_lle_maicRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.algo.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.qlearning.RDQN(
+    algo = marl.algo.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -403,7 +403,7 @@ def create_lle_maicCNN(args: Arguments):
     env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = MaicParameters(n_agents=env.n_agents, com=True)
+    opt = MAICParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkCNN.from_env(env, opt)
@@ -422,12 +422,12 @@ def create_lle_maicCNN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.algo.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.qlearning.DQN(
+    algo = marl.algo.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -458,7 +458,7 @@ def create_lle_maicCNNRDQN(args: Arguments):
     env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
     env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
-    opt = MaicParameters(n_agents=env.n_agents, com=True)
+    opt = MAICParameters(n_agents=env.n_agents, com=True)
 
     gamma = 0.95
     qnetwork = marl.nn.model_bank.MAICNetworkCNNRDQN.from_env(env, opt)
@@ -477,12 +477,12 @@ def create_lle_maicCNNRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.qlearning.VDN(env.n_agents),
+        mixer=marl.algo.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.qlearning.DQN(
+    algo = marl.algo.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),

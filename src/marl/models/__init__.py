@@ -1,6 +1,5 @@
 from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC
 from .dru import DRU
-from .algo import RLAlgo
 from .updatable import Updatable
 from .policy import Policy
 from .batch import Batch
@@ -12,8 +11,7 @@ from .replay_memory import (
     TransitionMemory,
 )
 from .run import Run, RunHandle
-from .runners import Runner, SimpleRunner
-from .trainer import Trainer
+from .runner import Runner
 from .experiment import Experiment, ReplayEpisode, ReplayEpisodeSummary
 
 __all__ = [
@@ -25,7 +23,6 @@ __all__ = [
     "MAICNN",
     "MAIC",
     "DRU",
-    "RLAlgo",
     "Updatable",
     "Policy",
     "Batch",
@@ -35,11 +32,9 @@ __all__ = [
     "PrioritizedMemory",
     "NStepMemory",
     "Runner",
-    "SimpleRunner",
     "Experiment",
     "ReplayEpisode",
     "ReplayEpisodeSummary",
     "Run",
     "RunHandle",
-    "Trainer",
 ]

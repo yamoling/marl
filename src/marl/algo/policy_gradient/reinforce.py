@@ -1,9 +1,11 @@
 import os
 import torch
 from rlenv import Episode, Observation
-from marl.models import RLAlgo, NN
+from marl.models import NN
 from marl.models.batch import EpisodeBatch
 from marl.utils import get_device
+
+from ..algo import RLAlgo
 
 
 class Reinforce(RLAlgo):

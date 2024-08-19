@@ -2,7 +2,7 @@ import torch
 from rlenv import Observation, Episode
 from marl.models import nn
 from marl.models.batch import EpisodeBatch
-from marl.models.algo import RLAlgo
+from ..algo import RLAlgo
 
 
 class ActorCritic(RLAlgo):

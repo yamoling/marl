@@ -1,33 +1,31 @@
 import json
-import pathlib
 import os
+import pathlib
+import pickle
 import shutil
 import time
-import pickle
-from typing import Literal, Optional
-import numpy as np
 from copy import deepcopy
 from dataclasses import dataclass
-from serde.json import to_json
-from serde import serde
+from typing import Literal, Optional
+
+import numpy as np
 import torch
+from rlenv.models import EpisodeBuilder, RLEnv, Transition
+from serde import serde
+from serde.json import to_json
 from tqdm import tqdm
 
-
-from rlenv.models import EpisodeBuilder, RLEnv, Transition
-
-from marl.policy_gradient import PPO, DDPG
-from marl.qlearning import DQN, RDQN
+from marl import exceptions
+from marl.algo import DDPG, DQN, PPO, RLAlgo
 from marl.models.nn import MAIC
-from marl.utils import encode_b64_image, exceptions, stats
+from marl.training import Trainer
+from marl.utils import encode_b64_image, stats
 from marl.utils.gpu import get_device
-from .batch import TransitionBatch
 
-from .algo import RLAlgo
-from .trainer import Trainer
+from .batch import TransitionBatch
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
 from .run import Run
-from .runners import SimpleRunner
+from .runner import Runner
 
 
 @serde
@@ -200,7 +198,14 @@ class Experiment:
     ):
         """Train the RLAlgo on the environment according to the experiment parameters."""
         runner = self.create_runner().to(get_device(device, fill_strategy, required_memory_MB))
-        runner.run(self.logdir, seed, n_tests, quiet)
+        runner.run(
+            self.logdir,
+            seed=seed,
+            n_tests=n_tests,
+            quiet=quiet,
+            n_steps=self.n_steps,
+            test_interval=self.test_interval,
+        )
 
     def test_on_other_env(
         self,
@@ -226,12 +231,10 @@ class Experiment:
                     runner.test(n_tests, time_step, run_handle=run_handle, quiet=True)
 
     def create_runner(self):
-        return SimpleRunner(
+        return Runner(
             env=self.env,
             algo=self.algo,
             trainer=self.trainer,
-            test_interval=self.test_interval,
-            n_steps=self.n_steps,
             test_env=self.test_env,
         )
 

@@ -6,6 +6,7 @@ from ..server_state import ServerState
 state = ServerState()
 
 cwd = os.getcwd()
+dist_dir = ""
 if os.path.basename(cwd) == "marl":
     dist_dir = os.path.join(cwd, "src/ui/dist/")
 elif os.path.basename(cwd) == "src":
@@ -14,8 +15,9 @@ elif os.path.basename(cwd) == "ui":
     dist_dir = os.path.join(cwd, "dist/")
 elif os.path.basename(cwd) == "backend":
     dist_dir = os.path.join(os.getcwd(), "../dist/")
-else:
-    raise RuntimeError("Please run this script from the root of the project, otherwise")
+
+if dist_dir == "" or not os.path.exists(dist_dir):
+    raise RuntimeError("Could not find front end files to serve ! Make sure you have built them (cf: readme).")
 dist_dir = os.path.join(os.getcwd(), "src/ui/dist/")
 
 app = Flask(__name__, static_folder=dist_dir, static_url_path="")
