@@ -387,7 +387,8 @@ class DDPG_NN_TEST(ActorCriticNN):
         )
 
         self.value_network = torch.nn.Sequential(
-            torch.nn.Linear(state_size + n_actions * n_agents, 128),
+            # torch.nn.Linear(state_size + n_actions * n_agents, 128),
+            torch.nn.Linear(n_features + n_actions * n_agents, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
             torch.nn.ReLU(),
@@ -415,7 +416,12 @@ class DDPG_NN_TEST(ActorCriticNN):
 
     def value(self, state: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
         actions = actions.view(actions.shape[0], -1)
-        features = torch.cat((state, actions), dim=1)
+        # features = torch.cat((state, actions), dim=1)
+        features = self._cnn_forward(state)
+        # print(features.shape)
+        # print(actions.shape)
+        features = torch.cat((features, actions), dim=1)
+        # print(features.shape)
         return self.value_network(features).squeeze()
 
     @classmethod
@@ -439,6 +445,11 @@ class DDPG_NN_TEST(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
+class Clipped_DDPG_NN(DDPG_NN_TEST):
+    def policy(self, obs: torch.Tensor):
+        logits = self.policy_network(obs)
+        logits = torch.clip(logits, min=0, max=4)
+        return logits
 
 class RCNN(RecurrentQNetwork):
     """
@@ -504,7 +515,8 @@ class CNN_ActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
-
+        self.temperature = 1.0
+        
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
@@ -534,6 +546,7 @@ class CNN_ActorCritic(ActorCriticNN):
 
     def policy(self, obs: torch.Tensor):
         logits = self.policy_network(obs)
+        logits = logits / self.temperature
         return logits        
 
     def value(self, obs: torch.Tensor): # type: ignore

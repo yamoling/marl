@@ -30,6 +30,35 @@ class CategoricalPolicy(Policy):
         return {}
 
 
+@serde
+@dataclass
+class NoisyCategoricalPolicy(Policy):
+    """Categorical distribution policy"""
+
+    def __init__(self):
+        super().__init__()
+
+    def get_action(self, values, available_actions):
+        # add noise to logits
+        noise = np.random.normal(0, 1, values.shape)
+        values = values + noise
+        
+        values[available_actions == 0] = -np.inf
+        values = torch.from_numpy(values)
+        
+        # probs= torch.nn.functional.softmax(values, dim=1)
+        # dist = torch.distributions.Categorical(probs=probs)
+        
+        dist = torch.distributions.Categorical(logits=values)
+        
+        actions = dist.sample()
+        return actions.numpy(force=True)
+
+    def update(self, _):
+        return {}
+
+
+
 class ExtraPolicy(Policy):
     """Don't know how to name it"""
 

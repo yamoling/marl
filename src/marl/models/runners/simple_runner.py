@@ -31,12 +31,12 @@ class SimpleRunner(Runner):
             obs_, reward, done, truncated, info = self._env.step(action)
             if step_num == self._max_step:
                 truncated = True
-            if (isinstance(self._algo, DDPG)):  # needs old probs because off policy training
+            if isinstance(self._algo, DDPG):  # needs old probs because off policy training
                 logits = self._algo.actions_logits(obs)
-                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy() # type: ignore
-                transition = Transition(obs, action, reward, done, info, obs_, truncated, probs) # type: ignore
+                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy()  # type: ignore
+                transition = Transition(obs, action, reward, done, info, obs_, truncated, probs)  # type: ignore
             else:
-                transition = Transition(obs, action, reward, done, info, obs_, truncated)            
+                transition = Transition(obs, action, reward, done, info, obs_, truncated)
 
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)

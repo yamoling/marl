@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import os
-from typing import Optional
+from typing import Optional, Any
 from serde import serde
 import torch
 import torch.nn.functional as F
@@ -26,7 +26,7 @@ class DDPG(RLAlgo):
         self.test_policy = test_policy
         self.policy = self.train_policy
 
-    def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
+    def choose_action(self, observation: Observation):
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
             obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
