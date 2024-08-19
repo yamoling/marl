@@ -27,6 +27,9 @@ class ReplayEpisode(ReplayEpisodeSummary):
     frames: list[str]
     logits: Optional[list[list[list[float]]]]
     probs: Optional[list[list[list[float]]]]
+    messages: Optional[list[list[list[float]]]]
+    received_messages: Optional[list[list[float]]]
+    init_qvalues: Optional[list[list[list[float]]]]
 
     def __init__(
         self,
@@ -38,6 +41,9 @@ class ReplayEpisode(ReplayEpisodeSummary):
         qvalues: Optional[list[list[list[float]]]] = None,
         logits: Optional[list[list[list[float]]]] = None,
         probs: Optional[list[list[list[float]]]] = None,
+        messages: Optional[list[list[list[float]]]] = None,
+        received_messages: Optional[list[list[float]]] = None,
+        init_qvalues: Optional[list[list[list[float]]]] = None,
     ):
         super().__init__(directory, metrics)
         self.episode = episode
@@ -46,3 +52,6 @@ class ReplayEpisode(ReplayEpisodeSummary):
         self.frames = frames
         self.logits = logits
         self.probs = probs
+        self.messages = messages
+        self.received_messages = received_messages
+        self.init_qvalues = init_qvalues

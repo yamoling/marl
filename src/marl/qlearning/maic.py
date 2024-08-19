@@ -49,7 +49,7 @@ class MAICAlgo(RLAlgo):
         return torch.sum(objective_qvalues, dim=-1)
 
     def new_episode(self):
-        self.maic_network.reset_hidden_states(1)  
+        self.maic_network.reset_hidden_states()  
 
     def set_testing(self):
         self.policy = self.test_policy

@@ -17,7 +17,8 @@ from tqdm import tqdm
 from rlenv.models import EpisodeBuilder, RLEnv, Transition
 
 from marl.policy_gradient import PPO, DDPG
-from marl.qlearning import DQN
+from marl.qlearning import DQN, RDQN
+from marl.models.nn import MAIC
 from marl.utils import encode_b64_image, exceptions, stats
 from marl.utils.gpu import get_device
 from .batch import TransitionBatch
@@ -273,6 +274,9 @@ class Experiment:
         qvalues = []
         llogits = []
         pprobs = []
+        messages = []
+        received_messages = []
+        init_qvalues = []
         self.algo.new_episode()
         self.algo.set_testing()
         for action in actions:
@@ -314,9 +318,19 @@ class Experiment:
             frames.append(encode_b64_image(self.test_env.render("rgb_array")))
             obs = obs_
         episode = episode.build()
+        
         if isinstance(self.algo, DQN):
-            batch = TransitionBatch(list(episode.transitions()))
-            qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
+            if isinstance(self.algo.qnetwork, MAIC):
+                for transition in episode.transitions():
+                    current_qvalues, gated_messages, received_message, current_init_qvalues = self.algo.qnetwork.get_values_and_comms(torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras))
+                    qvalues.append(current_qvalues.detach().cpu().tolist())
+                    if gated_messages is not None and len(received_message) > 0:
+                        messages.append(gated_messages.detach().cpu().tolist())
+                        received_messages.append(received_message.detach().cpu().tolist())
+                        init_qvalues.append(current_init_qvalues.detach().cpu().tolist())                        
+            else:
+                batch = TransitionBatch(list(episode.transitions()))
+                qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
 
         return ReplayEpisode(
             directory=episode_folder,
@@ -327,4 +341,7 @@ class Experiment:
             state_values=values,
             probs=pprobs,
             logits=llogits,
+            messages=messages,
+            received_messages=received_messages,
+            init_qvalues = init_qvalues
         )

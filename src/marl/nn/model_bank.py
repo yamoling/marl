@@ -8,7 +8,8 @@ import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import kl_divergence
 import math
-from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN
+from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN, MAIC
+from marl.utils import MaicParameters
 
 from functools import reduce
 import operator
@@ -716,7 +717,7 @@ class ACNetwork2(ActorCriticNN):
         return self.policy_network.parameters()
 
 
-class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pytorch
+class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pytorch ### Not working
     def __init__(self, input_shape: tuple[int], extras_shape: tuple[int], output_size: int, opt):
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -836,7 +837,7 @@ class MAICNetwork(MAICNN):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MaicParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -844,68 +845,58 @@ class MAICNetwork(MAICNN):
         self.latent_dim = args.latent_dim
         self.n_actions = output_size
 
-        NN_HIDDEN_SIZE = args.nn_hidden_size
-        activation_func = nn.LeakyReLU()
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
 
-        self.embed_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
-        )
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
 
-        self.inference_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
-        )
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
 
-        if len(input_shape) == 1:
-            n_inputs = input_shape[0] + extras_shape[0]  # When FLATTENED
-        else:
-            n_inputs = reduce(operator.mul, input_shape) + reduce(operator.mul, extras_shape)  # When LAYERED
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
-        self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
-        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
-
-        self.msg_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
-        )
-
-        self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
-        self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
-
-    def reset_hidden_states(self, bs):
-        """Reset the hidden states"""
-        self.hidden_states = self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_().unsqueeze(0).expand(bs, self.n_agents, -1)
+        self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)      
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        if len(obs.shape) == 3:
-            # When FLATTENED
-            bs, n_agents, obs_size = obs.shape
-            obs = torch.reshape(obs, (-1, obs_size))
-            if extras is not None:
-                extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                obs = torch.concat((obs, extras), dim=-1)
-        else:
-            # When LAYERED
-            *dims, channels, height, width = obs.shape
-            total_batch = math.prod(dims)
-            bs = dims[0]
-            # obs = obs.view(bs, channels, height, width)
-            obs = obs.reshape(total_batch, -1)
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, -1)
+        if extras is not None:
             extras = extras.reshape(total_batch, *self.extras_shape)
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
 
-        h = self.rnn(x, self.hidden_states)
-        self.hidden_states = h
-        q = self.fc2(h)
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
 
-        latent_parameters = self.embed_net(h)
+        if not self.args.com:
+            return q.view(*dims, *self.output_shape).unsqueeze(-1), {}
+        
+        latent_parameters = self.embed_net(x)
         latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
             torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
         )
@@ -921,10 +912,10 @@ class MAICNetwork(MAICNN):
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
         latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
 
-        h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        h_repeat = x.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
         msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
 
-        query = self.w_query(h).unsqueeze(1)
+        query = self.w_query(x).unsqueeze(1)
         key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
         alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
@@ -941,9 +932,9 @@ class MAICNetwork(MAICNN):
         returns = {}
 
         # if self.args.mi_loss_weight > 0:
-        returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
+        returns["mi_loss"] = self.calculate_action_mi_loss(x, bs, latent_embed, return_q)
         # if self.args.entropy_loss_weight > 0:
-        query = self.w_query(h.detach()).unsqueeze(1)
+        query = self.w_query(x.detach()).unsqueeze(1)
         key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
         alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
         returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
@@ -974,16 +965,16 @@ class MAICNetwork(MAICNN):
         return entropy_loss * self.args.entropy_loss_weight
 
     @classmethod
-    def from_env(cls, env: RLEnv, args):
+    def from_env(cls, env: RLEnv, args: MaicParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
-class MAICNetworkRDQN(RecurrentQNetwork):
+class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
     """
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
         super().__init__(input_shape, extras_shape, (output_size,))
 
         self.args = args
@@ -991,151 +982,348 @@ class MAICNetworkRDQN(RecurrentQNetwork):
         self.latent_dim = args.latent_dim
         self.n_actions = output_size
 
-        NN_HIDDEN_SIZE = args.nn_hidden_size
-        activation_func = nn.LeakyReLU()
+        self.test_mode = False
 
-        self.embed_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
-        )
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
 
-        self.inference_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
-            nn.BatchNorm1d(NN_HIDDEN_SIZE),
-            activation_func,
-            nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
-        )
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
 
-        if len(input_shape) == 1:
-            n_inputs = input_shape[0] + extras_shape[0]  # When FLATTENED
-        else:
-            n_inputs = reduce(operator.mul, input_shape) + extras_shape[0]  # When LAYERED
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
+
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+
+        n_inputs = reduce(operator.mul, input_shape) + extras_shape[0] 
 
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
-        self.rnn = nn.GRUCell(args.rnn_hidden_dim, args.rnn_hidden_dim)
+        self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
 
-        self.msg_net = nn.Sequential(
-            nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+    def _compute_messages(self, x, bs):
+        latent_parameters = self.embed_net(x)
+        latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
         )
 
-        self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
-        self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+        latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
 
-    def reset_hidden_states(self, bs):
-        """Reset the hidden states"""
-        self.hidden_states = self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_().unsqueeze(0).expand(bs or 1, self.n_agents, -1)
-
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        if len(obs.shape) == 3:
-            # When FLATTENED
-            bs, n_agents, obs_size = obs.shape
-            obs = torch.reshape(obs, (-1, obs_size))
-            if extras is not None:
-                extras = torch.reshape(extras, (*obs.shape[:-1], *self.extras_shape))
-                obs = torch.concat((obs, extras), dim=-1)
+        if self.test_mode:
+            latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
-            # When LAYERED
-            *dims, channels, height, width = obs.shape
-            total_batch = math.prod(dims)
-            if len(dims) == 2:
-                bs = dims[0]
-            else:
-                bs = dims[1]
-            # obs = obs.view(bs, channels, height, width)
-            obs = obs.reshape(total_batch, -1)
+            gaussian_embed = D.Normal(
+                latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+            )
+            latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
+        latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+
+        h_repeat = x.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+
+        query = self.w_query(x).unsqueeze(1)
+        key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        for i in range(self.n_agents):
+            alpha[:, i, i] = -1e9
+        alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+
+        if self.test_mode:
+            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+
+        gated_msg = alpha * msg
+
+        return gated_msg
+    
+    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor):
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, -1)
+        if extras is not None:
             extras = extras.reshape(total_batch, *self.extras_shape)
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
-        h = self.rnn(x, self.hidden_states)
-        self.hidden_states = h
-        q = self.fc2(h)
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
 
-        # latent_parameters = self.embed_net(h)
-        # latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
-        #     torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
-        # )
+        messages = []
+        gated_msg = None
+        init_qvalues = q.detach().clone()
 
-        # latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+        if self.args.com:
+            gated_msg = self._compute_messages(x, bs)
+            messages = torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+            q += messages
 
-        # if self.test_mode:
-        #     latent = latent_embed[:, : self.n_agents * self.latent_dim]
-        # else:
-        #     gaussian_embed = D.Normal(
-        #         latent_embed[:, : self.n_agents * self.latent_dim],
-        #         (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
-        #     )
-        #     latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
-        # latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
+    
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
 
-        # h_repeat = h.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-        # msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
-
-        # query = self.w_query(h).unsqueeze(1)
-        # key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        # alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
-        # for i in range(self.n_agents):
-        #     alpha[:, i, i] = -1e9
-        # alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
-
-        # if self.test_mode:
-        #     alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
-
-        # gated_msg = alpha * msg
-
-        return_q = q  # + torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
-
-        returns = {}
-
-        # returns["mi_loss"] = self.calculate_action_mi_loss(h, bs, latent_embed, return_q)
-        # query = self.w_query(h.detach()).unsqueeze(1)
-        # key = self.w_key(latent.detach()).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        # alpha = F.softmax(torch.bmm(query, key), dim=-1).reshape(bs, self.n_agents, self.n_agents)
-        # returns["entropy_loss"] = self.calculate_entropy_loss(alpha)
-
-        return return_q.view(*dims, *self.output_shape).unsqueeze(-1)
-
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """
-        Compute the Q-values for a batch of observations (multiple episodes) during training.
-
-        In this case, the RNN considers hidden states=None.
-        """
-        self.test_mode = False
-        bs = obs.shape[1]
-        qvalues = []
-        self.reset_hidden_states(bs)
-        for t in range(len(obs)):  # case of Episode Batch
-            qvalues.append(self.forward(obs[t], extras[t]))
-
-        return torch.stack(qvalues, dim=0)
-
-    def calculate_action_mi_loss(self, h, bs, latent_embed, q):
-        latent_embed = latent_embed.view(bs * self.n_agents, 2, self.n_agents, self.latent_dim)
-        g1 = D.Normal(
-            latent_embed[:, 0, :, :].reshape(-1, self.latent_dim), latent_embed[:, 1, :, :].reshape(-1, self.latent_dim) ** (1 / 2)
-        )
-        hi = h.view(bs, self.n_agents, 1, -1).repeat(1, 1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
-
-        selected_action = torch.max(q, dim=1)[1].unsqueeze(-1)
-        one_hot_a = torch.zeros(selected_action.shape[0], self.n_actions).to(self.device).scatter(1, selected_action, 1)
-        one_hot_a = one_hot_a.view(bs, 1, self.n_agents, -1).repeat(1, self.n_agents, 1, 1)
-        one_hot_a = one_hot_a.view(bs * self.n_agents * self.n_agents, -1)
-
-        latent_infer = self.inference_net(torch.cat([hi, one_hot_a], dim=-1)).view(bs * self.n_agents * self.n_agents, -1)
-        latent_infer[:, self.latent_dim :] = torch.clamp(torch.exp(latent_infer[:, self.latent_dim :]), min=self.args.var_floor)
-        g2 = D.Normal(latent_infer[:, : self.latent_dim], latent_infer[:, self.latent_dim :] ** (1 / 2))
-        mi_loss = kl_divergence(g1, g2).sum(-1).mean()
-        return mi_loss * self.args.mi_loss_weight
-
-    def calculate_entropy_loss(self, alpha):
-        alpha = torch.clamp(alpha, min=1e-4)
-        entropy_loss = -(alpha * torch.log2(alpha)).sum(-1).mean()
-        return entropy_loss * self.args.entropy_loss_weight
+        q_values, _, _, _ = self.get_values_and_comms(obs, extras)
+        return q_values
 
     @classmethod
-    def from_env(cls, env: RLEnv, args):
+    def from_env(cls, env: RLEnv, args: MaicParameters):
+        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+
+
+class MAICNetworkCNN(QNetwork):
+    """
+    Source : https://github.com/mansicer/MAIC
+    """
+
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(input_shape, extras_shape, (output_size,))
+
+        kernel_sizes = [3, 3, 3]
+        strides = [1, 1, 1]
+        filters = [32, 64, 64]
+
+        self.args = args
+        self.n_agents = args.n_agents
+        self.latent_dim = args.latent_dim
+        self.n_actions = output_size
+
+        self.test_mode = False
+
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
+
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
+
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
+
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        cnn_output_dim = n_features + self.extras_shape[0]
+
+        self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim) # TODO: rename the parameter
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
+
+    def _compute_messages(self, x, bs):
+        latent_parameters = self.embed_net(x)
+        latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
+        )
+
+        latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+
+        if self.test_mode:
+            latent = latent_embed[:, : self.n_agents * self.latent_dim]
+        else:
+            gaussian_embed = D.Normal(
+                latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+            )
+            latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
+        latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+
+        h_repeat = x.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+
+        query = self.w_query(x).unsqueeze(1)
+        key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        for i in range(self.n_agents):
+            alpha[:, i, i] = -1e9
+        alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+
+        if self.test_mode:
+            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+
+        gated_msg = alpha * msg
+
+        return torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, channels, height, width)
+        if extras is not None:
+            extras = extras.reshape(total_batch, *self.extras_shape)
+
+        x = F.relu(self.cnn(obs))
+
+        if extras is not None:
+            x = torch.concat((x, extras), dim=-1)
+        
+        x = F.relu(self.fc1(x))
+        q = self.fc2(x)
+
+        if self.args.com:
+            q += self._compute_messages(x, bs)
+
+        return q.view(*dims, *self.output_shape).unsqueeze(-1)
+
+    @classmethod
+    def from_env(cls, env: RLEnv, args: MaicParameters):
+        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+    
+
+class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
+    """
+    Source : https://github.com/mansicer/MAIC
+    """
+
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args : MaicParameters):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(input_shape, extras_shape, (output_size,))
+
+        kernel_sizes = [3, 3, 3]
+        strides = [1, 1, 1]
+        filters = [32, 64, 64]
+
+        self.args = args
+        self.n_agents = args.n_agents
+        self.latent_dim = args.latent_dim
+        self.n_actions = output_size
+
+        self.test_mode = False
+
+        if self.args.com:
+            NN_HIDDEN_SIZE = args.nn_hidden_size
+            activation_func = nn.LeakyReLU()
+
+            self.embed_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.n_agents * args.latent_dim * 2),
+            )
+
+            self.inference_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + self.n_actions, NN_HIDDEN_SIZE),
+                nn.BatchNorm1d(NN_HIDDEN_SIZE),
+                activation_func,
+                nn.Linear(NN_HIDDEN_SIZE, args.latent_dim * 2),
+            )
+            self.msg_net = nn.Sequential(
+                nn.Linear(args.rnn_hidden_dim + args.latent_dim, NN_HIDDEN_SIZE), activation_func, nn.Linear(NN_HIDDEN_SIZE, self.n_actions)
+            )
+
+            self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
+            self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
+
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        cnn_output_dim = n_features + self.extras_shape[0]
+
+        self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim)
+        self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
+        self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
+
+    def _compute_messages(self, x, bs):
+        latent_parameters = self.embed_net(x)
+        latent_parameters[:, -self.n_agents * self.latent_dim :] = torch.clamp(
+            torch.exp(latent_parameters[:, -self.n_agents * self.latent_dim :]), min=self.args.var_floor
+        )
+
+        latent_embed = latent_parameters.reshape(bs * self.n_agents, self.n_agents * self.latent_dim * 2)
+
+        if self.test_mode:
+            latent = latent_embed[:, : self.n_agents * self.latent_dim]
+        else:
+            gaussian_embed = D.Normal(
+                latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
+            )
+            latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
+        latent = latent.reshape(bs * self.n_agents * self.n_agents, self.latent_dim)
+
+        h_repeat = x.view(bs, self.n_agents, -1).repeat(1, self.n_agents, 1).view(bs * self.n_agents * self.n_agents, -1)
+        msg = self.msg_net(torch.cat([h_repeat, latent], dim=-1)).view(bs, self.n_agents, self.n_agents, self.n_actions)
+
+        query = self.w_query(x).unsqueeze(1)
+        key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        for i in range(self.n_agents):
+            alpha[:, i, i] = -1e9
+        alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
+
+        if self.test_mode:
+            alpha[alpha < (0.25 * 1 / self.n_agents)] = 0
+
+        gated_msg = alpha * msg
+
+        return gated_msg
+    
+    def get_values_and_comms(self, obs: torch.Tensor, extras: torch.Tensor):
+        *dims, channels, height, width = obs.shape
+
+        is_batch = len(dims) == 3 # episode batch ?
+        total_batch = math.prod(dims)
+
+        bs = math.prod(dims[:-1]) if is_batch else 1
+
+        obs = obs.reshape(total_batch, channels, height, width)
+        if extras is not None:
+            extras = extras.reshape(total_batch, *self.extras_shape)
+
+        x = F.relu(self.cnn(obs))
+
+        if extras is not None:
+            x = torch.concat((x, extras), dim=-1)
+
+        x = F.relu(self.fc1(x))
+        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        q = self.fc2(x)
+
+        messages = []
+        gated_msg = None
+        init_qvalues = q.detach().clone()
+
+        if self.args.com:
+            gated_msg = self._compute_messages(x, bs)
+            messages = torch.sum(gated_msg, dim=1).view(bs * self.n_agents, self.n_actions)
+            q += messages
+
+        return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
+    
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+
+        q_values, _, _, _ = self.get_values_and_comms(obs, extras)
+        return q_values
+
+    @classmethod
+    def from_env(cls, env: RLEnv, args: MaicParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
