@@ -14,7 +14,8 @@ class Trainer(ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str
-    update_interval: int
+    step_update_interval: int
+    episode_update_interval: int
     """
     How often to update the algorithm. 
     If the algorithm is trained on episodes, this is the number of episodes between each update.
@@ -25,13 +26,24 @@ class Trainer(ABC):
     update_on_episodes: bool
     """Whether to update on episodes."""
 
-    def __init__(self, update_type: Literal["step", "episode"], update_interval: int):
-        assert update_type in ["step", "episode"]
-        assert update_interval > 0
+    def __init__(self, update_type: Literal["step", "episode", "both"], update_interval: int | tuple[int, int]):
+        assert update_type in ["step", "episode", "both"]
+        match update_interval:
+            case tuple((interval_steps, interval_episodes)):
+                assert update_type == "both"
+                assert interval_steps > 0
+                self.step_update_interval = interval_steps
+                assert interval_episodes > 0
+                self.episode_update_interval = interval_episodes
+            case int(interval):
+                assert interval > 0
+                self.step_update_interval = interval
+                self.episode_update_interval = interval
+            case _:
+                raise ValueError("Invalid update interval")
         self.name = self.__class__.__name__
-        self.update_interval = update_interval
-        self.update_on_steps = update_type == "step"
-        self.update_on_episodes = update_type == "episode"
+        self.update_on_steps = update_type in ["step", "both"]
+        self.update_on_episodes = update_type in ["episode", "both"]
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         """

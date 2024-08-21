@@ -1,9 +1,12 @@
 import rlenv
 from .algo import RLAlgo
+from typing import TypeVar
+
+A = TypeVar("A", bound=rlenv.ActionSpace)
 
 
 class RandomAlgo(RLAlgo):
-    def __init__(self, env: rlenv.RLEnv[rlenv.ActionSpace]):
+    def __init__(self, env: rlenv.RLEnv[A]):
         super().__init__()
         self.env = env
 

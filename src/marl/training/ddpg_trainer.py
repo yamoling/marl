@@ -64,7 +64,7 @@ class DDPGTrainer(Trainer):
 
     def _update(self, time_step: int):
         self.step_num += 1
-        if self.step_num % self.update_interval != 0:
+        if self.step_num % self.steps_update_interval != 0:
             return {}
 
         if not self.memory.can_sample(self.batch_size):
