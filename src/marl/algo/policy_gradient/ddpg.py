@@ -6,7 +6,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import numpy.typing as npt
-from rlenv import Observation
+from marlenv import Observation
 from marl.models import nn, Policy
 from marl.utils import get_device
 

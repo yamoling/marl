@@ -5,7 +5,7 @@ from serde import serde
 from typing import Callable, Optional, TypeVar, Literal
 import re
 from dataclasses import dataclass
-from rlenv import RLEnv
+from marlenv import RLEnv
 
 
 def seed(seed_value: int, env: Optional[RLEnv] = None):

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from rlenv import Observation, Episode
+from marlenv import Observation, Episode
 from marl.models import EpisodeMemory, nn
 from marl.utils import get_device
 

@@ -1,6 +1,6 @@
 from copy import deepcopy
 from typing import Any, Literal
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 
 import torch
 from marl.models import Batch, Policy

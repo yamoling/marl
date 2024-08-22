@@ -1,4 +1,4 @@
-from rlenv import RLEnv
+from marlenv import RLEnv
 import torch
 
 from marl.models.nn import Mixer

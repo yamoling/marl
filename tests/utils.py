@@ -1,4 +1,4 @@
-from rlenv import RLEnv, Episode, Transition, EpisodeBuilder
+from marlenv import RLEnv, Episode, Transition, EpisodeBuilder
 
 import torch
 

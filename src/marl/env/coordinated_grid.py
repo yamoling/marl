@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from rlenv import RLEnv, DiscreteActionSpace, Observation
+from marlenv import RLEnv, DiscreteActionSpace, Observation
 
 
 N_ROWS = 11

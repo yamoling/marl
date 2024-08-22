@@ -1,5 +1,5 @@
-from rlenv import RLEnv
-from rlenv.wrappers import RLEnvWrapper
+from marlenv import RLEnv
+from marlenv.wrappers import RLEnvWrapper
 
 
 class EnvPool(RLEnvWrapper):

@@ -1,7 +1,7 @@
 from typing import Optional, Iterable, Sequence
 from dataclasses import dataclass
-from rlenv import Observation
-from rlenv.models import RLEnv
+from marlenv import Observation
+from marlenv.models import RLEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 from serde import serialize
 
 from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper

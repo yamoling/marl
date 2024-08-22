@@ -7,8 +7,8 @@ import torch
 from torch import optim
 from torch.nn.utils import clip_grad_norm_
 
-from rlenv.models import Observation
-from rlenv import Episode
+from marlenv.models import Observation
+from marlenv import Episode
 from marl.utils import DotDic
 
 from typing import Optional

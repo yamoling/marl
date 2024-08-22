@@ -1,6 +1,6 @@
 import numpy as np
-from rlenv.wrappers import RLEnvWrapper
-from rlenv import Observation, RLEnv
+from marlenv.wrappers import RLEnvWrapper
+from marlenv import Observation, RLEnv
 from dataclasses import dataclass
 from serde import serde
 from lle import Position, World, Direction

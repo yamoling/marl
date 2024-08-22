@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from rlenv.models import EpisodeBuilder, RLEnv, Transition
+from marlenv.models import EpisodeBuilder, RLEnv, Transition
 from serde import serde
 from serde.json import to_json
 from tqdm import tqdm

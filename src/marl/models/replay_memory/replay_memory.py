@@ -5,7 +5,7 @@ from typing import Deque, Generic, Iterable, Literal, TypeVar
 
 from serde import serde
 import numpy as np
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 

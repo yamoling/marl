@@ -2,7 +2,7 @@ import os
 import pickle
 import torch
 from dataclasses import dataclass
-from rlenv.models import Observation
+from marlenv.models import Observation
 from marl.models import Policy, MAICNN
 
 from ..algo import RLAlgo

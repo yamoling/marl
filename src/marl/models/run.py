@@ -5,7 +5,7 @@ import json
 import signal
 import pickle
 from datetime import datetime
-from rlenv import Episode, RLEnv
+from marlenv import Episode, RLEnv
 from typing import Optional
 from dataclasses import dataclass
 from marl.algo import RLAlgo

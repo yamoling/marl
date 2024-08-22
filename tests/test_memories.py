@@ -1,6 +1,6 @@
 from marl.models import TransitionMemory
 import numpy as np
-from rlenv import Transition, MockEnv
+from marlenv import Transition, MockEnv
 import marl
 
 

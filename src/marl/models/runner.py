@@ -1,6 +1,6 @@
 from copy import deepcopy
 from typing import Literal, Optional
-from rlenv import Episode, EpisodeBuilder, RLEnv, Transition
+from marlenv import Episode, EpisodeBuilder, RLEnv, Transition
 import torch
 from tqdm import tqdm
 import marl

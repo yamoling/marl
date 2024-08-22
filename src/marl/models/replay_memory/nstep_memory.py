@@ -1,5 +1,5 @@
 from copy import deepcopy
-from rlenv import Transition
+from marlenv import Transition
 from .replay_memory import TransitionMemory
 
 

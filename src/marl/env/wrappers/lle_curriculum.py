@@ -1,6 +1,6 @@
 import random
 from numpy import ndarray
-from rlenv.wrappers import RLEnvWrapper
+from marlenv.wrappers import RLEnvWrapper
 from lle import LLE, LaserSource, WorldState
 from dataclasses import dataclass
 from serde import serde

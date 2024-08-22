@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from serde import serde
 from typing import Literal, Any
 from typing_extensions import Self
-from rlenv import Transition, Episode
+from marlenv import Transition, Episode
 
 import torch
 

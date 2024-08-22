@@ -1,5 +1,5 @@
 import numpy as np
-from rlenv import RLEnv, DiscreteActionSpace, Observation
+from marlenv import RLEnv, DiscreteActionSpace, Observation
 
 
 class MatrixGame(RLEnv[DiscreteActionSpace]):

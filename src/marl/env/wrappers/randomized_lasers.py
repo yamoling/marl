@@ -1,6 +1,6 @@
 import random
 from lle import LLE
-from rlenv.wrappers import RLEnvWrapper
+from marlenv.wrappers import RLEnvWrapper
 
 
 class RandomizedLasers(RLEnvWrapper):

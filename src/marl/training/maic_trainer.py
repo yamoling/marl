@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Any, Literal, Optional
 
 import torch
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
 from marl.models.batch import EpisodeBatch

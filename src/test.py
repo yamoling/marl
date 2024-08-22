@@ -4,8 +4,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from icecream import ic
 from lle import LLE
-from rlenv import Episode, Transition
-import rlenv
+from marlenv import Episode, Transition
+import marlenv
 import time
 from torch import device
 
@@ -72,7 +72,7 @@ S0 . @ X
 """
     env = LLE.from_str(map_str).build()
     world = env.world
-    # env = rlenv.Builder(env).time_limit(100).agent_id().build()
+    # env = marlenv.Builder(env).time_limit(100).agent_id().build()
 
     trainer = LocalGraphTrainer(
         world,

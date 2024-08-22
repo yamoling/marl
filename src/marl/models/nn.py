@@ -1,12 +1,12 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from rlenv import Observation
+from marlenv import Observation
 from abc import ABC, abstractmethod
 import torch
 from serde import serde
 
-from rlenv.models import RLEnv
+from marlenv.models import RLEnv
 
 
 def randomize(init_fn, nn: torch.nn.Module):

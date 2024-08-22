@@ -3,8 +3,8 @@ from typing import Optional
 import numpy as np
 
 from lle import World, Direction, Position
-from rlenv import Observation
-from rlenv.wrappers import RLEnvWrapper, RLEnv
+from marlenv import Observation
+from marlenv.wrappers import RLEnvWrapper, RLEnv
 from serde import serde
 from dataclasses import dataclass
 

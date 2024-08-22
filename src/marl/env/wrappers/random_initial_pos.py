@@ -1,4 +1,4 @@
-from rlenv.wrappers import RLEnvWrapper
+from marlenv.wrappers import RLEnvWrapper
 from lle import LLE
 from itertools import product
 import random

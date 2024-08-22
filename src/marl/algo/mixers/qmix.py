@@ -1,4 +1,4 @@
-from rlenv import RLEnv
+from marlenv import RLEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -37,10 +37,7 @@ class QMix(Mixer):
             AbsLayer(),
         )
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size),
-            nn.ReLU(),
-            nn.Linear(hypernet_embed_size, self.embed_size),
-            AbsLayer()
+            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size), AbsLayer()
         )
 
         # State dependent bias for hidden layer
@@ -71,9 +68,8 @@ class QMix(Mixer):
         return q_tot
 
     @classmethod
-    def from_env(cls, env: RLEnv, embed_size: int=64, hypernet_embed_size: int=64):
+    def from_env(cls, env: RLEnv, embed_size: int = 64, hypernet_embed_size: int = 64):
         return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size)
-        
 
     def save(self, to_directory: str):
         filename = f"{to_directory}/qmix.weights"

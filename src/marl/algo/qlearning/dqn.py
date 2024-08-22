@@ -6,7 +6,7 @@ from serde import serde
 
 import numpy as np
 import torch
-from rlenv.models import Observation
+from marlenv.models import Observation
 
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 

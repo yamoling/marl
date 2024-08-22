@@ -1,7 +1,7 @@
 import marl
 import torch
 import numpy as np
-from rlenv.wrappers import AgentId, LastAction
+from marlenv.wrappers import AgentId, LastAction
 
 from marl.models import EpisodeMemory
 from marl.nn import model_bank

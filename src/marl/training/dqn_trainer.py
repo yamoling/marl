@@ -2,7 +2,7 @@ import torch
 
 from typing import Any, Literal, Optional
 from copy import deepcopy
-from rlenv import Transition, Episode
+from marlenv import Transition, Episode
 from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
 from marl.models.batch import EpisodeBatch, Batch
 from marl.algo import IRModule
