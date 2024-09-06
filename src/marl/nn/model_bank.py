@@ -246,119 +246,6 @@ class IndependentCNN(QNetwork):
         return res.reshape(batch_size, n_agents, *self.output_shape)
 
 
-class CNN_DActor_CCritic(ActorCriticNN):
-    """
-    Centralised Critic with Decentralised Actor
-    """
-
-    def __init__(
-        self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int], n_agents: int, n_actions: int
-    ):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, extras_shape, output_shape)
-
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
-
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-
-        self.common_input_size = n_features + self.extras_shape[0]
-        self.policyNetworks = []
-        for i in range(n_agents):
-            self.policyNetworks.append(
-                torch.nn.Sequential(
-                    torch.nn.Linear(self.common_input_size, 128),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(128, 128),
-                    torch.nn.ReLU(),
-                    torch.nn.Linear(128, *output_shape),
-                )
-            )
-        self.valueNetwork = torch.nn.Sequential(
-            torch.nn.Linear(self.common_input_size * n_agents + n_actions * n_agents, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 1),
-        )
-        self.n_agents = n_agents
-        self.n_actions = n_actions
-
-    def to(self, device):
-        for net in self.policyNetworks:
-            net.to(device)
-        return super().to(device)
-
-    def _cnn_forward(self, obs: torch.Tensor) -> torch.Tensor:
-        # Check that the input has the correct shape (at least 4 dimensions)
-        *dims, channels, height, width = obs.shape
-        leading_dims_size = math.prod(dims)
-        obs = obs.view(leading_dims_size, channels, height, width)
-        features = self.cnn.forward(obs)
-        return features
-
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        features = self._cnn_forward(obs)
-        extras = extras.view(-1, *self.extras_shape)
-        features = torch.cat((features, extras), dim=-1)
-        return self.policy(features), 0
-
-    def policy(self, obs: torch.Tensor):
-        """
-        returns the action probabilities for each agent
-        """
-        batch_actions = []
-        batch_obs = obs.view(-1, self.n_agents, obs.shape[-1])
-        for b_obs in batch_obs:
-            actions = []
-            for agent_i in range(self.n_agents):
-                nn = self.policyNetworks[agent_i]
-                # value_device = next(self.valueNetwork.parameters()).device
-                # device = next(nn.parameters()).device
-                local_obs = b_obs[agent_i]
-                # actions_probs = self.policyNetworks[agent_i](obs[agent_i])
-                actions_logits = nn.forward(local_obs)
-                # actions_logits = torch.tanh(actions_logits)
-                actions.append(actions_logits)
-            batch_actions.append(torch.stack(actions))
-        return torch.stack(batch_actions).squeeze()
-
-    def value(self, obs: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
-        features = self._cnn_forward(obs)
-        # features : 64 2 2688
-        # extras : 64 2 3
-        # actions : 64 2 5
-        # -> 64 -1
-        features = features.view(extras.shape[0], -1)
-        extras = extras.view(extras.shape[0], -1)
-        actions = actions.view(actions.shape[0], -1)
-        features = torch.cat((features, extras, actions), dim=-1)
-        return self.valueNetwork(features).squeeze()
-
-    @classmethod
-    def from_env(cls, env: RLEnv):
-        assert len(env.observation_shape) == 3
-        assert len(env.extra_feature_shape) == 1
-        return cls(
-            input_shape=env.observation_shape,
-            extras_shape=env.extra_feature_shape,
-            output_shape=(env.n_actions,),
-            n_agents=env.n_agents,
-            n_actions=env.n_actions,
-        )
-
-    @property
-    def value_parameters(self) -> list[torch.nn.Parameter]:
-        # TODO
-        raise NotImplementedError()
-
-    @property
-    def policy_parameters(self) -> list[torch.nn.Parameter]:
-        # TODO
-        raise NotImplementedError()
-
-
 class DDPG_NN_TEST(ActorCriticNN):
     def __init__(
         self,
@@ -445,12 +332,6 @@ class DDPG_NN_TEST(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
-
-class Clipped_DDPG_NN(DDPG_NN_TEST):
-    def policy(self, obs: torch.Tensor):
-        logits = self.policy_network(obs)
-        logits = torch.clip(logits, min=0, max=4)
-        return logits
 
 
 class RCNN(RecurrentQNetwork):
@@ -569,12 +450,6 @@ class CNN_ActorCritic(ActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
-
-class Clipped_CNN_ActorCritic(CNN_ActorCritic):
-    def policy(self, obs: torch.Tensor):
-        logits = self.policy_network(obs)
-        logits = torch.clip(logits, min=0, max=4)
-        return logits
 
 
 class SimpleActorCritic(ActorCriticNN):

@@ -75,15 +75,16 @@ class PPOTrainer(Trainer):
         self.to(self.device)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
+        # single episode updates are saved as steps in memory
         if not self.update_on_episodes:
             return {}
-        self.memory.add(episode)
+        # self.memory.add(episode)
         return self._update(time_step)
 
     def update_step(self, transition: Transition, step_num: int) -> dict[str, float]:
+        self.memory.add(transition)
         if not self.update_on_steps:
             return {}
-        self.memory.add(transition)
         return self._update(step_num)
 
     def _compute_normalized_returns(self, batch: Batch, last_obs_next_value):
@@ -133,6 +134,8 @@ class PPOTrainer(Trainer):
 
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
+        
+        # # TRUNCATED ADV
         for t in range(mem_len - 1):
             discount = 1
             a_t = torch.zeros(batch_values[0].shape).to(self.device)
@@ -142,7 +145,22 @@ class PPOTrainer(Trainer):
                     break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()
-        advantages = torch.from_numpy(advantages).to(self.device)
+        advantages = torch.from_numpy(advantages).to(self.device)        
+        
+        # # TGAE
+        # for t in reversed(range(mem_len)):
+        #     last_adv = torch.zeros(batch_values[0].shape).to(self.device)
+        #     if t == mem_len - 1:
+        #         next_value = torch.zeros(batch_values[0].shape).to(self.device)
+        #     else:
+        #         next_value = batch_values[t + 1]
+        #     delta = batch.rewards[t] + self.gamma * next_value * (1 - batch.dones[t]) - batch_values[t]
+        #     tmp = last_adv = delta + self.gamma * 0.95 * last_adv * (1 - batch.dones[t])
+        #     a = tmp.cpu().squeeze()
+        #     advantages[t] = a
+        # advantages = torch.from_numpy(advantages).to(self.device)
+            
+
 
         for _ in range(self.n_epochs):
             # shuffle and split in batches
@@ -181,8 +199,11 @@ class PPOTrainer(Trainer):
 
                 # Actor surrogate loss
                 surrogate_1 = rho * advantages[b]
-                surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
-                actor_loss = torch.min(surrogate_1, surrogate_2).mean()
+                if self.clip_eps == 0 or self.clip_eps is None:
+                    surrogate_2 = rho * advantages[b]
+                else:
+                    surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
+                actore_loss = torch.min(surrogate_1, surrogate_2).mean()
 
                 # Value estimation loss
                 returns = advantages[b] + values.reshape(advantages[b].shape)
