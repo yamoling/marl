@@ -3,11 +3,10 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from icecream import ic
-from lle import LLE
+from lle import LLE, Action
 from marlenv import Episode, Transition
-import marlenv
-import time
 from torch import device
+import marlenv
 
 from lle import World
 import marl
@@ -18,26 +17,32 @@ class LocalGraphTrainer(marl.Trainer):
     def __init__(
         self,
         world: World,
-        update_type: Literal["step", "episode"],
-        update_interval: int,
         trajectory_length: int,
         t_o: int,
         t_p: float,
     ):
-        super().__init__(update_type, update_interval)
-        self.graph = LocalGraph(t_o, t_p)
+        super().__init__()
+        all_pos = set((i, j) for i in range(world.height) for j in range(world.width)) - set(world.wall_pos)
+        self.graph = LocalGraph(t_o, t_p, all_pos)
         self.world = world
-        self.start_pos = tuple(world.start_pos[0])
-        self.trajectory = [self.start_pos]
+        self.trajectory = [tuple[int, int](world.start_pos[0])]
         self.trajectory_length = trajectory_length
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        agents_pos = tuple(self.world.agents_positions)
-        self.trajectory.append(agents_pos[0])
+        # print(time_step)
+        prev_pos = self.trajectory[-1]
+        agent_pos = self.world.agents_positions[0]
+        diff = abs(agent_pos[0] - prev_pos[0] + agent_pos[1] - prev_pos[1])
+        if diff > 1:
+            action = Action(transition.action[0])
+            ic(time_step, agent_pos, prev_pos, action)
+        self.trajectory.append(agent_pos)
         if transition.is_terminal or (time_step > 0 and time_step % self.trajectory_length == 0):
             self.graph.add_trajectory(self.trajectory)
-            self.trajectory = [self.start_pos]
+            self.trajectory = [agent_pos]
         if time_step > 0 and time_step % self.trajectory_length == 0:
+            # pos = {x: (x[1], -x[0]) for x in self.graph.local_graph.nodes}
+            # self.graph.show(pos)
             self.graph.partition()
             self.graph.clear()
         return {}
@@ -54,30 +59,27 @@ class LocalGraphTrainer(marl.Trainer):
 
 def main():
     map_str = """
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-S0 . . . . . . . . . . . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . .
-.  . . . . . . . . . @ . . . . . . . . . X
-"""
-    map_str2 = """
-S0 . @ X
-.  . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+S0 . . . .  . . . . .  . . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . .
+.  . . . .  . . . . .  @ . . . . . . . . . X
 """
     env = LLE.from_str(map_str).build()
     world = env.world
-    # env = marlenv.Builder(env).time_limit(100).agent_id().build()
+
+    mask = np.ones((env.n_agents, env.n_actions), dtype=bool)
+    mask[:, Action.STAY.value] = False
+    env = marlenv.Builder(env).agent_id().available_actions_mask(mask).build()
 
     trainer = LocalGraphTrainer(
         world,
-        "episode",
-        1,
         t_o=10,
         t_p=0.25,
         trajectory_length=500,

@@ -26,7 +26,7 @@ class Trainer(ABC):
     update_on_episodes: bool
     """Whether to update on episodes."""
 
-    def __init__(self, update_type: Literal["step", "episode", "both"], update_interval: int | tuple[int, int]):
+    def __init__(self, update_type: Literal["step", "episode", "both"] = "both", update_interval: int | tuple[int, int] = 1):
         assert update_type in ["step", "episode", "both"]
         match update_interval:
             case tuple((interval_steps, interval_episodes)):

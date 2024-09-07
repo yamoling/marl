@@ -1,6 +1,8 @@
-from typing import Hashable
+from typing import Collection, Hashable, Optional
+from copy import deepcopy
 import networkx as nx
 import numpy as np
+from icecream import ic
 
 
 WEIGHT = "weight"
@@ -13,8 +15,12 @@ class LocalGraph[T: Hashable]:
     https://dl.acm.org/doi/10.1145/1102351.1102454
     """
 
-    def __init__(self, t_o: int = 10, t_p: float = 0.25):
-        self.graph = nx.DiGraph()
+    def __init__(self, t_o: int = 10, t_p: float = 0.25, nodes: Optional[Collection[T]] = None):
+        # The paper discusses the case of undirected graphs, so we directly build an undirected one.
+        self.local_graph = nx.Graph()
+        if nodes is not None:
+            self.local_graph.add_nodes_from(nodes)
+        self.initial_graph = deepcopy(self.local_graph)
         self.subgoals = list[T]()
 
         # parameters for equation (3) of the paper.
@@ -27,20 +33,18 @@ class LocalGraph[T: Hashable]:
         for i in range(len(trajectory) - 1):
             source = trajectory[i]
             target = trajectory[i + 1]
-            if not self.graph.has_edge(source, target):
-                self.graph.add_edge(source, target, **{WEIGHT: 1})
+            if not self.local_graph.has_edge(source, target):
+                self.local_graph.add_edge(source, target, **{WEIGHT: 1})
             else:
-                self.graph[source][target][WEIGHT] += 1
+                self.local_graph[source][target][WEIGHT] += 1
 
     def partition(self) -> tuple[float, tuple[list[T], list[T]], T]:
         # According to the paper, we keep track of the number of times a node has been visited
         # in order to check against the t_o threshold.
-        for node in self.graph.nodes:
+        for node in self.local_graph.nodes:
             self.node_apparition_count[node] = self.node_apparition_count.get(node, 0) + 1
 
-        # The paper discusses the case of undirected graphs, so we convert to an undirected graph.
-        # undirected = self.graph.to_undirected(reciprocal=False, as_view=True)
-        laplacian = nx.normalized_laplacian_matrix(self.graph).toarray()
+        laplacian = nx.normalized_laplacian_matrix(self.local_graph).toarray()
 
         eigenvalues, eigenvectors = np.linalg.eig(laplacian)
         # The second smaller eigenvalue is a good approximation of normalized cut weight.
@@ -49,26 +53,30 @@ class LocalGraph[T: Hashable]:
         eigvector = eigenvectors[:, 1]
         # Order the nodes by their label
         indices = np.argsort(eigvector)
-        nodes = list(self.graph.nodes)
+        nodes = list(self.local_graph.nodes)
         sorted_nodes = [nodes[i] for i in indices]
 
         min_cut_weight = float("inf")
         min_cut = None
         cut_node = None
+
         # Consider every possible cut according to the sorted nodes and take the one with the smallest normalized cut weight.
         for i in range(1, len(sorted_nodes)):
             source = sorted_nodes[:i]
             target = sorted_nodes[i:]
             # Compute the normalized cut weight (NCut) and retrieve the corresponding cut set.
-            cut_set = list(nx.edge_boundary(self.graph, source, target, data=WEIGHT))
-            cut_weight = sum(weight for u, v, weight in cut_set)
             # TODO: optimize this by precomputing the cumulative volume from left to right.
-            volume_s = nx.volume(self.graph, source, weight=WEIGHT)
-            volume_t = nx.volume(self.graph, target, weight=WEIGHT)
+            volume_s = nx.volume(self.local_graph, source, weight=WEIGHT)
+            if volume_s == 0:
+                continue
+            volume_t = nx.volume(self.local_graph, target, weight=WEIGHT)
+            if volume_t == 0:
+                continue
+
+            cut_set = list(nx.edge_boundary(self.local_graph, source, target, data=WEIGHT))
+            cut_weight = sum(weight for u, v, weight in cut_set)
 
             cs = cut_weight * ((1 / volume_s) + (1 / volume_t))
-            # cs2 = nx.normalized_cut_size(undirected, source, target, weight=WEIGHT)
-            # ic(source, target, cs, cs2)
             if cs < min_cut_weight:
                 min_cut_weight = cs
                 min_cut = (source, target)
@@ -87,7 +95,17 @@ class LocalGraph[T: Hashable]:
         return hit_percentage >= self.t_p
 
     def clear(self):
-        self.graph.clear()
+        self.local_graph = deepcopy(self.initial_graph)
+
+    def show(self, pos: dict[T, tuple[int, int]]):
+        import matplotlib.pyplot as plt
+
+        graph = self.local_graph.to_undirected()
+        nx.draw(graph, pos=pos, with_labels=True)
+        labels = nx.get_edge_attributes(graph, "weight")
+        nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels)
+        plt.show()
+        plt.clf()
 
 
 def normalized_cut_weight[T](digraph: nx.DiGraph, source: list[T], target: list[T]) -> float:
