@@ -66,7 +66,7 @@ class DQN(RLAlgo):
             pickle.dump(self.test_policy, g)
 
     def load(self, from_directory: str):
-        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights"))
+        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights", weights_only=True))
         train_policy_path = os.path.join(from_directory, "train_policy")
         test_policy_path = os.path.join(from_directory, "test_policy")
         with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:

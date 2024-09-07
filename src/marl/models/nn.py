@@ -226,7 +226,7 @@ class Mixer(NN):
     def load(self, from_directory: str):
         """Load the mixer from a directory."""
         filename = f"{from_directory}/mixer.weights"
-        self.load_state_dict(torch.load(filename))
+        self.load_state_dict(torch.load(filename, weights_only=True))
 
 
 class MAIC(ABC):

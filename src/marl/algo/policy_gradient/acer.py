@@ -79,4 +79,4 @@ class ACER(RLAlgo):
         torch.save(self.network.state_dict(), to_path)
 
     def load(self, from_path: str):
-        self.network.load_state_dict(torch.load(from_path))
+        self.network.load_state_dict(torch.load(from_path, weights_only=True))

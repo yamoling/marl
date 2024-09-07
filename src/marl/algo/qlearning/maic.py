@@ -9,20 +9,7 @@ from ..algo import RLAlgo
 
 
 @dataclass
-class MAICParameters:
-    n_agents: int
-    latent_dim: int = 8
-    nn_hidden_size: int = 64
-    rnn_hidden_dim: int = 64
-    attention_dim: int = 32
-    var_floor: float = 0.002
-    mi_loss_weight: float = 0.001
-    entropy_loss_weight: float = 0.01
-    com: bool = True
-
-
-@dataclass
-class MAIC(RLAlgo):
+class MAICAlgo(RLAlgo):
     maic_network: MAICNN
     train_policy: Policy
     test_policy: Policy
@@ -46,7 +33,7 @@ class MAIC(RLAlgo):
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
 
-    def choose_action(self, obs: Observation):
+    def choose_action(self, obs: Observation) -> np.ndarray[np.int32, Any]:
         with torch.no_grad():
             qvalues = self.compute_qvalues(obs)
         qvalues = qvalues.cpu().numpy()
@@ -61,7 +48,7 @@ class MAIC(RLAlgo):
         return torch.sum(objective_qvalues, dim=-1)
 
     def new_episode(self):
-        self.maic_network.reset_hidden_states()
+        self.maic_network.reset_hidden_states(1)
 
     def set_testing(self):
         self.policy = self.test_policy
@@ -83,7 +70,7 @@ class MAIC(RLAlgo):
             pickle.dump(self.test_policy, g)
 
     def load(self, from_directory: str):
-        self.maic_network.load_state_dict(torch.load(f"{from_directory}/maic_network.weights"))
+        self.maic_network.load_state_dict(torch.load(f"{from_directory}/maic_network.weights", weights_only=True))
         train_policy_path = os.path.join(from_directory, "train_policy")
         test_policy_path = os.path.join(from_directory, "test_policy")
         with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:

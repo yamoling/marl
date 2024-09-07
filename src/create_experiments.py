@@ -3,11 +3,11 @@ import marl
 import marlenv
 from typing import Optional
 import typed_argparse as tap
-from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
+from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.algo.qlearning.maic import MAICParameters
-from lle import WorldState, LLE, ObservationType
+from lle import LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from marl.utils import Schedule
 
@@ -169,7 +169,7 @@ def create_lle(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=500_000,
+        n_steps=100_000,
     )
     mixer = marl.algo.VDN.from_env(env)
     trainer = DQNTrainer(

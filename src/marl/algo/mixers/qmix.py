@@ -77,4 +77,4 @@ class QMix(Mixer):
 
     def load(self, from_directory: str):
         filename = f"{from_directory}/qmix.weights"
-        return self.load_state_dict(torch.load(filename))
+        return self.load_state_dict(torch.load(filename, weights_only=True))
