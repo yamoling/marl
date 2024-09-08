@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from marlenv.models import Observation
 from marl.models import Policy, MAICNN
 
+import numpy as np
 from ..algo import RLAlgo
+
+
+class MAICParameters:
+    pass
 
 
 @dataclass

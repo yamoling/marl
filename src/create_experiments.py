@@ -6,7 +6,9 @@ import typed_argparse as tap
 from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
-from marl.algo.qlearning.maic import MAICParameters
+from marl.nn import model_bank
+
+# from marl.algo.qlearning.maic import MAICParameters
 from lle import LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from marl.utils import Schedule
@@ -161,7 +163,8 @@ def create_lle(args: Arguments):
     test_interval = 5000
     gamma = 0.95
     env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
-    env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -169,9 +172,17 @@ def create_lle(args: Arguments):
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=100_000,
+        n_steps=200_000,
     )
     mixer = marl.algo.VDN.from_env(env)
+    rnd = marl.algo.RandomNetworkDistillation(
+        target=model_bank.CNN(
+            env.observation_shape,
+            env.extra_feature_shape[0],
+            (256,),
+        )
+    )
+
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -184,9 +195,8 @@ def create_lle(args: Arguments):
         train_interval=(5, "step"),
         gamma=gamma,
         mixer=mixer,
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
-        # ir_module=rnd,
+        ir_module=rnd,
     )
 
     algo = marl.algo.DQN(
