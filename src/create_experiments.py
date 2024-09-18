@@ -7,6 +7,7 @@ from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn import model_bank
+from marl.algo.qlearning.maic import MAICParameters
 
 # from marl.algo.qlearning.maic import MAICParameters
 from lle import LLE, ObservationType
@@ -159,7 +160,7 @@ def create_ppo_lle(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
     env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
@@ -169,18 +170,24 @@ def create_lle(args: Arguments):
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
+    memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=200_000,
     )
-    mixer = marl.algo.VDN.from_env(env)
+    vdn = marl.algo.VDN.from_env(env)
+    qmix = marl.algo.QMix.from_env(env)
     rnd = marl.algo.RandomNetworkDistillation(
         target=model_bank.CNN(
             env.observation_shape,
             env.extra_feature_shape[0],
-            (256,),
-        )
+            (
+                1,
+                256,
+            ),
+        ),
+        normalise_rewards=False,
     )
 
     trainer = DQNTrainer(
@@ -194,9 +201,9 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=mixer,
+        mixer=qmix,
         grad_norm_clipping=10,
-        ir_module=rnd,
+        ir_module=None,
     )
 
     algo = marl.algo.DQN(

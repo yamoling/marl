@@ -9,12 +9,21 @@ import numpy as np
 from ..algo import RLAlgo
 
 
+@dataclass
 class MAICParameters:
-    pass
+    n_agents: int
+    latent_dim: int = 8
+    nn_hidden_size: int = 64
+    rnn_hidden_dim: int = 64
+    attention_dim: int = 32
+    var_floor: float = 0.002
+    mi_loss_weight: float = 0.001
+    entropy_loss_weight: float = 0.01
+    com: bool = True
 
 
 @dataclass
-class MAICAlgo(RLAlgo):
+class MAIC(RLAlgo):
     maic_network: MAICNN
     train_policy: Policy
     test_policy: Policy
@@ -38,7 +47,7 @@ class MAICAlgo(RLAlgo):
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
 
-    def choose_action(self, obs: Observation) -> np.ndarray[np.int32, Any]:
+    def choose_action(self, obs: Observation) -> np.ndarray:
         with torch.no_grad():
             qvalues = self.compute_qvalues(obs)
         qvalues = qvalues.cpu().numpy()
@@ -53,7 +62,7 @@ class MAICAlgo(RLAlgo):
         return torch.sum(objective_qvalues, dim=-1)
 
     def new_episode(self):
-        self.maic_network.reset_hidden_states(1)
+        self.maic_network.reset_hidden_states()
 
     def set_testing(self):
         self.policy = self.test_policy

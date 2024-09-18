@@ -6,8 +6,15 @@ from marl.utils import stats
 
 @app.route("/results/load/<path:logdir>", methods=["GET"])
 def get_experiment_results(logdir: str):
-    results = state.get_experiment(logdir).get_experiment_results(replace_inf=True)
-    return Response(to_json(results), mimetype="application/json")
+    try:
+        exp = state.get_experiment(logdir)
+    except (ModuleNotFoundError, FileNotFoundError) as e:
+        return Response(str(e), status=404)
+    try:
+        results = exp.get_experiment_results(replace_inf=True)
+        return Response(to_json(results), mimetype="application/json")
+    except Exception as e:
+        return Response(str(e), status=500)
 
 
 @app.route("/results/test/<time_step>/<path:logdir>", methods=["GET"])

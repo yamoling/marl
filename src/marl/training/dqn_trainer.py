@@ -4,7 +4,7 @@ from typing import Any, Literal, Optional
 from copy import deepcopy
 from marlenv import Transition, Episode
 from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
-from marl.models.batch import EpisodeBatch, Batch
+from marl.models.batch import Batch
 from marl.algo import IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 from marl.utils import defaults_to
@@ -74,7 +74,7 @@ class DQNTrainer(Trainer):
 
     def _update(self, time_step: int):
         self.update_num += 1
-        if self.update_num % self.steps_update_interval != 0 or not self._can_update():
+        if self.update_num % self.step_update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_qnetwork()
         logs = logs | self.policy.update(time_step)
@@ -129,6 +129,9 @@ class DQNTrainer(Trainer):
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
+            # If multi objective with a single objective
+            squared_error = squared_error.squeeze(-1)
+            td_error = td_error.squeeze(-1)
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
         loss = squared_error.sum() / batch.masks.sum()
