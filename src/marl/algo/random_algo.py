@@ -1,12 +1,13 @@
 import marlenv
 from .algo import RLAlgo
 from typing import TypeVar
+import numpy as np
 
 A = TypeVar("A", bound=marlenv.ActionSpace)
 
 
 class RandomAlgo(RLAlgo):
-    def __init__(self, env: marlenv.RLEnv[A]):
+    def __init__(self, env: marlenv.MARLEnv[A, np.ndarray, np.ndarray]):
         super().__init__()
         self.env = env
 

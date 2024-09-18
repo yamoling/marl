@@ -1,9 +1,9 @@
-from marlenv import RLEnv
+from marlenv import MARLEnv
 from marlenv.wrappers import RLEnvWrapper
 
 
 class EnvPool(RLEnvWrapper):
-    def __init__(self, envs: list[RLEnv]):
+    def __init__(self, envs: list[MARLEnv]):
         obs_shape = envs[0].observation_shape
         act_shape = envs[0].action_space
         state_shape = envs[0].state_shape

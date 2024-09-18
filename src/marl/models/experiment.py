@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from marlenv.models import EpisodeBuilder, RLEnv, Transition
+from marlenv.models import EpisodeBuilder, MARLEnv, Transition
 from serde import serde
 from serde.json import to_json
 from tqdm import tqdm
@@ -36,22 +36,22 @@ class Experiment:
     logdir: str
     algo: RLAlgo
     trainer: Trainer
-    env: RLEnv
+    env: MARLEnv
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: RLEnv
+    test_env: MARLEnv
 
     def __init__(
         self,
         logdir: str,
         algo: RLAlgo,
         trainer: Trainer,
-        env: RLEnv,
+        env: MARLEnv,
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: RLEnv,
+        test_env: MARLEnv,
     ):
         self.logdir = logdir
         self.trainer = trainer
@@ -65,16 +65,16 @@ class Experiment:
     @staticmethod
     def create(
         logdir: str,
-        env: RLEnv,
+        env: MARLEnv,
         n_steps: int,
         algo: Optional[RLAlgo] = None,
         trainer: Optional[Trainer] = None,
         test_interval: int = 0,
-        test_env: Optional[RLEnv] = None,
+        test_env: Optional[MARLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
         if test_env is not None:
-            RLEnv.assert_same_inouts(env, test_env)
+            MARLEnv.assert_same_inouts(env, test_env)
         else:
             test_env = deepcopy(env)
 
@@ -211,7 +211,7 @@ class Experiment:
 
     def test_on_other_env(
         self,
-        test_env: RLEnv,
+        test_env: MARLEnv,
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,

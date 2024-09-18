@@ -1,4 +1,4 @@
-from marlenv import RLEnv
+from marlenv import MARLEnv
 import torch
 
 from marl.models.nn import Mixer
@@ -16,5 +16,5 @@ class VDN(Mixer):
         return
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv):
         return VDN(env.n_agents)

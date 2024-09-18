@@ -68,7 +68,7 @@ class ActorNetwork(torch.nn.Module):
 
 
 class SACAgent:
-    def __init__(self, env: marlenv.RLEnv, alpha, beta, gamma=0.99, batch_size=256, reward_scale=2, tau=0.005) -> None:
+    def __init__(self, env: marlenv.MARLEnv, alpha, beta, gamma=0.99, batch_size=256, reward_scale=2, tau=0.005) -> None:
         self.gamma = gamma
         self.tau = tau
         self.scale = reward_scale

@@ -3,7 +3,7 @@ import gymnasium as gym
 import marl
 
 
-def ppo(env: marlenv.RLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
+def ppo(env: marlenv.MARLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     nn = marl.nn.model_bank.SimpleActorCritic.from_env(env)
     train_policy = marl.policy.CategoricalPolicy()
     algo = marl.algo.PPO(
@@ -17,7 +17,7 @@ def ppo(env: marlenv.RLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     return algo, trainer
 
 
-def dqn(env: marlenv.RLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
+def dqn(env: marlenv.MARLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     qnetwork = marl.nn.model_bank.MLP.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.constant(0.1)
 

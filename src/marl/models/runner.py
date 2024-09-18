@@ -1,6 +1,6 @@
 from copy import deepcopy
 from typing import Literal, Optional
-from marlenv import Episode, EpisodeBuilder, RLEnv, Transition
+from marlenv import Episode, EpisodeBuilder, MARLEnv, Transition
 import torch
 from tqdm import tqdm
 import marl
@@ -14,10 +14,10 @@ from marl.training import Trainer, NoTrain
 class Runner:
     def __init__(
         self,
-        env: RLEnv,
+        env: MARLEnv,
         algo: Optional[RLAlgo] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[RLEnv] = None,
+        test_env: Optional[MARLEnv] = None,
     ):
         self._trainer = trainer or NoTrain()
         self._env = env

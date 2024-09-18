@@ -1,4 +1,4 @@
-from marlenv import RLEnv, Episode, Transition, EpisodeBuilder
+from marlenv import MARLEnv, Episode, Transition, EpisodeBuilder
 
 import torch
 
@@ -17,7 +17,7 @@ def parameters_equal(p1: list[torch.nn.Parameter], p2: list[torch.nn.Parameter])
     return True
 
 
-def generate_episode(env: RLEnv):
+def generate_episode(env: MARLEnv):
     obs = env.reset()
     episode = EpisodeBuilder()
     while not episode.is_finished:

@@ -1,4 +1,4 @@
-from marlenv import RLEnv
+from marlenv import MARLEnv
 import torch
 
 from marl.models.nn import Mixer
@@ -47,7 +47,7 @@ class QPlex2(Mixer):
         )
 
     @classmethod
-    def from_env(cls, env: RLEnv, adv_hypernet_embed: int = 64, transformation=True):
+    def from_env(cls, env: MARLEnv, adv_hypernet_embed: int = 64, transformation=True):
         assert len(env.state_shape) == 1
         return QPlex2(env.n_agents, env.n_actions, env.state_shape[0], adv_hypernet_embed, transformation)
 

@@ -71,9 +71,9 @@ class DQNTrainer(Trainer):
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
         match optimiser:
             case "adam":
-                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=lr)
+                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=lr)  # type: ignore
             case "rmsprop":
-                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)
+                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)  # type: ignore
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 

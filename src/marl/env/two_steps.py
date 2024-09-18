@@ -25,7 +25,7 @@ class TwoStepsState(IntEnum):
         return res
 
 
-class TwoSteps(marlenv.RLEnv[DiscreteActionSpace]):
+class TwoSteps(marlenv.MARLEnv[DiscreteActionSpace, np.ndarray, np.ndarray]):
     """
     Two-steps game used in QMix paper (https://arxiv.org/pdf/1803.11485.pdf, section 5)
     to demonstrate is superior representationability compared to VDN.
