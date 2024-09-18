@@ -50,7 +50,7 @@ class RandomNetworkDistillation(IRModule):
         if ir_weight is None:
             ir_weight = Schedule.constant(1.0)
         self.ir_weight = ir_weight
-        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=lr)
+        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=lr)  # type: ignore
 
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
