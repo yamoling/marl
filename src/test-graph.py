@@ -1,4 +1,4 @@
-from lle import World, LLE, Action
+from lle import World, LLE, Action, WorldState
 import marlenv
 import marl
 import numpy as np
@@ -27,12 +27,12 @@ world = env.world
 
 mask = np.ones((env.n_agents, env.n_actions), dtype=bool)
 mask[:, Action.STAY.value] = False
-env = marlenv.Builder(env).agent_id().available_actions_mask(mask).build()
+env = marlenv.Builder(env).available_actions_mask(mask).build()
 
 
 def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):
     # Now find boundary edges (edges connecting nodes of different clusters)
-    pos = {x: x for x in g.nodes}
+    pos = nx.spring_layout(g)
     not_bottlenecks = set(g.edges) - bottleneck
     nodes = list(g.nodes)
     one_side = [node for (i, node) in enumerate(nodes) if labels[i] == 0]
@@ -52,28 +52,40 @@ def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):
     plt.show()
 
 
-class SpectralTrainer(marl.Trainer):
-    def __init__(self):
+class BottleneckFinder(marl.Trainer):
+    def __init__(self, world: World, n_apparition_threshold: int = 10, hit_ratio_threshold: float = 0.5):
         super().__init__("both", 1)
-        self.edge_weights = {}
         # Spectral clustering with 2 clusters
         self.sc = SpectralClustering(2, affinity="precomputed", n_init=100)
+        self.world = world
+        self.prev_state = self.world.get_state()
+        self.edge_weights = dict[tuple[WorldState, WorldState], int]()
+        """Map each edge (int) to its weight (int)"""
+        self.t_o = n_apparition_threshold
+        """Threshold for the minimum number of apparitions of a state before considering it as a potential bottleneck"""
+        self.t_h = hit_ratio_threshold
+        """Threshold for the minimum hit ratio of a state before considering it as a bottleneck"""
+        self.hit_count = dict[WorldState, int]()
+        """Number of times an edge was classified as a bottleneck"""
+        self.apparition_count = dict[WorldState, int]()
+        """Number of times an edge was encountered in the construction of the local graph"""
 
-    def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        logs = {}
-        hw = np.array([world.height, world.width], dtype=np.float32)
+    def is_bottleneck(self, state: WorldState):
+        n = self.apparition_count.get(state, 0)
+        if n < self.t_o:
+            return False
+        hit_ratio = self.hit_count.get(state, 0) / n
+        return hit_ratio >= self.t_h
 
-        start_pos = transition.obs.data[0][:2]
-        end_pos = transition.obs_.data[0][:2]
-        start_pos = start_pos * hw
-        end_pos = end_pos * hw
-        start_pos = tuple(start_pos.tolist())
-        end_pos = tuple(end_pos.tolist())
+    def update_step(self, transition: Transition[float, np.ndarray, np.ndarray], time_step: int) -> dict[str, Any]:
+        new_state = self.world.get_state()
+        start_pos = self.prev_state
+        end_pos = new_state
         self.edge_weights[(start_pos, end_pos)] = self.edge_weights.get((start_pos, end_pos), 0) + 1
-        return logs
+        self.prev_state = new_state
+        return {}
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        logs = {}
         local_graph = nx.Graph()
         edges = [(src, dest, v) for (src, dest), v in self.edge_weights.items()]
         self.edge_weights = {}
@@ -81,16 +93,14 @@ class SpectralTrainer(marl.Trainer):
         W = nx.adjacency_matrix(local_graph).todense()  # Adjacency/Weight matrix of the graph
         labels = self.sc.fit_predict(W)
         label_dict = {node: label for node, label in zip(local_graph.nodes, labels)}
-        # Visualize the clusters
 
         bottleneck = set()
         for src, dst in local_graph.edges():
             if label_dict[src] != label_dict[dst]:  # If the nodes are in different clusters
                 bottleneck.add((src, dst))
-        print("Boundary edges:", bottleneck)
-        draw_graph(local_graph, bottleneck, labels)
         self.extend_bottleneck(local_graph, bottleneck, labels)
-        return logs
+        draw_graph(local_graph, bottleneck, labels)
+        return {}
 
     @staticmethod
     def extend_bottleneck(local_graph: nx.Graph, bottleneck: set, labels):
@@ -111,7 +121,7 @@ class SpectralTrainer(marl.Trainer):
             if len(neighbours) == 2:
                 bottleneck.update(local_graph.edges(node))
                 to_visit.update(neighbours - visited)
-            draw_graph(local_graph, bottleneck, labels)
+            # draw_graph(local_graph, bottleneck, labels)
         return bottleneck
 
     def randomize(self):
@@ -121,6 +131,6 @@ class SpectralTrainer(marl.Trainer):
         return self
 
 
-trainer = SpectralTrainer()
+trainer = BottleneckFinder(world)
 exp = marl.Experiment.create("logs/test", trainer=trainer, n_steps=50_000, test_interval=0, env=env)
 exp.run(0)
