@@ -1,7 +1,7 @@
-from typing import Optional, Iterable, Sequence
+from typing import Optional, Sequence
 from dataclasses import dataclass
 from marlenv import Observation
-from marlenv.models import MARLEnv
+from marlenv.models import MARLEnv, MOMARLEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,14 +40,18 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env(cls, env: MARLEnv, hidden_sizes: Optional[Sequence[int]] = None):
+    def from_env(cls, env: MARLEnv | MOMARLEnv, hidden_sizes: Optional[Sequence[int]] = None):
+        if isinstance(env, MOMARLEnv):
+            output_shape = (env.n_actions, env.reward_size)
+        else:
+            output_shape = (env.n_actions,)
         if hidden_sizes is None:
             hidden_sizes = (64,)
         return cls(
             env.observation_shape[0],
             env.extra_feature_shape[0],
             tuple(hidden_sizes),
-            (env.n_actions, env.reward_size),
+            output_shape,
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -168,8 +172,12 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
-    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
-        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
+    def from_env(cls, env: MARLEnv | MOMARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        if isinstance(env, MOMARLEnv):
+            output_shape = (env.n_actions, env.reward_size)
+        else:
+            output_shape = (env.n_actions,)
+        return cls(env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -222,8 +230,12 @@ class IndependentCNN(QNetwork):
         return super().to(device, dtype, non_blocking)
 
     @classmethod
-    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
-        return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
+    def from_env(cls, env: MARLEnv | MOMARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        if isinstance(env, MOMARLEnv):
+            output_shape = (env.n_actions, env.reward_size)
+        else:
+            output_shape = (env.n_actions,)
+        return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -348,9 +360,13 @@ class RCNN(RecurrentQNetwork):
         self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
 
     @classmethod
-    def from_env(cls, env: MARLEnv):
+    def from_env(cls, env: MARLEnv | MOMARLEnv):
+        if isinstance(env, MOMARLEnv):
+            output_shape = (env.n_actions, env.reward_size)
+        else:
+            output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size))
+        return cls(env.observation_shape, env.extra_feature_shape[0], output_shape)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
