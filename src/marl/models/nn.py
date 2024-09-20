@@ -1,12 +1,12 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from rlenv import Observation
+from marlenv import Observation
 from abc import ABC, abstractmethod
 import torch
 from serde import serde
 
-from rlenv.models import RLEnv
+from marlenv.models import MARLEnv, MOMARLEnv
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -49,7 +49,7 @@ class NN(torch.nn.Module, ABC):
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv):
         """Construct a NN from environment specifications"""
         return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
 
@@ -134,11 +134,15 @@ class QNetwork(NN):
         self.test_mode = test_mode
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv | MOMARLEnv):
+        if isinstance(env, MOMARLEnv):
+            output_shape = (env.n_actions, env.reward_size)
+        else:
+            output_shape = (env.n_actions,)
         return cls(
             input_shape=env.observation_shape,
             extras_shape=env.extra_feature_shape,
-            output_shape=(env.n_actions, env.reward_size),
+            output_shape=output_shape,
         )
 
 
@@ -226,7 +230,7 @@ class Mixer(NN):
     def load(self, from_directory: str):
         """Load the mixer from a directory."""
         filename = f"{from_directory}/mixer.weights"
-        self.load_state_dict(torch.load(filename))
+        self.load_state_dict(torch.load(filename, weights_only=True))
 
 
 class MAIC(ABC):

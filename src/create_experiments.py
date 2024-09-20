@@ -1,13 +1,16 @@
 import shutil
 import marl
-import rlenv
+import marlenv
 from typing import Optional
 import typed_argparse as tap
-from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, CNetTrainer, MAICTrainer
+from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
+from marl.nn import model_bank
 from marl.algo.qlearning.maic import MAICParameters
-from lle import WorldState, LLE, ObservationType
+
+# from marl.algo.qlearning.maic import MAICParameters
+from lle import LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from marl.utils import Schedule
 
@@ -21,8 +24,8 @@ class Arguments(RunArguments):
 
 def create_smac(args: Arguments):
     n_steps = 2_000_000
-    env = rlenv.adapters.SMAC("3s_vs_5z")
-    env = rlenv.Builder(env).agent_id().last_action().build()
+    env = marlenv.adapters.SMAC("3s_vs_5z")
+    env = marlenv.Builder(env).agent_id().last_action().build()
     qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
     memory = marl.models.EpisodeMemory(5_000)
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
@@ -72,7 +75,7 @@ def create_smac(args: Arguments):
 def create_ddpg_lle(args: Arguments):
     n_steps = 500_000
     env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.LAYERED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
@@ -98,7 +101,7 @@ def create_ppo_lle(args: Arguments):
     temperature = 1
     # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
-    env = rlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     ac_network.temperature = temperature
@@ -154,21 +157,36 @@ def create_ppo_lle(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
     env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
-    env = rlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
+    memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
-        n_steps=500_000,
+        n_steps=200_000,
     )
-    mixer = marl.algo.VDN.from_env(env)
+    vdn = marl.algo.VDN.from_env(env)
+    qmix = marl.algo.QMix.from_env(env)
+    rnd = marl.algo.RandomNetworkDistillation(
+        target=model_bank.CNN(
+            env.observation_shape,
+            env.extra_feature_shape[0],
+            (
+                1,
+                256,
+            ),
+        ),
+        normalise_rewards=False,
+    )
+
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -180,10 +198,9 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=mixer,
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        mixer=qmix,
         grad_norm_clipping=10,
-        # ir_module=rnd,
+        ir_module=None,
     )
 
     algo = marl.algo.DQN(
@@ -225,7 +242,7 @@ def create_lle_baseline(args: Arguments):
     gamma = 0.95
     obs_type = ObservationType.LAYERED
     env = LLE.level(3).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     test_env = None
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.EpisodeMemory(5000)
@@ -287,7 +304,7 @@ def create_lle_maic(args: Arguments):
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(2).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = MAICParameters(n_agents=env.n_agents, com=True)
 
@@ -343,7 +360,7 @@ def create_lle_maicRDQN(args: Arguments):
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = MAICParameters(n_agents=env.n_agents, com=True)
 
@@ -398,7 +415,7 @@ def create_lle_maicCNN(args: Arguments):
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = MAICParameters(n_agents=env.n_agents, com=True)
 
@@ -453,7 +470,7 @@ def create_lle_maicCNNRDQN(args: Arguments):
     test_interval = 5000
     obs_type = ObservationType.PARTIAL_7x7
     env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     # TODO : improve args
     opt = MAICParameters(n_agents=env.n_agents, com=True)
 

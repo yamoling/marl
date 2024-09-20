@@ -1,13 +1,17 @@
-import rlenv
+import marlenv
 from .algo import RLAlgo
+from typing import TypeVar
+import numpy as np
+
+A = TypeVar("A", bound=marlenv.ActionSpace)
 
 
 class RandomAlgo(RLAlgo):
-    def __init__(self, env: rlenv.RLEnv[rlenv.ActionSpace]):
+    def __init__(self, env: marlenv.MARLEnv[A, np.ndarray, np.ndarray]):
         super().__init__()
         self.env = env
 
-    def choose_action(self, obs: rlenv.Observation):
+    def choose_action(self, obs: marlenv.Observation):
         return self.env.action_space.sample(obs.available_actions)
 
     def value(self, _):

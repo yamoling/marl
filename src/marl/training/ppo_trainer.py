@@ -3,7 +3,7 @@ from typing import Literal
 from dataclasses import dataclass
 import numpy as np
 import torch
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 
 from marl.models import Batch
 from marl.models.nn import ActorCriticNN

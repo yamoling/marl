@@ -1,7 +1,7 @@
 import torch
 from marl.training.nodes import ValueNode, Add, NextQValues
 from marl.models.batch import TransitionBatch, Batch
-from rlenv import MockEnv
+from marlenv import MockEnv
 from .utils import generate_episode
 
 

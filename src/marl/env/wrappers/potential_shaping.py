@@ -3,8 +3,8 @@ from typing import Optional
 import numpy as np
 
 from lle import World, Direction, Position
-from rlenv import Observation
-from rlenv.wrappers import RLEnvWrapper, RLEnv
+from marlenv import Observation
+from marlenv.wrappers import RLEnvWrapper, MARLEnv
 from serde import serde
 from dataclasses import dataclass
 
@@ -22,7 +22,7 @@ class PotentialShaping(RLEnvWrapper):
 
     gamma: float
 
-    def __init__(self, env: RLEnv, gamma: float, extra_feature_shape: Optional[tuple[int]]):
+    def __init__(self, env: MARLEnv, gamma: float, extra_feature_shape: Optional[tuple[int]]):
         super().__init__(env, extra_feature_shape=extra_feature_shape)
         self.gamma = gamma
 
@@ -50,7 +50,7 @@ class PotentialShaping(RLEnvWrapper):
 class LLEPotentialShaping(PotentialShaping):
     def __init__(
         self,
-        env: RLEnv,
+        env: MARLEnv,
         world: World,
         lasers_to_reward: dict[tuple[int, int], Direction],
         gamma: float,

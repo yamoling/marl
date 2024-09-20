@@ -1,5 +1,5 @@
 import torch
-from rlenv import Observation, Episode
+from marlenv import Observation, Episode
 from marl.models import nn
 from marl.models.batch import EpisodeBatch
 from ..algo import RLAlgo

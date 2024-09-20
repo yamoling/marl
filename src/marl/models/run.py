@@ -5,7 +5,7 @@ import json
 import signal
 import pickle
 from datetime import datetime
-from rlenv import Episode, RLEnv
+from marlenv import Episode, MARLEnv
 from typing import Optional
 from dataclasses import dataclass
 from marl.algo import RLAlgo
@@ -54,7 +54,7 @@ class Run:
     def load(rundir: str):
         return Run(rundir)
 
-    def get_test_env(self, time_step: int) -> RLEnv:
+    def get_test_env(self, time_step: int) -> MARLEnv:
         test_directory = self.test_dir(time_step)
         env_file = os.path.join(test_directory, ENV_PICKLE)
         try:

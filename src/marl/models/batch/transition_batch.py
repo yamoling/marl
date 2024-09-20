@@ -1,7 +1,7 @@
 from functools import cached_property
 import torch
 import numpy as np
-from rlenv import Transition
+from marlenv import Transition
 
 from .batch import Batch
 
@@ -68,4 +68,4 @@ class TransitionBatch(Batch):
 
     @cached_property
     def probs(self):
-        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device) # type:ignore
+        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device)  # type:ignore

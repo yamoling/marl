@@ -199,3 +199,4 @@ results/
 # Include the marl/env package (excluded by 'env' above in this file)
 !src/marl/env
 myenv/*
+uv.lock

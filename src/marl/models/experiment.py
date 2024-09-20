@@ -10,13 +10,15 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from rlenv.models import EpisodeBuilder, RLEnv, Transition
+from marlenv.models import EpisodeBuilder, MARLEnv, Transition
 from serde import serde
 from serde.json import to_json
 from tqdm import tqdm
 
 from marl import exceptions
 from marl.algo import DDPG, DQN, PPO, RLAlgo
+from ..training.no_train import NoTrain
+from ..algo.random_algo import RandomAlgo
 from marl.models.nn import MAIC
 from marl.training import Trainer
 from marl.utils import encode_b64_image, stats
@@ -34,22 +36,22 @@ class Experiment:
     logdir: str
     algo: RLAlgo
     trainer: Trainer
-    env: RLEnv
+    env: MARLEnv
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: RLEnv
+    test_env: MARLEnv
 
     def __init__(
         self,
         logdir: str,
         algo: RLAlgo,
         trainer: Trainer,
-        env: RLEnv,
+        env: MARLEnv,
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: RLEnv,
+        test_env: MARLEnv,
     ):
         self.logdir = logdir
         self.trainer = trainer
@@ -63,16 +65,16 @@ class Experiment:
     @staticmethod
     def create(
         logdir: str,
-        algo: RLAlgo,
-        trainer: Trainer,
-        env: RLEnv,
+        env: MARLEnv,
         n_steps: int,
-        test_interval: int,
-        test_env: Optional[RLEnv] = None,
+        algo: Optional[RLAlgo] = None,
+        trainer: Optional[Trainer] = None,
+        test_interval: int = 0,
+        test_env: Optional[MARLEnv] = None,
     ) -> "Experiment":
         """Create a new experiment."""
         if test_env is not None:
-            RLEnv.assert_same_inouts(env, test_env)
+            MARLEnv.assert_same_inouts(env, test_env)
         else:
             test_env = deepcopy(env)
 
@@ -89,8 +91,8 @@ class Experiment:
             os.makedirs(logdir, exist_ok=False)
             experiment = Experiment(
                 logdir,
-                algo=algo,
-                trainer=trainer,
+                algo=algo or RandomAlgo(env),
+                trainer=trainer or NoTrain(),
                 env=env,
                 n_steps=n_steps,
                 test_interval=test_interval,
@@ -189,7 +191,7 @@ class Experiment:
 
     def run(
         self,
-        seed: int,
+        seed: int = 0,
         fill_strategy: Literal["scatter", "group"] = "scatter",
         required_memory_MB: int = 0,
         quiet: bool = False,
@@ -209,7 +211,7 @@ class Experiment:
 
     def test_on_other_env(
         self,
-        test_env: RLEnv,
+        test_env: MARLEnv,
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,
@@ -220,7 +222,15 @@ class Experiment:
 
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
-        new_experiment = Experiment.create(new_logdir, self.algo, self.trainer, self.env, self.n_steps, self.test_interval, test_env)
+        new_experiment = Experiment.create(
+            logdir=new_logdir,
+            env=self.env,
+            n_steps=self.n_steps,
+            algo=self.algo,
+            trainer=self.trainer,
+            test_interval=self.test_interval,
+            test_env=test_env,
+        )
         runner = new_experiment.create_runner().to(device)
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
         for i, base_run in enumerate(runs):

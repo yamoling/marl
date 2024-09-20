@@ -1,5 +1,5 @@
 import marl
-import rlenv
+import marlenv
 import torch
 from copy import deepcopy
 
@@ -68,7 +68,7 @@ class ActorNetwork(torch.nn.Module):
 
 
 class SACAgent:
-    def __init__(self, env: rlenv.RLEnv, alpha, beta, gamma=0.99, batch_size=256, reward_scale=2, tau=0.005) -> None:
+    def __init__(self, env: marlenv.MARLEnv, alpha, beta, gamma=0.99, batch_size=256, reward_scale=2, tau=0.005) -> None:
         self.gamma = gamma
         self.tau = tau
         self.scale = reward_scale
@@ -115,4 +115,4 @@ class SACAgent:
 
 
 if __name__ == "__main__":
-    env = rlenv.make("Pendulum-v0")
+    env = marlenv.make("Pendulum-v0")

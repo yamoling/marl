@@ -1,7 +1,7 @@
 from typing import Optional, Iterable, Sequence
 from dataclasses import dataclass
-from rlenv import Observation
-from rlenv.models import RLEnv
+from marlenv import Observation
+from marlenv.models import MARLEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,7 +40,7 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env(cls, env: RLEnv, hidden_sizes: Optional[Sequence[int]] = None):
+    def from_env(cls, env: MARLEnv, hidden_sizes: Optional[Sequence[int]] = None):
         if hidden_sizes is None:
             hidden_sizes = (64,)
         return cls(
@@ -112,7 +112,7 @@ class DuelingMLP(QNetwork):
         self.advantage = torch.nn.Linear(nn.output_shape[0], output_size)
 
     @classmethod
-    def from_env(cls, env: RLEnv, nn: QNetwork):
+    def from_env(cls, env: MARLEnv, nn: QNetwork):
         assert nn.input_shape == env.observation_shape
         assert nn.extras_shape == env.extra_feature_shape
         return cls(nn, env.n_actions)
@@ -168,7 +168,7 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
-    def from_env(cls, env: RLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
         return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -222,7 +222,7 @@ class IndependentCNN(QNetwork):
         return super().to(device, dtype, non_blocking)
 
     @classmethod
-    def from_env(cls, env: RLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
         return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size), mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -312,7 +312,7 @@ class DDPG_NN_TEST(ActorCriticNN):
         return self.value_network(features).squeeze()
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 3
         assert len(env.extra_feature_shape) == 1
         return cls(
@@ -333,7 +333,6 @@ class DDPG_NN_TEST(ActorCriticNN):
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
 
-
 class RCNN(RecurrentQNetwork):
     """
     Recurrent CNN.
@@ -349,7 +348,7 @@ class RCNN(RecurrentQNetwork):
         self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 3
         return cls(env.observation_shape, env.extra_feature_shape[0], (env.n_actions, env.reward_size))
 
@@ -451,7 +450,6 @@ class CNN_ActorCritic(ActorCriticNN):
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
 
-
 class SimpleActorCritic(ActorCriticNN):
     def __init__(self, input_size: int, extras_size: int, n_actions: int):
         super().__init__((input_size,), (extras_size,), output_shape=(n_actions,))
@@ -491,7 +489,7 @@ class SimpleActorCritic(ActorCriticNN):
         return list(self.common.parameters()) + list(self.policy_network.parameters())
 
     @classmethod
-    def from_env(cls, env: RLEnv):
+    def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 1
         assert len(env.extra_feature_shape) == 1
         return SimpleActorCritic(env.observation_shape[0], env.extra_feature_shape[0], env.n_actions)
@@ -661,7 +659,7 @@ class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pyt
         return h_out.view(opt.model_rnn_layers, n_agents, bs, -1), outputs.view(bs, n_agents, -1)
 
     @classmethod
-    def from_env(cls, env: RLEnv, opt):
+    def from_env(cls, env: MARLEnv, opt):
         assert len(env.observation_shape) == 1
         assert len(env.extra_feature_shape) == 1
         return cls(env.observation_shape, env.extra_feature_shape, opt.game_action_space_total, opt)
@@ -800,7 +798,7 @@ class MAICNetwork(MAICNN):
         return entropy_loss * self.args.entropy_loss_weight
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MAICParameters):
+    def from_env(cls, env: MARLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -916,7 +914,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MAICParameters):
+    def from_env(cls, env: MARLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -1030,7 +1028,7 @@ class MAICNetworkCNN(QNetwork):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MAICParameters):
+    def from_env(cls, env: MARLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
 
 
@@ -1156,5 +1154,5 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env(cls, env: RLEnv, args: MAICParameters):
+    def from_env(cls, env: MARLEnv, args: MAICParameters):
         return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)

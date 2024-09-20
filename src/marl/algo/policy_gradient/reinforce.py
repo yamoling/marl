@@ -1,6 +1,6 @@
 import os
 import torch
-from rlenv import Episode, Observation
+from marlenv import Episode, Observation
 from marl.models import NN
 from marl.models.batch import EpisodeBatch
 from marl.utils import get_device
@@ -51,5 +51,5 @@ class Reinforce(RLAlgo):
         return
 
     def load(self, from_path: str):
-        state_dict = torch.load(from_path)
+        state_dict = torch.load(from_path, weights_only=True)
         self.policy_network.load_state_dict(state_dict)

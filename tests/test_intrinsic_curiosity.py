@@ -1,7 +1,7 @@
 import marl
 import numpy as np
 
-from rlenv import Transition
+from marlenv import Transition
 from lle import LLE, Action, ObservationType
 from marl.models.batch import TransitionBatch
 from marl.models import NN

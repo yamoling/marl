@@ -18,6 +18,10 @@ class Arguments(tap.TypedArgs):
 
     @property
     def n_processes(self):
+        """
+        If no value is provided, there are as many processes as there are GPUs.
+        If there is no GPU available, then only one process is started.
+        """
         if self._n_processes is not None:
             return min(self._n_processes, self.n_runs)
 

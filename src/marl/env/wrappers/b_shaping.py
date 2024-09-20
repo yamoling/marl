@@ -1,6 +1,6 @@
 import numpy as np
-from rlenv.wrappers import RLEnvWrapper
-from rlenv import Observation, RLEnv
+from marlenv.wrappers import RLEnvWrapper
+from marlenv import Observation, MARLEnv
 from dataclasses import dataclass
 from serde import serde
 from lle import Position, World, Direction
@@ -81,7 +81,7 @@ class DelayedRewardHandler:
 class BShaping(RLEnvWrapper):
     """Bottleneck shaping"""
 
-    def __init__(self, env: RLEnv, world: World, extra_reward: float, delay: int, reward_in_laser: bool):
+    def __init__(self, env: MARLEnv, world: World, extra_reward: float, delay: int, reward_in_laser: bool):
         # Assumes that
         # - the start positions are on top
         # - the exits are on the bottom

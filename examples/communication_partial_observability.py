@@ -1,12 +1,12 @@
 import marl
 from lle import LLE, ObservationType
-import rlenv
+import marlenv
 from marl.algo.qlearning.maic import MAICParameters
 
 
 def main():
     env = LLE.level(3).obs_type(ObservationType.PARTIAL_7x7).state_type(ObservationType.FLATTENED).build()
-    env = rlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     parameters = MAICParameters(n_agents=env.n_agents)
 
     maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, parameters)

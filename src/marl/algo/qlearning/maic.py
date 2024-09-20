@@ -2,9 +2,10 @@ import os
 import pickle
 import torch
 from dataclasses import dataclass
-from rlenv.models import Observation
+from marlenv.models import Observation
 from marl.models import Policy, MAICNN
 
+import numpy as np
 from ..algo import RLAlgo
 
 
@@ -46,7 +47,7 @@ class MAIC(RLAlgo):
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
         return obs_tensor, extras
 
-    def choose_action(self, obs: Observation):
+    def choose_action(self, obs: Observation) -> np.ndarray:
         with torch.no_grad():
             qvalues = self.compute_qvalues(obs)
         qvalues = qvalues.cpu().numpy()
@@ -83,7 +84,7 @@ class MAIC(RLAlgo):
             pickle.dump(self.test_policy, g)
 
     def load(self, from_directory: str):
-        self.maic_network.load_state_dict(torch.load(f"{from_directory}/maic_network.weights"))
+        self.maic_network.load_state_dict(torch.load(f"{from_directory}/maic_network.weights", weights_only=True))
         train_policy_path = os.path.join(from_directory, "train_policy")
         test_policy_path = os.path.join(from_directory, "test_policy")
         with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:

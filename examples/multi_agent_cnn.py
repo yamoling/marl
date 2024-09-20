@@ -1,11 +1,11 @@
 from typing import Literal
 import marl
-import rlenv
+import marlenv
 from lle import LLE, ObservationType
 from marl.algo import mixers
 
 
-def mappo(env: rlenv.RLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
+def mappo(env: marlenv.MARLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     nn = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     algo = marl.algo.PPO(
         ac_network=nn,
@@ -18,7 +18,7 @@ def mappo(env: rlenv.RLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     return algo, trainer
 
 
-def dqn_with_mixer(env: rlenv.RLEnv, mixer_str: Literal["vdn", "qmix", "qplex"]):
+def dqn_with_mixer(env: marlenv.MARLEnv, mixer_str: Literal["vdn", "qmix", "qplex"]):
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.constant(0.1)
 
@@ -49,7 +49,7 @@ def dqn_with_mixer(env: rlenv.RLEnv, mixer_str: Literal["vdn", "qmix", "qplex"])
 
 if __name__ == "__main__":
     env = env = LLE.level(6).obs_type(ObservationType.LAYERED).build()
-    env = rlenv.Builder(env).time_limit(env.width * env.height // 2).agent_id().build()
+    env = marlenv.Builder(env).time_limit(env.width * env.height // 2).agent_id().build()
 
     # algo, trainer = dqn_with_mixer(env, "vdn")
     algo, trainer = mappo(env)

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 from dataclasses import dataclass
 import torch
-from rlenv.models import Observation
+from marlenv.models import Observation
 
 
 @dataclass

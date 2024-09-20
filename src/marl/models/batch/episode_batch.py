@@ -1,7 +1,7 @@
 from functools import cached_property
 import torch
 import numpy as np
-from rlenv import Episode
+from marlenv import Episode
 from .batch import Batch
 
 

@@ -1,4 +1,4 @@
-from rlenv.wrappers import RLEnvWrapper
+from marlenv.wrappers import RLEnvWrapper
 
 
 class ZeroPunishment(RLEnvWrapper):

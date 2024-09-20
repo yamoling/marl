@@ -3,8 +3,8 @@ import torch
 import random
 from copy import deepcopy
 from marl.models.batch import EpisodeBatch, TransitionBatch, Batch
-from rlenv.wrappers import TimeLimit
-from rlenv import EpisodeBuilder, Transition, Builder, MockEnv
+from marlenv.wrappers import TimeLimit
+from marlenv import EpisodeBuilder, Transition, Builder, MockEnv
 from .utils import generate_episode
 
 

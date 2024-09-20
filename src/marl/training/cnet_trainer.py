@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 from serde import serialize
 
 from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper
@@ -49,7 +49,7 @@ class CNetTrainer(Trainer):
         episode_from_agent = self.agents.get_episode()
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))  # type: ignore
 
-        if (episode_num + 1) % self.update_interval == 0:
+        if (episode_num + 1) % self.steps_update_interval == 0:
             self._update(time_step)
 
         return {}

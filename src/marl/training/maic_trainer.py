@@ -2,7 +2,7 @@ from copy import deepcopy
 from typing import Any, Literal, Optional
 
 import torch
-from rlenv import Episode, Transition
+from marlenv import Episode, Transition
 
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
 from marl.models.batch import EpisodeBatch
@@ -62,7 +62,7 @@ class MAICTrainer(Trainer):
 
     def _update(self, episode_num: int, time_step: int):
         self.update_num += 1
-        if self.update_num % self.update_interval != 0 or not self._can_update():
+        if self.update_num % self.steps_update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(time_step)

@@ -2,9 +2,9 @@ import torch
 
 from typing import Any, Literal, Optional
 from copy import deepcopy
-from rlenv import Transition, Episode
+from marlenv import Transition, Episode
 from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
-from marl.models.batch import EpisodeBatch, Batch
+from marl.models.batch import Batch
 from marl.algo import IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 from marl.utils import defaults_to
@@ -25,16 +25,17 @@ class DQNTrainer(Trainer):
     batch_size: int
     target_updater: TargetParametersUpdater
     double_qlearning: bool
-    mixer: Mixer
+    mixer: Optional[Mixer]
     ir_module: Optional[IRModule]
     grad_norm_clipping: Optional[float]
+    multi_objective: bool
 
     def __init__(
         self,
         qnetwork: QNetwork,
         train_policy: Policy,
         memory: ReplayMemory,
-        mixer: Mixer,
+        mixer: Optional[Mixer],
         gamma: float = 0.99,
         batch_size: int = 64,
         lr: float = 1e-4,
@@ -44,6 +45,7 @@ class DQNTrainer(Trainer):
         train_interval: tuple[int, Literal["step", "episode"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
+        multi_objective: bool = False,
     ):
         super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
@@ -58,23 +60,26 @@ class DQNTrainer(Trainer):
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
+        self.multi_objective = multi_objective
         self.update_num = 0
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping
         self.target_updater.add_parameters(qnetwork.parameters(), self.qtarget.parameters())
-        self.target_updater.add_parameters(mixer.parameters(), self.target_mixer.parameters())
+        if self.mixer is not None:
+            assert self.target_mixer is not None
+            self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
         match optimiser:
             case "adam":
-                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=lr)
+                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=lr)  # type: ignore
             case "rmsprop":
-                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)
+                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)  # type: ignore
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
     def _update(self, time_step: int):
         self.update_num += 1
-        if self.update_num % self.update_interval != 0 or not self._can_update():
+        if self.update_num % self.step_update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_qnetwork()
         logs = logs | self.policy.update(time_step)
@@ -102,33 +107,37 @@ class DQNTrainer(Trainer):
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        mixed_next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
-        return mixed_next_values
+        if self.target_mixer is not None:
+            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        return next_values
 
     def optimise_qnetwork(self):
         batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
-        batch.multi_objective()
+        if self.mixer is None:
+            batch = batch.for_individual_learners()
+        if self.multi_objective:
+            batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        chosen_qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
-        mixed_qvalues = self.mixer.forward(chosen_qvalues, batch.states, batch.one_hot_actions, qvalues)
-
-        # Drop variables to prevent using them mistakenly
-        del qvalues
-        del chosen_qvalues
+        qvalues = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
+        if self.mixer is not None:
+            qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
 
         # Qtargets computation
         next_values = self._next_state_value(batch)
-        assert batch.rewards.shape == next_values.shape == batch.dones.shape == mixed_qvalues.shape == batch.masks.shape
+        assert batch.rewards.shape == next_values.shape == batch.dones.shape == qvalues.shape == batch.masks.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         # Compute the loss
-        td_error = mixed_qvalues - qtargets.detach()
+        td_error = qvalues - qtargets.detach()
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
+            # If multi objective with a single objective
+            squared_error = squared_error.squeeze(-1)
+            td_error = td_error.squeeze(-1)
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
         loss = squared_error.sum() / batch.masks.sum()
@@ -160,8 +169,10 @@ class DQNTrainer(Trainer):
     def to(self, device: torch.device):
         self.qnetwork.to(device)
         self.qtarget.to(device)
-        self.mixer.to(device)
-        self.target_mixer.to(device)
+        if self.mixer is not None:
+            assert self.target_mixer is not None
+            self.mixer.to(device)
+            self.target_mixer.to(device)
         if self.ir_module is not None:
             self.ir_module.to(device)
         self.device = device
@@ -170,7 +181,9 @@ class DQNTrainer(Trainer):
     def randomize(self):
         self.qnetwork.randomize()
         self.qtarget.randomize()
-        self.mixer.randomize()
-        self.target_mixer.randomize()
+        if self.mixer is not None:
+            assert self.target_mixer is not None
+            self.mixer.randomize()
+            self.target_mixer.randomize()
         if self.ir_module is not None:
             self.ir_module.randomize()

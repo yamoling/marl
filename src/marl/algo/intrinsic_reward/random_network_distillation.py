@@ -50,7 +50,7 @@ class RandomNetworkDistillation(IRModule):
         if ir_weight is None:
             ir_weight = Schedule.constant(1.0)
         self.ir_weight = ir_weight
-        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=lr)
+        self.optimizer = torch.optim.Adam(list(self.predictor_head.parameters()) + list(self.predictor_tail.parameters()), lr=lr)  # type: ignore
 
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
@@ -136,8 +136,8 @@ class RandomNetworkDistillation(IRModule):
 
     def load(self, from_directory: str):
         target_path = os.path.join(from_directory, "target.weights")
-        self.target.load_state_dict(torch.load(target_path))
+        self.target.load_state_dict(torch.load(target_path, weights_only=True))
         predictor_head_path = os.path.join(from_directory, "predictor_head.weights")
-        self.predictor_head.load_state_dict(torch.load(predictor_head_path))
+        self.predictor_head.load_state_dict(torch.load(predictor_head_path, weights_only=True))
         predictor_tail_path = os.path.join(from_directory, "predictor_tail.weights")
-        self.predictor_tail.load_state_dict(torch.load(predictor_tail_path))
+        self.predictor_tail.load_state_dict(torch.load(predictor_tail_path, weights_only=True))

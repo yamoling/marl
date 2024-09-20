@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from rlenv.models import Episode
+from marlenv.models import Episode
 from serde import serde
 from typing import Optional
 

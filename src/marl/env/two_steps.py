@@ -1,10 +1,10 @@
 from enum import IntEnum
 from typing import Literal
-import rlenv
+import marlenv
 import numpy as np
 import numpy.typing as npt
-from rlenv.models import DiscreteActionSpace
-from rlenv.models.observation import Observation
+from marlenv.models import DiscreteActionSpace
+from marlenv.models.observation import Observation
 
 PAYOFF_INITIAL = [[0, 0], [0, 0]]
 
@@ -25,7 +25,7 @@ class TwoStepsState(IntEnum):
         return res
 
 
-class TwoSteps(rlenv.RLEnv[DiscreteActionSpace]):
+class TwoSteps(marlenv.MARLEnv[DiscreteActionSpace, np.ndarray, np.ndarray]):
     """
     Two-steps game used in QMix paper (https://arxiv.org/pdf/1803.11485.pdf, section 5)
     to demonstrate is superior representationability compared to VDN.
