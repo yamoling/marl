@@ -2,7 +2,7 @@ from typing import Collection, Hashable, Optional
 from copy import deepcopy
 import networkx as nx
 import numpy as np
-from icecream import ic
+from sklearn.cluster import SpectralClustering
 
 
 WEIGHT = "weight"
@@ -39,14 +39,21 @@ class LocalGraph[T: Hashable]:
                 self.local_graph[source][target][WEIGHT] += 1
 
     def partition(self) -> tuple[float, tuple[list[T], list[T]], T]:
-        # According to the paper, we keep track of the number of times a node has been visited
+        # According to the paper, we keep track of the number of times a node has been analysed
         # in order to check against the t_o threshold.
         for node in self.local_graph.nodes:
             self.node_apparition_count[node] = self.node_apparition_count.get(node, 0) + 1
 
-        laplacian = nx.normalized_laplacian_matrix(self.local_graph).toarray()
+        A = nx.adjacency_matrix(self.local_graph).todense()  # Adjacency matrix of the graph
+        # Spectral clustering with 2 clusters
+        sc = SpectralClustering(2, affinity="precomputed", n_init=100)
+        labels = sc.fit_predict(A)
+
+        laplacian = nx.normalized_laplacian_matrix(self.local_graph, weight=WEIGHT).toarray()
 
         eigenvalues, eigenvectors = np.linalg.eig(laplacian)
+        v = sorted(eigenvalues)
+        conn = nx.algebraic_connectivity(self.local_graph, normalized=True, weight=WEIGHT)
         # The second smaller eigenvalue is a good approximation of normalized cut weight.
         # eigvalue = eigenvalues[1]
         # The corresponding (i.e. second) eigenvector gives "labels" to each node.
