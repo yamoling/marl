@@ -96,21 +96,25 @@ def create_ddpg_lle(args: Arguments):
 
 
 def create_ppo_lle(args: Arguments):
-    n_steps = 300_000
+    n_steps = 1_000_000
     walkable_lasers = True
-    temperature = 10
+    temperature = 1
     # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     ac_network.temperature = temperature
-
-    entropy_schedule = Schedule.linear(0.05, 0.001, round(2 / 3 * n_steps))
-    temperature_schedule = Schedule.linear(50, 1, round(2 / 3 * n_steps))
-
+    
+    entropy_schedule = None
+    # entropy_schedule = schedule.LinearSchedule(0.05, 0.01, round(1/3 * n_steps))
+    
+    temperature_schedule = None
+    # temperature_schedule = schedule.LinearSchedule(50, 1, round(2/3 * n_steps))
+    
+    
     # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
-    memory = marl.models.TransitionMemory(20)
+    memory = marl.models.TransitionMemory(78)
 
     logits_clip_low = -2.0
     logits_clip_high = 2.0
@@ -138,14 +142,7 @@ def create_ppo_lle(args: Arguments):
     algo = marl.algo.PPO(
         ac_network=ac_network,
         train_policy=marl.policy.CategoricalPolicy(),
-        #     train_policy=marl.policy.EpsilonGreedy.linear(
-        #     1.0,
-        #     0.05,
-        #     n_steps=300_000,
-        # ),
         test_policy=marl.policy.ArgMax(),
-        # extra_policy=marl.policy.ExtraPolicy(env.n_agents),
-        # extra_policy_every=50,
         logits_clip_low=logits_clip_low,
         logits_clip_high=logits_clip_high,
     )
