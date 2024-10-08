@@ -1,7 +1,8 @@
 import random
 from numpy import ndarray
 from marlenv.wrappers import RLEnvWrapper
-from lle import LLE, LaserSource, WorldState
+from lle import LLE, WorldState
+from lle.tiles import LaserSource
 from dataclasses import dataclass
 from serde import serde
 

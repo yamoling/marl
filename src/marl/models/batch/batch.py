@@ -20,6 +20,7 @@ class Batch(ABC):
         """Reshape rewards, dones such that each agent has its own (identical) signal."""
         self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
         self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
+        self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
     def __len__(self) -> int:

@@ -2,7 +2,8 @@ from abc import abstractmethod
 from typing import Optional
 import numpy as np
 
-from lle import World, Direction, Position
+from lle import World, Position
+from lle.tiles import Direction
 from marlenv import Observation
 from marlenv.wrappers import RLEnvWrapper, MARLEnv
 from serde import serde

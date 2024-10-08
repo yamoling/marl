@@ -5,6 +5,7 @@ from marlenv import Observation
 from abc import ABC, abstractmethod
 import torch
 from serde import serde
+from functools import cached_property
 
 from marlenv.models import MARLEnv, MOMARLEnv
 
@@ -94,6 +95,19 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
+    @cached_property
+    def is_multi_objective(self) -> bool:
+        return False
+
+    @cached_property
+    def action_dim(self) -> int:
+        """
+        The action dimention when predicting qvalues. The value is -1 for single objective RL and -2 for multi-objective RL.
+        """
+        if self.is_multi_objective:
+            return -2
+        return -1
+
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
@@ -103,7 +117,9 @@ class QNetwork(NN):
         """
         Compute the Q-values (one per agent, per action and per objective).
 
-        The resulting shape is (n_agents, n_actions, n_objectives)
+        The resulting shape is
+         - for multi-objective (n_agents, n_actions, n_objectives)
+         - for single-objective (n_agents, n_actions)
         """
         obs_tensor, extra_tensor = self.to_tensor(obs)
         objective_qvalues = self.forward(obs_tensor, extra_tensor)
@@ -112,8 +128,10 @@ class QNetwork(NN):
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function (maximum of the q-values)."""
-        objective_qvalues = self.qvalues(obs)
-        qvalues = torch.sum(objective_qvalues, dim=-1)
+        qvalues = self.qvalues(obs)
+        if self.is_multi_objective:
+            objective_qvalues = qvalues
+            qvalues = torch.sum(objective_qvalues, dim=-1)
         agent_values = qvalues.max(dim=-1).values
         return agent_values.mean(dim=-1)
 
