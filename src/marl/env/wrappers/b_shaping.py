@@ -3,7 +3,8 @@ from marlenv.wrappers import RLEnvWrapper
 from marlenv import Observation, MARLEnv
 from dataclasses import dataclass
 from serde import serde
-from lle import Position, World, Direction
+from lle import Position, World
+from lle.tiles import Direction
 
 
 @dataclass

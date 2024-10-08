@@ -71,7 +71,7 @@ S0 . . . .  . . . . .  . . . . . . . . . . .
 .  . . . .  . . . . .  @ . . . . . . . . . .
 .  . . . .  . . . . .  @ . . . . . . . . . X
 """
-    env = LLE.from_str(map_str).build()
+    env = LLE.from_str(map_str).single_objective()
     world = env.world
 
     mask = np.ones((env.n_agents, env.n_actions), dtype=bool)
