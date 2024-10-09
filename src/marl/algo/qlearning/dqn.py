@@ -43,8 +43,10 @@ class DQN(RLAlgo):
         return self.qnetwork.value(obs).item()
 
     def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        objective_qvalues = self.qnetwork.qvalues(obs)
-        return torch.sum(objective_qvalues, dim=-1)
+        qvalues = self.qnetwork.qvalues(obs)
+        if self.qnetwork.is_multi_objective:
+            return torch.sum(qvalues, dim=-1)
+        return qvalues
 
     def set_testing(self):
         self.policy = self.test_policy

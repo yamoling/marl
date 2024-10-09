@@ -45,7 +45,6 @@ class DQNTrainer(Trainer):
         train_interval: tuple[int, Literal["step", "episode"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
-        multi_objective: bool = False,
     ):
         super().__init__(train_interval[1], train_interval[0])
         self.qnetwork = qnetwork
@@ -60,7 +59,7 @@ class DQNTrainer(Trainer):
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
-        self.multi_objective = multi_objective
+        self.multi_objective = qnetwork.is_multi_objective
         self.update_num = 0
 
         # Parameters and optimiser
@@ -112,10 +111,11 @@ class DQNTrainer(Trainer):
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         if self.qnetwork.is_multi_objective:
             indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
-        # We have to use -1 ad not self.action_dim because we have just summed over the objectives
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+
+        next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
         if self.target_mixer is not None:
             next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+            next_values = next_values.squeeze(-1)
         return next_values
 
     def optimise_qnetwork(self):
@@ -132,6 +132,7 @@ class DQNTrainer(Trainer):
         qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions).squeeze(self.action_dim)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
+            qvalues = qvalues.squeeze(-1)
 
         # Qtargets computation
         next_values = self._next_state_value(batch)
@@ -142,9 +143,6 @@ class DQNTrainer(Trainer):
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
-            # If multi objective with a single objective
-            squared_error = squared_error.squeeze(-1)
-            td_error = td_error.squeeze(-1)
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
         loss = squared_error.sum() / batch.masks.sum()

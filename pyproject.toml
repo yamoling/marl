@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
-    "laser-learning-environment>=1.3.0",
+    "laser-learning-environment>=1.4.3",
     "python-dotenv>=1.0.1",
     "tqdm>=4.66.5",
     "scipy>=1.14.1",

@@ -26,6 +26,7 @@ class EpisodeBatch(Batch):
         return result
 
     def multi_objective(self):
+        raise NotImplementedError()
         self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
 
     # def compute_normalized_returns(self, gamma: float, last_obs_value: Optional[float] = None) -> torch.Tensor:

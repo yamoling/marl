@@ -105,14 +105,13 @@ def create_ppo_lle(args: Arguments):
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     ac_network.temperature = temperature
-    
+
     entropy_schedule = None
     # entropy_schedule = schedule.LinearSchedule(0.05, 0.01, round(1/3 * n_steps))
-    
+
     temperature_schedule = None
     # temperature_schedule = schedule.LinearSchedule(50, 1, round(2/3 * n_steps))
-    
-    
+
     # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(78)
 
@@ -160,33 +159,19 @@ def create_lle(args: Arguments):
     n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
-    # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
+    memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=200_000,
     )
-    vdn = marl.algo.VDN.from_env(env)
-    qmix = marl.algo.QMix.from_env(env)
-    rnd = marl.algo.RandomNetworkDistillation(
-        target=model_bank.CNN(
-            env.observation_shape,
-            env.extra_feature_shape[0],
-            (
-                1,
-                256,
-            ),
-        ),
-        normalise_rewards=False,
-    )
-
+    qmix = marl.algo.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,

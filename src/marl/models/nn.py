@@ -7,7 +7,7 @@ import torch
 from serde import serde
 from functools import cached_property
 
-from marlenv.models import MARLEnv, MOMARLEnv
+from marlenv.models import MARLEnv
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -95,9 +95,9 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    @cached_property
-    def is_multi_objective(self) -> bool:
-        return False
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
+        super().__init__(input_shape, extras_shape, output_shape)
+        self.is_multi_objective = len(output_shape) > 1
 
     @cached_property
     def action_dim(self) -> int:
@@ -152,9 +152,9 @@ class QNetwork(NN):
         self.test_mode = test_mode
 
     @classmethod
-    def from_env(cls, env: MARLEnv | MOMARLEnv):
-        if isinstance(env, MOMARLEnv):
-            output_shape = (env.n_actions, env.reward_size)
+    def from_env(cls, env: MARLEnv):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         return cls(
