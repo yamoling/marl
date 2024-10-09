@@ -27,6 +27,7 @@ class PrioritizedMemory(ReplayMemory[B, T]):
     def __init__(
         self,
         memory: ReplayMemory[B, T],
+        multi_objective: bool,
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
         eps: float = 1e-2,
@@ -39,6 +40,7 @@ class PrioritizedMemory(ReplayMemory[B, T]):
         self.eps = eps
         self.max_priority = eps  # Initialize the max priority with epsilon
         self.td_error_clipping = td_error_clipping
+        self.multi_objective = multi_objective
         self.sampled_indices = list[int]()
         match alpha:
             case float():
@@ -109,6 +111,8 @@ class PrioritizedMemory(ReplayMemory[B, T]):
         self.alpha.update()
         with torch.no_grad():
             td_error = torch.abs(td_error)
+            if self.multi_objective:
+                td_error = torch.mean(td_error, dim=-1)
             # Clip the TD errors to avoid numerical instability (Section 4, second §)
             if self.td_error_clipping is not None:
                 td_error = torch.clip(td_error, max=self.td_error_clipping)

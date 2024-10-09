@@ -1,7 +1,7 @@
 from typing import Optional, Sequence
 from dataclasses import dataclass
 from marlenv import Observation
-from marlenv.models import MARLEnv, MOMARLEnv
+from marlenv.models import MARLEnv
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,9 +40,9 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env(cls, env: MARLEnv | MOMARLEnv, hidden_sizes: Optional[Sequence[int]] = None):
-        if isinstance(env, MOMARLEnv):
-            output_shape = (env.n_actions, env.reward_size)
+    def from_env(cls, env: MARLEnv, hidden_sizes: Optional[Sequence[int]] = None):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         if hidden_sizes is None:
@@ -172,9 +172,9 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
-    def from_env(cls, env: MARLEnv | MOMARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
-        if isinstance(env, MOMARLEnv):
-            output_shape = (env.n_actions, env.reward_size)
+    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         return cls(env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
@@ -230,9 +230,9 @@ class IndependentCNN(QNetwork):
         return super().to(device, dtype, non_blocking)
 
     @classmethod
-    def from_env(cls, env: MARLEnv | MOMARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
-        if isinstance(env, MOMARLEnv):
-            output_shape = (env.n_actions, env.reward_size)
+    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
@@ -360,9 +360,9 @@ class RCNN(RecurrentQNetwork):
         self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
 
     @classmethod
-    def from_env(cls, env: MARLEnv | MOMARLEnv):
-        if isinstance(env, MOMARLEnv):
-            output_shape = (env.n_actions, env.reward_size)
+    def from_env(cls, env: MARLEnv):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
