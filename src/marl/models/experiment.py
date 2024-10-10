@@ -78,11 +78,11 @@ class Experiment:
         else:
             test_env = deepcopy(env)
 
-        if not logdir.startswith("logs/"):
+        if not logdir.startswith("logs\\"):
             logdir = os.path.join("logs", logdir)
 
             # Remove the test and debug logs
-        if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+        if logdir in ["logs\\test", "logs\\debug", "logs\\tests"]:
             try:
                 shutil.rmtree(logdir)
             except FileNotFoundError:
@@ -270,7 +270,7 @@ class Experiment:
         return datasets
 
     def replay_episode(self, episode_folder: str) -> ReplayEpisode:
-        # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
+        # Episode folder should look like logs\\experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
         # possibly with a trailing slash
         path = pathlib.Path(episode_folder)
         test_num = int(path.name)

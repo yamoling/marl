@@ -45,7 +45,7 @@ class Run:
 
     @staticmethod
     def create(logdir: str, seed: int):
-        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")
         rundir = os.path.join(logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
         return Run(rundir)

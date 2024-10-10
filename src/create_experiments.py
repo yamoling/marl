@@ -58,9 +58,9 @@ def create_smac(args: Arguments):
         test_policy=test_policy,
     )
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
-        logdir = f"logs/{env.name}"
+        logdir = f"logs\\{env.name}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}-validation"
         else:
@@ -88,10 +88,10 @@ def create_ddpg_lle(args: Arguments):
     )
 
     algo = marl.algo.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
-    # logdir = f"logs/{env.name}-TEST-DDPG"
-    logdir = "logs/ddpg_lvl2_lr_1e-5"
+    # logdir = f"logs\\{env.name}-TEST-DDPG"
+    logdir = "logs\\ddpg_lvl2_lr_1e-5"
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
@@ -105,13 +105,14 @@ def create_ppo_lle(args: Arguments):
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     ac_network.temperature = temperature
-
+    
     entropy_schedule = None
     # entropy_schedule = schedule.LinearSchedule(0.05, 0.01, round(1/3 * n_steps))
-
+    
     temperature_schedule = None
     # temperature_schedule = schedule.LinearSchedule(50, 1, round(2/3 * n_steps))
-
+    
+    
     # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
     memory = marl.models.TransitionMemory(78)
 
@@ -146,32 +147,109 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high,
     )
 
-    # logdir = f"logs/PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}-C2_{trainer.c2}-C1_{trainer.c1}"
+    # logdir = f"logs\\PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}-C2_{trainer.c2}-C1_{trainer.c1}"
     # logdir += "-epsGreedy" if isinstance(algo.train_policy, marl.policy.EpsilonGreedy) else ""
     # logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
-    logdir = "logs/ppo_lvl3_default"
+    logdir = "logs\\ppo_lvl3_default"
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
+def create_multiobj_lle(args: Arguments):
+    n_steps = 1_000_000
+    test_interval = 5000
+    gamma = 0.95
+    env = LLE.level(3).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()  
+    env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    test_env = None
+
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    memory = marl.models.TransitionMemory(50_000)
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=500_000,
+    )
+    mixer = marl.algo.VDN.from_env(env)
+    trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=64,
+        train_interval=(5, "step"),
+        gamma=gamma,
+        mixer=mixer,
+        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
+        grad_norm_clipping=10,
+        # ir_module=rnd,
+    )
+
+    algo = marl.algo.DQN(
+        qnetwork=qnetwork,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    if args.logdir is not None:
+        if not args.logdir.startswith("logs\\"):
+            args.logdir = "logs\\" + args.logdir
+    elif args.debug:
+        args.logdir = "logs\\debug"
+    else:
+        args.logdir = f"logs\\{env.name}"
+        if trainer.mixer is not None:
+            args.logdir += f"-{trainer.mixer.name}"
+        else:
+            args.logdir += "-iql"
+        if trainer.ir_module is not None:
+            args.logdir += f"-{trainer.ir_module.name}"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            args.logdir += "-PER"
+    return marl.Experiment.create(
+        args.logdir,
+        algo=algo,
+        trainer=trainer,
+        env=env,
+        test_interval=test_interval,
+        n_steps=n_steps,
+        test_env=test_env,
+    )
 
 def create_lle(args: Arguments):
     n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
+    # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
+    memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=200_000,
     )
-    qmix = marl.algo.VDN.from_env(env)
+    vdn = marl.algo.VDN.from_env(env)
+    qmix = marl.algo.QMix.from_env(env)
+    rnd = marl.algo.RandomNetworkDistillation(
+        target=model_bank.CNN(
+            env.observation_shape,
+            env.extra_feature_shape[0],
+            (
+                1,
+                256,
+            ),
+        ),
+        normalise_rewards=False,
+    )
+
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -195,12 +273,12 @@ def create_lle(args: Arguments):
     )
 
     if args.logdir is not None:
-        if not args.logdir.startswith("logs/"):
-            args.logdir = "logs/" + args.logdir
+        if not args.logdir.startswith("logs\\"):
+            args.logdir = "logs\\" + args.logdir
     elif args.debug:
-        args.logdir = "logs/debug"
+        args.logdir = "logs\\debug"
     else:
-        args.logdir = f"logs/{env.name}"
+        args.logdir = f"logs\\{env.name}"
         if trainer.mixer is not None:
             args.logdir += f"-{trainer.mixer.name}"
         else:
@@ -260,11 +338,11 @@ def create_lle_baseline(args: Arguments):
     )
 
     if args.logdir is not None:
-        logdir = f"logs/{args.logdir}"
+        logdir = f"logs\\{args.logdir}"
     elif args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
-        logdir = f"logs/baseline-qnetwork-eps{steps_eps}-{env.name}-{obs_type}"
+        logdir = f"logs\\baseline-qnetwork-eps{steps_eps}-{env.name}-{obs_type}"
         if trainer.mixer is not None:
             logdir += f"-{trainer.mixer.name}"
         else:
@@ -323,10 +401,10 @@ def create_lle_maic(args: Arguments):
     )
 
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
         name = "MAIC-NoCOM" if not opt.com else "MAIC"
-        logdir = f"logs/{name}-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
+        logdir = f"logs\\{name}-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -378,10 +456,10 @@ def create_lle_maicRDQN(args: Arguments):
     )
 
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
         name = "MAICRDQN-NoCOM" if not opt.com else "MAICRDQN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-steps{n_steps}-{env.name}-{obs_type}"
+        logdir = f"logs\\{name}-{bs}-eps{eps_steps}-steps{n_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -433,10 +511,10 @@ def create_lle_maicCNN(args: Arguments):
     )
 
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
         name = "MAICCNN-NoCOM" if not opt.com else "MAICCNN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        logdir = f"logs\\{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -488,10 +566,10 @@ def create_lle_maicCNNRDQN(args: Arguments):
     )
 
     if args.debug:
-        logdir = "logs/debug"
+        logdir = "logs\\debug"
     else:
         name = "MAICCNNRDQN-NoCOM" if not opt.com else "MAICCNNDRQN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
+        logdir = f"logs\\{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
         if trainer.double_qlearning:
             logdir += "-double"
         else:
@@ -509,7 +587,8 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
-        exp = create_lle(args)
+        exp = create_multiobj_lle(args)
+        # exp = create_lle(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         # exp = create_lle_maicRQN(args)
