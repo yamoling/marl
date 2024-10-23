@@ -159,8 +159,9 @@ def create_multiobj_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(3).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()  
-    env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = LLE.level(4).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).single_objective()
+    env = marlenv.Builder(env).centralised().agent_id().time_limit(78, add_extra=True).build()
+    #env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -171,6 +172,7 @@ def create_multiobj_lle(args: Arguments):
         n_steps=500_000,
     )
     mixer = marl.algo.VDN.from_env(env)
+    #mixer=marl.algo.QMix.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -183,7 +185,6 @@ def create_multiobj_lle(args: Arguments):
         train_interval=(5, "step"),
         gamma=gamma,
         mixer=mixer,
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents),
         grad_norm_clipping=10,
         # ir_module=rnd,
     )
@@ -223,14 +224,13 @@ def create_lle(args: Arguments):
     n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).build()
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE)
     # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    memory = marl.models.PrioritizedMemory(memory, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
@@ -588,7 +588,7 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
         exp = create_multiobj_lle(args)
-        # exp = create_lle(args)
+        exp = create_lle(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         # exp = create_lle_maicRQN(args)
