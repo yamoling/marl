@@ -112,10 +112,12 @@ class DQNTrainer(Trainer):
         if self.qnetwork.is_multi_objective:
             indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
 
-        next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
+        next_values = torch.gather(next_qvalues, self.action_dim, indices)
         if self.target_mixer is not None:
             next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
             next_values = next_values.squeeze(-1)
+        else: # Mixer requires qvalues to not be squeezed yet
+            next_values.squeeze(self.action_dim)
         return next_values
 
     def optimise_qnetwork(self):
@@ -129,10 +131,13 @@ class DQNTrainer(Trainer):
 
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions).squeeze(self.action_dim)
+        qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
             qvalues = qvalues.squeeze(-1)
+        # Mixer requires qvalues to not be squeezed yet
+        else: 
+            qvalues = qvalues.squeeze(self.action_dim)
 
         # Qtargets computation
         next_values = self._next_state_value(batch)
