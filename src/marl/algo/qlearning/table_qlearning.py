@@ -2,13 +2,13 @@ import torch
 import pickle
 from typing import Optional
 import numpy as np
-from marlenv import Observation, Transition
-from marl.models import TransitionMemory, RLAlgo, Policy
-from marl.policy.qpolicies import EpsilonGreedy
-from marl.utils import defaults_to
+from marlenv import Episode, Observation, Transition
+from marl.models import TransitionMemory, Policy
+from marl.algo import RLAlgo
+from marl.training import Trainer
 
 
-class VanillaQLearning(RLAlgo):
+class VanillaQLearning(RLAlgo, Trainer):
     def __init__(
         self,
         train_policy: Policy,
@@ -17,7 +17,9 @@ class VanillaQLearning(RLAlgo):
         gamma=0.99,
     ):
         self._train_policy = train_policy
-        self._test_policy = defaults_to(test_policy, lambda: EpsilonGreedy.constant(0.01))
+        if test_policy is None:
+            test_policy = train_policy
+        self._test_policy = test_policy
         self.train_policy = train_policy
         self.test_policy = test_policy
         self.policy = train_policy
@@ -36,7 +38,7 @@ class VanillaQLearning(RLAlgo):
             qvalues.append(agent_qvalues)
         return torch.from_numpy(np.array(qvalues))
 
-    def after_train_step(self, transition: Transition, time_step: int):
+    def update_step(self, transition: Transition, time_step: int):
         qvalues = self.compute_qvalues(transition.obs).numpy()
         actions = transition.action[:, np.newaxis]
         qvalues = np.take_along_axis(qvalues, actions, axis=-1)

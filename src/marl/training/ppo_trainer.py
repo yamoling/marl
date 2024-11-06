@@ -134,7 +134,7 @@ class PPOTrainer(Trainer):
 
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
-        
+
         # # TRUNCATED ADV
         for t in range(mem_len - 1):
             discount = 1
@@ -145,8 +145,8 @@ class PPOTrainer(Trainer):
                     break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()
-        advantages = torch.from_numpy(advantages).to(self.device)        
-        
+        advantages = torch.from_numpy(advantages).to(self.device)
+
         # # TGAE
         # for t in reversed(range(mem_len)):
         #     last_adv = torch.zeros(batch_values[0].shape).to(self.device)
@@ -159,8 +159,6 @@ class PPOTrainer(Trainer):
         #     a = tmp.cpu().squeeze()
         #     advantages[t] = a
         # advantages = torch.from_numpy(advantages).to(self.device)
-            
-
 
         for _ in range(self.n_epochs):
             # shuffle and split in batches
