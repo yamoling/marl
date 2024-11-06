@@ -47,24 +47,24 @@ class QMix(Mixer):
         self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
 
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
-        bs = qvalues.size(0)
+        batch_size = qvalues.size(0)
         states = states.reshape(-1, self.state_dim)
         qvalues = qvalues.view(-1, 1, self.n_agents)
         # First layer
-        w1 = self.hyper_w_1.forward(states)
-        b1 = self.hyper_b_1.forward(states)
-        w1 = w1.view(-1, self.n_agents, self.embed_size)
-        b1 = b1.view(-1, 1, self.embed_size)
-        hidden = F.elu(torch.bmm(qvalues, w1) + b1)
+        weight_1 = self.hyper_w_1.forward(states)
+        bias_1 = self.hyper_b_1.forward(states)
+        weight_1 = weight_1.view(-1, self.n_agents, self.embed_size)
+        bias_1 = bias_1.view(-1, 1, self.embed_size)
+        hidden = F.elu(torch.bmm(qvalues, weight_1) + bias_1)
         # Second layer
-        w_final = self.hyper_w_final.forward(states)
-        w_final = w_final.view(-1, self.embed_size, 1)
+        weight_2 = self.hyper_w_final.forward(states)
+        weight_2 = weight_2.view(-1, self.embed_size, 1)
         # State-dependent bias
-        v = self.V.forward(states).view(-1, 1, 1)
+        value = self.V.forward(states).view(-1, 1, 1)
         # Compute final output
-        y = torch.bmm(hidden, w_final) + v
+        y = torch.bmm(hidden, weight_2) + value
         # Reshape and return
-        q_tot = y.view(bs, -1)
+        q_tot = y.view(batch_size, -1)
         return q_tot
 
     @classmethod
