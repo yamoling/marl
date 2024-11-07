@@ -64,9 +64,9 @@ class Experiment:
 
     @staticmethod
     def create(
-        logdir: str,
         env: MARLEnv,
         n_steps: int,
+        logdir: str = "logs/tests",
         algo: Optional[RLAlgo] = None,
         trainer: Optional[Trainer] = None,
         test_interval: int = 0,
