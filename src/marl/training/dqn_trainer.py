@@ -35,7 +35,7 @@ class DQNTrainer(Trainer):
         qnetwork: QNetwork,
         train_policy: Policy,
         memory: ReplayMemory,
-        mixer: Optional[Mixer],
+        mixer: Optional[Mixer] = None,
         gamma: float = 0.99,
         batch_size: int = 64,
         lr: float = 1e-4,
