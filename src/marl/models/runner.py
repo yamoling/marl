@@ -36,7 +36,7 @@ class Runner:
         initial_value = self._algo.value(obs)
         while not episode.is_finished and step_num < max_step:
             step_num += 1
-            if test_interval != 0 and step_num % test_interval == 0:
+            if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
                 self.test(n_tests, step_num, quiet, run_handle)
             action = self._algo.choose_action(obs)
             obs_, reward, done, truncated, info = self._env.step(action)
@@ -75,7 +75,8 @@ class Runner:
         step = 0
         pbar = tqdm(total=n_steps, desc="Training", unit="Step", leave=True, disable=quiet)
         with Run.create(logdir, seed) as run:
-            self.test(n_tests, 0, quiet, run)
+            if n_tests > 0 and test_interval > 0:
+                self.test(n_tests, 0, quiet, run)
             while step < max_step:
                 episode = self._train_episode(
                     step_num=step,
@@ -101,7 +102,9 @@ class Runner:
             obs = self._test_env.reset()
             self._algo.new_episode()
             intial_value = self._algo.value(obs)
+            i = 0
             while not episode.is_finished:
+                i += 1
                 action = self._algo.choose_action(obs)
                 new_obs, reward, done, truncated, info = self._test_env.step(action)
                 transition = Transition(obs, action, reward, done, info, new_obs, truncated)
