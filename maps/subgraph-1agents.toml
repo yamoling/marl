@@ -14,6 +14,3 @@ world_string = """
 
 [[agents]]
 start_positions = [{ j_max = 9 }]
-
-[[agents]]
-start_positions = [{ j_max = 9 }]
