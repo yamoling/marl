@@ -3,9 +3,9 @@ name = "marl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.11,<4"
 dependencies = [
-    "laser-learning-environment>=1.4.3",
+    "laser-learning-environment>=2.0.0",
     "python-dotenv>=1.0.1",
     "tqdm>=4.66.5",
     "scipy>=1.14.1",
@@ -21,9 +21,12 @@ dependencies = [
     "typed-argparse>=0.3.1",
     "flask-cors>=4.0.1",
     "seaborn>=0.13.2",
-    "multi-agent-rlenv>=1.1.1",
+    "multi-agent-rlenv>=2.0.0",
     "jupyterlab>=4.2.5",
     "scikit-learn>=1.5.2",
+    "monte-carlo-tree-search>=2.0.5",
+    "pygame>=2.6.1",
+    "altair[all]>=5.5.0",
 ]
 
 [build-system]
