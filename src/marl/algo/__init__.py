@@ -4,6 +4,7 @@ from .qlearning import DQN, RDQN, CNet, MAIC
 from .policy_gradient import PPO, DDPG
 from .intrinsic_reward import RandomNetworkDistillation, IRModule
 from .mixers import VDN, QMix, Qatten, QPlex
+from .mcts import MTCS
 
 from . import intrinsic_reward
 from . import mixers

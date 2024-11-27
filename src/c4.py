@@ -5,7 +5,7 @@ import numpy as np
 
 from marlenv import Observation, State, Step
 from marl.env.connect4 import GameBoard, StepResult
-from marl.algo import mcts
+from marl.algo import MTCS
 
 # MCTS move computation time
 PROCESS_TIME = 5
@@ -57,8 +57,9 @@ class C4Env(MARLEnv[DiscreteActionSpace]):
 
 
 def main():
-    env = C4Env(width=6, height=7, n=4)
+    env = C4Env(width=10, height=10, n=4)
     board = env.board
+    mcts = MTCS(env, iteration_limit=1000, n_adversaries=1)
     done = False
     while not done:
         env.render()
@@ -68,7 +69,7 @@ def main():
             print("Computer's turn, please wait...")
             # root = Node(parent=None, board=board.board, turn=montecarlo.symbol)
             # line, col = montecarlo.compute_move(root)
-            col = mcts.search(env, iteration_limit=1000, n_adversaries=1)[0]
+            col = mcts.search(env.get_state())[0]
         done = env.step([col]).is_terminal
         print()
     env.render()
