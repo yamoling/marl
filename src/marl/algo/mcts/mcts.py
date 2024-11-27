@@ -95,11 +95,14 @@ class MTCS:
         return random.choice(node.children)
 
     def _select(self, node: Node) -> Node:
+        """Select a move that seems promising accoring to the policy."""
         while not node.is_leaf:
             node = self.policy(node)
         return node
 
     def _expand(self, node: Node) -> Node:
+        """Expand a leaf node by adding all its children"""
+        assert node.is_leaf
         self.env.set_state(node.state)
         next_player = (node.current_player + 1) % (self.n_adversaries + 1)
         for action in self.env.available_joint_actions():

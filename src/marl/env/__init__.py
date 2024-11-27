@@ -7,8 +7,10 @@ from .matrix_game import MatrixGame
 from .coordinated_grid import CoordinatedGrid
 from .wrappers import CurriculumLearning, ZeroPunishment, PotentialShaping
 from .env_pool import EnvPool
+from .connectn import ConnectN
 
 __all__ = [
+    "ConnectN",
     "TwoSteps",
     "TwoStepsState",
     "MatrixGame",
