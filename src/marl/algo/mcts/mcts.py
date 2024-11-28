@@ -50,6 +50,7 @@ class MTCS:
             root = self._get_cached_tree(state)
         else:
             root = Node.root(state)
+            self._expand(root)
         if self.time_limit_ms is not None:
             deadline = time.time() + self.time_limit_ms / 1000
             while time.time() < deadline:
@@ -59,10 +60,6 @@ class MTCS:
                 self._train(root)
         else:
             raise ValueError("Must have either a time limit or an iteration limit")
-
-        print(f"Root node has been visited {root.num_visits} times.")
-        for child in root.children:
-            print(f"Action: {int(child.action[0])}, Value: {child.avg_value:.5f}")
         self.cache = root
         return root.best_action
 
@@ -102,7 +99,9 @@ class MTCS:
 
     def _expand(self, node: Node) -> Node:
         """Expand a leaf node by adding all its children"""
-        assert node.is_leaf
+        assert node.is_leaf, "Only leaf node should be expanded"
+        if node.is_terminal:
+            return node
         self.env.set_state(node.state)
         next_player = (node.current_player + 1) % (self.n_adversaries + 1)
         for action in self.env.available_joint_actions():
@@ -123,7 +122,7 @@ class MTCS:
 
     def _simulation(self, node: Node) -> float:
         if node.is_terminal:
-            return node.value
+            return 0.0
 
         self.env.set_state(node.state)
         done = False
@@ -134,7 +133,7 @@ class MTCS:
         while not done:
             action = self.env.action_space.sample(self.env.available_actions())
             step = self.env.step(action)
-            done = step.done
+            done = step.is_terminal
             # We assume that the maximizing player is always the first one
             # because the search initializes the root node with the maximizing player (0).
             if turn == 0:
