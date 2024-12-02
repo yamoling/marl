@@ -1,13 +1,13 @@
 from copy import deepcopy
 import time
-from typing import Literal, Callable
+from typing import Literal, Callable, Optional
 from marlenv import MARLEnv, DiscreteActionSpace, State
 import random
 
 from .node import Node
 
 
-class MTCS:
+class MCTS:
     cache: Node | None
     """Previous tree used to speed up the search."""
     exploration_constant: float
@@ -39,18 +39,18 @@ class MTCS:
         self.n_adversaries = n_adversaries
         match policy:
             case "ucb":
-                self.policy = self._ucb1_policy
+                self.policy = self._ucb_policy
             case "random":
                 self.policy = self._random_policy
             case _:
                 raise ValueError("Invalid policy")
 
-    def search(self, state: State, use_cached_tree: bool = True):
+    def train(self, state: State, use_cached_tree: bool = True):
         if use_cached_tree:
             root = self._get_cached_tree(state)
         else:
             root = Node.root(state)
-            self._expand(root)
+            self._explore(root)
         if self.time_limit_ms is not None:
             deadline = time.time() + self.time_limit_ms / 1000
             while time.time() < deadline:
@@ -72,17 +72,17 @@ class MTCS:
         return child
 
     def _train(self, root: Node):
-        node = self._select(root)
+        node = self.expand_until_end(root)
         if node.num_visits > 0:
-            node = self._expand(node)
+            node = self._explore(node)
         value = self._simulation(node)
         node.backpropate(value, self.gamma)
 
-    def _ucb1_policy(self, node: Node):
+    def _ucb_policy(self, node: Node):
         best_child = node.children[0]
-        best_value = best_child.ucb1(self.exploration_constant)
+        best_value = best_child.ucb(self.exploration_constant)
         for child in node.children[1:]:
-            node_value = child.ucb1(self.exploration_constant)
+            node_value = child.ucb(self.exploration_constant)
             if node_value > best_value:
                 best_value = node_value
                 best_child = child
@@ -91,22 +91,26 @@ class MTCS:
     def _random_policy(self, node: Node):
         return random.choice(node.children)
 
-    def _select(self, node: Node) -> Node:
+    def expand_until_end(self, node: Node) -> Node:
         """Select a move that seems promising accoring to the policy."""
         while not node.is_leaf:
             node = self.policy(node)
         return node
 
-    def _expand(self, node: Node) -> Node:
+    def _explore(self, node: Node, priors: Optional[list[float]] = None) -> Node:
         """Expand a leaf node by adding all its children"""
         assert node.is_leaf, "Only leaf node should be expanded"
         if node.is_terminal:
             return node
         self.env.set_state(node.state)
         next_player = (node.current_player + 1) % (self.n_adversaries + 1)
-        for action in self.env.available_joint_actions():
+        for i, action in enumerate(self.env.available_joint_actions()):
             self.env.set_state(node.state)
             step = self.env.step(action)
+            if priors is None:
+                prior = 0
+            else:
+                prior = priors[i]
             child = Node(
                 step.state,
                 action,
@@ -114,6 +118,7 @@ class MTCS:
                 step.is_terminal,
                 next_player,
                 step.reward,
+                prior=prior,
             )
             node.children.append(child)
         if len(node.children) == 0:
@@ -143,11 +148,3 @@ class MTCS:
             current_gamma *= self.gamma
             turn = (turn + 1) % n_adversarial_players
         return total_reward
-
-    def _backpropagate(self, node: Node, value: float):
-        current_node = node
-        while current_node is not None:
-            current_node.total_value += value
-            current_node.num_visits += 1
-            current_node = current_node.parent
-            value *= self.gamma

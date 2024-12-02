@@ -22,19 +22,19 @@ class Logger(ABC):
         self.quiet = quiet
 
     @abstractmethod
-    def log(self, category: str, data: dict[str, float], time_step: int):
+    def log(self, data: dict[str, float], time_step: int):
         """Log the data."""
 
-    def log_print(self, category: str, data: dict[str, float], time_step: int):
+    def log_print(self, data: dict[str, float], time_step: int):
         """Log and print the data."""
-        self.log(category, data, time_step)
+        self.log(data, time_step)
         if not self.quiet:
-            self.print(category, data)
+            self.print(data)
 
-    def print(self, category: str, data: dict[str, float]):
+    def print(self, data: dict[str, float]):
         """Add the data to the printing queue."""
         if not self.quiet:
-            pprint(f"{category}: {data}")
+            pprint(data)
 
     @abstractmethod
     def close(self):
