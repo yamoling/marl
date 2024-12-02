@@ -1,7 +1,7 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from marlenv import Observation
+from marlenv import Observation, ActionSpace
 from abc import ABC, abstractmethod
 import torch
 from serde import serde
@@ -50,9 +50,9 @@ class NN(torch.nn.Module, ABC):
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
     @classmethod
-    def from_env(cls, env: MARLEnv):
+    def from_env[A: ActionSpace](cls, env: MARLEnv[A]):
         """Construct a NN from environment specifications"""
-        return cls(input_shape=env.observation_shape, extras_shape=env.extra_feature_shape, output_shape=(env.n_actions,))
+        return cls(input_shape=env.observation_shape, extras_shape=env.extra_shape, output_shape=(env.n_actions,))
 
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
@@ -159,7 +159,7 @@ class QNetwork(NN):
             output_shape = (env.n_actions,)
         return cls(
             input_shape=env.observation_shape,
-            extras_shape=env.extra_feature_shape,
+            extras_shape=env.extra_shape,
             output_shape=output_shape,
         )
 
@@ -202,16 +202,32 @@ class ActorCriticNN(NN, ABC):
         pass
 
     @abstractmethod
-    def policy(self, obs: torch.Tensor) -> torch.Tensor:
+    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Returns the logits of the policy distribution"""
 
+    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+        """
+        Returns the probabilities of the policy distribution, i.e. the softmax of the logits.
+
+        The `available_actions` should be a boolean tensor of shape (*dims, n_actions) where `True` means that the action is available.
+        """
+        logits = self.logits(data, extras)
+        if available_actions is not None:
+            logits[~available_actions] = -torch.inf
+        return torch.nn.functional.softmax(logits, -1)
+
     @abstractmethod
-    def value(self, obs: torch.Tensor, extras: torch.Tensor, *args) -> torch.Tensor:
+    def value(self, data: torch.Tensor, extras: torch.Tensor, *args) -> torch.Tensor:
         """Returns the value function of an observation"""
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        action_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
-        return self.policy(obs), self.value(obs, extras)
+        return self.policy(obs, extras, action_mask), self.value(obs, extras)
 
 
 @dataclass(eq=False)

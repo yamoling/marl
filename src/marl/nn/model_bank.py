@@ -49,7 +49,7 @@ class MLP(QNetwork):
             hidden_sizes = (64,)
         return cls(
             env.observation_shape[0],
-            env.extra_feature_shape[0],
+            env.extra_shape[0],
             tuple(hidden_sizes),
             output_shape,
         )
@@ -118,7 +118,7 @@ class DuelingMLP(QNetwork):
     @classmethod
     def from_env(cls, env: MARLEnv, nn: QNetwork):
         assert nn.input_shape == env.observation_shape
-        assert nn.extras_shape == env.extra_feature_shape
+        assert nn.extras_shape == env.extra_shape
         return cls(nn, env.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -177,7 +177,7 @@ class CNN(QNetwork):
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        return cls(env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
+        return cls(env.observation_shape, env.extra_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -235,7 +235,7 @@ class IndependentCNN(QNetwork):
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        return cls(env.n_agents, env.observation_shape, env.extra_feature_shape[0], output_shape, mlp_sizes)
+        return cls(env.n_agents, env.observation_shape, env.extra_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -326,10 +326,10 @@ class DDPG_NN_TEST(ActorCriticNN):
     @classmethod
     def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 3
-        assert len(env.extra_feature_shape) == 1
+        assert len(env.extra_shape) == 1
         return cls(
             input_shape=env.observation_shape,
-            extras_shape=env.extra_feature_shape,
+            extras_shape=env.extra_shape,
             output_shape=(env.n_actions,),
             n_agents=env.n_agents,
             n_actions=env.n_actions,
@@ -366,7 +366,7 @@ class RCNN(RecurrentQNetwork):
         else:
             output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extra_feature_shape[0], output_shape)
+        return cls(env.observation_shape, env.extra_shape[0], output_shape)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -413,7 +413,6 @@ class CNN_ActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
-        self.temperature = 1.0
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
@@ -423,39 +422,44 @@ class CNN_ActorCritic(ActorCriticNN):
         common_input_size = n_features + self.extras_shape[0]
         self.common = torch.nn.Sequential(
             torch.nn.Linear(common_input_size, 128),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(0.1),
             torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
+            torch.nn.LeakyReLU(0.1),
         )
 
-        self.policy_network = torch.nn.Sequential(
-            torch.nn.Linear(128, *output_shape),
-            # torch.nn.Softmax(dim=-1), use logits to mask invalid actions
-        )
+        self.policy_network = torch.nn.Linear(128, *output_shape)
         self.value_network = torch.nn.Linear(128, 1)
 
-    def _cnn_forward(self, obs: torch.Tensor) -> torch.Tensor:
-        # Check that the input has the correct shape (at least 4 dimensions)
-        *dims, channels, height, width = obs.shape
+    def _common_forward(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        *dims, channels, height, width = data.shape
         leading_dims_size = math.prod(dims)
-        obs = obs.view(leading_dims_size, channels, height, width)
-        features = self.cnn.forward(obs)
-        return features
+        data = data.view(leading_dims_size, channels, height, width)
+        features = self.cnn.forward(data)
+        features = torch.cat((features, extras), dim=-1)
+        return self.common(features)
 
-    def policy(self, obs: torch.Tensor):
-        logits = self.policy_network(obs)
-        logits = logits / self.temperature
+    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        x = self._common_forward(data, extras)
+        logits = self.policy_network(x)
         return logits
 
-    def value(self, obs: torch.Tensor):  # type: ignore
-        return self.value_network(obs)
+    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        x = self._common_forward(data, extras)
+        return self.value_network(x)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        features = self._cnn_forward(obs)
-        extras = extras.view(-1, *self.extras_shape)
-        features = torch.cat((features, extras), dim=-1)
-        x = self.common(features)
-        return self.policy(x), self.value(x)
+    def forward(
+        self,
+        data: torch.Tensor,
+        extras: torch.Tensor,
+        action_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        x = self._common_forward(data, extras)
+        logits = self.policy_network(x)
+        if action_mask is not None:
+            logits = logits * action_mask
+        pi = torch.nn.functional.softmax(logits, dim=-1)
+        v = self.value_network(x)
+        return pi, v
 
     @property
     def value_parameters(self) -> list[torch.nn.Parameter]:
@@ -484,13 +488,13 @@ class SimpleActorCritic(ActorCriticNN):
             torch.nn.Linear(256, 1),
         )
 
+    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        x = torch.cat((data, extras), dim=-1)
+        return self.policy_network(x)
+
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         x = torch.cat((obs, extras), dim=-1)
         return self.policy_network(x), self.value_network(x)
-
-    def policy(self, x: torch.Tensor, extras: torch.Tensor):
-        x = torch.cat((x, extras), dim=-1)
-        return self.policy_network(x)
 
     def value(self, x: torch.Tensor, extras: torch.Tensor):
         x = torch.cat((x, extras), dim=-1)
@@ -507,8 +511,8 @@ class SimpleActorCritic(ActorCriticNN):
     @classmethod
     def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 1
-        assert len(env.extra_feature_shape) == 1
-        return SimpleActorCritic(env.observation_shape[0], env.extra_feature_shape[0], env.n_actions)
+        assert len(env.extra_shape) == 1
+        return SimpleActorCritic(env.observation_shape[0], env.extra_shape[0], env.n_actions)
 
 
 class PolicyNetworkMLP(NN):
@@ -677,8 +681,8 @@ class CNet(NN):  # Source : https://github.com/minqi/learning-to-communicate-pyt
     @classmethod
     def from_env(cls, env: MARLEnv, opt):
         assert len(env.observation_shape) == 1
-        assert len(env.extra_feature_shape) == 1
-        return cls(env.observation_shape, env.extra_feature_shape, opt.game_action_space_total, opt)
+        assert len(env.extra_shape) == 1
+        return cls(env.observation_shape, env.extra_shape, opt.game_action_space_total, opt)
 
 
 class MAICNetwork(MAICNN):
@@ -815,7 +819,7 @@ class MAICNetwork(MAICNN):
 
     @classmethod
     def from_env(cls, env: MARLEnv, args: MAICParameters):
-        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
 
 
 class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
@@ -931,7 +935,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
 
     @classmethod
     def from_env(cls, env: MARLEnv, args: MAICParameters):
-        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
 
 
 class MAICNetworkCNN(QNetwork):
@@ -1045,7 +1049,7 @@ class MAICNetworkCNN(QNetwork):
 
     @classmethod
     def from_env(cls, env: MARLEnv, args: MAICParameters):
-        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
 
 
 class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
@@ -1171,4 +1175,4 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
 
     @classmethod
     def from_env(cls, env: MARLEnv, args: MAICParameters):
-        return cls(env.observation_shape, env.extra_feature_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)

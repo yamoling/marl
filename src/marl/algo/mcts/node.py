@@ -13,6 +13,7 @@ class Node:
     is_terminal: bool
     current_player: int
     children: list["Node"]
+    prior: float
 
     def __init__(
         self,
@@ -22,16 +23,11 @@ class Node:
         is_terminal: bool,
         turn: int,
         reward: float,
+        prior: float = 0.0,
     ):
+        self.prior = prior
         self.state = state
         self.parent = parent
-        # if parent is None:
-        #    parent_value = 0.0
-        #    sign = 1.0
-        # else:
-        #    parent_value = parent.reward
-        #    sign = -1.0 if parent.current_player == 0 else 1.0
-        # self.reward = sign * parent_value + reward
         if parent is None:
             self.reward = 0
         else:
@@ -82,11 +78,24 @@ class Node:
         self.total_value += future_returns
         self.parent.backpropate(future_returns, gamma)
 
-    def ucb1(self, exploration_value: float) -> float:
+    def ucb(self, exploration_value: float) -> float:
         assert self.parent is not None, "Can not calculate UCB1 for root node"
         if self.num_visits == 0:
             return float("inf")
         return self.avg_value + math.sqrt(exploration_value * math.log(self.parent.num_visits) / self.num_visits)
+
+    def alpha_ucb(self, exploration_value: float):
+        """
+        AlphaZero selects the action that miaximizes Q + U.
+
+        Q is the average value, and U is the utility score.
+        """
+        assert self.parent is not None, "Can not calculate UCB1 for root node"
+        return self.avg_value + exploration_value * self.prior * math.sqrt(self.parent.num_visits) / (1 + self.num_visits)
+
+    def u_score(self, prior: float, explorataion_value: float):
+        assert self.parent is not None, "Can not calculate U-score for root node"
+        return explorataion_value * prior * math.sqrt(self.parent.num_visits) / (1 + self.num_visits)
 
     def get_child_with_state(self, state: State[np.ndarray], max_depth: int) -> "Node | None":
         if max_depth == 0:
