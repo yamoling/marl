@@ -12,7 +12,7 @@ from marl.utils import defaults_to
 from dataclasses import dataclass
 from serde import serialize
 
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 @serialize

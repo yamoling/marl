@@ -10,7 +10,7 @@ from marl.utils import defaults_to
 from marl.algo.qlearning.maic import MAICParameters
 
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 class MAICTrainer(Trainer):
@@ -62,7 +62,7 @@ class MAICTrainer(Trainer):
 
     def _update(self, episode_num: int, time_step: int):
         self.update_num += 1
-        if self.update_num % self.steps_update_interval != 0 or not self._can_update():
+        if self.update_num % self.step_update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(time_step)

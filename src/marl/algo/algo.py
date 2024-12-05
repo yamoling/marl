@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 
+from typing import Generic
 import numpy as np
 from dataclasses import dataclass
 import torch
 from marlenv.models import Observation
+from marlenv.models.env import ActionSpaceType as A, RewardType as R, StateType as S, ObsType as O
 
 
 @dataclass
-class RLAlgo(ABC):
+class RLAlgo(ABC, Generic[O]):
     name: str
 
     def __init__(self):
@@ -18,7 +20,7 @@ class RLAlgo(ABC):
         raise NotImplementedError("Not implemented for this algorithm")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray:
+    def choose_action(self, observation: Observation[O]) -> np.ndarray:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):
@@ -28,7 +30,7 @@ class RLAlgo(ABC):
         This is required for recurrent algorithms, such as R-DQN, that need to reset their hidden states.
         """
 
-    def value(self, obs: Observation) -> float:
+    def value(self, obs: Observation[O]) -> float:
         """Get the value of the input observation"""
         return 0.0
 

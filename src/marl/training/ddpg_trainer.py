@@ -1,14 +1,10 @@
-from copy import deepcopy
 from typing import Any, Literal
 from marlenv import Episode, Transition
 
 import torch
-from marl.models import Batch, Policy
-from marl.models import NN
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.models.nn import ActorCriticNN
-
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 class DDPGTrainer(Trainer):
@@ -19,7 +15,6 @@ class DDPGTrainer(Trainer):
         batch_size: int = 64,
         gamma: float = 0.99,
         lr: float = 1e-4,
-        optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
         update_interval: int = 5,
         tau: float = 0.01,
@@ -64,7 +59,7 @@ class DDPGTrainer(Trainer):
 
     def _update(self, time_step: int):
         self.step_num += 1
-        if self.step_num % self.steps_update_interval != 0:
+        if self.step_num % self.step_update_interval != 0:
             return {}
 
         if not self.memory.can_sample(self.batch_size):

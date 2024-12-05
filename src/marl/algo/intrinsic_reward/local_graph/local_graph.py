@@ -1,13 +1,10 @@
 import networkx as nx
 import numpy as np
-from sklearn.cluster import SpectralClustering
-from marlenv import Transition
-from torch import device
-from marl.training import Trainer
 from lle import World, WorldState
+from marlenv import Transition
+from sklearn.cluster import SpectralClustering
 
-
-WEIGHT = "weight"
+from marl.models.trainer import Trainer
 
 
 class LocalGraphBottleneckFinder[T]:
@@ -94,35 +91,26 @@ class LocalGraphBottleneckFinder[T]:
 
 
 class LocalGraphTrainer(Trainer):
-    def __init__(self, local_graph: LocalGraphBottleneckFinder[WorldState], world: World, wrapped_trainer: Trainer | None = None):
+    def __init__(self, local_graph: LocalGraphBottleneckFinder[WorldState], world: World):
         super().__init__("both")
-        self.trainer = wrapped_trainer
         self.local_graph = local_graph
         self.world = world
         self.states = list[WorldState]()
 
     def update_step(self, transition: Transition, time_step: int):
         self.states.append(self.world.get_state())
-        if self.trainer is not None:
-            return self.trainer.update_step(transition, time_step)
         return {}
 
     def update_episode(self, episode, episode_num, time_step):
         self.local_graph.compute_bottleneck(self.states)
         self.states.clear()
-        if self.trainer is not None:
-            logs = self.trainer.update_episode(episode, episode_num, time_step)
-            return logs
         return {}
 
-    def to(self, device: device):
-        if self.trainer is not None:
-            self.trainer.to(device)
+    def to(self, _):
         return self
 
     def randomize(self):
-        if self.trainer is not None:
-            self.trainer.randomize()
+        return
 
 
 def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):

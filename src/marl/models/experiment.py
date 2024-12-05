@@ -16,18 +16,17 @@ from serde.json import to_json
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.algo import DDPG, DQN, PPO, RLAlgo
-from ..training.no_train import NoTrain
-from ..algo.random_algo import RandomAlgo
+from marl.algo import DDPG, DQN, PPO, RLAlgo, RandomAlgo
 from marl.models.nn import MAIC
-from marl.training import Trainer
 from marl.utils import encode_b64_image, stats
 from marl.utils.gpu import get_device
+from marl.training import NoTrain
 
 from .batch import TransitionBatch
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
 from .run import Run
 from .runner import Runner
+from .trainer import Trainer
 
 
 @serde
@@ -74,7 +73,8 @@ class Experiment:
     ) -> "Experiment":
         """Create a new experiment."""
         if test_env is not None:
-            MARLEnv.assert_same_inouts(env, test_env)
+            if not MARLEnv.has_same_inouts(env, test_env):
+                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
         else:
             test_env = deepcopy(env)
 
@@ -280,8 +280,8 @@ class Experiment:
         actions = run.get_test_actions(time_step, test_num)
         self.algo.load(run.get_saved_algo_dir(time_step))
         self.test_env.seed(time_step + test_num)
-        obs = self.test_env.reset()
-        frames = [encode_b64_image(self.test_env.render("rgb_array"))]
+        obs, state = self.test_env.reset()
+        frames = [encode_b64_image(self.test_env.get_image())]
         episode = EpisodeBuilder()
         values = []
         qvalues = []
@@ -305,8 +305,8 @@ class Experiment:
 
                 # state-action value
                 probs = dist.probs.unsqueeze(0)  # type: ignore
-                state = torch.tensor(obs.state).to(self.algo.device, non_blocking=True).unsqueeze(0)
-                value = self.algo.state_action_value(state, probs)  # type: ignore
+                tensor_state = torch.tensor(state.data).to(self.algo.device, non_blocking=True).unsqueeze(0)
+                value = self.algo.state_action_value(tensor_state, probs)  # type: ignore
                 values.append(value)
                 print(value)
 
@@ -326,10 +326,11 @@ class Experiment:
             else:
                 values.append(self.algo.value(obs))
 
-            obs_, reward, done, truncated, info = self.test_env.step(action)
-            episode.add(Transition(obs, np.array(action), reward, done, info, obs_, truncated))
-            frames.append(encode_b64_image(self.test_env.render("rgb_array")))
-            obs = obs_
+            step = self.test_env.step(action)
+            episode.add(Transition.from_step(obs, state, np.array(action), step))
+            frames.append(encode_b64_image(self.test_env.get_image()))
+            obs = step.obs
+            state = step.state
         episode = episode.build()
 
         if isinstance(self.algo, DQN):

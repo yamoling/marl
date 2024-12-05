@@ -1,4 +1,3 @@
-from .trainer import Trainer
 from .no_train import NoTrain
 from .dqn_trainer import DQNTrainer
 from .cnet_trainer import CNetTrainer
@@ -9,7 +8,6 @@ from .ddpg_trainer import DDPGTrainer
 
 
 __all__ = [
-    "Trainer",
     "NoTrain",
     "DQNTrainer",
     "PPOTrainer",

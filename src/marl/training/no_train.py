@@ -1,4 +1,4 @@
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 class NoTrain(Trainer):
