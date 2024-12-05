@@ -16,7 +16,7 @@ def test_episode_batch_padded():
         episodes.append(generate_episode(env))
     batch = EpisodeBatch(episodes)
     assert len(batch.obs) == 9
-    assert len(batch.obs_) == 9
+    assert len(batch.next_obs) == 9
     assert len(batch.masks) == 9
 
 
@@ -48,21 +48,21 @@ def test_episode_batch_returns():
 def _batch_test(batch: Batch):
     assert (
         len(batch.obs)
-        == len(batch.obs_)
+        == len(batch.next_obs)
         == len(batch.extras)
-        == len(batch.extras_)
+        == len(batch.next_extras)
         == len(batch.states)
-        == len(batch.states_)
+        == len(batch.next_states)
         == len(batch.available_actions)
-        == len(batch.available_actions_)
+        == len(batch.next_available_actions)
         == len(batch.masks)
         == len(batch.rewards)
     )
-    assert len(batch.all_obs_) == len(batch.all_extras_)
-    assert torch.equal(batch.all_obs_[0], batch.obs[0])
+    assert len(batch.all_next_obs) == len(batch.all_next_extras)
+    assert torch.equal(batch.all_next_obs[0], batch.obs[0])
     for i in range(len(batch)):
-        assert torch.equal(batch.obs_[i], batch.all_obs_[i + 1])
-        assert torch.equal(batch.extras_[i], batch.all_extras_[i + 1])
+        assert torch.equal(batch.next_obs[i], batch.all_next_obs[i + 1])
+        assert torch.equal(batch.next_extras[i], batch.all_next_extras[i + 1])
 
 
 def test_transition_batch():
@@ -75,9 +75,9 @@ def test_transition_batch():
     obs = torch.from_numpy(np.array([t.obs.data for t in transitions]))
     obs_ = torch.from_numpy(np.array([t.obs_.data for t in transitions]))
     assert torch.equal(batch.obs, obs)
-    assert torch.equal(batch.obs_, obs_)
-    assert torch.equal(batch.all_obs_[1:], obs_)
-    assert torch.equal(batch.all_obs_[0], obs[0])
+    assert torch.equal(batch.next_obs, obs_)
+    assert torch.equal(batch.all_next_obs[1:], obs_)
+    assert torch.equal(batch.all_next_obs[0], obs[0])
     _batch_test(batch)
 
 

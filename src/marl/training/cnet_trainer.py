@@ -3,14 +3,12 @@ from typing import Any
 
 import torch
 from marlenv import Episode, Transition
-from serde import serialize
 
 from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper
 
 from ..models.trainer import Trainer
 
 
-@serialize
 @dataclass
 class CNetTrainer(Trainer):
     def __init__(self, opt, agents: CNet):

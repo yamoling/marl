@@ -1,5 +1,4 @@
 from flask import Response
-from serde.json import to_json
 from . import app, state
 from marl.utils import stats
 

@@ -114,7 +114,7 @@ class ReplayTableQLearning(VanillaQLearning):
         qvalues = self.batch_get(obs_data, transition.n_actions)
         qvalues = np.squeeze(np.take_along_axis(qvalues, actions, axis=-1), axis=-1)
 
-        next_obs_data = torch.concat([batch.obs_, batch.extras_], dim=-1).numpy()
+        next_obs_data = torch.concat([batch.next_obs, batch.next_extras], dim=-1).numpy()
         next_qvalues = self.batch_get(next_obs_data, transition.n_actions)
         next_qvalues = np.max(next_qvalues, axis=-1)
         qtargets = batch.rewards.numpy() + self._gamma * next_qvalues

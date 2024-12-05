@@ -10,12 +10,10 @@ from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 from marl.utils import defaults_to
 
 from dataclasses import dataclass
-from serde import serialize
 
 from marl.models.trainer import Trainer
 
 
-@serialize
 @dataclass
 class DQNTrainer(Trainer):
     qnetwork: QNetwork
@@ -98,23 +96,23 @@ class DQNTrainer(Trainer):
 
     def _next_state_value(self, batch: Batch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues = self.qtarget.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
+        next_qvalues = self.qtarget.batch_forward(batch.all_next_obs, batch.all_next_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs_, batch.all_extras_)[1:]
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_next_obs, batch.all_next_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
         if self.qnetwork.is_multi_objective:
             # Sum over the objectives
             qvalues_for_index = torch.sum(qvalues_for_index, -1)
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
+        qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         if self.qnetwork.is_multi_objective:
             indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
 
         next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
         if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+            next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
             next_values = next_values.squeeze(-1)
         return next_values
 

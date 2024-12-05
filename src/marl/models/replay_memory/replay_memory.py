@@ -3,7 +3,6 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Deque, Generic, Iterable, Literal, TypeVar
 
-from serde import serde
 import numpy as np
 from marlenv import Episode, Transition
 
@@ -14,7 +13,6 @@ T = TypeVar("T")
 B = TypeVar("B", bound=Batch)
 
 
-@serde
 @dataclass
 class ReplayMemory(Generic[B, T], ABC):
     """Parent class of any ReplayMemory"""

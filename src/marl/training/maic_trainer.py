@@ -77,21 +77,21 @@ class MAICTrainer(Trainer):
 
     def _next_state_value(self, batch: EpisodeBatch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_obs_, batch.all_extras_)
+        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_next_obs, batch.all_next_extras)
         next_qvalues = next_qvalues[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_obs_, batch.all_extras_)
+            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_next_obs, batch.all_next_extras)
             qvalues_for_index = qvalues_for_index[1:]
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
+        qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        mixed_next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        mixed_next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
         return mixed_next_values
 
     def optimise_network(self):

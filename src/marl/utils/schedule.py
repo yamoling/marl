@@ -1,11 +1,9 @@
 from typing import Optional
 from dataclasses import dataclass
-from serde import serde
 
 from abc import abstractmethod
 
 
-@serde
 @dataclass(eq=False)
 class Schedule:
     name: str
@@ -109,7 +107,6 @@ class Schedule:
         return int(self.value)
 
 
-@serde
 @dataclass(eq=False)
 class LinearSchedule(Schedule):
     n_steps: int
@@ -138,7 +135,6 @@ class LinearSchedule(Schedule):
         return self.current_value
 
 
-@serde
 @dataclass(eq=False)
 class ExpSchedule(Schedule):
     """Exponential schedule. After n_steps, the value will be min_value.

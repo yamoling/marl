@@ -4,7 +4,6 @@ from marlenv.wrappers import RLEnvWrapper
 from lle import LLE, WorldState
 from lle.tiles import LaserSource
 from dataclasses import dataclass
-from serde import serde
 
 
 class CurriculumLearning(RLEnvWrapper):
@@ -32,7 +31,6 @@ class CurriculumLearning(RLEnvWrapper):
         return self.lle.get_observation()
 
 
-@serde
 @dataclass
 class RandomInitialStates(RLEnvWrapper):
     accumulate: bool
@@ -94,7 +92,6 @@ class RandomInitialStates(RLEnvWrapper):
         return super().seed(seed_value)
 
 
-@serde
 @dataclass
 class LaserCurriculum(RLEnvWrapper):
     def __init__(self, env: LLE):

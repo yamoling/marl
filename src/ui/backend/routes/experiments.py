@@ -1,7 +1,6 @@
 from . import app, state
 from flask import request
 from http import HTTPStatus
-from serde.json import to_json
 import json
 import cv2
 from marl.exceptions import ExperimentVersionMismatch

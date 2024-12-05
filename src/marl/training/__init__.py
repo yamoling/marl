@@ -1,4 +1,5 @@
 from .no_train import NoTrain
+from .multi_trainer import MultiTrainer
 from .dqn_trainer import DQNTrainer
 from .cnet_trainer import CNetTrainer
 from .maic_trainer import MAICTrainer
@@ -9,6 +10,7 @@ from .ddpg_trainer import DDPGTrainer
 
 __all__ = [
     "NoTrain",
+    "MultiTrainer",
     "DQNTrainer",
     "PPOTrainer",
     "DDPGTrainer",

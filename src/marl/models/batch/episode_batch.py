@@ -47,12 +47,12 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(obs).transpose(1, 0).to(self.device)
 
     @cached_property
-    def obs_(self):
+    def next_obs(self):
         obs = np.array([e.obs_ for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(obs).transpose(1, 0).to(self.device)
 
     @cached_property
-    def all_obs_(self):
+    def all_next_obs(self):
         all_obs_ = np.array([e._observations for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(all_obs_).transpose(1, 0).to(self.device)
 
@@ -62,12 +62,12 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(extras).transpose(1, 0).to(self.device)
 
     @cached_property
-    def extras_(self):
+    def next_extras(self):
         extras_ = np.array([e.extras_ for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(extras_).transpose(1, 0).to(self.device)
 
     @cached_property
-    def all_extras_(self):
+    def all_next_extras(self):
         all_extras_ = np.array([e._extras for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(all_extras_).transpose(1, 0).to(self.device)
 
@@ -77,7 +77,7 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(available_actions).transpose(1, 0).to(self.device)
 
     @cached_property
-    def available_actions_(self):
+    def next_available_actions(self):
         available_actions_ = np.array([e.available_actions_ for e in self.episodes], dtype=np.int64)
         return torch.from_numpy(available_actions_).transpose(1, 0).to(self.device)
 
@@ -87,7 +87,7 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(states).transpose(1, 0).to(self.device)
 
     @cached_property
-    def states_(self):
+    def next_states(self):
         states_ = np.array([e.states_ for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(states_).transpose(1, 0).to(self.device)
 

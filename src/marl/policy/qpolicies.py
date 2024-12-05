@@ -2,13 +2,11 @@ import random
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
-from serde import serde
 
 from marl.utils import schedule
 from marl.models import Policy
 
 
-@serde
 @dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
@@ -31,7 +29,6 @@ class SoftmaxPolicy(Policy):
         return {"softmax-tau": self.tau}
 
 
-@serde
 @dataclass
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
@@ -68,7 +65,6 @@ class EpsilonGreedy(Policy):
         return {"epsilon": self.epsilon.value}
 
 
-@serde
 @dataclass
 class ArgMax(Policy):
     """Exploiting the strategy"""

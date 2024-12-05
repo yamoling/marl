@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import os
 from typing import Optional
-from serde import serde
 import torch
 import numpy as np
 import numpy.typing as npt
@@ -12,7 +11,6 @@ from marl.utils import get_device
 from ..algo import RLAlgo
 
 
-@serde
 @dataclass
 class PPO(RLAlgo):
     def __init__(

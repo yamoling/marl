@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import os
 from typing import Optional, Any
-from serde import serde
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -13,9 +12,8 @@ from marl.utils import get_device
 from ..algo import RLAlgo
 
 
-@serde
 @dataclass
-class DDPG(RLAlgo):
+class DDPG(RLAlgo[np.ndarray]):
     def __init__(self, ac_network: nn.ActorCriticNN, train_policy: Policy, test_policy: Optional[Policy] = None):
         super().__init__()
         self.device = get_device()
@@ -54,7 +52,7 @@ class DDPG(RLAlgo):
         # DDPG does not have a state value function, need actions too
         return 0
 
-    def actions_logits(self, obs: Observation):
+    def actions_logits(self, obs: Observation[np.ndarray]):
         obs_data = torch.tensor(obs.data).to(self.device, non_blocking=True)
         obs_extras = torch.tensor(obs.extras).to(self.device, non_blocking=True)
         logits, value = self.network.forward(obs_data, obs_extras)
