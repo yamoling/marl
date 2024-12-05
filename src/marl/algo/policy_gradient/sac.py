@@ -109,7 +109,7 @@ class SACAgent:
         batch = self.memory.sample(batch_size)
 
         value = self.value.forward(batch.obs)
-        value_ = self.target.forward(batch.obs_) * (1 - batch.dones)
+        value_ = self.target.forward(batch.next_obs) * (1 - batch.dones)
 
         actions, log_prob = self.actor.sample_normal(batch.obs, reparametrize=False)
 

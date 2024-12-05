@@ -18,11 +18,11 @@ def parameters_equal(p1: list[torch.nn.Parameter], p2: list[torch.nn.Parameter])
 
 
 def generate_episode(env: MARLEnv):
-    obs = env.reset()
-    episode = EpisodeBuilder()
+    obs, state = env.reset()
+    episode = Episode.new(obs, state)
     while not episode.is_finished:
         action = env.action_space.sample()
-        next_obs, r, done, truncated, info = env.step(action)
-        episode.add(Transition(obs, action, r, done, info, next_obs, truncated))
+        next_obs, next_state, r, done, truncated, info = env.step(action)
+        episode.add(Transition(obs, state, action, r, done, info, next_obs, truncated))
         obs = next_obs
-    return episode.build()
+    return episode

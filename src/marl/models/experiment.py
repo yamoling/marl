@@ -1,4 +1,4 @@
-import json
+import orjson
 import os
 import pathlib
 import pickle
@@ -10,15 +10,13 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from marlenv.models import EpisodeBuilder, MARLEnv, Transition
-from serde import serde
-from serde.json import to_json
+from marlenv.models import MARLEnv, Transition, ActionSpace, Episode
 from tqdm import tqdm
 
 from marl import exceptions
 from marl.algo import DDPG, DQN, PPO, RLAlgo, RandomAlgo
 from marl.models.nn import MAIC
-from marl.utils import encode_b64_image, stats
+from marl.utils import encode_b64_image, stats, default_serialization
 from marl.utils.gpu import get_device
 from marl.training import NoTrain
 
@@ -29,28 +27,27 @@ from .runner import Runner
 from .trainer import Trainer
 
 
-@serde
 @dataclass
-class Experiment:
+class Experiment[A: ActionSpace, O: np.ndarray]:
     logdir: str
-    algo: RLAlgo
+    algo: RLAlgo[O]
     trainer: Trainer
-    env: MARLEnv
+    env: MARLEnv[A, O]
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: MARLEnv
+    test_env: MARLEnv[A, O]
 
     def __init__(
         self,
         logdir: str,
-        algo: RLAlgo,
+        algo: RLAlgo[O],
         trainer: Trainer,
-        env: MARLEnv,
+        env: MARLEnv[A, O],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv,
+        test_env: MARLEnv[A, O],
     ):
         self.logdir = logdir
         self.trainer = trainer
@@ -63,17 +60,17 @@ class Experiment:
 
     @staticmethod
     def create(
-        env: MARLEnv,
+        env: MARLEnv[A, O],
         n_steps: int,
         logdir: str = "logs/tests",
-        algo: Optional[RLAlgo] = None,
+        algo: Optional[RLAlgo[O]] = None,
         trainer: Optional[Trainer] = None,
         test_interval: int = 0,
-        test_env: Optional[MARLEnv] = None,
-    ) -> "Experiment":
+        test_env: Optional[MARLEnv[A, O]] = None,
+    ):
         """Create a new experiment."""
         if test_env is not None:
-            if not MARLEnv.has_same_inouts(env, test_env):
+            if not env.has_same_inouts(test_env):
                 raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
         else:
             test_env = deepcopy(env)
@@ -89,9 +86,11 @@ class Experiment:
                 pass
         try:
             os.makedirs(logdir, exist_ok=False)
+            if algo is None:
+                algo = RandomAlgo(env)
             experiment = Experiment(
                 logdir,
-                algo=algo or RandomAlgo(env),
+                algo=algo,
                 trainer=trainer or NoTrain(),
                 env=env,
                 n_steps=n_steps,
@@ -119,7 +118,7 @@ class Experiment:
     def get_parameters(logdir: str) -> dict:
         """Get the parameters of an experiment."""
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
     def move(self, new_logdir: str):
         """Move an experiment to a new directory."""
@@ -157,8 +156,9 @@ class Experiment:
     def save(self):
         """Save the experiment to disk."""
         os.makedirs(self.logdir, exist_ok=True)
-        with open(os.path.join(self.logdir, "experiment.json"), "w") as f:
-            f.write(to_json(self))
+
+        with open(os.path.join(self.logdir, "experiment.json"), "wb") as f:
+            f.write(orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY))
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
 
@@ -211,7 +211,7 @@ class Experiment:
 
     def test_on_other_env(
         self,
-        test_env: MARLEnv,
+        other_env: MARLEnv[A, O],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,
@@ -224,12 +224,12 @@ class Experiment:
         """
         new_experiment = Experiment.create(
             logdir=new_logdir,
-            env=self.env,
+            env=deepcopy(self.env),
             n_steps=self.n_steps,
-            algo=self.algo,
+            algo=deepcopy(self.algo),
             trainer=self.trainer,
             test_interval=self.test_interval,
-            test_env=test_env,
+            test_env=other_env,
         )
         runner = new_experiment.create_runner().to(device)
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
@@ -269,8 +269,8 @@ class Experiment:
         datasets += stats.compute_datasets([run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf)
         return datasets
 
-    def replay_episode(self, episode_folder: str) -> ReplayEpisode:
-        # Episode folder should look like logs\\experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
+    def replay_episode(self, episode_folder: str):
+        # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
         # possibly with a trailing slash
         path = pathlib.Path(episode_folder)
         test_num = int(path.name)
@@ -282,7 +282,7 @@ class Experiment:
         self.test_env.seed(time_step + test_num)
         obs, state = self.test_env.reset()
         frames = [encode_b64_image(self.test_env.get_image())]
-        episode = EpisodeBuilder()
+        episode = Episode.new(obs, state)
         values = []
         qvalues = []
         llogits = []

@@ -2,6 +2,7 @@ from typing import Optional, Sequence
 from dataclasses import dataclass
 from marlenv import Observation
 from marlenv.models import MARLEnv
+from marlenv.models.env import ActionSpaceType
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -172,7 +173,7 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
-    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env(cls, env: MARLEnv[ActionSpaceType], mlp_sizes: tuple[int, ...] = (64, 64)):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:

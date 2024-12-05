@@ -1,7 +1,7 @@
 import os
 import shutil
 import polars as pl
-import json
+import orjson
 import signal
 import pickle
 from datetime import datetime
@@ -68,13 +68,13 @@ class Run:
         test_directory = self.test_dir(time_step, test_num)
         actions_file = os.path.join(test_directory, ACTIONS)
         with open(actions_file, "r") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
     def get_train_actions(self, time_step: int) -> list[list[int]]:
         train_directory = self.train_dir(time_step)
         actions_file = os.path.join(train_directory, ACTIONS)
         with open(actions_file, "r") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.rundir, "test", f"{time_step}")
@@ -246,8 +246,9 @@ class RunHandle:
             episode_directory = self.run.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
             os.makedirs(episode_directory)
-            with open(os.path.join(episode_directory, ACTIONS), "w") as a:
-                json.dump(episode.actions.tolist(), a)
+            with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
+                bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
+                f.write(bytes_data)
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)

@@ -1,4 +1,4 @@
-from marlenv import MARLEnv
+from marlenv import MARLEnv, DiscreteActionSpace
 import torch
 
 from marl.models.nn import Mixer
@@ -23,5 +23,5 @@ class VDN(Mixer):
         return
 
     @classmethod
-    def from_env(cls, env: MARLEnv):
+    def from_env(cls, env: MARLEnv[DiscreteActionSpace]):
         return VDN(env.n_agents, env.is_multi_objective)

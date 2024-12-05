@@ -4,7 +4,6 @@ from typing import Literal
 from marlenv import Observation, ActionSpace
 from abc import ABC, abstractmethod
 import torch
-from serde import serde
 from functools import cached_property
 
 from marlenv.models import MARLEnv
@@ -18,7 +17,6 @@ def randomize(init_fn, nn: torch.nn.Module):
             init_fn(param.data)
 
 
-@serde
 @dataclass
 class NN(torch.nn.Module, ABC):
     """Parent class of all neural networks"""

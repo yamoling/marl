@@ -1,10 +1,8 @@
 from dataclasses import dataclass
-from serde import serde
 import numpy as np
 import numpy.typing as npt
 
 
-@serde
 @dataclass
 class Message:
     data: npt.NDArray[np.float32]

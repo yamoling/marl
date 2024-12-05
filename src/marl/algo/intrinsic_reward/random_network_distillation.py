@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Optional
-from serde import serde
 from copy import deepcopy
 
 import torch
@@ -15,7 +14,6 @@ from marl.utils.stats import RunningMeanStd
 from .ir_module import IRModule
 
 
-@serde
 @dataclass
 class RandomNetworkDistillation(IRModule):
     target: NN
@@ -72,13 +70,13 @@ class RandomNetworkDistillation(IRModule):
 
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
-        obs_ = self._running_obs.normalise(batch.obs_)
+        obs_ = self._running_obs.normalise(batch.next_obs)
         extras_ = self._running_extras.normalise(batch.extras)
 
         # Compute the embedding and the squared error
         with torch.no_grad():
             target_features = self.target.forward(obs_, extras_)
-        predicted_features = self.predictor_head.forward(batch.obs_, extras_)
+        predicted_features = self.predictor_head.forward(batch.next_obs, extras_)
         shape = predicted_features.shape
         new_shape = shape[:-2] + (self.output_size,)
         predicted_features = predicted_features.view(*new_shape)

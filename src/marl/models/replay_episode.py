@@ -1,11 +1,9 @@
 import os
 from dataclasses import dataclass
 from marlenv.models import Episode
-from serde import serde
 from typing import Optional
 
 
-@serde
 @dataclass
 class ReplayEpisodeSummary:
     name: str
@@ -18,7 +16,6 @@ class ReplayEpisodeSummary:
         self.name = os.path.basename(directory)
 
 
-@serde
 @dataclass
 class ReplayEpisode(ReplayEpisodeSummary):
     episode: Episode

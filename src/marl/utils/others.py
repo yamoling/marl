@@ -4,6 +4,7 @@ import numpy as np
 from typing import Callable, Optional, TypeVar
 import re
 from marlenv import MARLEnv
+import torch
 from marlenv.models.env import ActionSpaceType as A, RewardType as R, StateType as S, ObsType as O
 
 
@@ -43,3 +44,10 @@ def encode_b64_image(image: np.ndarray) -> str:
     if image is None:
         return ""
     return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")  # type: ignore
+
+
+def default_serialization(obj):
+    """Default behaviour for orjson serialization"""
+    if isinstance(obj, torch.nn.Parameter):
+        return f"Parameter(shape={obj.shape}, dtype={obj.dtype})"
+    return str(obj)

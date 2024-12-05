@@ -1,6 +1,5 @@
 import asyncio
 from threading import Thread
-from serde.json import to_json
 from websockets.server import serve, WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosed
 import psutil

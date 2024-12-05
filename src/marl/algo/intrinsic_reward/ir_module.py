@@ -2,12 +2,10 @@ from abc import abstractmethod
 from typing_extensions import Self
 import torch
 from dataclasses import dataclass
-from serde import serde
 
 from marl.models import Batch, Updatable
 
 
-@serde
 @dataclass
 class IRModule(Updatable):
     """Intrinsic Reward Module: a class that adds intrinsic rewards."""

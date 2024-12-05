@@ -2,7 +2,6 @@ import os
 import pickle
 from dataclasses import dataclass
 from typing import Optional
-from serde import serde
 
 import numpy as np
 import torch
@@ -13,7 +12,6 @@ from marl.models import Policy, QNetwork, RecurrentQNetwork
 from ..algo import RLAlgo
 
 
-@serde
 @dataclass
 class DQN(RLAlgo):
     """

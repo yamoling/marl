@@ -3,27 +3,35 @@ import numpy as np
 from lle import World, WorldState
 from marlenv import Transition
 from sklearn.cluster import SpectralClustering
-
+from dataclasses import dataclass
 from marl.models.trainer import Trainer
 
 
+@dataclass
 class LocalGraphBottleneckFinder[T]:
     """
     Find bottlenecks via local graph building and spectral clustering.
     https://dl.acm.org/doi/10.1145/1102351.1102454
     """
 
+    edge_occurrences: dict[tuple[T, T], int]
+    """Map each edge to its weight (int)"""
+    t_o: int
+    """Threshold for the minimum number of apparitions of a state before considering it as a potential bottleneck"""
+    t_h: float
+    """Threshold for the minimum hit ratio of a state before considering it as a bottleneck"""
+    hit_count: dict[tuple[T, T], int]
+    """Number of times an edge was classified as a bottleneck"""
+    apparition_count: dict[tuple[T, T], int]
+    """Number of times an edge was encountered in the construction of the local graph"""
+
     def __init__(self, n_apparition_threshold: int = 10, hit_ratio_threshold: float = 0.5):
         self.edge_occurrences = dict[tuple[T, T], int]()
-        """Map each edge to its weight (int)"""
         self.t_o = n_apparition_threshold
-        """Threshold for the minimum number of apparitions of a state before considering it as a potential bottleneck"""
         self.t_h = hit_ratio_threshold
-        """Threshold for the minimum hit ratio of a state before considering it as a bottleneck"""
         self.hit_count = dict[tuple[T, T], int]()
-        """Number of times an edge was classified as a bottleneck"""
         self.apparition_count = dict[tuple[T, T], int]()
-        """Number of times an edge was encountered in the construction of the local graph"""
+        self.local_graph = nx.Graph()  # Not to serialize from the dataclass
 
     def is_bottleneck(self, edge: tuple[T, T]):
         ratio = self.predict(edge)
@@ -31,37 +39,39 @@ class LocalGraphBottleneckFinder[T]:
 
     def predict(self, edge: tuple[T, T]):
         n = self.apparition_count.get(edge, 0)
-        # if n < self.t_o:
-        #     return 0.0
+        if n < self.t_o:
+            return 0.0
         return self.hit_count.get(edge, 0) / n
 
-    def _build_local_graph(self, states: list[T]):
-        local_graph = nx.Graph()
+    def add_trajectory(self, states: list[T]):
         for i in range(len(states) - 1):
             prev_state = states[i]
             next_state = states[i + 1]
             edge = prev_state, next_state
             weight = self.edge_occurrences.get(edge, 0) + 1
             self.edge_occurrences[edge] = weight
-            local_graph.add_edge(prev_state, next_state, weight=weight)
-        # local_graph.add_weighted_edges_from((src, dest, v) for (src, dest), v in self.edge_occurrences.items())
-        return local_graph
+            self.local_graph.add_edge(prev_state, next_state, weight=weight)
 
-    def compute_bottleneck(self, states: list[T]):
-        local_graph = self._build_local_graph(states)
+    def find_bottleneck(self):
+        """
+        Compute the edges that form the bottleneck according to the current local graph.
+
+        This method also updates the hit_count and apparition_count dictionaries that are used
+        to determine if an edge is a bottleneck in the `predict` method.
+        """
         # print(f"Graph size: {len(local_graph.nodes)} nodes, {len(local_graph.edges)} edges")
-        W = nx.adjacency_matrix(local_graph).todense()  # Adjacency/Weight matrix of the graph
+        W = nx.adjacency_matrix(self.local_graph).todense()  # Adjacency/Weight matrix of the graph
         sc = SpectralClustering(2, affinity="precomputed", n_init=100)
         labels = sc.fit_predict(W)
-        label_dict = {node: label for node, label in zip(local_graph.nodes, labels)}
+        label_dict = {node: label for node, label in zip(self.local_graph.nodes, labels)}
 
-        bottleneck = set()
-        for src, dst in local_graph.edges():
+        bottleneck = set[tuple[T, T]]()
+        for src, dst in self.local_graph.edges():
             if label_dict[src] != label_dict[dst]:  # If the nodes are in different clusters
                 bottleneck.add((src, dst))
-        self.extend_bottleneck(local_graph, bottleneck, labels)
+        self.extend_bottleneck(self.local_graph, bottleneck, labels)
         # draw_graph(local_graph, bottleneck, labels)
-        for edge in local_graph.edges:
+        for edge in self.local_graph.edges:
             self.apparition_count[edge] = self.apparition_count.get(edge, 0) + 1
             if edge in bottleneck:
                 self.hit_count[edge] = self.hit_count.get(edge, 0) + 1
@@ -89,6 +99,9 @@ class LocalGraphBottleneckFinder[T]:
             # draw_graph(local_graph, bottleneck, labels)
         return bottleneck
 
+    def clear_graph(self):
+        self.local_graph.clear()
+
 
 class LocalGraphTrainer(Trainer):
     def __init__(self, local_graph: LocalGraphBottleneckFinder[WorldState], world: World):
@@ -102,7 +115,9 @@ class LocalGraphTrainer(Trainer):
         return {}
 
     def update_episode(self, episode, episode_num, time_step):
-        self.local_graph.compute_bottleneck(self.states)
+        self.local_graph.add_trajectory(self.states)
+        self.local_graph.find_bottleneck()
+        self.local_graph.clear_graph()
         self.states.clear()
         return {}
 

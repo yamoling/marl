@@ -1,9 +1,10 @@
 from copy import deepcopy
-from typing import Literal, Optional, Generic
-from marlenv import Episode, EpisodeBuilder, MARLEnv, Transition
-from marlenv.models.env import ActionSpaceType
+from typing import Literal, Optional
+from marlenv import Episode, EpisodeBuilder, MARLEnv, Transition, ActionSpace
 import torch
 from tqdm import tqdm
+import numpy as np
+import numpy.typing as npt
 import marl
 from marl.algo import RLAlgo
 from marl.models.run import Run, RunHandle
@@ -13,18 +14,27 @@ from marl.models.trainer import Trainer
 from marl.training import NoTrain
 
 
-class Runner(Generic[ActionSpaceType]):
-    env: MARLEnv[ActionSpaceType]
-    algo: RLAlgo
+from typing import Generic
+from typing_extensions import TypeVar
+
+A = TypeVar("A", bound=ActionSpace)
+O = TypeVar("O", bound=npt.NDArray[np.float32])  # noqa: E741
+S = TypeVar("S", bound=npt.NDArray[np.float32])
+R = TypeVar("R", bound=npt.NDArray[np.float32] | float)
+
+
+class Runner(Generic[A, O, S, R]):
+    env: MARLEnv[A, O, S, R]
+    algo: RLAlgo[O]
     trainer: Trainer
-    test_env: MARLEnv
+    test_env: MARLEnv[A, O, S, R]
 
     def __init__(
         self,
-        env: MARLEnv[ActionSpaceType],
-        algo: Optional[RLAlgo] = None,
+        env: MARLEnv[A, O, S, R],
+        algo: Optional[RLAlgo[O]] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[MARLEnv[ActionSpaceType]] = None,
+        test_env: Optional[MARLEnv[A, O, S, R]] = None,
     ):
         self._trainer = trainer or NoTrain()
         self._env = env
@@ -36,7 +46,14 @@ class Runner(Generic[ActionSpaceType]):
         self._test_env = test_env
 
     def _train_episode(
-        self, step_num: int, episode_num: int, n_tests: int, quiet: bool, run_handle: RunHandle, max_step: int, test_interval: int
+        self,
+        step_num: int,
+        episode_num: int,
+        n_tests: int,
+        quiet: bool,
+        run_handle: RunHandle,
+        max_step: int,
+        test_interval: int,
     ):
         episode = EpisodeBuilder()
         self._env.seed(step_num)

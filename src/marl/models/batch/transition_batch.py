@@ -7,7 +7,7 @@ from .batch import Batch
 
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition]):
+    def __init__(self, transitions: list[Transition[np.ndarray, np.ndarray, float | np.ndarray]]):
         self.transitions = transitions
         super().__init__(len(transitions), transitions[0].n_agents)
 
@@ -25,16 +25,16 @@ class TransitionBatch(Batch):
         return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
-    def obs_(self):
-        return torch.from_numpy(np.array([t.obs_.data for t in self.transitions], dtype=np.float32)).to(self.device)
+    def next_obs(self):
+        return torch.from_numpy(np.array([t.next_obs.data for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
     def extras(self):
         return torch.from_numpy(np.array([t.obs.extras for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
-    def extras_(self):
-        return torch.from_numpy(np.array([t.obs_.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+    def next_extras(self):
+        return torch.from_numpy(np.array([t.next_obs.extras for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
     def actions(self):
@@ -55,16 +55,24 @@ class TransitionBatch(Batch):
         return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
 
     @cached_property
-    def available_actions_(self):
-        return torch.from_numpy(np.array([t.obs_.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
+    def next_available_actions(self):
+        return torch.from_numpy(np.array([t.next_obs.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
 
     @cached_property
     def states(self):
-        return torch.from_numpy(np.array([t.obs.state for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.state.data for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
-    def states_(self):
-        return torch.from_numpy(np.array([t.obs_.state for t in self.transitions], dtype=np.float32)).to(self.device)
+    def states_extras(self):
+        return torch.from_numpy(np.array([t.state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+
+    @cached_property
+    def next_states(self):
+        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(self.device)
+
+    @cached_property
+    def next_states_extras(self):
+        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
     def masks(self):

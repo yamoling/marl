@@ -1,4 +1,3 @@
-from serde import serde
 import torch
 from dataclasses import dataclass
 import numpy as np
@@ -8,7 +7,6 @@ import polars.exceptions as pl_errors
 from typing import Optional
 
 
-@serde
 @dataclass
 class Dataset:
     logdir: str
@@ -21,7 +19,6 @@ class Dataset:
     ci95: list[float]
 
 
-@serde
 @dataclass
 class ExperimentResults:
     logdir: str

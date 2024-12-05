@@ -1,11 +1,9 @@
-from serde import serde
 from typing import Literal
 import torch
 import subprocess
 from dataclasses import dataclass
 
 
-@serde
 @dataclass
 class GPU:
     index: int

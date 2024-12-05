@@ -1,7 +1,6 @@
 import threading
 import os
 import asyncio
-from serde.json import to_json
 from dataclasses import dataclass
 from typing import ClassVar
 from websockets.server import serve, WebSocketServerProtocol

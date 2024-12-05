@@ -2,11 +2,9 @@ import numpy as np
 from marlenv.wrappers import RLEnvWrapper
 from marlenv import Observation, DiscreteSpace
 from dataclasses import dataclass
-from serde import serde
 from lle import LLE, Action
 
 
-@serde
 @dataclass
 class LLEShaping(RLEnvWrapper):
     reward_for_blocking: float
@@ -40,7 +38,6 @@ class LLEShaping(RLEnvWrapper):
         return obs, reward, done, truncated, info
 
 
-@serde
 @dataclass
 class LLEShapeEachLaser(RLEnvWrapper):
     extra_reward: float

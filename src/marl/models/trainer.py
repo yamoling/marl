@@ -1,16 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from serde import serde
 from typing import Literal, Any
 from typing_extensions import Self
 from marlenv import Transition, Episode
 
 import torch
+import numpy as np
 
 
-@serde
 @dataclass
-class Trainer(ABC):
+class Trainer[O, S, R: float | np.ndarray](ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str
@@ -45,7 +44,7 @@ class Trainer(ABC):
         self.update_on_steps = update_type in ["step", "both"]
         self.update_on_episodes = update_type in ["episode", "both"]
 
-    def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
+    def update_step(self, transition: Transition[O, S, R], time_step: int) -> dict[str, Any]:
         """
         Update to call after each step. Should be run when update_after_each == "step".
 
@@ -54,7 +53,7 @@ class Trainer(ABC):
         """
         return {}
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
+    def update_episode(self, episode: Episode[O, S, R], episode_num: int, time_step: int) -> dict[str, Any]:
         """
         Update to call after each episode. Should be run when update_after_each == "episode".
 

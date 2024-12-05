@@ -6,14 +6,12 @@ from lle import World, Position
 from lle.tiles import Direction
 from marlenv import Observation
 from marlenv.wrappers import RLEnvWrapper, MARLEnv
-from serde import serde
 from dataclasses import dataclass
 
 HORIZONTAL = [Direction.EAST, Direction.WEST]
 VERTICAL = [Direction.NORTH, Direction.SOUTH]
 
 
-@serde
 class PotentialShaping(RLEnvWrapper):
     """
     Potential shaping for the Laser Learning Environment (LLE).
