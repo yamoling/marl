@@ -26,4 +26,5 @@ __all__ = [
     "Qatten",
     "QPlex",
     "mixers",
+    "MCTS",
 ]

@@ -14,9 +14,8 @@ from . import other
 from .utils import seed
 
 
-from .models import Experiment, Runner, Run, Policy
+from .models import Experiment, Runner, Run, Policy, Trainer
 from .algo import RLAlgo
-from .training import Trainer
 
 
 __all__ = [

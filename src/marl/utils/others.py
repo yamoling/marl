@@ -4,9 +4,10 @@ import numpy as np
 from typing import Callable, Optional, TypeVar
 import re
 from marlenv import MARLEnv
+from marlenv.models.env import ActionSpaceType as A, RewardType as R, StateType as S, ObsType as O
 
 
-def seed(seed_value: int, env: Optional[MARLEnv] = None):
+def seed(seed_value: int, env: Optional[MARLEnv[A, O, S, R]] = None):
     import torch
     import random
     import numpy as np

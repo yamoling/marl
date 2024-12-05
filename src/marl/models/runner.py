@@ -1,27 +1,36 @@
 from copy import deepcopy
-from typing import Literal, Optional
+from typing import Literal, Optional, Generic
 from marlenv import Episode, EpisodeBuilder, MARLEnv, Transition
+from marlenv.models.env import ActionSpaceType
 import torch
 from tqdm import tqdm
 import marl
-from marl.algo import RLAlgo, DDPG
+from marl.algo import RLAlgo
 from marl.models.run import Run, RunHandle
 from marl.utils import get_device
 from marl.algo.random_algo import RandomAlgo
-from marl.training import Trainer, NoTrain
+from marl.models.trainer import Trainer
+from marl.training import NoTrain
 
 
-class Runner:
+class Runner(Generic[ActionSpaceType]):
+    env: MARLEnv[ActionSpaceType]
+    algo: RLAlgo
+    trainer: Trainer
+    test_env: MARLEnv
+
     def __init__(
         self,
-        env: MARLEnv,
+        env: MARLEnv[ActionSpaceType],
         algo: Optional[RLAlgo] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[MARLEnv] = None,
+        test_env: Optional[MARLEnv[ActionSpaceType]] = None,
     ):
         self._trainer = trainer or NoTrain()
         self._env = env
-        self._algo = algo or RandomAlgo(env)
+        if algo is None:
+            algo = RandomAlgo(env)
+        self._algo = algo  #  or RandomAlgo(env)
         if test_env is None:
             test_env = deepcopy(env)
         self._test_env = test_env
@@ -31,7 +40,7 @@ class Runner:
     ):
         episode = EpisodeBuilder()
         self._env.seed(step_num)
-        obs = self._env.reset()
+        obs, state = self._env.reset()
         self._algo.new_episode()
         initial_value = self._algo.value(obs)
         while not episode.is_finished and step_num < max_step:
@@ -39,20 +48,15 @@ class Runner:
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
                 self.test(n_tests, step_num, quiet, run_handle)
             action = self._algo.choose_action(obs)
-            obs_, reward, done, truncated, info = self._env.step(action)
+            step = self._env.step(action)
             if step_num == max_step:
-                truncated = True
-            if isinstance(self._algo, DDPG):  # needs old probs because off policy training
-                logits = self._algo.actions_logits(obs)
-                probs = torch.distributions.Categorical(logits=logits).probs.cpu().detach().numpy()  # type: ignore
-                transition = Transition(obs, action, reward, done, info, obs_, truncated, probs)  # type: ignore
-            else:
-                transition = Transition(obs, action, reward, done, info, obs_, truncated)
-
+                step = step.with_attrs(truncated=True)
+            transition = Transition.from_step(obs, state, action, step)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
-            obs = obs_
+            obs = step.obs
+            state = step.state
         episode = episode.build({"initial_value": initial_value})
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         run_handle.log_train_episode(episode, step_num, training_logs)
@@ -99,17 +103,19 @@ class Runner:
         for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             self._test_env.seed(time_step + test_num)
             episode = EpisodeBuilder()
-            obs = self._test_env.reset()
+            obs, state = self._test_env.reset()
             self._algo.new_episode()
             intial_value = self._algo.value(obs)
             i = 0
             while not episode.is_finished:
                 i += 1
                 action = self._algo.choose_action(obs)
-                new_obs, reward, done, truncated, info = self._test_env.step(action)
-                transition = Transition(obs, action, reward, done, info, new_obs, truncated)
+                step = self._test_env.step(action)
+                transition = Transition.from_step(obs, state, action, step)
+                # transition = Transition(obs, action, reward, done, info, new_obs, truncated)
                 episode.add(transition)
-                obs = new_obs
+                obs = step.obs
+                state = step.state
             episode = episode.build({"initial_value": intial_value})
             episodes.append(episode)
         run_handle.log_tests(episodes, self._algo, time_step)

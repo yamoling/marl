@@ -11,7 +11,7 @@ from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.nn.model_bank import CNN_ActorCritic
 from marl.utils import schedule
 
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 @dataclass
@@ -201,7 +201,7 @@ class PPOTrainer(Trainer):
                     surrogate_2 = rho * advantages[b]
                 else:
                     surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
-                actore_loss = torch.min(surrogate_1, surrogate_2).mean()
+                actor_loss = torch.min(surrogate_1, surrogate_2).mean()
 
                 # Value estimation loss
                 returns = advantages[b] + values.reshape(advantages[b].shape)
@@ -245,7 +245,7 @@ class PPOTrainer(Trainer):
         if self.softmax_temp_schedule is not None:
             if isinstance(self.network, CNN_ActorCritic):
                 self.softmax_temp_schedule.update(time_step)
-                self.network.temperature = self.softmax_temp_schedule.value
+                # self.network.temperature = self.softmax_temp_schedule.value
 
     def to(self, device: torch.device):
         self.device = device
