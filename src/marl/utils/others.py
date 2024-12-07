@@ -48,6 +48,9 @@ def encode_b64_image(image: np.ndarray) -> str:
 
 def default_serialization(obj):
     """Default behaviour for orjson serialization"""
-    if isinstance(obj, torch.nn.Parameter):
-        return f"Parameter(shape={obj.shape}, dtype={obj.dtype})"
+    match obj:
+        case torch.nn.Parameter:
+            return f"Parameter(shape={obj.shape}, dtype={obj.dtype})"
+        case set():
+            return list(obj)
     return str(obj)

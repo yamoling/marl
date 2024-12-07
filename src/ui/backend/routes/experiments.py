@@ -1,8 +1,9 @@
 from . import app, state
 from flask import request
 from http import HTTPStatus
-import json
+import orjson
 import cv2
+import marl
 from marl.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
 
@@ -10,7 +11,7 @@ from marl.utils import encode_b64_image
 @app.route("/experiment/replay/<path:path>")
 def replay(path: str):
     try:
-        return to_json(state.replay_episode(path)), HTTPStatus.OK
+        return orjson.dumps(state.replay_episode(path)), HTTPStatus.OK
     except ValueError as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -28,15 +29,14 @@ def list_experiments():
 def list_running_experiments(logdir: str):
     try:
         exp = state.get_experiment(logdir)
-        return json.dumps(exp.is_running)
+        return orjson.dumps(exp.is_running)
     except (ModuleNotFoundError, AttributeError):
-        return json.dumps(False)
+        return orjson.dumps(False)
 
 
 @app.route("/experiment/<path:logdir>", methods=["GET"])
 def get_experiment(logdir: str):
-    exp = state.get_experiment(logdir)
-    return to_json(exp)
+    return orjson.dumps(marl.Experiment.get_parameters(logdir))
 
 
 @app.route("/experiment/load/<path:logdir>", methods=["POST"])
@@ -92,7 +92,7 @@ def get_env_image(seed: str, logdir: str):
     exp = state.get_experiment(logdir)
     exp.env.seed(int(seed))
     exp.env.reset()
-    image = exp.env.render(mode="rgb_array")
+    image = exp.env.get_image()
     image = cv2.resize(image, (100, 100))
     return encode_b64_image(image)
 
