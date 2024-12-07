@@ -31,7 +31,15 @@ class LocalGraphBottleneckFinder[T]:
         self.t_h = hit_ratio_threshold
         self.hit_count = dict[tuple[T, T], int]()
         self.apparition_count = dict[tuple[T, T], int]()
-        self.local_graph = nx.Graph()  # Not to serialize from the dataclass
+        self.local_graph = nx.Graph()
+
+    def predict_all(self):
+        predictions = {edge: self.predict(edge) for edge in self.apparition_count.keys()}
+        by_vertex = {}
+        for (src, dst), pred in predictions.items():
+            by_vertex[src] = by_vertex.get(src, 0) + pred
+            by_vertex[dst] = by_vertex.get(dst, 0) + pred
+        return predictions, by_vertex
 
     def is_bottleneck(self, edge: tuple[T, T]):
         ratio = self.predict(edge)
@@ -39,14 +47,16 @@ class LocalGraphBottleneckFinder[T]:
 
     def predict(self, edge: tuple[T, T]):
         n = self.apparition_count.get(edge, 0)
-        if n < self.t_o:
-            return 0.0
+        # if n < self.t_o:
+        #     return 0.0
         return self.hit_count.get(edge, 0) / n
 
     def add_trajectory(self, states: list[T]):
         for i in range(len(states) - 1):
             prev_state = states[i]
             next_state = states[i + 1]
+            if prev_state == next_state:
+                continue
             edge = prev_state, next_state
             weight = self.edge_occurrences.get(edge, 0) + 1
             self.edge_occurrences[edge] = weight
@@ -59,7 +69,6 @@ class LocalGraphBottleneckFinder[T]:
         This method also updates the hit_count and apparition_count dictionaries that are used
         to determine if an edge is a bottleneck in the `predict` method.
         """
-        # print(f"Graph size: {len(local_graph.nodes)} nodes, {len(local_graph.edges)} edges")
         W = nx.adjacency_matrix(self.local_graph).todense()  # Adjacency/Weight matrix of the graph
         sc = SpectralClustering(2, affinity="precomputed", n_init=100)
         labels = sc.fit_predict(W)
@@ -75,7 +84,7 @@ class LocalGraphBottleneckFinder[T]:
             self.apparition_count[edge] = self.apparition_count.get(edge, 0) + 1
             if edge in bottleneck:
                 self.hit_count[edge] = self.hit_count.get(edge, 0) + 1
-        return bottleneck
+        return bottleneck, labels
 
     @staticmethod
     def extend_bottleneck(local_graph: nx.Graph, bottleneck: set, labels):
@@ -99,7 +108,7 @@ class LocalGraphBottleneckFinder[T]:
             # draw_graph(local_graph, bottleneck, labels)
         return bottleneck
 
-    def clear_graph(self):
+    def clear(self):
         self.local_graph.clear()
 
 
@@ -117,7 +126,7 @@ class LocalGraphTrainer(Trainer):
     def update_episode(self, episode, episode_num, time_step):
         self.local_graph.add_trajectory(self.states)
         self.local_graph.find_bottleneck()
-        self.local_graph.clear_graph()
+        self.local_graph.clear()
         self.states.clear()
         return {}
 
@@ -135,7 +144,7 @@ def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):
     pos = {}
     for node in g.nodes:
         pos[node] = (node[1], -node[0])
-    pos = nx.spring_layout(g)
+    # pos = nx.spring_layout(g)
     not_bottlenecks = set(g.edges) - bottleneck
     nodes = list(g.nodes)
     one_side = [node for (i, node) in enumerate(nodes) if labels[i] == 0]
@@ -152,4 +161,4 @@ def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):
     # Draw node labels
     # nx.draw_networkx_labels(g, pos)
     nx.draw(g, pos, node_color=labels)
-    plt.show()
+    return plt
