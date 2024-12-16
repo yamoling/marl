@@ -57,7 +57,7 @@ def main():
         test_env=test_env,
         logdir=logdir,
     )
-    # exp.run(n_tests=0)
+    exp.run(n_tests=0)
 
 
 if __name__ == "__main__":

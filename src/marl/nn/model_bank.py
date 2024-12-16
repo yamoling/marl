@@ -22,13 +22,13 @@ class MLP(QNetwork):
     Multi layer perceptron
     """
 
-    layer_sizes: tuple[int, ...]
+    layer_sizes: Sequence[int]
 
     def __init__(
         self,
         input_size: int,
         extras_size: int,
-        hidden_sizes: tuple[int, ...],
+        hidden_sizes: Sequence[int],
         output_shape: tuple[int, ...],
     ):
         super().__init__((input_size,), (extras_size,), output_shape)
