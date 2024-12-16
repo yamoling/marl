@@ -27,7 +27,7 @@ class IndividualLocalGraphTrainer(Trainer):
         self.local_graphs = [LocalGraphBottleneckFinder[np.ndarray]() for _ in range(self.n_agents)]
         self.n_states_visited = 0
         self.update_after_n_states = update_after_n_states
-        self.logdir = logdir
+        self.logdir = os.path.join(logdir, "bottlenecks")
 
     def update_episode(self, episode, episode_num, time_step):
         # Access the private _observations attribute of the episode
