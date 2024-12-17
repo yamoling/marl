@@ -74,6 +74,9 @@ def get_max_gpu_usage(pids: set[int]):
         return max_memory
     except subprocess.CalledProcessError:
         return 0
+    except ValueError:
+        # There is no process and int('') raises a ValueError
+        return 0
 
 
 def get_device(
