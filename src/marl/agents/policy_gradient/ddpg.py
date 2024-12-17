@@ -9,12 +9,12 @@ from marlenv import Observation
 from marl.models import nn, Policy
 from marl.utils import get_device
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
 @dataclass
-class DDPG(RLAlgo[np.ndarray]):
-    def __init__(self, ac_network: nn.ActorCriticNN, train_policy: Policy, test_policy: Optional[Policy] = None):
+class DDPG(Agent[np.ndarray]):
+    def __init__(self, ac_network: nn.DiscreteActorCriticNN, train_policy: Policy, test_policy: Optional[Policy] = None):
         super().__init__()
         self.device = get_device()
         self.network = ac_network.to(self.device)

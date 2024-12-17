@@ -3,12 +3,11 @@ import pickle
 from typing import Optional
 import numpy as np
 from marlenv import Episode, Observation, Transition
-from marl.models import TransitionMemory, Policy
-from marl.algo import RLAlgo
-from marl.training import Trainer
+from marl.models import TransitionMemory, Policy, Trainer
+from marl.agents import Agent
 
 
-class VanillaQLearning(RLAlgo, Trainer):
+class VanillaQLearning(Agent, Trainer):
     def __init__(
         self,
         train_policy: Policy,

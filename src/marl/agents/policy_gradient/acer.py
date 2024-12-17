@@ -4,13 +4,13 @@ from marlenv import Observation, Episode
 from marl.models import EpisodeMemory, nn
 from marl.utils import get_device
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
-class ACER(RLAlgo):
+class ACER(Agent):
     """Actor-Critic with Experience Replay algorithm (ACER)."""
 
-    def __init__(self, alpha: float, gamma: float, ac_network: nn.ActorCriticNN):
+    def __init__(self, alpha: float, gamma: float, ac_network: nn.DiscreteActorCriticNN):
         self.device = get_device()
         self.gamma = gamma
         self.network = ac_network.to(self.device)

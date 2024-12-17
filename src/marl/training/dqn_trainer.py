@@ -5,7 +5,7 @@ from copy import deepcopy
 from marlenv import Transition, Episode
 from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
 from marl.models.batch import Batch
-from marl.algo import IRModule
+from marl.agents import IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
 from marl.utils import defaults_to
 
@@ -15,10 +15,10 @@ from marl.models.trainer import Trainer
 
 
 @dataclass
-class DQNTrainer(Trainer):
+class DQNTrainer[B: Batch](Trainer):
     qnetwork: QNetwork
     policy: Policy
-    memory: ReplayMemory[Batch, Episode | Transition]
+    memory: ReplayMemory[Episode | Transition, B]
     gamma: float
     batch_size: int
     target_updater: TargetParametersUpdater
@@ -32,7 +32,7 @@ class DQNTrainer(Trainer):
         self,
         qnetwork: QNetwork,
         train_policy: Policy,
-        memory: ReplayMemory,
+        memory: ReplayMemory[Episode | Transition, B],
         mixer: Optional[Mixer] = None,
         gamma: float = 0.99,
         batch_size: int = 64,
@@ -162,14 +162,14 @@ class DQNTrainer(Trainer):
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         if self.memory.update_on_transitions:
-            self.memory.add(transition)
+            self.memory.add(transition)  # type: ignore
         if not self.update_on_steps:
             return {}
         return self._update(time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         if self.memory.update_on_episodes:
-            self.memory.add(episode)
+            self.memory.add(episode)  # type: ignore
         if not self.update_on_episodes:
             return {}
         return self._update(time_step)

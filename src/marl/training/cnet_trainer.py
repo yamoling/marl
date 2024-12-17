@@ -4,7 +4,7 @@ from typing import Any
 import torch
 from marlenv import Episode, Transition
 
-from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper
+from marl.agents.qlearning.cnet import CNet, EpisodeCommWrapper
 
 from ..models.trainer import Trainer
 

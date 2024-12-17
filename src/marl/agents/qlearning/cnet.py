@@ -16,7 +16,7 @@ from marl.models import Policy, DRU
 from marl.nn.model_bank import CNet
 
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
 class EpisodeCommWrapper:
@@ -160,7 +160,7 @@ class EpisodeCommWrapper:
         self.episodes = []
 
 
-class CNet(RLAlgo):
+class CNet(Agent):
     STEP_MINUS_1_ID = -3
     STEP_ID = -2
     STEP_PLUS_1_ID = -1

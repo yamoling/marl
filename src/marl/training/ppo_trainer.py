@@ -6,7 +6,7 @@ import torch
 from marlenv import Episode, Transition
 
 from marl.models import Batch
-from marl.models.nn import ActorCriticNN
+from marl.models.nn import DiscreteActorCriticNN
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.nn.model_bank import CNN_ActorCritic
 from marl.utils import schedule
@@ -22,11 +22,11 @@ class PPOTrainer(Trainer):
     n_epochs: int
     c1: float
     c2: float
-    memory: ReplayMemory[Batch, Transition | Episode]
+    memory: ReplayMemory[Transition | Episode]
 
     def __init__(
         self,
-        network: ActorCriticNN,
+        network: DiscreteActorCriticNN,
         memory: ReplayMemory,
         gamma: float = 0.99,
         batch_size: int = 64,

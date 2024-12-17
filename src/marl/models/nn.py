@@ -186,18 +186,8 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         return qvalues
 
 
-class ActorCriticNN(NN, ABC):
-    """Actor critic neural network"""
-
-    @property
-    @abstractmethod
-    def policy_parameters(self) -> list[torch.nn.Parameter]:
-        pass
-
-    @property
-    @abstractmethod
-    def value_parameters(self) -> list[torch.nn.Parameter]:
-        pass
+class DiscreteActorNN(NN, ABC):
+    """Actor neural network"""
 
     @abstractmethod
     def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -214,9 +204,33 @@ class ActorCriticNN(NN, ABC):
             logits[~available_actions] = -torch.inf
         return torch.nn.functional.softmax(logits, -1)
 
+
+class ContinuousActorNN(NN):
     @abstractmethod
-    def value(self, data: torch.Tensor, extras: torch.Tensor, *args) -> torch.Tensor:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns the means and stds (or covariance matrix) of the policy distribution"""
+
+
+class CriticNN(NN, ABC):
+    """Critic neural network"""
+
+    @abstractmethod
+    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """Returns the value function of an observation"""
+
+
+class DiscreteActorCriticNN(DiscreteActorNN, CriticNN, ABC):
+    """Actor critic neural network"""
+
+    @property
+    @abstractmethod
+    def policy_parameters(self) -> list[torch.nn.Parameter]:
+        pass
+
+    @property
+    @abstractmethod
+    def value_parameters(self) -> list[torch.nn.Parameter]:
+        pass
 
     def forward(
         self,

@@ -14,7 +14,7 @@ from marlenv.models import MARLEnv, Transition, ActionSpace, Episode
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.algo import DDPG, DQN, PPO, RLAlgo, RandomAlgo
+from marl.agents import DDPG, DQN, PPO, Agent, RandomAgent
 from marl.models.nn import MAIC
 from marl.utils import encode_b64_image, stats, default_serialization
 from marl.utils.gpu import get_device
@@ -28,26 +28,26 @@ from .trainer import Trainer
 
 
 @dataclass
-class Experiment[A: ActionSpace, O: np.ndarray]:
+class Experiment[A: ActionSpace]:
     logdir: str
-    algo: RLAlgo[O]
+    algo: Agent[np.ndarray]
     trainer: Trainer
-    env: MARLEnv[A, O]
+    env: MARLEnv[A, np.ndarray]
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: MARLEnv[A, O]
+    test_env: MARLEnv[A, np.ndarray]
 
     def __init__(
         self,
         logdir: str,
-        algo: RLAlgo[O],
+        algo: Agent[np.ndarray],
         trainer: Trainer,
-        env: MARLEnv[A, O],
+        env: MARLEnv[A, np.ndarray],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv[A, O],
+        test_env: MARLEnv[A, np.ndarray],
     ):
         self.logdir = logdir
         self.trainer = trainer
@@ -60,13 +60,13 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
 
     @staticmethod
     def create(
-        env: MARLEnv[A, O],
+        env: MARLEnv[A, np.ndarray],
         n_steps: int,
         logdir: str = "logs/tests",
-        algo: Optional[RLAlgo[O]] = None,
+        agent: Optional[Agent[np.ndarray]] = None,
         trainer: Optional[Trainer] = None,
         test_interval: int = 0,
-        test_env: Optional[MARLEnv[A, O]] = None,
+        test_env: Optional[MARLEnv[A, np.ndarray]] = None,
     ):
         """Create a new experiment."""
         if test_env is not None:
@@ -86,11 +86,11 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
                 pass
         try:
             os.makedirs(logdir, exist_ok=False)
-            if algo is None:
-                algo = RandomAlgo(env)
+            if agent is None:
+                agent = RandomAgent(env)
             experiment = Experiment(
                 logdir,
-                algo=algo,
+                algo=agent,
                 trainer=trainer or NoTrain(),
                 env=env,
                 n_steps=n_steps,
@@ -198,7 +198,7 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
     ):
-        """Train the RLAlgo on the environment according to the experiment parameters."""
+        """Train the Agent on the environment according to the experiment parameters."""
         runner = self.create_runner().to(get_device(device, fill_strategy, required_memory_MB))
         runner.run(
             self.logdir,
@@ -211,14 +211,14 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
 
     def test_on_other_env(
         self,
-        other_env: MARLEnv[A, O],
+        other_env: MARLEnv[A, np.ndarray],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,
         device: Literal["auto", "cpu"] = "auto",
     ):
         """
-        Test the RLAlgo on an other environment but with the same parameters.
+        Test the Agent on an other environment but with the same parameters.
 
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
@@ -226,7 +226,7 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
             logdir=new_logdir,
             env=deepcopy(self.env),
             n_steps=self.n_steps,
-            algo=deepcopy(self.algo),
+            agent=deepcopy(self.algo),
             trainer=self.trainer,
             test_interval=self.test_interval,
             test_env=other_env,
@@ -243,7 +243,7 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
     def create_runner(self):
         return Runner(
             env=self.env,
-            algo=self.algo,
+            agent=self.algo,
             trainer=self.trainer,
             test_env=self.test_env,
         )
@@ -331,7 +331,6 @@ class Experiment[A: ActionSpace, O: np.ndarray]:
             frames.append(encode_b64_image(self.test_env.get_image()))
             obs = step.obs
             state = step.state
-        episode = episode.build()
 
         if isinstance(self.algo, DQN):
             if isinstance(self.algo.qnetwork, MAIC):

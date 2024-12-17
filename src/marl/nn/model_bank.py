@@ -9,8 +9,8 @@ import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import kl_divergence
 import math
-from marl.models.nn import QNetwork, RecurrentQNetwork, ActorCriticNN, NN, MAICNN, MAIC
-from marl.algo.qlearning.maic import MAICParameters
+from marl.models.nn import QNetwork, RecurrentQNetwork, DiscreteActorCriticNN, NN, MAICNN, MAIC
+from marl.agents.qlearning.maic import MAICParameters
 
 from functools import reduce
 import operator
@@ -259,7 +259,7 @@ class IndependentCNN(QNetwork):
         return res.reshape(batch_size, n_agents, *self.output_shape)
 
 
-class DDPG_NN_TEST(ActorCriticNN):
+class DDPG_NN_TEST(DiscreteActorCriticNN):
     def __init__(
         self,
         input_shape: tuple[int, int, int],
@@ -410,7 +410,7 @@ class RCNN(RecurrentQNetwork):
         return res.view(*dims, *self.output_shape)
 
 
-class CNN_ActorCritic(ActorCriticNN):
+class CNN_ActorCritic(DiscreteActorCriticNN):
     def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, output_shape)
@@ -471,7 +471,7 @@ class CNN_ActorCritic(ActorCriticNN):
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
 
-class SimpleActorCritic(ActorCriticNN):
+class SimpleActorCritic(DiscreteActorCriticNN):
     def __init__(self, input_size: int, extras_size: int, n_actions: int):
         super().__init__((input_size,), (extras_size,), output_shape=(n_actions,))
         self.policy_network = torch.nn.Sequential(

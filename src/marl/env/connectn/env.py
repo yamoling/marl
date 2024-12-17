@@ -40,7 +40,7 @@ class ConnectN(MARLEnv[DiscreteActionSpace]):
         return State(self.board.board.copy(), np.array([self.board.turn]))
 
     def set_state(self, state: State):
-        self.board.board = state.data.copy()
+        self.board.board = state.data.copy()  # type: ignore Currently a type error because of the unchecked shape
         self.board.turn = int(state.extras[0])
         n_completed = np.count_nonzero(self.board.board, axis=0)
         self.board.n_items_in_column = n_completed

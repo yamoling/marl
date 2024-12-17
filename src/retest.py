@@ -1,5 +1,5 @@
 """
-This script allows to test a trained RLAlgo on an other environment.
+This script allows to test a trained Agent on an other environment.
 """
 
 from typing import Literal

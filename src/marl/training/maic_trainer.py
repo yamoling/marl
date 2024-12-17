@@ -7,7 +7,7 @@ from marlenv import Episode, Transition
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
 from marl.models.batch import EpisodeBatch
 from marl.utils import defaults_to
-from marl.algo.qlearning.maic import MAICParameters
+from marl.agents.qlearning.maic import MAICParameters
 
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 from marl.models.trainer import Trainer

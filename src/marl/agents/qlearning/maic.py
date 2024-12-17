@@ -6,7 +6,7 @@ from marlenv.models import Observation
 from marl.models import Policy, MAICNN
 
 import numpy as np
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
 @dataclass
@@ -23,7 +23,7 @@ class MAICParameters:
 
 
 @dataclass
-class MAIC(RLAlgo):
+class MAIC(Agent):
     maic_network: MAICNN
     train_policy: Policy
     test_policy: Policy

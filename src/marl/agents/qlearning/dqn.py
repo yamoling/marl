@@ -9,11 +9,11 @@ from marlenv.models import Observation
 
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
 @dataclass
-class DQN(RLAlgo):
+class DQN(Agent):
     """
     Deep Q-Network Interface with shared QNetwork.
     """
