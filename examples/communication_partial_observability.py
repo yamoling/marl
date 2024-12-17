@@ -1,7 +1,7 @@
 import marl
 from lle import LLE, ObservationType
 import marlenv
-from marl.algo.qlearning.maic import MAICParameters
+from marl.agents.qlearning.maic import MAICParameters
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
         50_000,
     )
 
-    algo = marl.algo.MAIC(
+    algo = marl.agents.MAIC(
         maic_network=maic_network,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -31,7 +31,7 @@ def main():
         batch_size=batch_size,
         memory=marl.models.EpisodeMemory(5000),
         gamma=0.95,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=marl.training.SoftUpdate(0.01),

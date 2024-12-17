@@ -7,7 +7,7 @@ from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn import model_bank
-from marl.algo.qlearning.maic import MAICParameters
+from marl.agents.qlearning.maic import MAICParameters
 
 # from marl.algo.qlearning.maic import MAICParameters
 from lle import LLE, ObservationType
@@ -41,7 +41,7 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.algo.QPlex(
+        mixer=marl.agents.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
             state_size=env.state_shape[0],
@@ -52,7 +52,7 @@ def create_smac(args: Arguments):
         grad_norm_clipping=10,
     )
 
-    algo = marl.algo.RDQN(
+    algo = marl.agents.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=test_policy,
@@ -87,7 +87,7 @@ def create_ddpg_lle(args: Arguments):
         network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95, lr=1e-5
     )
 
-    algo = marl.algo.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
+    algo = marl.agents.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
     # logdir = f"logs/{env.name}-TEST-DDPG"
     logdir = "logs/ddpg_lvl2_lr_1e-5"
     if args.debug:
@@ -138,7 +138,7 @@ def create_ppo_lle(args: Arguments):
         logits_clip_high=logits_clip_high,
     )
 
-    algo = marl.algo.PPO(
+    algo = marl.agents.PPO(
         ac_network=ac_network,
         train_policy=marl.policy.CategoricalPolicy(),
         test_policy=marl.policy.ArgMax(),
@@ -171,7 +171,7 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=200_000,
     )
-    qmix = marl.algo.VDN.from_env(env)
+    qmix = marl.agents.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -188,7 +188,7 @@ def create_lle(args: Arguments):
         ir_module=None,
     )
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -248,12 +248,12 @@ def create_lle_baseline(args: Arguments):
         batch_size=64,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -304,7 +304,7 @@ def create_lle_maic(args: Arguments):
         eps_steps,
     )
     # Add the MAICAlgo (MAICMAC)
-    algo = marl.algo.MAIC(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
+    algo = marl.agents.MAIC(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
     batch_size = 32
     # Add the MAICTrainer (MAICLearner)
     trainer = MAICTrainer(
@@ -314,7 +314,7 @@ def create_lle_maic(args: Arguments):
         batch_size=batch_size,
         memory=memory,
         gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -366,12 +366,12 @@ def create_lle_maicRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.algo.RDQN(
+    algo = marl.agents.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -421,12 +421,12 @@ def create_lle_maicCNN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -476,12 +476,12 @@ def create_lle_maicCNNRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
+        mixer=marl.agents.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),

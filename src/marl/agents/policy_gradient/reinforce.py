@@ -5,10 +5,10 @@ from marl.models import NN
 from marl.models.batch import EpisodeBatch
 from marl.utils import get_device
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
-class Reinforce(RLAlgo):
+class Reinforce(Agent):
     def __init__(self, gamma: float, policy_network: NN, lr=5e-4):
         super().__init__()
         self.gamma = gamma

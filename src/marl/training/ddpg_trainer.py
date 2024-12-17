@@ -3,14 +3,14 @@ from marlenv import Episode, Transition
 
 import torch
 from marl.models.replay_memory.replay_memory import ReplayMemory
-from marl.models.nn import ActorCriticNN
+from marl.models.nn import DiscreteActorCriticNN
 from marl.models.trainer import Trainer
 
 
 class DDPGTrainer(Trainer):
     def __init__(
         self,
-        network: ActorCriticNN,
+        network: DiscreteActorCriticNN,
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,

@@ -51,7 +51,7 @@ class LLEShapeEachLaser(RLEnvWrapper):
             [True] * env_lvl6.n_agents,
         ]
         self.vertical_rewards = [True, True]
-        extras_shape = (env_lvl6.extra_feature_shape[0] + env_lvl6.n_agents * 4,)
+        extras_shape = (env_lvl6.extra_shape[0] + env_lvl6.n_agents * 4,)
         if multi_objective:
             reward_space = DiscreteSpace(env_lvl6.reward_size + 1, env_lvl6.reward_space.labels + ["shaping"])
         else:

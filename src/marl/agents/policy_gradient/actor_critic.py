@@ -2,13 +2,13 @@ import torch
 from marlenv import Observation, Episode
 from marl.models import nn
 from marl.models.batch import EpisodeBatch
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
-class ActorCritic(RLAlgo):
+class ActorCritic(Agent):
     """Advantage Actor-Critic algorithm (A2C)."""
 
-    def __init__(self, alpha: float, gamma: float, ac_network: nn.ActorCriticNN):
+    def __init__(self, alpha: float, gamma: float, ac_network: nn.DiscreteActorCriticNN):
         self.gamma = gamma
         self.network = ac_network
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=alpha)

@@ -8,14 +8,14 @@ from marlenv import Observation
 from marl.models import nn, Policy
 from marl.utils import get_device
 
-from ..algo import RLAlgo
+from ..agent import Agent
 
 
 @dataclass
-class PPO(RLAlgo):
+class PPO(Agent):
     def __init__(
         self,
-        ac_network: nn.ActorCriticNN,
+        ac_network: nn.DiscreteActorCriticNN,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
         extra_policy: Optional[Policy] = None,

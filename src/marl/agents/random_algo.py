@@ -1,9 +1,9 @@
 import marlenv
-from .algo import RLAlgo
+from .agent import Agent
 from marlenv.models.env import ActionSpaceType as A, RewardType as R, StateType as S, ObsType as O
 
 
-class RandomAlgo(RLAlgo[O]):
+class RandomAgent(Agent[O]):
     def __init__(self, env: marlenv.MARLEnv[A, O, S, R]):
         super().__init__()
         self.env = env

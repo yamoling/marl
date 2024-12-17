@@ -1,5 +1,5 @@
-from .algo import RLAlgo
-from .random_algo import RandomAlgo
+from .agent import Agent
+from .random_algo import RandomAgent
 from .qlearning import DQN, RDQN, CNet, MAIC
 from .policy_gradient import PPO, DDPG
 from .intrinsic_reward import RandomNetworkDistillation, IRModule
@@ -10,8 +10,8 @@ from . import intrinsic_reward
 from . import mixers
 
 __all__ = [
-    "RLAlgo",
-    "RandomAlgo",
+    "Agent",
+    "RandomAgent",
     "DQN",
     "RDQN",
     "CNet",
