@@ -200,3 +200,9 @@ def agregate_metrics(
                 res[f"min_{key}"] = float(values.min())
                 res[f"max_{key}"] = float(values.max())
     return res
+
+
+def moving_average(x: np.ndarray, window_size: int) -> np.ndarray:
+    data_shape = x.shape
+    ones = np.ones_like((window_size, *data_shape[1:]))
+    return np.convolve(x, ones, "valid") / window_size
