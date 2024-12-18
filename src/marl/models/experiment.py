@@ -30,7 +30,7 @@ from .trainer import Trainer
 @dataclass
 class Experiment[A: ActionSpace]:
     logdir: str
-    algo: Agent[np.ndarray]
+    agent: Agent[np.ndarray]
     trainer: Trainer
     env: MARLEnv[A, np.ndarray]
     test_interval: int
@@ -41,7 +41,7 @@ class Experiment[A: ActionSpace]:
     def __init__(
         self,
         logdir: str,
-        algo: Agent[np.ndarray],
+        agent: Agent[np.ndarray],
         trainer: Trainer,
         env: MARLEnv[A, np.ndarray],
         test_interval: int,
@@ -51,7 +51,7 @@ class Experiment[A: ActionSpace]:
     ):
         self.logdir = logdir
         self.trainer = trainer
-        self.algo = algo
+        self.agent = agent
         self.env = env
         self.test_interval = test_interval
         self.n_steps = n_steps
@@ -90,7 +90,7 @@ class Experiment[A: ActionSpace]:
                 agent = RandomAgent(env)
             experiment = Experiment(
                 logdir,
-                algo=agent,
+                agent=agent,
                 trainer=trainer or NoTrain(),
                 env=env,
                 n_steps=n_steps,
@@ -226,7 +226,7 @@ class Experiment[A: ActionSpace]:
             logdir=new_logdir,
             env=deepcopy(self.env),
             n_steps=self.n_steps,
-            agent=deepcopy(self.algo),
+            agent=deepcopy(self.agent),
             trainer=self.trainer,
             test_interval=self.test_interval,
             test_env=other_env,
@@ -237,13 +237,13 @@ class Experiment[A: ActionSpace]:
             new_run = Run.create(new_experiment.logdir, base_run.seed)
             with new_run as run_handle:
                 for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                    self.algo.load(base_run.get_saved_algo_dir(time_step))
+                    self.agent.load(base_run.get_saved_algo_dir(time_step))
                     runner.test(n_tests, time_step, run_handle=run_handle, quiet=True)
 
     def create_runner(self):
         return Runner(
             env=self.env,
-            agent=self.algo,
+            agent=self.agent,
             trainer=self.trainer,
             test_env=self.test_env,
         )
@@ -278,7 +278,7 @@ class Experiment[A: ActionSpace]:
         rundir = path.parent.parent.parent
         run = Run.load(rundir.as_posix())
         actions = run.get_test_actions(time_step, test_num)
-        self.algo.load(run.get_saved_algo_dir(time_step))
+        self.agent.load(run.get_saved_algo_dir(time_step))
         self.test_env.seed(time_step + test_num)
         obs, state = self.test_env.reset()
         frames = [encode_b64_image(self.test_env.get_image())]
@@ -290,41 +290,41 @@ class Experiment[A: ActionSpace]:
         messages = []
         received_messages = []
         init_qvalues = []
-        self.algo.new_episode()
-        self.algo.set_testing()
+        self.agent.new_episode()
+        self.agent.set_testing()
         for action in actions:
-            if isinstance(self.algo, DDPG):
-                logits = self.algo.actions_logits(obs)
+            if isinstance(self.agent, DDPG):
+                logits = self.agent.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
                 pprobs.append(dist.probs.unsqueeze(-1).tolist())  # type: ignore
                 # logits
-                logits = self.algo.actions_logits(obs).unsqueeze(-1).tolist()
+                logits = self.agent.actions_logits(obs).unsqueeze(-1).tolist()
                 logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
                 llogits.append(logits)
 
                 # state-action value
                 probs = dist.probs.unsqueeze(0)  # type: ignore
-                tensor_state = torch.tensor(state.data).to(self.algo.device, non_blocking=True).unsqueeze(0)
-                value = self.algo.state_action_value(tensor_state, probs)  # type: ignore
+                tensor_state = torch.tensor(state.data).to(self.agent.device, non_blocking=True).unsqueeze(0)
+                value = self.agent.state_action_value(tensor_state, probs)  # type: ignore
                 values.append(value)
                 print(value)
 
-            if isinstance(self.algo, (PPO)):
-                logits = self.algo.actions_logits(obs)
+            if isinstance(self.agent, (PPO)):
+                logits = self.agent.actions_logits(obs)
                 dist = torch.distributions.Categorical(logits=logits)
                 # probs
                 pprobs.append(dist.probs.unsqueeze(-1).tolist())  # type: ignore
 
                 # logits
-                llogits.append(self.algo.actions_logits(obs).unsqueeze(-1).tolist())
+                llogits.append(self.agent.actions_logits(obs).unsqueeze(-1).tolist())
 
                 # state value
-                value = self.algo.value(obs)
+                value = self.agent.value(obs)
                 print(value)
 
             else:
-                values.append(self.algo.value(obs))
+                values.append(self.agent.value(obs))
 
             step = self.test_env.step(action)
             episode.add(Transition.from_step(obs, state, np.array(action), step))
@@ -332,10 +332,10 @@ class Experiment[A: ActionSpace]:
             obs = step.obs
             state = step.state
 
-        if isinstance(self.algo, DQN):
-            if isinstance(self.algo.qnetwork, MAIC):
+        if isinstance(self.agent, DQN):
+            if isinstance(self.agent.qnetwork, MAIC):
                 for transition in episode.transitions():
-                    current_qvalues, gated_messages, received_message, current_init_qvalues = self.algo.qnetwork.get_values_and_comms(
+                    current_qvalues, gated_messages, received_message, current_init_qvalues = self.agent.qnetwork.get_values_and_comms(
                         torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)
                     )
                     qvalues.append(current_qvalues.detach().cpu().tolist())
@@ -345,7 +345,7 @@ class Experiment[A: ActionSpace]:
                         init_qvalues.append(current_init_qvalues.detach().cpu().tolist())
             else:
                 batch = TransitionBatch(list(episode.transitions()))
-                qvalues = self.algo.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
+                qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
 
         return ReplayEpisode(
             directory=episode_folder,

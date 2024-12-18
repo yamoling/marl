@@ -41,7 +41,7 @@ def main():
         ir_module=None,
     )
 
-    logdir = "logs/test"
+    logdir = "logs/lle-lvl6-vdn-shaping"
 
     dqn = marl.agents.DQN(
         qnetwork=qnetwork,

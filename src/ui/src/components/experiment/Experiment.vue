@@ -5,8 +5,8 @@
     <div v-else class="row">
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <div class="col-3">
-            <DQNParams v-if="experiment.algo.name == 'DQN'" :trainer="experiment.trainer"
-                :algo="(experiment.algo as DQN)" class="mb-1" />
+            <DQNParams v-if="experiment.agent.name == 'DQN'" :trainer="experiment.trainer"
+                :algo="(experiment.agent as DQN)" class="mb-1" />
             <EnvironmentParams :env="experiment.env" />
         </div>
         <div class="col" v-if="results != null">
@@ -47,7 +47,7 @@ import EpisodeViewer from '../visualisation/EpisodeViewer.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { DQN } from '../../models/Algorithm';
+import { DQN } from '../../models/Agent';
 import EnvironmentParams from './EnvironmentParams.vue';
 import Plotter from '../charts/Plotter.vue';
 import { useColourStore } from '../../stores/ColourStore';
