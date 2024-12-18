@@ -100,7 +100,7 @@
 <script lang="ts" setup>
 
 import { computed } from "vue";
-import { DQN } from "../../../models/Algorithm"
+import { DQN } from "../../../models/Agent"
 import { Trainer } from "../../../models/Trainer"
 
 const props = defineProps<{

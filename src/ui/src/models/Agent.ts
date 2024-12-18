@@ -1,12 +1,12 @@
 import { EpsilonGreedy, Policy } from "./Policy";
 
-export interface Algorithm {
+export interface Agent {
     name: string
     train_policy?: EpsilonGreedy
 }
 
 
-export interface DQN extends Algorithm {
+export interface DQN extends Agent {
     qnetwork: {
         input_shape: number[]
         extras_shape: number[]

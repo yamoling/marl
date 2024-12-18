@@ -1,6 +1,7 @@
 from flask import Response
 from . import app, state
 from marl.utils import stats
+import orjson
 
 
 @app.route("/results/load/<path:logdir>", methods=["GET"])
@@ -11,7 +12,7 @@ def get_experiment_results(logdir: str):
         return Response(str(e), status=404)
     try:
         results = exp.get_experiment_results(replace_inf=True)
-        return Response(to_json(results), mimetype="application/json")
+        return Response(orjson.dumps(results), mimetype="application/json")
     except Exception as e:
         return Response(str(e), status=500)
 
@@ -20,7 +21,7 @@ def get_experiment_results(logdir: str):
 def get_test_results_at(time_step: str, logdir: str):
     exp = state.get_experiment(logdir)
     res = exp.get_tests_at(int(time_step))
-    res = to_json(res)
+    res = orjson.dumps(res)
     return Response(res, mimetype="application/json")
 
 
@@ -33,4 +34,4 @@ def get_experiment_results_by_run(logdir: str):
         datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, suffix=" [train]")
         datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True)
         runs_results.append(stats.ExperimentResults(run.rundir, datasets))
-    return Response(to_json(runs_results), mimetype="application/json")
+    return Response(orjson.dumps(runs_results), mimetype="application/json")

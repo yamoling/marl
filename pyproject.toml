@@ -23,7 +23,6 @@ dependencies = [
     "multi-agent-rlenv>=2.0.0",
     "jupyterlab>=4.2.5",
     "scikit-learn>=1.5.2",
-    "monte-carlo-tree-search>=2.0.5",
     "pygame>=2.6.1",
     "orjson>=3.10.12",
 ]

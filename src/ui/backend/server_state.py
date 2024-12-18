@@ -19,7 +19,7 @@ class ServerState:
             directory = os.path.join(self.logdir, directory)
             try:
                 experiments.append(Experiment.get_parameters(directory))
-            except FileNotFoundError:
+            except (FileNotFoundError, NotADirectoryError):
                 # Not an experiment directory, ignore
                 pass
         return experiments

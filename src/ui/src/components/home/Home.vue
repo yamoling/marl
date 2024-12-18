@@ -76,7 +76,7 @@
                                         {{ exp.trainer.mixer.name }}    
                                     </template>
                                     <template v-else>
-                                        {{ exp.algo.name }}
+                                        {{ exp.agent.name }}
                                     </template>    
                                 </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
@@ -224,7 +224,7 @@ const sortedExperiments = computed(() => {
             entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
             break;
         case "algo":
-            entries.sort((a, b) => a.algo.name.localeCompare(b.algo.name));
+            entries.sort((a, b) => a.agent.name.localeCompare(b.agent.name));
             break;
         case "date":
             entries.sort((a, b) => a.creation_timestamp - b.creation_timestamp);
