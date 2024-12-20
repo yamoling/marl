@@ -42,7 +42,7 @@ class VanillaQLearning(Agent, Trainer):
         actions = transition.action[:, np.newaxis]
         qvalues = np.take_along_axis(qvalues, actions, axis=-1)
 
-        next_qvalues = self.compute_qvalues(transition.obs_).numpy()
+        next_qvalues = self.compute_qvalues(transition.next_obs).numpy()
         next_qvalues = np.max(next_qvalues, axis=-1, keepdims=True)
         target_qvalues = transition.reward + self._gamma * next_qvalues
 

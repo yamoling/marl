@@ -4,15 +4,14 @@ import numpy as np
 
 from lle import World, Position, LLE
 from lle.tiles import Direction, LaserSource
-from marlenv import Observation, ActionSpace
 from marlenv.wrappers import RLEnvWrapper, MARLEnv
-from dataclasses import dataclass
+from marlenv import Observation, ActionSpace
 
 HORIZONTAL = [Direction.EAST, Direction.WEST]
 VERTICAL = [Direction.NORTH, Direction.SOUTH]
 
 
-class PotentialShaping[A: ActionSpace, O, S](RLEnvWrapper[A, O, S, float]):
+class PotentialShaping[A, AS: ActionSpace](RLEnvWrapper[A, AS]):
     """
     Potential shaping for the Laser Learning Environment (LLE).
 
@@ -21,11 +20,11 @@ class PotentialShaping[A: ActionSpace, O, S](RLEnvWrapper[A, O, S, float]):
 
     gamma: float
 
-    def __init__(self, env: MARLEnv[A, O, S], gamma: float, extra_shape: Optional[tuple[int]]):
+    def __init__(self, env: MARLEnv[A, AS], gamma: float, extra_shape: Optional[tuple[int]]):
         super().__init__(env, extra_shape=extra_shape)
         self.gamma = gamma
 
-    def add_extras(self, obs: Observation[O]) -> Observation[O]:
+    def add_extras(self, obs: Observation) -> Observation:
         """Add the extras related to potential shaping. Does nothing by default."""
         return obs
 
@@ -33,8 +32,10 @@ class PotentialShaping[A: ActionSpace, O, S](RLEnvWrapper[A, O, S, float]):
         obs, state = super().reset()
         return self.add_extras(obs), state
 
-    def step(self, actions: list[int] | np.ndarray):
+    def step(self, actions: A):
         phi_t = self.current_potential
+        if not isinstance(actions, np.ndarray):
+            actions = np.array(actions)
         step = super().step(actions)
 
         self.current_potential = self.compute_potential()

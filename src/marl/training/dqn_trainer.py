@@ -3,7 +3,7 @@ from functools import cached_property
 from typing import Any, Literal, Optional
 from copy import deepcopy
 from marlenv import Transition, Episode
-from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
+from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory, EpisodeMemory, TransitionMemory
 from marl.models.batch import Batch
 from marl.agents import IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
@@ -18,7 +18,7 @@ from marl.models.trainer import Trainer
 class DQNTrainer[B: Batch](Trainer):
     qnetwork: QNetwork
     policy: Policy
-    memory: ReplayMemory[Episode | Transition, B]
+    memory: ReplayMemory
     gamma: float
     batch_size: int
     target_updater: TargetParametersUpdater
@@ -32,7 +32,7 @@ class DQNTrainer[B: Batch](Trainer):
         self,
         qnetwork: QNetwork,
         train_policy: Policy,
-        memory: ReplayMemory[Episode | Transition, B],
+        memory: ReplayMemory,
         mixer: Optional[Mixer] = None,
         gamma: float = 0.99,
         batch_size: int = 64,
@@ -49,7 +49,7 @@ class DQNTrainer[B: Batch](Trainer):
         self.qtarget = deepcopy(qnetwork)
         self.device = qnetwork.device
         self.policy = train_policy
-        self.memory = memory
+        self.memory = memory  # type: ignore
         self.gamma = gamma
         self.batch_size = batch_size
         self.target_updater = defaults_to(target_updater, lambda: SoftUpdate(1e-2))

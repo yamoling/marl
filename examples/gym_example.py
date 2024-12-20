@@ -1,9 +1,10 @@
 import marlenv
 import gymnasium as gym
 import marl
+from marlenv import DiscreteActionSpace
 
 
-def ppo(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
+def ppo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, marl.Trainer]:
     nn = marl.nn.model_bank.SimpleActorCritic.from_env(env)
     train_policy = marl.policy.CategoricalPolicy()
     algo = marl.agents.PPO(
@@ -17,7 +18,7 @@ def ppo(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
     return algo, trainer
 
 
-def dqn(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
+def dqn[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, marl.Trainer]:
     qnetwork = marl.nn.model_bank.MLP.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.constant(0.1)
 
@@ -38,6 +39,6 @@ def dqn(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
 
 if __name__ == "__main__":
     env = marlenv.adapters.Gym(gym.make("CartPole-v1", render_mode="rgb_array"))
-    algo, trainer = ppo(env)
+    algo, trainer = ppo(env)  # type: ignore
     runner = marl.Runner(env, algo, trainer)
     runner.run(logdir="logs/debug", n_steps=10_000, test_interval=1000, n_tests=10)

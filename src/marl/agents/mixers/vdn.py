@@ -23,5 +23,5 @@ class VDN(Mixer):
         return
 
     @classmethod
-    def from_env(cls, env: MARLEnv[DiscreteActionSpace]):
+    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
         return VDN(env.n_agents, env.is_multi_objective)

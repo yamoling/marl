@@ -28,26 +28,26 @@ from .trainer import Trainer
 
 
 @dataclass
-class Experiment[A: ActionSpace]:
+class Experiment[A, AS: ActionSpace]:
     logdir: str
-    agent: Agent[np.ndarray]
+    agent: Agent
     trainer: Trainer
-    env: MARLEnv[A, np.ndarray]
+    env: MARLEnv[A, AS]
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: MARLEnv[A, np.ndarray]
+    test_env: MARLEnv[A, AS]
 
     def __init__(
         self,
         logdir: str,
-        agent: Agent[np.ndarray],
+        agent: Agent,
         trainer: Trainer,
-        env: MARLEnv[A, np.ndarray],
+        env: MARLEnv[A, AS],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv[A, np.ndarray],
+        test_env: MARLEnv[A, AS],
     ):
         self.logdir = logdir
         self.trainer = trainer
@@ -60,13 +60,13 @@ class Experiment[A: ActionSpace]:
 
     @staticmethod
     def create(
-        env: MARLEnv[A, np.ndarray],
+        env: MARLEnv[A, AS],
         n_steps: int,
         logdir: str = "logs/tests",
-        agent: Optional[Agent[np.ndarray]] = None,
+        agent: Optional[Agent[A]] = None,
         trainer: Optional[Trainer] = None,
         test_interval: int = 0,
-        test_env: Optional[MARLEnv[A, np.ndarray]] = None,
+        test_env: Optional[MARLEnv[A, AS]] = None,
     ):
         """Create a new experiment."""
         if test_env is not None:
@@ -211,7 +211,7 @@ class Experiment[A: ActionSpace]:
 
     def test_on_other_env(
         self,
-        other_env: MARLEnv[A, np.ndarray],
+        other_env: MARLEnv[A, AS],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,

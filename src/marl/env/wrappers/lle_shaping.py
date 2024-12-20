@@ -1,12 +1,13 @@
+from typing import Sequence
 import numpy as np
 from marlenv.wrappers import RLEnvWrapper
-from marlenv import Observation, DiscreteSpace
+from marlenv import Observation, DiscreteSpace, DiscreteActionSpace
 from dataclasses import dataclass
 from lle import LLE, Action
 
 
 @dataclass
-class LLEShaping(RLEnvWrapper):
+class LLEShaping(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
     reward_for_blocking: float
 
     def __init__(self, env: LLE, reward_for_blocking: float):
@@ -33,13 +34,13 @@ class LLEShaping(RLEnvWrapper):
         return r
 
     def step(self, actions):
-        obs, reward, done, truncated, info = self.wrapped.step(actions)
-        reward += self.additional_reward(actions)
-        return obs, reward, done, truncated, info
+        step = self.wrapped.step(actions)
+        step.reward += self.additional_reward(actions)
+        return step
 
 
 @dataclass
-class LLEShapeEachLaser(RLEnvWrapper):
+class LLEShapeEachLaser(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
     extra_reward: float
 
     def __init__(self, env_lvl6: LLE, extra_reward: float, enable_reward: bool, multi_objective: bool = False):
@@ -53,10 +54,10 @@ class LLEShapeEachLaser(RLEnvWrapper):
         self.vertical_rewards = [True, True]
         extras_shape = (env_lvl6.extra_shape[0] + env_lvl6.n_agents * 4,)
         if multi_objective:
-            reward_space = DiscreteSpace(env_lvl6.reward_size + 1, env_lvl6.reward_space.labels + ["shaping"])
+            reward_space = DiscreteSpace(env_lvl6.reward_space.size + 1, env_lvl6.reward_space.labels + ["shaping"])
         else:
             reward_space = env_lvl6.reward_space
-        super().__init__(env_lvl6, extra_feature_shape=extras_shape, reward_space=reward_space)
+        super().__init__(env_lvl6, extra_shape=extras_shape, reward_space=reward_space)
         self.world = env_lvl6.world
         self.extra_reward = extra_reward
         self.enable_reward = enable_reward
@@ -98,13 +99,13 @@ class LLEShapeEachLaser(RLEnvWrapper):
             [True] * self.n_agents,
         ]
         self.vertical_rewards = [True, True]
-        obs = self.wrapped.reset()
-        return self.add_extra_information(obs)
+        obs, state = self.wrapped.reset()
+        return self.add_extra_information(obs), state
 
     def step(self, actions):
-        obs, reward, done, truncated, info = self.wrapped.step(actions)
-        obs = self.add_extra_information(obs)
+        step = self.wrapped.step(actions)
+        step.obs = self.add_extra_information(step.obs)
         extra_reward = self.additional_reward()
         if self.enable_reward:
-            reward += extra_reward
-        return obs, reward, done, truncated, info
+            step.reward += extra_reward
+        return step

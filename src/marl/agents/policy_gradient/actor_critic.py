@@ -16,8 +16,9 @@ class ActorCritic(Agent):
 
     def choose_action(self, observation: Observation):
         with torch.no_grad():
-            obs_data = torch.tensor(observation.data)
-            logits = self.network.policy(obs_data)
+            obs_data = torch.tensor(observation.data).to(self.device)
+            extras = torch.tensor(observation.extras).to(self.device)
+            logits = self.network.policy(obs_data, extras)
             logits[torch.tensor(observation.available_actions) == 0] = -torch.inf
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample()

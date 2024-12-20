@@ -13,7 +13,7 @@ from marl.utils import DotDic
 
 from typing import Optional
 from marl.models import Policy, DRU
-from marl.nn.model_bank import CNet
+from marl.nn.model_bank import CNetNN
 
 
 from ..agent import Agent
@@ -165,7 +165,7 @@ class CNet(Agent):
     STEP_ID = -2
     STEP_PLUS_1_ID = -1
 
-    def __init__(self, opt, model: CNet, target: CNet, train_policy: Policy, test_policy: Policy):
+    def __init__(self, opt, model: CNetNN, target: CNetNN, train_policy: Policy, test_policy: Policy):
         super().__init__()
         self.opt = opt
         self.model = model

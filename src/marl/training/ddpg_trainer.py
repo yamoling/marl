@@ -87,7 +87,7 @@ class DDPGTrainer(Trainer):
 
             # get next values
             # new_values = self.network.value(states_ , extras_, new_logits)
-            new_values = self.network.value(states_, extras_, new_probs)
+            new_values = self.network.value(states_, extras_, new_probs)  # type: ignore
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
@@ -106,7 +106,7 @@ class DDPGTrainer(Trainer):
         logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
         probs_current_policy = torch.distributions.Categorical(logits=logits_current_policy).probs
 
-        actor_loss = self.network.value(states, extras, probs_current_policy)
+        actor_loss = self.network.value(states, extras, probs_current_policy)  # type: ignore
         # actor_loss = self.network.value(states, extras, logits_current_policy)
         actor_loss = -actor_loss.mean()
 

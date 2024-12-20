@@ -52,7 +52,7 @@ class DDPG(Agent[np.ndarray]):
         # DDPG does not have a state value function, need actions too
         return 0
 
-    def actions_logits(self, obs: Observation[np.ndarray]):
+    def actions_logits(self, obs: Observation):
         obs_data = torch.tensor(obs.data).to(self.device, non_blocking=True)
         obs_extras = torch.tensor(obs.extras).to(self.device, non_blocking=True)
         logits, value = self.network.forward(obs_data, obs_extras)

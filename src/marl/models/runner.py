@@ -1,6 +1,6 @@
 from copy import deepcopy
-from typing import Literal, Optional
-from marlenv import Episode, EpisodeBuilder, MARLEnv, Transition, ActionSpace
+from typing import Any, Literal, Optional
+from marlenv import Episode, MARLEnv, Observation, State, Step, Transition, ActionSpace
 import torch
 from tqdm import tqdm
 import numpy as np
@@ -14,27 +14,24 @@ from marl.models.trainer import Trainer
 from marl.training import NoTrain
 
 
-from typing import Generic
 from typing_extensions import TypeVar
 
+
 A = TypeVar("A", bound=ActionSpace)
-O = TypeVar("O", bound=npt.NDArray[np.float32])  # noqa: E741 (Ambiguous variable name 'O')
-S = TypeVar("S", bound=npt.NDArray[np.float32])
-R = TypeVar("R", bound=npt.NDArray[np.float32] | float)
 
 
-class Runner(Generic[A, O, S, R]):
-    env: MARLEnv[A, O, S, R]
-    algo: Agent[O]
+class Runner[A, AS: ActionSpace]:
+    env: MARLEnv[A, AS]
+    algo: Agent
     trainer: Trainer
-    test_env: MARLEnv[A, O, S, R]
+    test_env: MARLEnv[A, AS]
 
     def __init__(
         self,
-        env: MARLEnv[A, O, S, R],
-        agent: Optional[Agent[O]] = None,
+        env: MARLEnv[A, AS],
+        agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[MARLEnv[A, O, S, R]] = None,
+        test_env: Optional[MARLEnv[A, AS]] = None,
     ):
         self._trainer = trainer or NoTrain()
         self._env = env

@@ -1,13 +1,14 @@
 from functools import cached_property
 import torch
 import numpy as np
+import numpy.typing as npt
 from marlenv import Transition
 
 from .batch import Batch
 
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition[np.ndarray, np.ndarray, float | np.ndarray]]):
+    def __init__(self, transitions: list[Transition[npt.NDArray]]):
         self.transitions = transitions
         super().__init__(len(transitions), transitions[0].n_agents)
 

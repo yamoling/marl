@@ -1,18 +1,17 @@
-from abc import ABC, abstractmethod
-from functools import cached_property
 import os
-
-from typing import Generic, Literal
-import numpy as np
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
+from typing import Literal
+
 import torch
 from marlenv.models import Observation
-from marlenv.models.env import ObsType as O
+
 from marl.models.nn import NN, RecurrentNN
 
 
 @dataclass
-class Agent(ABC, Generic[O]):
+class Agent[A](ABC):
     name: str
 
     def __init__(self):
@@ -35,7 +34,7 @@ class Agent(ABC, Generic[O]):
             nn.randomize(method)
 
     @abstractmethod
-    def choose_action(self, observation: Observation[O]) -> np.ndarray:
+    def choose_action(self, observation: Observation) -> A:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):
@@ -47,7 +46,7 @@ class Agent(ABC, Generic[O]):
         for nn in self.recurrent_networks:
             nn.reset_hidden_states()
 
-    def value(self, obs: Observation[O]) -> float:
+    def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""
         return 0.0
 

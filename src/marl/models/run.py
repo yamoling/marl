@@ -6,7 +6,6 @@ import signal
 import pickle
 from datetime import datetime
 from marlenv import Episode, MARLEnv
-from marlenv.models.env import ObsType as O
 from typing import Optional
 from dataclasses import dataclass
 from marl.agents import Agent
@@ -240,7 +239,7 @@ class RunHandle:
         self.training_data_logger = training_data_logger
         self.run = run
 
-    def log_tests(self, episodes: list[Episode], algo: Agent[O], time_step: int):
+    def log_tests(self, episodes: list[Episode], algo: Agent, time_step: int):
         algo.save(self.run.test_dir(time_step))
         for i, episode in enumerate(episodes):
             episode_directory = self.run.test_dir(time_step, i)

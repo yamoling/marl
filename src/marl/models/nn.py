@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import torch
 from functools import cached_property
 
-from marlenv.models import MARLEnv
+from marlenv.models import MARLEnv, DiscreteActionSpace
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -48,7 +48,7 @@ class NN(torch.nn.Module, ABC):
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
     @classmethod
-    def from_env[A: ActionSpace](cls, env: MARLEnv[A]):
+    def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS]):
         """Construct a NN from environment specifications"""
         return cls(input_shape=env.observation_shape, extras_shape=env.extra_shape, output_shape=(env.n_actions,))
 
@@ -150,7 +150,7 @@ class QNetwork(NN):
         self.test_mode = test_mode
 
     @classmethod
-    def from_env(cls, env: MARLEnv):
+    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
@@ -215,7 +215,7 @@ class CriticNN(NN, ABC):
     """Critic neural network"""
 
     @abstractmethod
-    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def value(self, data: torch.Tensor, extras: torch.Tensor, action_probs: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Returns the value function of an observation"""
 
 

@@ -1,7 +1,7 @@
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 import torch
@@ -33,18 +33,14 @@ class DQN(Agent):
 
     def choose_action(self, obs: Observation) -> np.ndarray:
         with torch.no_grad():
-            qvalues = self.compute_qvalues(obs)
-        qvalues = qvalues.cpu().numpy()
+            qvalues = self.qnetwork.qvalues(obs)
+            if self.qnetwork.is_multi_objective:
+                qvalues = torch.sum(qvalues, dim=-1)
+        qvalues = qvalues.numpy(force=True)
         return self.policy.get_action(qvalues, obs.available_actions)
 
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()
-
-    def compute_qvalues(self, obs: Observation) -> torch.Tensor:
-        qvalues = self.qnetwork.qvalues(obs)
-        if self.qnetwork.is_multi_objective:
-            return torch.sum(qvalues, dim=-1)
-        return qvalues
 
     def set_testing(self):
         self.policy = self.test_policy
@@ -74,8 +70,8 @@ class DQN(Agent):
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
 
-    def randomize(self):
-        self.qnetwork.randomize()
+    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
+        self.qnetwork.randomize(method)
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)

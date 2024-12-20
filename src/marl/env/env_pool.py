@@ -7,11 +7,11 @@ class EnvPool(RLEnvWrapper):
         obs_shape = envs[0].observation_shape
         act_shape = envs[0].action_space
         state_shape = envs[0].state_shape
-        extras_shape = envs[0].extra_feature_shape
+        extras_shape = envs[0].extra_shape
         assert all(env.observation_shape == obs_shape for env in envs)
         assert all(env.action_space == act_shape for env in envs)
         assert all(env.state_shape == state_shape for env in envs)
-        assert all(env.extra_feature_shape == extras_shape for env in envs)
+        assert all(env.extra_shape == extras_shape for env in envs)
         super().__init__(envs[0])
         self.envs = envs
         self.t = 0

@@ -3,13 +3,11 @@ import marl
 import marlenv
 from typing import Optional
 import typed_argparse as tap
-from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
+from marl.training import DQNTrainer, PPOTrainer, MAICTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
-from marl.nn import model_bank
 from marl.agents.qlearning.maic import MAICParameters
 
-# from marl.algo.qlearning.maic import MAICParameters
 from lle import LLE, ObservationType
 from run import Arguments as RunArguments, main as run_experiment
 from marl.utils import Schedule
@@ -69,43 +67,75 @@ def create_smac(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
-def create_ddpg_lle(args: Arguments):
-    n_steps = 500_000
-    env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.LAYERED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+def lle_shaping(args: Arguments):
+    from marl.env.wrappers import LLEPotentialShaping
+    from lle import Direction
 
-    ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
+    n_steps = 1_000_000
+    test_interval = 5000
+    gamma = 0.95
 
-    train_policy = marl.policy.NoisyCategoricalPolicy()
-    test_policy = marl.policy.ArgMax()
+    env = LLE.level(6).obs_type("layered").state_type("layered").build()
+    l1 = env.world.laser_sources[4, 0]
+    l2 = env.world.laser_sources[6, 12]
+    width = env.width
+    height = env.height
+    env = LLEPotentialShaping(env, {l1: Direction.SOUTH, l2: Direction.SOUTH}, gamma)
+    env = marlenv.Builder(env).time_limit(width * height // 2).agent_id().build()
 
-    trainer = DDPGTrainer(
-        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95, lr=1e-5
+    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    train_policy = marl.policy.EpsilonGreedy.linear(
+        1.0,
+        0.05,
+        n_steps=200_000,
+    )
+    dqn_trainer = DQNTrainer(
+        qnetwork,
+        train_policy=train_policy,
+        memory=marl.models.TransitionMemory(50_000),  # type: ignore
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=64,
+        train_interval=(5, "step"),
+        gamma=gamma,
+        mixer=marl.agents.VDN.from_env(env),
+        grad_norm_clipping=10,
+        ir_module=None,
     )
 
-    algo = marl.agents.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
-    # logdir = f"logs/{env.name}-TEST-DDPG"
-    logdir = "logs/ddpg_lvl2_lr_1e-5"
-    if args.debug:
-        logdir = "logs\\debug"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    logdir = "logs/lle-lvl6-vdn-shaping" if args.logdir is None else args.logdir
+
+    dqn = marl.agents.DQN(
+        qnetwork=qnetwork,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+    )
+
+    return marl.Experiment.create(
+        env=env,
+        n_steps=n_steps,
+        agent=dqn,
+        trainer=dqn_trainer,
+        test_interval=test_interval,
+        test_env=None,
+        logdir=logdir,
+    )
 
 
 def create_ppo_lle(args: Arguments):
     n_steps = 1_000_000
     walkable_lasers = True
-    temperature = 1
     # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
     ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
-    ac_network.temperature = temperature
-    
+
     entropy_schedule = None
     # entropy_schedule = schedule.LinearSchedule(0.05, 0.01, round(1/3 * n_steps))
     
@@ -152,8 +182,8 @@ def create_ppo_lle(args: Arguments):
     # logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
     logdir = "logs\\ppo_lvl3_default"
     if args.debug:
-        logdir = "logs\\debug"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+        logdir = "logs/debug"
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 def create_multiobj_lle(args: Arguments):
     n_steps = 1_000_000
@@ -224,8 +254,7 @@ def create_lle(args: Arguments):
     n_steps = 2_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE)
-    # env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective().build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
@@ -275,8 +304,8 @@ def create_lle(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             args.logdir += "-PER"
     return marl.Experiment.create(
-        args.logdir,
-        algo=algo,
+        logdir=args.logdir,
+        agent=algo,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
@@ -339,8 +368,8 @@ def create_lle_baseline(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
     return marl.Experiment.create(
-        logdir,
-        algo=algo,
+        logdir=logdir,
+        agent=algo,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
@@ -402,7 +431,7 @@ def create_lle_maic(args: Arguments):
             logdir += "-iql"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def create_lle_maicRDQN(args: Arguments):
@@ -457,7 +486,7 @@ def create_lle_maicRDQN(args: Arguments):
             logdir += "-iql"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def create_lle_maicCNN(args: Arguments):
@@ -512,7 +541,7 @@ def create_lle_maicCNN(args: Arguments):
             logdir += "-iql"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def create_lle_maicCNNRDQN(args: Arguments):
@@ -567,7 +596,7 @@ def create_lle_maicCNNRDQN(args: Arguments):
             logdir += "-iql"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def main(args: Arguments):

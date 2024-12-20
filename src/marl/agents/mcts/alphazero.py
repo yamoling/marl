@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv, State
+from marlenv import MARLEnv, State, DiscreteActionSpace
 from marl.nn.model_bank import CNN_ActorCritic
 from collections import deque
 from marl.logging import CSVLogger
@@ -12,7 +12,7 @@ from copy import deepcopy
 class AlphaZero:
     def __init__(
         self,
-        env: MARLEnv[DiscreteActionSpace],
+        env: MARLEnv[list[int], DiscreteActionSpace],
         n_search_iterations: int = 100,
         lr: float = 0.001,
         exploration_constant: float = 2**0.5,
@@ -73,7 +73,7 @@ class AlphaZero:
             actions.append(child.action)
             step = env.step([child.action])
             done = step.is_terminal
-            episode_return += step.reward
+            episode_return += step.reward.item()
             if render:
                 env.render()
         # Remove the last state which is terminal

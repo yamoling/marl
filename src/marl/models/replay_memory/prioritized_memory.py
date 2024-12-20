@@ -8,7 +8,7 @@ from marl.utils import Schedule
 
 
 @dataclass
-class PrioritizedMemory(ReplayMemory[B, T]):
+class PrioritizedMemory(ReplayMemory[T, B]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -17,7 +17,7 @@ class PrioritizedMemory(ReplayMemory[B, T]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    memory: ReplayMemory[B, T]
+    memory: ReplayMemory[T, B]
     alpha: Schedule
     beta: Schedule
     eps: float
@@ -26,7 +26,7 @@ class PrioritizedMemory(ReplayMemory[B, T]):
 
     def __init__(
         self,
-        memory: ReplayMemory[B, T],
+        memory: ReplayMemory[T, B],
         multi_objective: bool,
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
