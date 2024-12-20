@@ -5,11 +5,10 @@ from typing_extensions import Self
 from marlenv import Transition, Episode
 
 import torch
-import numpy as np
 
 
 @dataclass
-class Trainer[R: float | np.ndarray](ABC):
+class Trainer[A](ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str
@@ -44,7 +43,7 @@ class Trainer[R: float | np.ndarray](ABC):
         self.update_on_steps = update_type in ["step", "both"]
         self.update_on_episodes = update_type in ["episode", "both"]
 
-    def update_step(self, transition: Transition[np.ndarray, np.ndarray, R], time_step: int) -> dict[str, Any]:
+    def update_step(self, transition: Transition[A], time_step: int) -> dict[str, Any]:
         """
         Update to call after each step. Should be run when update_after_each == "step".
 
@@ -53,7 +52,7 @@ class Trainer[R: float | np.ndarray](ABC):
         """
         return {}
 
-    def update_episode(self, episode: Episode[np.ndarray, np.ndarray, R], episode_num: int, time_step: int) -> dict[str, Any]:
+    def update_episode(self, episode: Episode[A], episode_num: int, time_step: int) -> dict[str, Any]:
         """
         Update to call after each episode. Should be run when update_after_each == "episode".
 

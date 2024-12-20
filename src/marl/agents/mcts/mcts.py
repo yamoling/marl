@@ -2,6 +2,7 @@ from copy import deepcopy
 import time
 from typing import Literal, Callable, Optional
 from marlenv import MARLEnv, DiscreteActionSpace, State
+import numpy as np
 import random
 
 from .node import Node
@@ -21,7 +22,7 @@ class MCTS:
 
     def __init__(
         self,
-        env: MARLEnv[DiscreteActionSpace],
+        env: MARLEnv,
         exploration_constant: float = 2**0.5,
         gamma: float = 0.99,
         time_limit_ms: int | None = None,
@@ -106,7 +107,7 @@ class MCTS:
         next_player = (node.current_player + 1) % (self.n_adversaries + 1)
         for i, action in enumerate(self.env.available_joint_actions()):
             self.env.set_state(node.state)
-            step = self.env.step(action)
+            step = self.env.step(np.array(action))
             if priors is None:
                 prior = 0
             else:
@@ -117,7 +118,7 @@ class MCTS:
                 node,
                 step.is_terminal,
                 next_player,
-                step.reward,
+                step.reward.item(),
                 prior=prior,
             )
             node.children.append(child)
@@ -142,9 +143,9 @@ class MCTS:
             # We assume that the maximizing player is always the first one
             # because the search initializes the root node with the maximizing player (0).
             if turn == 0:
-                total_reward += step.reward * current_gamma
+                total_reward += step.reward.item() * current_gamma
             else:
-                total_reward -= step.reward * current_gamma
+                total_reward -= step.reward.item() * current_gamma
             current_gamma *= self.gamma
             turn = (turn + 1) % n_adversarial_players
         return total_reward

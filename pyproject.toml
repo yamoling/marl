@@ -3,9 +3,9 @@ name = "marl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11,<4"
+requires-python = ">=3.10,<4"
 dependencies = [
-    "laser-learning-environment>=2.0.0",
+    "laser-learning-environment>=2.0.2",
     "python-dotenv>=1.0.1",
     "tqdm>=4.66.5",
     "scipy>=1.14.1",
@@ -21,10 +21,11 @@ dependencies = [
     "flask-cors>=4.0.1",
     "seaborn>=0.13.2",
     "multi-agent-rlenv>=2.0.0",
-    "jupyterlab>=4.2.5",
+    "jupyterlab>=4.3.4",
     "scikit-learn>=1.5.2",
     "pygame>=2.6.1",
     "orjson>=3.10.12",
+    "numpy>=2.2.0",
 ]
 
 [build-system]
@@ -32,9 +33,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 
-[[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
+# [[tool.uv.index]]
+# name = "pytorch-cu118"
+# url = "https://download.pytorch.org/whl/cu118"
+
 
 [tool.uv]
 dev-dependencies = ["pytest>=8.3.2", "pytest-xdist>=3.6.1"]

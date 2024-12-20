@@ -97,15 +97,15 @@ class AlphaNode:
             raise ValueError("This node is not yet expanded !")
         if temperature == 0.0:
             return self.best_child
-        probs = self.children_probs(temperature)
-        return random.choices(self.children, weights=probs.tolist(), k=1)[0]
+        probs = list(self.children_probs(temperature))
+        return random.choices(self.children, weights=probs, k=1)[0]
 
     def ucb(self, c: float):
         """Upper Confidence Bound in the context of AlphaZero."""
         assert self.parent is not None
         return self.q_value + c * self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
 
-    def expand(self, env: MARLEnv[DiscreteActionSpace], nn: DiscreteActorCriticNN, gamma: float):
+    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCriticNN, gamma: float):
         if self.is_terminal:
             return
         env.set_state(self.state)
@@ -133,7 +133,7 @@ class AlphaNode:
                     action,
                     step.is_terminal,
                     prior,
-                    step.reward + gamma * next_value,
+                    step.reward.item() + gamma * next_value,
                 )
             )
 

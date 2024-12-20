@@ -68,7 +68,7 @@ class QMix(Mixer):
         return q_tot
 
     @classmethod
-    def from_env(cls, env: MARLEnv[DiscreteActionSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
+    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
         return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size)
 
     def save(self, to_directory: str):

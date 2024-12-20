@@ -8,11 +8,11 @@ class MultiLogger(Logger):
         super().__init__(logdir, quiet)
         self.loggers = loggers
 
-    def log(self, tag: str, metrics: dict[str, float], time_step: int) -> None:
+    def log(self, metrics: dict[str, float], time_step: int):
         for logger in self.loggers:
-            logger.log(tag, metrics, time_step)
+            logger.log(metrics, time_step)
 
-    def print(self, tag: str, metrics: dict[str, float]) -> None:
+    def print(self, tag: str, metrics: dict[str, float]):
         print(f"\n{tag}")
         pprint(metrics)
 

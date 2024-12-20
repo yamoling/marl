@@ -40,7 +40,7 @@ def print_status(experiment):
 
 
 def interrupt_runs(experiment):
-    from marl.utils import exceptions
+    from marl import exceptions
     from marl import Experiment, Run
 
     exp: Experiment = experiment

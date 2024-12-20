@@ -24,7 +24,8 @@ class ACER(Agent):
     def choose_action(self, observation: Observation) -> np.ndarray:
         with torch.no_grad():
             obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
-            logits = self.network.policy(obs_data)
+            extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
+            logits = self.network.policy(obs_data, extras)
             logits[torch.tensor(observation.available_actions) == 0] = -torch.inf
             dist = torch.distributions.Categorical(logits=logits)
             action = dist.sample()
@@ -40,7 +41,7 @@ class ACER(Agent):
         self.is_training = True
 
     def train(self, episode_num: int, episode: Episode):
-        episode.actions_probs = np.array(self.action_probs, dtype=np.float32)
+        episode.actions_probs = self.action_probs
         self.action_probs = []
         self.memory.add(episode)
         if len(self.memory) < self.batch_size:

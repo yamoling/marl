@@ -3,7 +3,7 @@ from psutil import Process
 from marl.models import Experiment
 from threading import Thread
 import asyncio
-from websockets.server import serve, WebSocketServerProtocol
+from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 
@@ -11,9 +11,9 @@ class WebsocketServer(Thread):
     def __init__(self, port: int):
         super().__init__(daemon=True)
         self.port = port
-        self.clients = list[WebSocketServerProtocol]()
+        self.clients = list()
 
-    async def _accept_connection(self, websocket: WebSocketServerProtocol):
+    async def _accept_connection(self, websocket):
         print("new client connected")
         self.clients.append(websocket)
 

@@ -5,7 +5,6 @@ from datetime import datetime
 import numpy as np
 import orjson
 from marlenv import MARLEnv
-from marlenv.models.env import ActionSpaceType
 
 from marl.models.trainer import Trainer
 from marl.utils import default_serialization
@@ -20,7 +19,7 @@ class IndividualLocalGraphTrainer(Trainer):
     local_graphs: list[LocalGraphBottleneckFinder[np.ndarray]]
     update_after_n_states: int
 
-    def __init__(self, env: MARLEnv[ActionSpaceType], update_after_n_states: int, logdir: str):
+    def __init__(self, env: MARLEnv, update_after_n_states: int, logdir: str):
         super().__init__("episode")
         self.agent_dims = env.agent_state_size
         self.n_agents = env.n_agents
@@ -38,7 +37,7 @@ class IndividualLocalGraphTrainer(Trainer):
         for state in episode._states:
             for i in range(self.n_agents):
                 agent_state = state[i * self.agent_dims : (i + 1) * self.agent_dims]
-                agent_states[i].append(tuple(agent_state.tolist()))
+                agent_states[i].append(tuple(agent_state))
         for graph, states in zip(self.local_graphs, agent_states):
             graph.add_trajectory(states)
         self.n_states_visited += len(episode)

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Generic, Iterable, Literal
+from typing import Deque, Generic, Iterable, Literal, Any
 from typing_extensions import TypeVar
 
 import numpy as np
@@ -11,7 +11,7 @@ from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
 
 T = TypeVar("T")
-B = TypeVar("B", bound=Batch, default=Batch)
+B = TypeVar("B", bound=Batch)
 
 
 @dataclass

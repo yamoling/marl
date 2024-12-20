@@ -1,18 +1,37 @@
 """From https://github.com/nikhilbarhate99/PPO-PyTorch"""
 
-from marlenv import Transition
+from marlenv import Observation, Transition
 import torch
 import numpy as np
+from copy import deepcopy
 import torch.utils
-from marl.models.nn import DiscreteActorCriticNN as ActorCritic
+from marl.models.nn import ContinuousActorNN
+from torch.distributions import Normal
 from ..agent import Agent
+
+
+class RolloutBuffer:
+    def __init__(self):
+        self.actions = list[np.ndarray]()
+        self.states = list[np.ndarray]()
+        self.logprobs = list[np.ndarray]()
+        self.rewards = list[float]()
+        self.state_values = list[float]()
+        self.is_terminals = list[bool]()
+
+    def clear(self):
+        self.actions = list[np.ndarray]()
+        self.states = list[np.ndarray]()
+        self.logprobs = list[np.ndarray]()
+        self.rewards = list[float]()
+        self.state_values = list[float]()
+        self.is_terminals = list[bool]()
 
 
 class PPO(Agent):
     def __init__(
         self,
-        obs_size: int,
-        n_actions: int,
+        policy: ContinuousActorNN,
         lr_actor: float,
         lr_critic: float,
         gamma: float,
@@ -25,32 +44,31 @@ class PPO(Agent):
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.k_epochs = k_epochs
-        self.policy = ActorCritic(obs_size, n_actions, self.device)
+        self.ac_network = policy
         self.optimizer = torch.optim.Adam(
             [
-                {"params": self.policy.actions_mean_std.parameters(), "lr": lr_actor},
-                {"params": self.policy.critic.parameters(), "lr": lr_critic},
+                {"params": self.ac_network.actions_mean_std.parameters(), "lr": lr_actor},
+                {"params": self.ac_network.critic.parameters(), "lr": lr_critic},
             ]
         )
 
-        self.policy_old = ActorCritic(obs_size, n_actions, self.device)
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        self.buffer = RolloutBuffer()
+        self.policy_old = deepcopy(policy)
+        self.policy_old.load_state_dict(self.ac_network.state_dict())
         self.mse_loss = torch.nn.MSELoss()
         self.time_step = 0
         self.update_interval = update_interval
-        self.parameters = self.policy.parameters()
+        self.parameters = self.ac_network.parameters()
 
-    def select_action(self, obs_data: np.ndarray):
+    def choose_action(self, observation: Observation):
         with torch.no_grad():
-            tensor_data = torch.from_numpy(obs_data).to(self.device)
-            action, action_logprob = self.policy.act(tensor_data)
-            # Convert the action to a numpy array, perform the clamping, and then convert back to a tensor
+            obs = torch.from_numpy(observation.data).to(self.device)
+            extras = torch.from_numpy(observation.extras).to(self.device)
+            logits, value = self.ac_network.forward(obs, extras)
 
-            state_val = self.policy.value(tensor_data).item()
-
-        self.buffer.state_values.append(state_val)
-
-        return action.numpy(force=True), action_logprob.numpy(force=True)
+        self.buffer.state_values.append(value.item())
+        distribution = Normal(logits, 1.0)
+        return distribution.sample()
 
     def store(self, transition: Transition):
         self.buffer.states.append(transition.obs.data)
@@ -97,9 +115,9 @@ class PPO(Agent):
         # Optimize policy for K epochs
         for _ in range(self.k_epochs):
             # Evaluating old actions and values
-            logprobs, dist_entropy = self.policy.evaluate(old_states, old_actions)
+            logprobs, dist_entropy = self.ac_network.evaluate(old_states, old_actions)
 
-            state_values = self.policy.value(old_states)
+            state_values = self.ac_network.value(old_states)
             # match state_values tensor dimensions with rewards tensor
             state_values = torch.squeeze(state_values)
 
@@ -118,7 +136,7 @@ class PPO(Agent):
             self.optimizer.step()
 
         # Copy new weights into old policy
-        self.policy_old.load_state_dict(self.policy.state_dict())
+        self.policy_old.load_state_dict(self.ac_network.state_dict())
 
         # clear buffer
         self.buffer.clear()
@@ -128,10 +146,10 @@ class PPO(Agent):
 
     def load(self, checkpoint_path):
         self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
-        self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+        self.ac_network.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
 
     def to(self, device: torch.device):
-        self.policy.to(device)
+        self.ac_network.to(device)
         self.policy_old.to(device)
         self.device = device
         return self

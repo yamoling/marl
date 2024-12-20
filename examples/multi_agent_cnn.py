@@ -3,9 +3,10 @@ import marl
 import marlenv
 from lle import LLE, ObservationType
 from marl.agents import mixers
+from marlenv import DiscreteActionSpace
 
 
-def mappo(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
+def mappo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, marl.Trainer]:
     nn = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
     algo = marl.agents.PPO(
         ac_network=nn,
@@ -18,7 +19,7 @@ def mappo(env: marlenv.MARLEnv) -> tuple[marl.Agent, marl.Trainer]:
     return algo, trainer
 
 
-def dqn_with_mixer(env: marlenv.MARLEnv, mixer_str: Literal["vdn", "qmix", "qplex"]):
+def dqn_with_mixer[A](env: marlenv.MARLEnv[A, DiscreteActionSpace], mixer_str: Literal["vdn", "qmix", "qplex"]):
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.constant(0.1)
 

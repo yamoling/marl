@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from marlenv import MARLEnv, DiscreteActionSpace, Observation
+from marlenv import MARLEnv, DiscreteActionSpace, Observation, State
 
 
 N_ROWS = 11
@@ -38,9 +38,6 @@ class CoordinatedGrid(MARLEnv):
         self._episode_steps = 0
         return self.observation()
 
-    def get_state(self):
-        return self.observation().state
-
     def observation(self):
         obs_1 = [[0 for _ in range(N_ROWS)], [0 for _ in range(N_COLS)]]
         # obs_2 = obs_1.copy()
@@ -70,12 +67,16 @@ class CoordinatedGrid(MARLEnv):
             obs_2 += [0 for _ in range(N_ROWS + N_COLS)]
             obs_1 += [0 for _ in range(N_ROWS + N_COLS)]
 
-        state = np.array(obs_1 + obs_2)
         obs_data = np.array([obs_1, obs_2])
-        return Observation(obs_data, self.available_actions(), state)
+        return Observation(obs_data, self.available_actions())
+
+    def get_state(self):
+        obs = self.observation()
+        state_data = obs.data.reshape(-1)
+        return State(state_data)
 
     def available_actions(self):
-        avail_actions = np.ones((self.n_agents, self.n_actions))
+        avail_actions = np.full((self.n_agents, self.n_actions), True)
         for agent_num, (y, x) in enumerate(self.agents_location):
             if x == 0:
                 avail_actions[agent_num, 0] = 0
@@ -86,7 +87,7 @@ class CoordinatedGrid(MARLEnv):
             # Check for center line (depends on the agent number)
             elif y == self.center + agent_num - 1:
                 avail_actions[agent_num, 3] = 0
-        return avail_actions.tolist()
+        return avail_actions
 
     def step(self, actions):
         # print('State is {}, action is {}'.format(self.state, actions))

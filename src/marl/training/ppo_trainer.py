@@ -22,7 +22,7 @@ class PPOTrainer(Trainer):
     n_epochs: int
     c1: float
     c2: float
-    memory: ReplayMemory[Transition | Episode]
+    memory: ReplayMemory
 
     def __init__(
         self,
