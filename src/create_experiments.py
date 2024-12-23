@@ -159,7 +159,7 @@ def create_multiobj_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(4).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).single_objective()
+    env = LLE.level(5).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()
     env = marlenv.Builder(env).centralised().agent_id().time_limit(78, add_extra=True).build()
     #env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     test_env = None
@@ -171,8 +171,8 @@ def create_multiobj_lle(args: Arguments):
         0.05,
         n_steps=500_000,
     )
-    mixer = marl.algo.VDN.from_env(env)
-    #mixer=marl.algo.QMix.from_env(env)
+    #mixer = marl.algo.VDN.from_env(env)
+    mixer=marl.algo.QMix.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -588,7 +588,7 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # exp = create_ddpg_lle(args)
         exp = create_multiobj_lle(args)
-        exp = create_lle(args)
+        #exp = create_lle(args)
         # exp = create_lle(args)
         # exp = create_lle_maic(args)
         # exp = create_lle_maicRQN(args)

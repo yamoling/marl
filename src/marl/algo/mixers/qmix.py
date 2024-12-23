@@ -20,6 +20,7 @@ class QMix(Mixer):
         n_agents: int,
         embed_size=64,
         hypernet_embed_size=64,
+        n_objectives=1,
     ):
         super().__init__(n_agents)
 
@@ -27,26 +28,29 @@ class QMix(Mixer):
         self.n_agents = n_agents
         self.embed_size = embed_size
         self.hypernet_embed_size = hypernet_embed_size
+        self.n_objectives=n_objectives
 
         self.state_dim = int(np.prod(state_shape))
 
         self.hyper_w_1 = nn.Sequential(
             nn.Linear(self.state_dim, hypernet_embed_size),
             nn.ReLU(),
-            nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents),
+            nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents * self.n_objectives),
             AbsLayer(),
         )
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size), AbsLayer()
+            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size * self.n_objectives), AbsLayer()
         )
 
         # State dependent bias for hidden layer
-        self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_size)
+        self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_size * self.n_objectives)
 
         # V(s) instead of a bias for the last layers
-        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
+        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1 * self.n_objectives))
 
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+        # Find qvalues structure, deconstruct to 1 set per objective, then run n_objectives times?
+
         bs = qvalues.size(0)
         states = states.reshape(-1, self.state_dim)
         qvalues = qvalues.view(-1, 1, self.n_agents)
@@ -69,7 +73,7 @@ class QMix(Mixer):
 
     @classmethod
     def from_env(cls, env: MARLEnv, embed_size: int = 64, hypernet_embed_size: int = 64):
-        return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size)
+        return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size, env.reward_space.size)
 
     def save(self, to_directory: str):
         filename = f"{to_directory}/qmix.weights"
