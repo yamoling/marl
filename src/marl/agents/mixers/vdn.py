@@ -1,16 +1,17 @@
-from marlenv import MARLEnv, DiscreteActionSpace
+from dataclasses import dataclass
+
 import torch
+from marlenv import DiscreteActionSpace, MARLEnv
 
 from marl.models.nn import Mixer
 
 
+@dataclass(unsafe_hash=True)
 class VDN(Mixer):
-    def __init__(self, n_agents: int, multi_objective: bool = False):
+    def __init__(self, n_agents: int):
         super().__init__(n_agents)
         # The inputs should be of shape (..., n_agents, n_actions)
-        if multi_objective:
-            self.agent_dim = -2
-        self.agent_dim = -1
+        self.agent_dim = -2
 
     def forward(self, qvalues: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
         # Sum across the agent dimension
@@ -24,4 +25,4 @@ class VDN(Mixer):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
-        return VDN(env.n_agents, env.is_multi_objective)
+        return VDN(env.n_agents)

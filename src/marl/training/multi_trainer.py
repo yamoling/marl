@@ -2,7 +2,6 @@ from typing import Any
 from dataclasses import dataclass
 from marlenv import Episode
 from torch import device
-import math
 
 from marl.models.trainer import Trainer
 
@@ -14,15 +13,12 @@ class MultiTrainer(Trainer):
     def __init__(self, *trainers: Trainer):
         if all(t.update_on_episodes for t in trainers):
             update_type = "episode"
-            interval = math.gcd(*[t.episode_update_interval for t in trainers])
         elif all(t.update_on_steps for t in trainers):
             update_type = "step"
-            interval = math.gcd(*[t.step_update_interval for t in trainers])
         else:
             update_type = "both"
-            interval = (math.gcd(*[t.step_update_interval for t in trainers]), math.gcd(*[t.episode_update_interval for t in trainers]))
 
-        super().__init__(update_type, interval)
+        super().__init__(update_type)
         self.trainers = list(trainers)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):

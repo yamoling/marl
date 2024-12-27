@@ -1,12 +1,16 @@
-from marlenv import MARLEnv, DiscreteActionSpace
+from dataclasses import dataclass
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
+from marlenv import DiscreteActionSpace, MARLEnv
+
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
+@dataclass
 class QMix(Mixer):
     """
     QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning

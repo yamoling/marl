@@ -14,7 +14,7 @@ from marlenv.models import MARLEnv, Transition, ActionSpace, Episode
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DDPG, DQN, PPO, Agent, RandomAgent
+from marl.agents import DDPG, DQN, PPO, Agent
 from marl.models.nn import MAIC
 from marl.utils import encode_b64_image, stats, default_serialization
 from marl.utils.gpu import get_device
@@ -63,8 +63,8 @@ class Experiment[A, AS: ActionSpace]:
         env: MARLEnv[A, AS],
         n_steps: int,
         logdir: str = "logs/tests",
-        agent: Optional[Agent[A]] = None,
         trainer: Optional[Trainer] = None,
+        agent: Optional[Agent] = None,
         test_interval: int = 0,
         test_env: Optional[MARLEnv[A, AS]] = None,
     ):
@@ -86,12 +86,14 @@ class Experiment[A, AS: ActionSpace]:
                 pass
         try:
             os.makedirs(logdir, exist_ok=False)
+            if trainer is None:
+                trainer = NoTrain(env)
             if agent is None:
-                agent = RandomAgent(env)
+                agent = trainer.make_agent()
             experiment = Experiment(
                 logdir,
                 agent=agent,
-                trainer=trainer or NoTrain(),
+                trainer=trainer,
                 env=env,
                 n_steps=n_steps,
                 test_interval=test_interval,
@@ -197,6 +199,7 @@ class Experiment[A, AS: ActionSpace]:
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
+        render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
         runner = self.create_runner().to(get_device(device, fill_strategy, required_memory_MB))
@@ -207,6 +210,7 @@ class Experiment[A, AS: ActionSpace]:
             quiet=quiet,
             n_steps=self.n_steps,
             test_interval=self.test_interval,
+            render_tests=render_tests,
         )
 
     def test_on_other_env(
@@ -238,7 +242,7 @@ class Experiment[A, AS: ActionSpace]:
             with new_run as run_handle:
                 for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
                     self.agent.load(base_run.get_saved_algo_dir(time_step))
-                    runner.test(n_tests, time_step, run_handle=run_handle, quiet=True)
+                    runner.test(n_tests, time_step, run_handle=run_handle, quiet=True, render=False)
 
     def create_runner(self):
         return Runner(

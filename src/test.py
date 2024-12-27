@@ -1,8 +1,10 @@
 import marl
 from lle import LLE
 import marlenv
-from marl.agents import Haven
 from marl.training import DQNTrainer, SoftUpdate
+from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
+from marl.training.haven_trainer import HavenTrainer
+from marl.agents import VDN
 
 
 def main():
@@ -15,17 +17,16 @@ def main():
     lle = LLE.level(6).obs_type("layered").state_type("layered").single_objective().build()
     width = lle.width
     height = lle.height
-    meta_env = marlenv.Builder(lle).time_limit(width * height // 2).build()
-    meta_network = marl.nn.model_bank.CNN(
-        input_shape=meta_env.observation_shape,
-        extras_size=meta_env.extra_shape[0],
-        output_shape=(
-            meta_env.n_agents,
+    env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().pad("extra", N_SUBGOALS).build()
+    # Improvements: do not give the agent ID and the paddings to the meta network
+    meta_network = marl.nn.model_bank.actor_critics.CNNContinuousActorCritic(
+        input_shape=env.observation_shape,
+        n_extras=env.extra_shape[0],
+        action_output_shape=(
+            env.n_agents,
             N_SUBGOALS,
         ),
     )
-
-    env = marlenv.Builder(meta_env).agent_id().pad("extra", N_SUBGOALS).build()
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
@@ -49,25 +50,60 @@ def main():
     )
 
     logdir = "logs/tests"
-
-    dqn = marl.agents.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
+    meta_trainer = HavenTrainer(
+        worker_trainer=dqn_trainer,
+        actor_critic=meta_network,
+        gamma=gamma,
+        n_epochs=20,
+        lr=1e-4,
+        eps_clip=0.2,
+        k=K,
+        c1=1.0,
+        exploration_c2=0.01,
     )
-    meta_agent = Haven(meta_network, dqn, N_SUBGOALS, K)
 
     exp = marl.Experiment.create(
         env=env,
         n_steps=n_steps,
-        agent=meta_agent,
-        trainer=dqn_trainer,
+        trainer=meta_trainer,
         test_interval=test_interval,
         test_env=None,
         logdir=logdir,
     )
-    exp.run(n_tests=1)
+    exp.run()
+
+
+def main_lunar_lander_continuous():
+    import gymnasium as gym
+    from marlenv.adapters import Gym
+
+    env = Gym(gym.make("LunarLanderContinuous-v3", render_mode="rgb_array"))
+    actor_critic = marl.nn.model_bank.actor_critics.MLPContinuousActorCritic(
+        input_shape=env.observation_shape,
+        n_extras=env.extra_shape[0],
+        action_output_shape=(env.n_actions,),
+    )
+    trainer = ContinuousPPOTrainer(
+        actor_critic=actor_critic,
+        value_mixer=VDN.from_env(env),  # type: ignore
+        gamma=0.99,
+        lr=1e-3,
+        exploration_c2=0.01,
+    )
+    exp = marl.Experiment.create(
+        env,
+        1_000_000,
+        trainer=trainer,
+        test_interval=5_000,
+        logdir="logs/lunar-lander-ppo-with-entropy",
+    )
+    exit()
+    exp.run(
+        render_tests=False,
+        n_tests=5,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    main_lunar_lander_continuous()

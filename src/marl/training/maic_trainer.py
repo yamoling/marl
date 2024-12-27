@@ -30,7 +30,8 @@ class MAICTrainer(Trainer):
         train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_interval[1], train_interval[0])
+        super().__init__(train_interval[1])
+        self.step_update_interval = train_interval[0]
         self.n_agents = args.n_agents
         self.maic_network = maic_network
         self.target_network = deepcopy(maic_network)
@@ -91,7 +92,9 @@ class MAICTrainer(Trainer):
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        mixed_next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
+        mixed_next_values = self.target_mixer.forward(
+            next_values, batch.next_states, one_hot_actions=batch.one_hot_actions, next_qvalues=next_qvalues
+        )
         return mixed_next_values
 
     def optimise_network(self):
@@ -103,7 +106,7 @@ class MAICTrainer(Trainer):
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
-        mixed_qvalues = self.mixer.forward(chosen_action_qvals, batch.states, batch.one_hot_actions, qvalues)
+        mixed_qvalues = self.mixer.forward(chosen_action_qvals, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
 
         # Drop variables to prevent using them mistakenly
         del qvalues

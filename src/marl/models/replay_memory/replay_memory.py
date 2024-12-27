@@ -11,7 +11,7 @@ from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
 
 T = TypeVar("T")
-B = TypeVar("B", bound=Batch)
+B = TypeVar("B", bound=Batch, default=Batch)
 
 
 @dataclass
