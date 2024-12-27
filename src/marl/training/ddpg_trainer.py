@@ -19,7 +19,8 @@ class DDPGTrainer(Trainer):
         update_interval: int = 5,
         tau: float = 0.01,
     ):
-        super().__init__(update_type=train_every, update_interval=update_interval)
+        super().__init__(update_type=train_every)
+        self.step_update_interval = update_interval
         self.network = network
         # self.target_network = deepcopy(network)
         self.memory = memory
@@ -70,12 +71,12 @@ class DDPGTrainer(Trainer):
         extras = batch.extras
         actions = batch.actions
         dones = batch.dones
-        obs_ = batch.obs_
-        extras_ = batch.extras_
+        obs_ = batch.next_obs
+        extras_ = batch.next_extras
         available_actions = batch.available_actions
         rewards = batch.rewards.squeeze(-1)
         states = batch.states
-        states_ = batch.states_
+        states_ = batch.next_states
         probs = batch.probs
         with torch.no_grad():
             # get next actions

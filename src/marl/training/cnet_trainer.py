@@ -12,7 +12,8 @@ from ..models.trainer import Trainer
 @dataclass
 class CNetTrainer(Trainer):
     def __init__(self, opt, agents: CNet):
-        super().__init__("episode", opt.bs)
+        super().__init__("episode")
+        self.step_update_interval = opt.bs
         self.opt = opt
         self.agents = agents
         self.memory = EpisodeCommWrapper()

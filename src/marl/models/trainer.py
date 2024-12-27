@@ -1,8 +1,10 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from typing import Literal, Any
 from typing_extensions import Self
 from marlenv import Transition, Episode
+from marl.models import NN
+from marl.agents import Agent
 
 import torch
 
@@ -12,36 +14,18 @@ class Trainer[A](ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str
-    step_update_interval: int
-    episode_update_interval: int
-    """
-    How often to update the algorithm. 
-    If the algorithm is trained on episodes, this is the number of episodes between each update.
-    If the algorithm is trained on steps, this is the number of steps between each update.
-    """
     update_on_steps: bool
     """Whether to update on steps."""
     update_on_episodes: bool
     """Whether to update on episodes."""
 
-    def __init__(self, update_type: Literal["step", "episode", "both"] = "both", update_interval: int | tuple[int, int] = 1):
-        assert update_type in ["step", "episode", "both"]
-        match update_interval:
-            case tuple((interval_steps, interval_episodes)):
-                assert update_type == "both"
-                assert interval_steps > 0
-                self.step_update_interval = interval_steps
-                assert interval_episodes > 0
-                self.episode_update_interval = interval_episodes
-            case int(interval):
-                assert interval > 0
-                self.step_update_interval = interval
-                self.episode_update_interval = interval
-            case _:
-                raise ValueError("Invalid update interval")
+    def __init__(self, update_type: Literal["step", "episode", "both"] = "both"):
         self.name = self.__class__.__name__
         self.update_on_steps = update_type in ["step", "both"]
         self.update_on_episodes = update_type in ["episode", "both"]
+
+    def make_agent(self) -> Agent:
+        raise NotImplementedError("Trainer must implement make_agent method")
 
     def update_step(self, transition: Transition[A], time_step: int) -> dict[str, Any]:
         """
@@ -61,10 +45,19 @@ class Trainer[A](ABC):
         """
         return {}
 
-    @abstractmethod
     def to(self, device: torch.device) -> Self:
-        """Send the tensors to the given device."""
+        """Send the networks to the given device."""
+        self.device = device
+        for nn in self.networks:
+            nn.to(device)
+        return self
 
-    @abstractmethod
-    def randomize(self):
+    @property
+    def networks(self):
+        """Dynamic list of neural networks attributes in the trainer"""
+        return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
+
+    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the state of the trainer."""
+        for nn in self.networks:
+            nn.randomize(method)

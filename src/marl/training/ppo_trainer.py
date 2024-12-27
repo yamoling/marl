@@ -34,7 +34,6 @@ class PPOTrainer(Trainer):
         lr_actor=1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
-        update_interval: int = 5,
         clip_eps: float = 0.2,
         c1: float = 0.5,  # C1 and C2 from the paper equation 9
         c2: float = 0.01,
@@ -45,7 +44,7 @@ class PPOTrainer(Trainer):
         logits_clip_low: float = -10,
         logits_clip_high: float = 10,
     ):
-        super().__init__(train_every, update_interval)
+        super().__init__(train_every)
         self.network = network
         self.memory = memory
         self.gamma = gamma

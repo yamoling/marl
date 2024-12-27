@@ -1,13 +1,13 @@
-from ..agent import Agent
-
+from dataclasses import dataclass
+from copy import copy
 from typing import Literal
+
 import numpy as np
 import torch
-from marl.models import NN
 from marlenv import Observation
 from torch import device
 
-from dataclasses import dataclass
+from ..agent import Agent
 
 
 @dataclass
@@ -18,34 +18,44 @@ class Haven(Agent):
     The subgoals are concatenated to the worker's observations as "extras".
     """
 
-    manager: NN
+    meta: Agent
     workers: Agent
     n_subgoals: int
     k: int
-    n_agents: int
+    """Number of steps between meta-actions."""
 
-    def __init__(self, manager: NN, workers: Agent, n_subgoals: int, k: int):
-        super().__init__()
-        self.meta = manager
+    def __init__(self, meta_agent: Agent, workers: Agent, n_subgoals: int, k: int):
+        assert meta_agent.n_agents == 1, "Meta-agent must be a single agent"
+        super().__init__(workers.n_agents + 1)
+        self.meta = meta_agent
         self.workers = workers
         self.k = k
-        self.meta_extras_len = manager.extras_shape[0]
         self.n_subgoals = n_subgoals
-        self.n_agents = manager.output_shape[0]
-        self.indices = np.arange(self.n_agents)
+        self.indices = np.arange(workers.n_agents)
+        self.t = 0
+        self.last_meta_action = np.zeros(0, dtype=np.float32)
 
     def choose_action(self, observation: Observation):
-        with torch.no_grad():
-            obs_data = torch.from_numpy(observation.data[0]).unsqueeze(0).to(self.device)
-            extras = torch.from_numpy(observation.extras[0][: self.meta_extras_len]).unsqueeze(0).to(self.device)
-            subgoals = self.meta.forward(obs_data, extras).squeeze(0).numpy(force=True)
-        observation.extras[self.indices, -self.n_subgoals :] = subgoals
+        if self.t % self.k == 0:
+            meta_obs = copy(observation)
+            meta_obs.data = np.expand_dims(observation.data[0], 0)
+            meta_obs.extras = np.expand_dims(observation.extras[0], 0)
+            match self.meta.choose_action(meta_obs):
+                case (action, dict(info)):
+                    self.last_meta_action = action
+                case action:
+                    self.last_meta_action = action
+                    info = {}
+        self.t += 1
+        observation.extras[:, -self.n_subgoals :] = self.last_meta_action
         workers_actions = self.workers.choose_action(observation)
-        return subgoals, workers_actions
+        return workers_actions, dict(meta_actions=self.last_meta_action) | info
 
     def new_episode(self):
         super().new_episode()
         self.workers.new_episode()
+        self.meta.new_episode()
+        self.t = 0
 
     def to(self, device: device):
         self.device = device

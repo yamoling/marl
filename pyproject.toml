@@ -26,6 +26,9 @@ dependencies = [
     "pygame>=2.6.1",
     "orjson>=3.10.12",
     "numpy>=2.2.0",
+    "swig>=4.3.0",
+    "gymnasium[box2d]>=1.0.0",
+    "pettingzoo>=1.24.3",
 ]
 
 [build-system]

@@ -22,7 +22,13 @@ class DQN(Agent):
     train_policy: Policy
     test_policy: Policy
 
-    def __init__(self, qnetwork: QNetwork, train_policy: Policy, test_policy: Optional[Policy] = None):
+    def __init__(
+        self,
+        qnetwork: QNetwork,
+        train_policy: Policy,
+        test_policy: Optional[Policy] = None,
+        objective_weights: Optional[np.ndarray] = None,
+    ):
         super().__init__()
         self.qnetwork = qnetwork
         self.train_policy = train_policy
@@ -30,12 +36,16 @@ class DQN(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
+        if objective_weights is None:
+            self.objective_weights = np.ones(qnetwork.output_shape, dtype=np.float32)
+        self.objective_weights = torch.from_numpy(self.objective_weights)
 
     def choose_action(self, obs: Observation) -> np.ndarray:
         with torch.no_grad():
-            qvalues = self.qnetwork.qvalues(obs)
-            if self.qnetwork.is_multi_objective:
-                qvalues = torch.sum(qvalues, dim=-1)
+            objective_qvalues = self.qnetwork.qvalues(obs)
+            # Weight the objectives
+            weighted_qvalues = objective_qvalues * self.objective_weights
+            qvalues = torch.sum(weighted_qvalues, dim=-1)
         qvalues = qvalues.numpy(force=True)
         return self.policy.get_action(qvalues, obs.available_actions)
 

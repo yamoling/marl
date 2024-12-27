@@ -2,7 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 from marlenv.models import Observation
@@ -13,10 +13,12 @@ from marl.models.nn import NN, RecurrentNN
 @dataclass
 class Agent[A](ABC):
     name: str
+    n_agents: int
 
-    def __init__(self):
+    def __init__(self, n_agents: int):
         self.name = self.__class__.__name__
         self.device = torch.device("cpu")
+        self.n_agents = n_agents
 
     @cached_property
     def networks(self):
@@ -34,7 +36,7 @@ class Agent[A](ABC):
             nn.randomize(method)
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> A:
+    def choose_action(self, observation: Observation) -> A | tuple[A, dict[str, Any]]:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):
@@ -85,6 +87,7 @@ class Agent[A](ABC):
         """Save the algorithm to the specified directory"""
         if not self.__can_autosave:
             raise NotImplementedError("Duplicate network name, you need to implement a custom save method")
+        os.makedirs(to_directory, exist_ok=True)
         for nn in self.networks:
             torch.save(nn.state_dict(), os.path.join(to_directory, f"{nn.name}.pt"))
 

@@ -41,7 +41,7 @@ class ACER(Agent):
         self.is_training = True
 
     def train(self, episode_num: int, episode: Episode):
-        episode.actions_probs = self.action_probs
+        episode.other["actions_probs"] = self.action_probs
         self.action_probs = []
         self.memory.add(episode)
         if len(self.memory) < self.batch_size:

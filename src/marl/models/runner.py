@@ -1,11 +1,9 @@
 from copy import deepcopy
-from typing import Any, Literal, Optional
-from marlenv import Episode, MARLEnv, Observation, State, Step, Transition, ActionSpace
+from typing import Literal, Optional
+from marlenv import Episode, MARLEnv, Transition, ActionSpace
 import torch
-from tqdm import tqdm
 import numpy as np
-import numpy.typing as npt
-import marl
+from tqdm import tqdm
 from marl.agents import Agent
 from marl.models.run import Run, RunHandle
 from marl.utils import get_device
@@ -21,10 +19,10 @@ A = TypeVar("A", bound=ActionSpace)
 
 
 class Runner[A, AS: ActionSpace]:
-    env: MARLEnv[A, AS]
-    algo: Agent
-    trainer: Trainer
-    test_env: MARLEnv[A, AS]
+    _env: MARLEnv[A, AS]
+    _algo: Agent
+    _trainer: Trainer
+    _test_env: MARLEnv[A, AS]
 
     def __init__(
         self,
@@ -33,7 +31,7 @@ class Runner[A, AS: ActionSpace]:
         trainer: Optional[Trainer] = None,
         test_env: Optional[MARLEnv[A, AS]] = None,
     ):
-        self._trainer = trainer or NoTrain()
+        self._trainer = trainer or NoTrain(env)
         self._env = env
         if agent is None:
             agent = RandomAgent(env)
@@ -51,6 +49,7 @@ class Runner[A, AS: ActionSpace]:
         run_handle: RunHandle,
         max_step: int,
         test_interval: int,
+        render_tests: bool,
     ):
         self._env.seed(step_num)
         obs, state = self._env.reset()
@@ -60,12 +59,16 @@ class Runner[A, AS: ActionSpace]:
         while not episode.is_finished and step_num < max_step:
             step_num += 1
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
-                self.test(n_tests, step_num, quiet, run_handle)
-            action = self._algo.choose_action(obs)
-            step = self._env.step(action)
+                self.test(n_tests, step_num, quiet, run_handle, render_tests)
+            match self._algo.choose_action(obs):
+                case (action, dict(kwargs)):
+                    step = self._env.step(action)
+                case action:
+                    step = self._env.step(action)
+                    kwargs = {}
             if step_num == max_step:
                 step.truncated = True
-            transition = Transition.from_step(obs, state, action, step)
+            transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
@@ -83,17 +86,26 @@ class Runner[A, AS: ActionSpace]:
         n_steps: int = 1_000_000,
         test_interval: int = 5_000,
         quiet: bool = False,
+        render_tests: bool = False,
     ):
         """Start the training loop"""
-        marl.seed(seed, self._env)
+        import torch
+        import random
+        import numpy as np
+
+        # The environment is seeded at each training and testing step for reproducibility
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
         self.randomize()
+
         max_step = n_steps
         episode_num = 0
         step = 0
         pbar = tqdm(total=n_steps, desc="Training", unit="Step", leave=True, disable=quiet)
         with Run.create(logdir, seed) as run:
             if n_tests > 0 and test_interval > 0:
-                self.test(n_tests, 0, quiet, run)
+                self.test(n_tests, 0, quiet, run, render_tests)
             while step < max_step:
                 episode = self._train_episode(
                     step_num=step,
@@ -103,13 +115,14 @@ class Runner[A, AS: ActionSpace]:
                     run_handle=run,
                     max_step=max_step,
                     test_interval=test_interval,
+                    render_tests=render_tests,
                 )
                 episode_num += 1
                 step += len(episode)
                 pbar.update(len(episode))
         pbar.close()
 
-    def test(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle):
+    def test(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle, render: bool):
         """Test the agent"""
         self._algo.set_testing()
         episodes = list[Episode]()
@@ -122,16 +135,23 @@ class Runner[A, AS: ActionSpace]:
             i = 0
             while not episode.is_finished:
                 i += 1
-                action = self._algo.choose_action(obs)
-                step = self._test_env.step(action)
+                if render:
+                    self._test_env.render()
+                match self._algo.choose_action(obs):
+                    case (action, _):
+                        step = self._test_env.step(action)
+                    case action:
+                        step = self._test_env.step(action)
                 transition = Transition.from_step(obs, state, action, step)
                 episode.add(transition)
                 obs = step.obs
                 state = step.state
+            if render:
+                self._test_env.render()
             episodes.append(episode)
         run_handle.log_tests(episodes, self._algo, time_step)
         if not quiet:
-            avg_score = sum(e.score for e in episodes) / n_tests
+            avg_score = np.sum([e.score for e in episodes], axis=0) / n_tests
             print(f"{time_step:9d} Average score: {avg_score}")
         self._algo.set_training()
 

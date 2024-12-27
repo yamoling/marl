@@ -158,7 +158,6 @@ def create_ppo_lle(args: Arguments):
         lr_actor=1e-4,
         optimiser="adam",
         train_every="step",
-        update_interval=8,
         n_epochs=4,
         clip_eps=0.2,
         c1=0.5,
@@ -390,7 +389,7 @@ def create_lle_maic(args: Arguments):
     gamma = 0.95
     eps_steps = 50_000
     # Add the MAICNetwork (MAICAgent)
-    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
+    maic_network = marl.nn.model_bank.qnetworks.MAICNetworkCNN.from_env(env, opt)
     memory = marl.models.EpisodeMemory(5000)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,

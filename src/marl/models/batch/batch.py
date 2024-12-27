@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 from functools import cached_property
+from typing import Optional
+
 import torch
 
 
@@ -9,11 +10,13 @@ class Batch(ABC):
     Lazy loaded batch for training.
     """
 
-    def __init__(self, size: int, n_agents: int):
+    def __init__(self, size: int, n_agents: int, device: Optional[torch.device] = None):
         super().__init__()
         self.size = size
         self.n_agents = n_agents
-        self.device = torch.device("cpu")
+        if device is None:
+            device = torch.device("cpu")
+        self.device = device
         self.importance_sampling_weights: Optional[torch.Tensor] = None
 
     def for_individual_learners(self) -> "Batch":
@@ -26,6 +29,46 @@ class Batch(ABC):
     def __len__(self) -> int:
         return self.size
 
+    @abstractmethod
+    def __getitem__(self, key: str) -> torch.Tensor:
+        """Retrieve a dynamic attribute of the batch."""
+
+    def compute_returns(self, gamma: float, next_value: torch.Tensor):
+        returns = torch.empty_like(self.rewards)
+        next_return = next_value
+        for i in range(len(self.rewards), -1, -1):
+            return_t = self.rewards[i] + gamma * next_return
+            returns[i] = return_t
+            next_return = return_t
+        return returns
+
+    def compute_gae(self, values: torch.Tensor, last_next_value: torch.Tensor, gamma: float, gae_lambda: float):
+        """
+        Compute the Generalized Advantage Estimation (GAE).
+
+        Args:
+            values: The values predicted by the critic
+            last_next_value: The value of state after the last one (zero if the episode is done)
+            gamma: The discount factor
+            gae_lambda: The GAE $\\lambda$ hyperparameter
+
+        Paper: https://arxiv.org/pdf/1506.02438
+        """
+        advantages = torch.empty_like(self.rewards)
+        gae = torch.zeros_like(last_next_value)
+        next_value = last_next_value
+        # Iterate backward through rewards to compute GAE
+        for t in range(self.size - 1, -1, -1):
+            delta = self.rewards[t] + gamma * (1 - self.dones[t]) * next_value - values[t]
+            gae = delta + gamma * gae_lambda * (1 - self.dones[t]) * gae
+            advantages[t] = gae
+            next_value = values[t]
+        return advantages
+
+    @abstractmethod
+    def get_minibatch(self, minibatch_size: int) -> "Batch":
+        """Get a random minibatch from the batch."""
+
     @cached_property
     def n_actions(self) -> int:
         """Number of possible actions"""
@@ -33,7 +76,7 @@ class Batch(ABC):
 
     @cached_property
     def reward_size(self) -> int:
-        """Shape of the reward tensor"""
+        """Number of rewards, i.e. the number of objectives"""
         return self.rewards.shape[-1]
 
     @abstractmethod
