@@ -2,7 +2,7 @@ import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Literal
+from typing import Literal
 
 import torch
 from marlenv.models import Observation
@@ -13,12 +13,10 @@ from marl.models.nn import NN, RecurrentNN
 @dataclass
 class Agent[A](ABC):
     name: str
-    n_agents: int
 
-    def __init__(self, n_agents: int):
+    def __init__(self):
         self.name = self.__class__.__name__
         self.device = torch.device("cpu")
-        self.n_agents = n_agents
 
     @cached_property
     def networks(self):
@@ -30,13 +28,26 @@ class Agent[A](ABC):
         """Dynamic list of recurrent neural networks attributes in the agent"""
         return [nn for nn in self.networks if isinstance(nn, RecurrentNN)]
 
+    def seed(self, seed: int):
+        """
+        Seed the algorithm for reproducibility (e.g. during testing).
+
+        Seed `ranom`, `numpy`, and `torch` libraries by default.
+        """
+        import random
+        import numpy as np
+
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the algorithm parameters"""
         for nn in self.networks:
             nn.randomize(method)
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> A | tuple[A, dict[str, Any]]:
+    def choose_action(self, observation: Observation) -> A:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):

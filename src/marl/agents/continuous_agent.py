@@ -2,16 +2,15 @@ from dataclasses import dataclass
 
 import torch
 from marlenv import Observation
-from marl.models.nn import ContinuousActorNN
-
+from marl.models.nn import ContinuousActorCriticNN
 from .agent import Agent
 
 
 @dataclass
 class ContinuousAgent(Agent):
-    actor_network: ContinuousActorNN
+    actor_network: ContinuousActorCriticNN
 
-    def __init__(self, actor_network: ContinuousActorNN):
+    def __init__(self, actor_network: ContinuousActorCriticNN):
         super().__init__()
         self.actor_network = actor_network
 

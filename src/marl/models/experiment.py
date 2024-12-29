@@ -1,4 +1,3 @@
-import orjson
 import os
 import pathlib
 import pickle
@@ -9,16 +8,16 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 import numpy as np
+import orjson
 import torch
-from marlenv.models import MARLEnv, Transition, ActionSpace, Episode
+from marlenv.models import ActionSpace, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DDPG, DQN, PPO, Agent
-from marl.models.nn import MAIC
-from marl.utils import encode_b64_image, stats, default_serialization
-from marl.utils.gpu import get_device
+from marl.agents import DQN, Agent, ContinuousAgent
 from marl.training import NoTrain
+from marl.utils import default_serialization, encode_b64_image, stats
+from marl.utils.gpu import get_device
 
 from .batch import TransitionBatch
 from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
@@ -202,7 +201,9 @@ class Experiment[A, AS: ActionSpace]:
         render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
-        runner = self.create_runner().to(get_device(device, fill_strategy, required_memory_MB))
+        runner = self.create_runner()
+        selected_device = get_device(device, fill_strategy, required_memory_MB)
+        runner = runner.to(selected_device)
         runner.run(
             self.logdir,
             seed=seed,
@@ -242,7 +243,7 @@ class Experiment[A, AS: ActionSpace]:
             with new_run as run_handle:
                 for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
                     self.agent.load(base_run.get_saved_algo_dir(time_step))
-                    runner.test(n_tests, time_step, run_handle=run_handle, quiet=True, render=False)
+                    runner._test_and_log(n_tests, time_step, run_handle=run_handle, quiet=True, render=False)
 
     def create_runner(self):
         return Runner(
@@ -279,88 +280,25 @@ class Experiment[A, AS: ActionSpace]:
         path = pathlib.Path(episode_folder)
         test_num = int(path.name)
         time_step = int(path.parent.name)
-        rundir = path.parent.parent.parent
-        run = Run.load(rundir.as_posix())
-        actions = run.get_test_actions(time_step, test_num)
+        run = Run.load(path.parent.parent.parent.as_posix())
         self.agent.load(run.get_saved_algo_dir(time_step))
-        self.test_env.seed(time_step + test_num)
-        obs, state = self.test_env.reset()
-        frames = [encode_b64_image(self.test_env.get_image())]
-        episode = Episode.new(obs, state)
-        values = []
-        qvalues = []
-        llogits = []
-        pprobs = []
-        messages = []
-        received_messages = []
-        init_qvalues = []
-        self.agent.new_episode()
-        self.agent.set_testing()
-        for action in actions:
-            if isinstance(self.agent, DDPG):
-                logits = self.agent.actions_logits(obs)
-                dist = torch.distributions.Categorical(logits=logits)
-                # probs
-                pprobs.append(dist.probs.unsqueeze(-1).tolist())  # type: ignore
-                # logits
-                logits = self.agent.actions_logits(obs).unsqueeze(-1).tolist()
-                logits = [[[-10] if np.isinf(x) else x for x in y] for y in logits]
-                llogits.append(logits)
+        runner = self.create_runner()
+        seed = runner.get_test_seed(time_step, test_num)
+        episode = runner.test(seed)
+        frames = [encode_b64_image(img) for img in episode.get_images(self.test_env, seed=seed)]
+        replay = ReplayEpisode(episode_folder, episode, frames)
 
-                # state-action value
-                probs = dist.probs.unsqueeze(0)  # type: ignore
-                tensor_state = torch.tensor(state.data).to(self.agent.device, non_blocking=True).unsqueeze(0)
-                value = self.agent.state_action_value(tensor_state, probs)  # type: ignore
-                values.append(value)
-                print(value)
-
-            if isinstance(self.agent, (PPO)):
-                logits = self.agent.actions_logits(obs)
-                dist = torch.distributions.Categorical(logits=logits)
-                # probs
-                pprobs.append(dist.probs.unsqueeze(-1).tolist())  # type: ignore
-
-                # logits
-                llogits.append(self.agent.actions_logits(obs).unsqueeze(-1).tolist())
-
-                # state value
-                value = self.agent.value(obs)
-                print(value)
-
-            else:
-                values.append(self.agent.value(obs))
-
-            step = self.test_env.step(action)
-            episode.add(Transition.from_step(obs, state, np.array(action), step))
-            frames.append(encode_b64_image(self.test_env.get_image()))
-            obs = step.obs
-            state = step.state
-
-        if isinstance(self.agent, DQN):
-            if isinstance(self.agent.qnetwork, MAIC):
-                for transition in episode.transitions():
-                    current_qvalues, gated_messages, received_message, current_init_qvalues = self.agent.qnetwork.get_values_and_comms(
-                        torch.from_numpy(transition.obs.data), torch.from_numpy(transition.obs.extras)
-                    )
-                    qvalues.append(current_qvalues.detach().cpu().tolist())
-                    if gated_messages is not None and len(received_message) > 0:
-                        messages.append(gated_messages.detach().cpu().tolist())
-                        received_messages.append(received_message.detach().cpu().tolist())
-                        init_qvalues.append(current_init_qvalues.detach().cpu().tolist())
-            else:
-                batch = TransitionBatch(list(episode.transitions()))
-                qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
-
-        return ReplayEpisode(
-            directory=episode_folder,
-            episode=episode,
-            qvalues=qvalues,
-            frames=frames,
-            metrics=episode.metrics,
-            state_values=values,
-            probs=pprobs,
-            logits=llogits,
-            messages=messages,
-            received_messages=received_messages,
-            init_qvalues=init_qvalues,
-        )
+        # Add extra data to the replay depending on the algorithm
+        obs = torch.from_numpy(np.array(episode.obs))
+        extras = torch.from_numpy(np.array(episode.extras))
+        actions = torch.from_numpy(np.array(episode.actions))
+        if isinstance(self.agent, ContinuousAgent):
+            dist = self.agent.actor_network.policy(obs, extras)
+            logits = dist.log_prob(actions)
+            replay.logits = logits.tolist()
+            replay.probs = torch.exp(logits).tolist()
+            replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
+        elif isinstance(self.agent, DQN):
+            batch = TransitionBatch(list(episode.transitions()))
+            replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
+        return replay

@@ -204,7 +204,7 @@ class SimpleActorCritic(DiscreteActorCriticNN):
         return SimpleActorCritic(env.observation_shape[0], env.extra_shape[0], env.n_actions)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class CNNContinuousActorCritic(ContinuousActorCriticNN):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
@@ -229,24 +229,37 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         self.value_network = torch.nn.Linear(128, 1)
 
     def _common_forward(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        if len(data.shape) != 4:
-            *dims, channels, height, width = data.shape
-            leading_dims_size = math.prod(dims)
-            data = data.view(leading_dims_size, channels, height, width)
-        features = self.cnn.forward(data)
+        *dims, channels, height, width = data.shape
+        leading_dims_size = math.prod(dims)
+        data = data.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
+        if leading_dims_size > 1:
+            for n, layer in enumerate(self.cnn):
+                data = layer.forward(data)
+                # print(f"CNN layer {n} min={data.min().item()}, max={data.max().item()}, mean={data.mean().item()}")
+            features = data
+        else:
+            features = self.cnn.forward(data)
         features = torch.cat((features, extras), dim=-1)
-        return self.common(features)
+        if leading_dims_size > 1:
+            for n, layer in enumerate(self.common):
+                features = layer.forward(features)
+                # print(f"MLP layer {n} min={features.min().item()}, max={features.max().item()}, mean={features.mean().item()}")
+        else:
+            features = self.common.forward(features)
+        return features.view(*dims, -1)
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
         return self.value_network(x)
 
     def _get_distribution(self, means_stds: torch.Tensor):
-        means = means_stds[:, : self.n_actions]
-        stds = torch.nn.functional.softplus(means_stds[:, self.n_actions :])
-        batch_size = means.shape[0]
-        means = means.view(batch_size, *self.action_output_shape)
-        stds = stds.view(batch_size, *self.action_output_shape)
+        batch_size, n_agents, _ = means_stds.shape
+        means = means_stds[:, :, : self.n_actions]
+        stds = torch.nn.functional.softplus(means_stds[:, :, self.n_actions :])
+        # batch_size = means.shape[0] * means.shape[1]
+        means = means.view(batch_size, n_agents, *self.action_output_shape)
+        stds = stds.view(batch_size, n_agents, *self.action_output_shape)
         return torch.distributions.Normal(means, stds)
 
     def forward(
@@ -255,6 +268,8 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         extras: torch.Tensor,
     ):
         x = self._common_forward(data, extras)
+        if torch.any(torch.isnan(x)):
+            print("NAN")
         values = self.value_network.forward(x)
         means_stds = self.policy_network.forward(x)
         dist = self._get_distribution(means_stds)
@@ -262,6 +277,8 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor):
         x = self._common_forward(obs, extras)
+        if torch.any(torch.isnan(x)):
+            print("NAN")
         means_and_stds = self.policy_network.forward(x)
         return self._get_distribution(means_and_stds)
 

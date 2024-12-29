@@ -7,7 +7,6 @@ from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
 from marl.models.batch import Batch
 from marl.agents import Agent, IRModule
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate
-from marl.utils import defaults_to
 from marl.agents import DQN
 
 from dataclasses import dataclass
@@ -54,13 +53,17 @@ class DQNTrainer[B: Batch](Trainer):
         self.memory = memory  # type: ignore
         self.gamma = gamma
         self.batch_size = batch_size
-        self.target_updater = defaults_to(target_updater, lambda: SoftUpdate(1e-2))
+        if target_updater is None:
+            target_updater = SoftUpdate(1e-2)
+        self.target_updater = target_updater
         self.double_qlearning = double_qlearning
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
         self.update_num = 0
-        self.test_policy = defaults_to(test_policy, lambda: train_policy)
+        if test_policy is None:
+            test_policy = train_policy
+        self.test_policy = test_policy
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping
@@ -152,7 +155,7 @@ class DQNTrainer[B: Batch](Trainer):
         self.optimiser.zero_grad()
         loss.backward()
         if self.grad_norm_clipping is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.qnetwork.parameters(), self.grad_norm_clipping)
+            grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
         return logs, td_error

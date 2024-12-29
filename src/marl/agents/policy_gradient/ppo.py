@@ -82,13 +82,6 @@ class PPO(Agent):
         self.is_training = True
         self.policy = self.train_policy
 
-    def randomize(self):
-        self.network.randomize()
-
-    def to(self, device: torch.device):
-        self.network.to(device)
-        self.device = device
-
     def new_episode(self):
         if self.is_training and self.extra_policy is not None:
             self.episode_counter += 1

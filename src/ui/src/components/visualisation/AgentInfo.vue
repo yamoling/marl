@@ -3,7 +3,8 @@
         <h3> Agent {{ agentNum }}</h3>
         Obs shape = {{ obsShape }}
         <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
-        <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras" />
+        <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
+            :extras-meanings="extrasMeanings" />
         <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
         <h4> Actions & Qvalues </h4>
         <table class="table table-responsive">
@@ -106,24 +107,26 @@ const props = defineProps<{
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
-    return computeShape(props.episode.episode._observations[0][0])
+    return computeShape(props.episode.episode.all_observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
 const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
 
 const obs = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode._observations[props.currentStep][props.agentNum];
+    return props.episode.episode.all_observations[props.currentStep][props.agentNum];
 });
 
 const extras = computed(() => {
     if (props.episode == null) return []
-    return props.episode.episode._extras[props.currentStep][props.agentNum];
+    return props.episode.episode.all_extras[props.currentStep][props.agentNum];
 });
+
+const extrasMeanings = computed(() => props.experiment.env.extras_meanings)
 
 const availableActions = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode._available_actions[props.currentStep][props.agentNum];
+    return props.episode.episode.all_available_actions[props.currentStep][props.agentNum];
 });
 
 const currentQvalues = computed(() => {

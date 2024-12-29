@@ -37,10 +37,10 @@ class DQN(Agent):
         self.test_policy = test_policy
         self.policy = self.train_policy
         if objective_weights is None:
-            self.objective_weights = np.ones(qnetwork.output_shape, dtype=np.float32)
-        self.objective_weights = torch.from_numpy(self.objective_weights)
+            objective_weights = np.ones(qnetwork.output_shape, dtype=np.float32)
+        self.objective_weights = torch.from_numpy(objective_weights)
 
-    def choose_action(self, obs: Observation) -> np.ndarray:
+    def choose_action(self, obs: Observation):
         with torch.no_grad():
             objective_qvalues = self.qnetwork.qvalues(obs)
             # Weight the objectives
@@ -85,6 +85,7 @@ class DQN(Agent):
 
     def to(self, device: torch.device):
         self.qnetwork.to(device)
+        self.objective_weights = self.objective_weights.to(device, non_blocking=True)
 
 
 class RDQN(DQN):

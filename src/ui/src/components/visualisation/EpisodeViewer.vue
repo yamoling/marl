@@ -71,7 +71,7 @@ defineProps<{
 }>();
 
 const nAgents = computed(() => (episode.value?.episode.actions[0].length) || 0);
-const episodeLength = computed(() => episode.value?.metrics.episode_length || 0);
+const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
 const currentFrame = computed(() => episode.value?.frames?.at(currentStep.value) || '');
 
 onMounted(() => {

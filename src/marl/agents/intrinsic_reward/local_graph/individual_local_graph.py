@@ -34,7 +34,7 @@ class IndividualLocalGraphTrainer(Trainer):
         # observations of the episode.
         logs = {}
         agent_states = [[] for _ in range(self.n_agents)]
-        for state in episode._states:
+        for state in episode.all_states:
             for i in range(self.n_agents):
                 agent_state = state[i * self.agent_dims : (i + 1) * self.agent_dims]
                 agent_states[i].append(tuple(agent_state))

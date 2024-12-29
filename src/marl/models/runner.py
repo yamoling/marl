@@ -51,15 +51,12 @@ class Runner[A, AS: ActionSpace]:
         test_interval: int,
         render_tests: bool,
     ):
-        self._env.seed(step_num)
         obs, state = self._env.reset()
         self._algo.new_episode()
-        episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._algo.value(obs)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._algo.value(obs)})
         while not episode.is_finished and step_num < max_step:
-            step_num += 1
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
-                self.test(n_tests, step_num, quiet, run_handle, render_tests)
+                self._test_and_log(n_tests, step_num, quiet, run_handle, render_tests)
             match self._algo.choose_action(obs):
                 case (action, dict(kwargs)):
                     step = self._env.step(action)
@@ -74,6 +71,7 @@ class Runner[A, AS: ActionSpace]:
             episode.add(transition)
             obs = step.obs
             state = step.state
+            step_num += 1
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
@@ -93,19 +91,19 @@ class Runner[A, AS: ActionSpace]:
         import random
         import numpy as np
 
-        # The environment is seeded at each training and testing step for reproducibility
+        # The test environment is seeded at each testing step for reproducibility
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
-        self.randomize()
+        self._algo.randomize()
+        self._trainer.randomize()
+        self._env.seed(seed)
 
         max_step = n_steps
         episode_num = 0
         step = 0
         pbar = tqdm(total=n_steps, desc="Training", unit="Step", leave=True, disable=quiet)
         with Run.create(logdir, seed) as run:
-            if n_tests > 0 and test_interval > 0:
-                self.test(n_tests, 0, quiet, run, render_tests)
             while step < max_step:
                 episode = self._train_episode(
                     step_num=step,
@@ -120,40 +118,57 @@ class Runner[A, AS: ActionSpace]:
                 episode_num += 1
                 step += len(episode)
                 pbar.update(len(episode))
+            # Test the final agent
+            if n_tests > 0 and test_interval > 0:
+                self._test_and_log(n_tests, 0, quiet, run, render_tests)
         pbar.close()
 
-    def test(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle, render: bool):
-        """Test the agent"""
+    def _test_and_log(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle, render: bool):
+        episodes = self.tests(n_tests, time_step, quiet, render)
+        run_handle.log_tests(episodes, self._algo, time_step)
+
+    @staticmethod
+    def get_test_seed(time_step: int, test_num: int):
+        return time_step + test_num
+
+    def test(self, seed: int, render: bool = False):
         self._algo.set_testing()
-        episodes = list[Episode]()
-        for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-            self._test_env.seed(time_step + test_num)
-            obs, state = self._test_env.reset()
-            episode = Episode.new(obs, state)
-            self._algo.new_episode()
-            episode.add_metrics({"initial_value": self._algo.value(obs)})
-            i = 0
-            while not episode.is_finished:
-                i += 1
-                if render:
-                    self._test_env.render()
-                match self._algo.choose_action(obs):
-                    case (action, _):
-                        step = self._test_env.step(action)
-                    case action:
-                        step = self._test_env.step(action)
-                transition = Transition.from_step(obs, state, action, step)
-                episode.add(transition)
-                obs = step.obs
-                state = step.state
+        self._test_env.seed(seed)
+        self._algo.seed(seed)
+        self._algo.new_episode()
+        obs, state = self._test_env.reset()
+        episode = Episode.new(obs, state)
+        episode.add_metrics({"initial_value": self._algo.value(obs)})
+        i = 0
+        while not episode.is_finished:
+            i += 1
             if render:
                 self._test_env.render()
-            episodes.append(episode)
-        run_handle.log_tests(episodes, self._algo, time_step)
+            match self._algo.choose_action(obs):
+                case (action, _):
+                    step = self._test_env.step(action)
+                case action:
+                    step = self._test_env.step(action)
+            transition = Transition.from_step(obs, state, action, step)
+            episode.add(transition)
+            obs = step.obs
+            state = step.state
+        if render:
+            self._test_env.render()
+        return episode
+
+    def tests(self, n_tests: int, time_step: int, quiet: bool = True, render: bool = False):
+        """Test the agent"""
+        self._algo.set_testing()
+        episodes = list[Episode[A]]()
+        for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+            seed = self.get_test_seed(time_step, test_num)
+            episodes.append(self.test(seed, render))
         if not quiet:
             avg_score = np.sum([e.score for e in episodes], axis=0) / n_tests
             print(f"{time_step:9d} Average score: {avg_score}")
         self._algo.set_training()
+        return episodes
 
     def to(self, device: Literal["auto", "cpu"] | int | torch.device):
         match device:
@@ -164,7 +179,3 @@ class Runner[A, AS: ActionSpace]:
         self._algo.to(device)
         self._trainer.to(device)
         return self
-
-    def randomize(self):
-        self._algo.randomize()
-        self._trainer.randomize()
