@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 from marlenv import Episode, Transition, Observation
 from torch import device
-
+from pprint import pprint
 from marl.agents import Haven
 from marl.models.trainer import Trainer
 
@@ -22,8 +22,8 @@ class HavenTrainer(Trainer):
     def update_step(self, transition: Transition, time_step: int):
         logs = dict[str, float]()
         worker_logs = self.worker_trainer.update_step(transition, time_step)
-        # for key, value in worker_logs.items():
-        #     logs[f"worker-{key}"] = value
+        for key, value in worker_logs.items():
+            logs[f"worker-{key}"] = value
         if time_step == 0:
             self.cumulative_reward = transition.reward.copy()
         elif time_step % self.k == 0 or transition.is_terminal:
