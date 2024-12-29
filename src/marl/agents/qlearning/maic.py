@@ -29,7 +29,7 @@ class MAIC(Agent):
     test_policy: Policy
 
     def __init__(self, maic_network: MAICNN, train_policy: Policy, test_policy: Policy, args: MAICParameters):
-        super().__init__(0)
+        super().__init__()
         self.maic_network = maic_network
         self.n_agents = args.n_agents
         self.args = args

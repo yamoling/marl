@@ -1,7 +1,22 @@
-from typing import Optional
+from typing import Optional, Protocol
 from dataclasses import dataclass
 
 from abc import abstractmethod
+
+
+class ArithmeticProtocol[T](Protocol):
+    def __mul__(self, other: T) -> T: ...
+    def __rmul__(self, other: T) -> T: ...
+    def __pow__(self, exp: float) -> T: ...
+    def __rpow__(self, base: T) -> T: ...
+    def __add__(self, other: T) -> T: ...
+    def __radd__(self, other: T) -> T: ...
+    def __sub__(self, other: T) -> T: ...
+    def __rsub__(self, other: T) -> T: ...
+    def __div__(self, other: T) -> T: ...
+    def __rdiv__(self, other: T) -> T: ...
+    def __truediv__(self, other: T) -> T: ...
+    def __rtruediv__(self, other: T) -> T: ...
 
 
 @dataclass(eq=False)
@@ -40,46 +55,46 @@ class Schedule:
         return ExpSchedule(start_value, end_value, n_steps)
 
     # Operator overloading
-    def __mul__(self, other):
+    def __mul__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value * other
 
-    def __rmul__(self, other):
+    def __rmul__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value * other
 
-    def __pow__(self, exp: float) -> float:
+    def __pow__[T: ArithmeticProtocol](self, exp: float) -> float:
         return self.value**exp
 
-    def __rpow__(self, other):
+    def __rpow__[T: ArithmeticProtocol](self, other: T) -> T:
         return other**self.value
 
-    def __add__(self, other):
+    def __add__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value + other
 
-    def __neg__(self) -> float:
+    def __radd__[T: ArithmeticProtocol](self, other: T) -> T:
+        return self.value + other
+
+    def __neg__[T: ArithmeticProtocol](self) -> float:
         return -self.value
 
-    def __pos__(self) -> float:
+    def __pos__[T: ArithmeticProtocol](self) -> float:
         return +self.value
 
-    def __radd__(self, other):
-        return self.value + other
-
-    def __sub__(self, other):
+    def __sub__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value - other
 
-    def __rsub__(self, other):
+    def __rsub__[T: ArithmeticProtocol](self, other: T) -> T:
         return other - self.value
 
-    def __div__(self, other):
+    def __div__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value / other
 
-    def __rdiv__(self, other):
+    def __rdiv__[T: ArithmeticProtocol](self, other: T) -> T:
         return other / self.value
 
-    def __truediv__(self, other):
+    def __truediv__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value / other
 
-    def __rtruediv__(self, other):
+    def __rtruediv__[T: ArithmeticProtocol](self, other: T) -> T:
         return other / self.value
 
     def __lt__(self, other) -> bool:

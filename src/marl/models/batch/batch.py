@@ -42,6 +42,10 @@ class Batch(ABC):
             next_return = return_t
         return returns
 
+    def normalize_rewards(self):
+        """Normalize the rewards of the batch such that they have a mean of 0 and a std of 1."""
+        self.rewards = (self.rewards - self.rewards.mean()) / (self.rewards.std() + 1e-8)
+
     def compute_gae(self, values: torch.Tensor, last_next_value: torch.Tensor, gamma: float, gae_lambda: float):
         """
         Compute the Generalized Advantage Estimation (GAE).
@@ -54,15 +58,17 @@ class Batch(ABC):
 
         Paper: https://arxiv.org/pdf/1506.02438
         """
+        next_values = torch.cat([values[1:], last_next_value.unsqueeze(0)])
+        deltas = self.rewards + gamma * (1 - self.dones) * next_values - values
+
         advantages = torch.empty_like(self.rewards)
         gae = torch.zeros_like(last_next_value)
-        next_value = last_next_value
         # Iterate backward through rewards to compute GAE
         for t in range(self.size - 1, -1, -1):
-            delta = self.rewards[t] + gamma * (1 - self.dones[t]) * next_value - values[t]
-            gae = delta + gamma * gae_lambda * (1 - self.dones[t]) * gae
+            # TD-error
+            # delta = self.rewards[t] + gamma * (1 - self.dones[t]) * next_value - values[t]
+            gae = deltas[t] + gamma * gae_lambda * (1 - self.dones[t]) * gae
             advantages[t] = gae
-            next_value = values[t]
         return advantages
 
     @abstractmethod

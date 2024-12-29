@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ class ContinuousPPOTrainer(Trainer):
     minibatch_size: int
     n_epochs: int
     value_mixer: Mixer
+    grad_norm_clipping: Optional[float]
 
     def __init__(
         self,
@@ -40,6 +41,7 @@ class ContinuousPPOTrainer(Trainer):
         batch_size: int = 2048,
         minibatch_size: int = 64,
         gae_lambda: float = 0.95,
+        grad_norm_clipping: Optional[float] = None,
     ):
         super().__init__("step")
         self.memory = TransitionMemory(batch_size)
@@ -49,7 +51,8 @@ class ContinuousPPOTrainer(Trainer):
         self.gamma = gamma
         self.n_epochs = n_epochs
         self.eps_clip = eps_clip
-        self.optimizer = torch.optim.Adam(list(actor_critic.parameters()) + list(value_mixer.parameters()), lr=lr)
+        self.parameters = list(actor_critic.parameters()) + list(value_mixer.parameters())
+        self.optimizer = torch.optim.Adam(self.parameters, lr=lr)
         if isinstance(critic_c1, (float, int)):
             critic_c1 = Schedule.constant(critic_c1)
         self.c1 = critic_c1
@@ -58,11 +61,12 @@ class ContinuousPPOTrainer(Trainer):
         self.c2 = exploration_c2
         self.value_mixer = value_mixer
         self.gae_lambda = gae_lambda
+        self.grad_norm_clipping = grad_norm_clipping
 
     def network_update(self, time_step: int) -> dict[str, float]:
         # We retrieve the whole memory sequentially (the order matters for GAE)
         batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
-
+        # batch.normalize_rewards()
         with torch.no_grad():
             policy, values = self.actor_critic.forward(batch.obs, batch.extras)
             values = self.value_mixer.forward(values, batch.states)
@@ -70,28 +74,33 @@ class ContinuousPPOTrainer(Trainer):
 
             #  To compute GAEs, we need the value of the state after the last one (if the episode is not done)
             if batch.dones[-1][0] == 1.0:
-                next_value = torch.zeros(1, device=self.device)
+                next_value = torch.zeros_like(batch.rewards[-1], device=self.device)
             else:
                 next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
-            # next_values = self.value_mixer.forward(next_values, batch.states)
-            # next_values = next_values * (1 - batch.dones)
+                next_value = self.value_mixer.forward(next_value, batch.states)
             advantages = batch.compute_gae(values, next_value, self.gamma, self.gae_lambda)
             returns = advantages + values
             # Normalize advantages
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            while advantages.dim() < log_probs.dim():
+                advantages = advantages.unsqueeze(-1)
+            advantages = advantages.expand_as(log_probs)
 
         min_loss = 0.0
         max_loss = 0.0
         total_critic_loss = 0.0
         total_actor_loss = 0.0
+        total_entropy_loss = 0.0
+        total_loss = 0.0
+        total_norm = torch.zeros(1)
         for _ in range(self.n_epochs):
             indices = np.random.choice(self.batch_size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
             mini_log_probs = log_probs[indices]
             mini_returns = returns[indices]
-            mini_advantages = advantages[indices].unsqueeze(-1)
-            policy, values = self.actor_critic.forward(minibatch.obs, minibatch.extras)
+            mini_advantages = advantages[indices]
 
+            policy, values = self.actor_critic.forward(minibatch.obs, minibatch.extras)
             # Can we use the target values from the critic ?
             # target_values = batch.rewards + self.gamma * next_values
             # Use the Monte Carlo estimate of returns as target values
@@ -103,6 +112,8 @@ class ContinuousPPOTrainer(Trainer):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
             new_log_probs = policy.log_prob(minibatch.actions)
             ratio = torch.exp(new_log_probs - mini_log_probs)
+            if torch.any(ratio > 10):
+                print()
             surrogate_loss1 = mini_advantages * ratio
             surrogate_loss2 = mini_advantages * torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip)
             # Minus because we want to maximize the objective
@@ -112,22 +123,38 @@ class ContinuousPPOTrainer(Trainer):
             entropy_loss = policy.entropy().mean()
 
             self.optimizer.zero_grad()
-            # Equation (9) in the paper (inverted because we minimize the objective)
+            # Equation (9) in the paper
             loss = actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
-            loss.backward()
+            if self.grad_norm_clipping is not None:
+                total_norm += torch.nn.utils.clip_grad_norm_(self.parameters, 10.0)
             self.optimizer.step()
             total_actor_loss += actor_loss.item()
             total_critic_loss += critic_loss.item()
+            # total_entropy_loss += entropy_loss.item()
+            total_loss += loss.item()
             min_loss = min(min_loss, loss.item())
             max_loss = max(max_loss, loss.item())
 
         self.memory.clear()
+
         logs = {
             "avg_actor_loss": total_actor_loss / self.n_epochs,
             "avg_critic_loss": total_critic_loss / self.n_epochs,
+            "avg_entropy_loss": total_entropy_loss / self.n_epochs,
+            "avg_loss": total_loss / self.n_epochs,
             "min_loss": min_loss,
             "max_loss": max_loss,
         }
+        # for layer, p in enumerate(self.actor_critic.policy_parameters):
+        #     logs[f"Policy layer {layer} min"] = p.data.min().item()
+        #     logs[f"Policy layer {layer} max"] = p.data.max().item()
+        #     logs[f"Policy layer {layer} mean"] = p.data.mean().item()
+        # for layer, p in enumerate(self.actor_critic.value_parameters):
+        #     logs[f"Value layer {layer} min"] = p.data.min().item()
+        #     logs[f"Value layer {layer} max"] = p.data.max().item()
+        #     logs[f"Value layer {layer} mean"] = p.data.mean().item()
+        if self.grad_norm_clipping is not None:
+            logs["total_grad_norm"] = total_norm.item()
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:

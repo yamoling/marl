@@ -7,6 +7,7 @@ from .mixers import VDN, QMix, Qatten, QPlex
 from .mcts import MCTS
 from .hierarchical import Haven
 from .continuous_agent import ContinuousAgent
+from .discrete_agent import DiscreteAgent
 
 from . import intrinsic_reward
 from . import mixers
@@ -31,4 +32,5 @@ __all__ = [
     "MCTS",
     "Haven",
     "ContinuousAgent",
+    "DiscreteAgent",
 ]

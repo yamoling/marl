@@ -12,7 +12,8 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
             return JSON.parse(saved) as Settings;
         }
         return {
-            selectedMetrics: []
+            selectedMetrics: [],
+            extrasViewMode: "colour"
         };
     }
 
@@ -22,6 +23,11 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
 
     function getSelectedMetrics() {
         return settings.value.selectedMetrics;
+    }
+
+    function clearSelectedMetrics() {
+        settings.value.selectedMetrics = [];
+        saveSettingsToLocalStorage();
     }
 
     function addSelectedMetric(metric: string) {
@@ -34,10 +40,22 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
         saveSettingsToLocalStorage();
     }
 
+    function setExtrasViewMode(mode: "table" | "colour") {
+        settings.value.extrasViewMode = mode;
+        saveSettingsToLocalStorage();
+    }
+
+    function getExtraViewMode() {
+        console.log(settings.value.extrasViewMode);
+        return settings.value.extrasViewMode;
+    }
 
     return {
+        clearSelectedMetrics,
         getSelectedMetrics,
         addSelectedMetric,
-        removeSelectedMetric
+        removeSelectedMetric,
+        setExtrasViewMode,
+        getExtraViewMode
     };
 });

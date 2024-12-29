@@ -1,17 +1,23 @@
-from . import app, state
-from flask import request
+import json
 from http import HTTPStatus
-import orjson
+
 import cv2
+import orjson
+from flask import request
+
 import marl
 from marl.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
+
+from . import app, state
 
 
 @app.route("/experiment/replay/<path:path>")
 def replay(path: str):
     try:
-        return orjson.dumps(state.replay_episode(path)), HTTPStatus.OK
+        replay_episode = state.replay_episode(path)
+        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY)
+        return serialized, HTTPStatus.OK
     except ValueError as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 

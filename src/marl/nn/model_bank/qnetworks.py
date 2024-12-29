@@ -150,6 +150,7 @@ class AtariCNN(QNetwork):
         return qvalues.view(batch_size, n_agents, -1)
 
 
+@dataclass(unsafe_hash=True)
 class CNN(QNetwork):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are

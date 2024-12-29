@@ -5,6 +5,7 @@ export interface Env {
     observation_shape: number[]
     state_shape: number[]
     extra_feature_shape: number[]
+    extras_meanings: string[]
     action_space: {
         action_names: string[]
     }
