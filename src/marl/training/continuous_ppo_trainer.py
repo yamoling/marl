@@ -66,7 +66,7 @@ class ContinuousPPOTrainer(Trainer):
     def network_update(self, time_step: int) -> dict[str, float]:
         # We retrieve the whole memory sequentially (the order matters for GAE)
         batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
-        # batch.normalize_rewards()
+        batch.normalize_rewards()
         with torch.no_grad():
             policy, values = self.actor_critic.forward(batch.obs, batch.extras)
             values = self.value_mixer.forward(values, batch.states)
@@ -125,12 +125,13 @@ class ContinuousPPOTrainer(Trainer):
             self.optimizer.zero_grad()
             # Equation (9) in the paper
             loss = actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
+            loss.backward()
             if self.grad_norm_clipping is not None:
                 total_norm += torch.nn.utils.clip_grad_norm_(self.parameters, 10.0)
             self.optimizer.step()
             total_actor_loss += actor_loss.item()
             total_critic_loss += critic_loss.item()
-            # total_entropy_loss += entropy_loss.item()
+            total_entropy_loss += entropy_loss.item()
             total_loss += loss.item()
             min_loss = min(min_loss, loss.item())
             max_loss = max(max_loss, loss.item())
@@ -145,14 +146,6 @@ class ContinuousPPOTrainer(Trainer):
             "min_loss": min_loss,
             "max_loss": max_loss,
         }
-        # for layer, p in enumerate(self.actor_critic.policy_parameters):
-        #     logs[f"Policy layer {layer} min"] = p.data.min().item()
-        #     logs[f"Policy layer {layer} max"] = p.data.max().item()
-        #     logs[f"Policy layer {layer} mean"] = p.data.mean().item()
-        # for layer, p in enumerate(self.actor_critic.value_parameters):
-        #     logs[f"Value layer {layer} min"] = p.data.min().item()
-        #     logs[f"Value layer {layer} max"] = p.data.max().item()
-        #     logs[f"Value layer {layer} mean"] = p.data.mean().item()
         if self.grad_norm_clipping is not None:
             logs["total_grad_norm"] = total_norm.item()
         return logs

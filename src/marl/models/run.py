@@ -111,9 +111,11 @@ class Run:
     def training_data(self, delta_x: int):
         try:
             df = pl.read_csv(self.training_data_filename)
+            # Make sure we are working with numerical values
+            df = stats.ensure_numerical(df, drop_non_numeric=True)
             if delta_x != 0:
                 df = stats.round_col(df, TIME_STEP_COL, delta_x)
-                df = df.group_by(TIME_STEP_COL).mean()
+                df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
             return df
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()

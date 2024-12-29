@@ -1,11 +1,32 @@
+from typing import Any
 import marl
 from lle import LLE
 import marlenv
+from marlenv import DiscreteActionSpace
 from marl.training import DQNTrainer, SoftUpdate
 from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
 from marl.training.haven_trainer import HavenTrainer
 from marl.agents import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+
+
+def make_vdn_agent(env: marlenv.MARLEnv[Any, DiscreteActionSpace], gamma: float):
+    return DQNTrainer(
+        qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
+        train_policy=marl.policy.EpsilonGreedy.linear(
+            1.0,
+            0.05,
+            n_steps=200_000,
+        ),
+        memory=marl.models.TransitionMemory(50_000),
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        train_interval=(5, "step"),
+        gamma=gamma,
+        mixer=marl.agents.VDN.from_env(env),
+        grad_norm_clipping=10.0,
+    )
 
 
 def main_ppo_haven():
@@ -36,23 +57,7 @@ def main_ppo_haven():
         lr=5e-4,
     )
     env = marlenv.Builder(meta_env).agent_id().pad("extra", N_SUBGOALS).build()
-
-    dqn_trainer = DQNTrainer(
-        qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
-        train_policy=marl.policy.EpsilonGreedy.linear(
-            1.0,
-            0.05,
-            n_steps=200_000,
-        ),
-        memory=marl.models.TransitionMemory(50_000),
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        train_interval=(5, "step"),
-        gamma=gamma,
-        mixer=marl.agents.VDN.from_env(env),
-        grad_norm_clipping=10,
-    )
+    dqn_trainer = make_vdn_agent(env, gamma)
 
     meta_trainer = HavenTrainer(
         meta_trainer=meta_ppo,
@@ -139,6 +144,28 @@ def main_dqn_haven():
     exp.run()
 
 
+def main_vdn():
+    n_steps = 1_000_000
+    test_interval = 5000
+    gamma = 0.95
+
+    lle = LLE.level(6).obs_type("layered").build()
+    width = lle.width
+    height = lle.height
+    env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
+
+    dqn_trainer = make_vdn_agent(env, gamma)
+    exp = marl.Experiment.create(
+        env=env,
+        n_steps=n_steps,
+        trainer=dqn_trainer,
+        test_interval=test_interval,
+        test_env=None,
+        logdir="logs/tests-vdn",
+    )
+    exp.run()
+
+
 def main_lunar_lander_continuous():
     import gymnasium as gym
     from marlenv.adapters import Gym
@@ -170,5 +197,6 @@ def main_lunar_lander_continuous():
 
 
 if __name__ == "__main__":
-    # main_ppo_haven()
-    main_lunar_lander_continuous()
+    main_ppo_haven()
+    # main_vdn()
+    # main_lunar_lander_continuous()
