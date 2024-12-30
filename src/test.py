@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 import marl
 from lle import LLE
 import marlenv
@@ -8,15 +8,71 @@ from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
 from marl.training.haven_trainer import HavenTrainer
 from marl.agents import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.utils import MultiSchedule, Schedule
 
 
-def make_vdn_agent(env: marlenv.MARLEnv[Any, DiscreteActionSpace], gamma: float):
-    return DQNTrainer(
+def make_haven(agent_type: Literal["dqn", "ppo"]):
+    n_steps = 1_000_000
+    test_interval = 5000
+    WARMUP_STEPS = 200_000
+    gamma = 0.95
+    N_SUBGOALS = 16
+    K = 4
+
+    lle = LLE.level(6).obs_type("layered").build()
+    width = lle.width
+    height = lle.height
+    meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
+    match agent_type:
+        case "ppo":
+            meta_agent = ContinuousPPOTrainer(
+                actor_critic=CNNContinuousActorCritic(
+                    input_shape=meta_env.observation_shape,
+                    n_extras=meta_env.extra_shape[0],
+                    action_output_shape=(N_SUBGOALS,),
+                ),
+                batch_size=1024,
+                minibatch_size=64,
+                n_epochs=32,
+                value_mixer=VDN.from_env(meta_env),
+                gamma=gamma,
+                lr=5e-4,
+            )
+        case "dqn":
+            meta_agent = DQNTrainer(
+                qnetwork=marl.nn.model_bank.qnetworks.CNN(
+                    input_shape=meta_env.observation_shape,
+                    extras_size=meta_env.extra_shape[0],
+                    output_shape=(N_SUBGOALS,),
+                ),
+                train_policy=marl.policy.EpsilonGreedy(
+                    # Epsilon is 1 in the first 200k steps, then decays linearly to 0.05
+                    MultiSchedule(
+                        {
+                            0: Schedule.constant(1.0),
+                            WARMUP_STEPS: Schedule.linear(1.0, 0.05, 200_000),
+                        }
+                    )
+                ),
+                memory=marl.models.TransitionMemory(5_000),
+                double_qlearning=True,
+                target_updater=SoftUpdate(0.01),
+                lr=5e-4,
+                train_interval=(1, "step"),
+                gamma=gamma,
+                mixer=marl.agents.VDN.from_env(meta_env),
+                grad_norm_clipping=10.0,
+            )
+        case other:
+            raise ValueError(f"Invalid agent type: {other}")
+
+    env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
+    dqn_trainer = DQNTrainer(
         qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
             0.05,
-            n_steps=200_000,
+            n_steps=WARMUP_STEPS,
         ),
         memory=marl.models.TransitionMemory(50_000),
         double_qlearning=True,
@@ -28,109 +84,15 @@ def make_vdn_agent(env: marlenv.MARLEnv[Any, DiscreteActionSpace], gamma: float)
         grad_norm_clipping=10.0,
     )
 
-
-def main_ppo_haven():
-    n_steps = 1_000_000
-    test_interval = 5000
-    gamma = 0.95
-    N_SUBGOALS = 16
-    K = 4
-
-    lle = LLE.level(6).obs_type("layered").build()
-    width = lle.width
-    height = lle.height
-    meta_env = marlenv.Builder(lle).time_limit(width * height // 2).build()
-    meta_ppo = ContinuousPPOTrainer(
-        actor_critic=CNNContinuousActorCritic(
-            input_shape=meta_env.observation_shape,
-            n_extras=meta_env.extra_shape[0],
-            action_output_shape=(
-                meta_env.n_agents,
-                N_SUBGOALS,
-            ),
-        ),
-        batch_size=1024,
-        minibatch_size=64,
-        n_epochs=32,
-        value_mixer=VDN.from_env(meta_env),
-        gamma=gamma,
-        lr=5e-4,
-    )
-    env = marlenv.Builder(meta_env).agent_id().pad("extra", N_SUBGOALS).build()
-    dqn_trainer = make_vdn_agent(env, gamma)
-
     meta_trainer = HavenTrainer(
-        meta_trainer=meta_ppo,
+        meta_trainer=meta_agent,
         worker_trainer=dqn_trainer,
-        k=K,
         n_subgoals=N_SUBGOALS,
+        n_workers=env.n_agents,
+        k=K,
         n_meta_extras=meta_env.extra_shape[0],
         n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
-    )
-
-    exp = marl.Experiment.create(
-        env=env,
-        n_steps=n_steps,
-        trainer=meta_trainer,
-        test_interval=test_interval,
-        test_env=None,
-        logdir="logs/tests",
-    )
-    exp.run()
-
-
-def main_dqn_haven():
-    n_steps = 1_000_000
-    test_interval = 5000
-    gamma = 0.95
-    N_SUBGOALS = 16
-    K = 4
-
-    lle = LLE.level(6).obs_type("layered").build()
-    width = lle.width
-    height = lle.height
-    meta_env = marlenv.Builder(lle).time_limit(width * height // 2).build()
-    meta_ppo = ContinuousPPOTrainer(
-        actor_critic=CNNContinuousActorCritic(
-            input_shape=meta_env.observation_shape,
-            n_extras=meta_env.extra_shape[0],
-            action_output_shape=(
-                meta_env.n_agents,
-                N_SUBGOALS,
-            ),
-        ),
-        batch_size=256,
-        minibatch_size=64,
-        value_mixer=VDN.from_env(meta_env),
-        gamma=gamma,
-        lr=5e-4,
-    )
-    env = marlenv.Builder(meta_env).agent_id().pad("extra", N_SUBGOALS).build()
-
-    dqn_trainer = DQNTrainer(
-        qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
-        train_policy=marl.policy.EpsilonGreedy.linear(
-            1.0,
-            0.05,
-            n_steps=200_000,
-        ),
-        memory=marl.models.TransitionMemory(50_000),
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        train_interval=(5, "step"),
-        gamma=gamma,
-        mixer=marl.agents.VDN.from_env(env),
-        grad_norm_clipping=10,
-    )
-
-    meta_trainer = HavenTrainer(
-        meta_trainer=meta_ppo,
-        worker_trainer=dqn_trainer,
-        k=K,
-        n_subgoals=N_SUBGOALS,
-        n_meta_extras=meta_env.extra_shape[0],
-        n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
+        n_warmup_steps=WARMUP_STEPS,
     )
 
     exp = marl.Experiment.create(
@@ -196,7 +158,35 @@ def main_lunar_lander_continuous():
     )
 
 
+def main_cartpole_vdn():
+    import gymnasium as gym
+    from marlenv.adapters import Gym
+    from marl.policy import EpsilonGreedy
+
+    env = Gym(gym.make("CartPole-v1", render_mode="rgb_array"))
+
+    trainer = DQNTrainer(
+        marl.nn.model_bank.MLP.from_env(env),
+        EpsilonGreedy.linear(1.0, 0.05, 10_000),
+        marl.models.TransitionMemory(10_000),
+        mixer=VDN.from_env(env),  # type: ignore
+        lr=1e-3,
+    )
+    exp = marl.Experiment.create(
+        env,
+        1_000_000,
+        trainer=trainer,
+        test_interval=2500,
+        logdir="logs/debug",
+    )
+    exp.run(
+        render_tests=False,
+        n_tests=5,
+    )
+
+
 if __name__ == "__main__":
-    main_ppo_haven()
+    main_cartpole_vdn()
+    # make_haven("dqn")
     # main_vdn()
     # main_lunar_lander_continuous()

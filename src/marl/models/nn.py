@@ -96,8 +96,14 @@ class QNetwork(NN):
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
-        self.action_dim = -2
-        """The action dimention when predicting qvalues. The value is -1 for single objective RL and -2 for multi-objective RL."""
+        match output_shape:
+            case (_,):
+                self.action_dim = -1
+                """The action dimention when predicting qvalues. The value is -1 for single objective RL and -2 for multi-objective RL."""
+            case (_, _):
+                self.action_dim = -2
+            case other:
+                raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
         extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
@@ -107,15 +113,10 @@ class QNetwork(NN):
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
         Compute the Q-values (one per agent, per action and per objective).
-
-        The resulting shape is
-         - for multi-objective (n_agents, n_actions, n_objectives)
-         - for single-objective (n_agents, n_actions)
         """
         obs_tensor, extra_tensor = self.to_tensor(obs)
-        objective_qvalues = self.forward(obs_tensor, extra_tensor)
-        objective_qvalues = objective_qvalues.squeeze(0)
-        return objective_qvalues
+        qvalues = self.forward(obs_tensor, extra_tensor)
+        return qvalues.squeeze(0)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function (maximal q-value of each agent)."""
@@ -142,7 +143,10 @@ class QNetwork(NN):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
-        output_shape = (env.n_actions, env.reward_space.size)
+        if env.reward_space.size == 1:
+            output_shape = (env.n_actions,)
+        else:
+            output_shape = (env.n_actions, env.reward_space.size)
         return cls(
             input_shape=env.observation_shape,
             extras_shape=env.extra_shape,

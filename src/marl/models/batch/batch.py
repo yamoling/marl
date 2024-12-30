@@ -83,6 +83,8 @@ class Batch(ABC):
     @cached_property
     def reward_size(self) -> int:
         """Number of rewards, i.e. the number of objectives"""
+        if self.rewards.dim() == 1:
+            return 1
         return self.rewards.shape[-1]
 
     @abstractmethod

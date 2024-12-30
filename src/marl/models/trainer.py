@@ -2,7 +2,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Literal, Any
 from typing_extensions import Self
-from marlenv import Transition, Episode
+from marlenv import Transition, Episode, ActionSpace
 from marl.models import NN
 from marl.agents import Agent
 

@@ -175,7 +175,10 @@ class CNN(QNetwork):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
-        output_shape = (env.n_actions, env.reward_space.size)
+        if env.reward_space.size == 1:
+            output_shape = (env.n_actions,)
+        else:
+            output_shape = (env.n_actions, env.reward_space.size)
         return cls(env.observation_shape, env.extra_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:

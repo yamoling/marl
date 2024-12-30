@@ -65,16 +65,23 @@ class TransitionBatch(Batch):
         torch_actions = torch.from_numpy(np_actions).to(self.device)
         if self.is_discrete:
             torch_actions = torch_actions.unsqueeze(-1)
-            torch_actions = torch_actions.unsqueeze(-1).repeat(*(1 for _ in torch_actions.shape), self.reward_size)
+            # torch_actions = torch_actions.unsqueeze(-1).repeat(*(1 for _ in torch_actions.shape), self.reward_size)
         return torch_actions
 
     @cached_property
     def rewards(self):
-        return torch.from_numpy(np.array([t.reward for t in self.transitions], dtype=np.float32)).to(self.device)
+        rewards = np.array([t.reward for t in self.transitions], dtype=np.float32)
+        rewards = torch.from_numpy(rewards).to(self.device)
+        # If the reward has only one dimension, we squeeze it
+        return rewards.squeeze(-1)
 
     @cached_property
     def dones(self):
-        return torch.from_numpy(np.array([[t.done] * self.reward_size for t in self.transitions], dtype=np.float32)).to(self.device)
+        dones = np.array([t.done * self.reward_size for t in self.transitions], dtype=np.float32)
+        dones = torch.from_numpy(dones).to(self.device)
+        if self.reward_size > 1:
+            dones = dones.unsqueeze(-1).expand_as(self.rewards)
+        return dones
 
     @cached_property
     def available_actions(self):
@@ -102,6 +109,8 @@ class TransitionBatch(Batch):
 
     @cached_property
     def masks(self):
+        if self.reward_size == 1:
+            return torch.ones(self.size).to(self.device)
         return torch.ones(self.size, self.reward_size).to(self.device)
 
     @cached_property

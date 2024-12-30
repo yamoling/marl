@@ -1,5 +1,4 @@
 import torch
-from functools import cached_property
 from typing import Any, Literal, Optional
 from copy import deepcopy
 from marlenv import Transition, Episode
@@ -79,10 +78,6 @@ class DQNTrainer[B: Batch](Trainer):
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
-    @cached_property
-    def action_dim(self):
-        return self.qnetwork.action_dim
-
     def _update(self, time_step: int):
         self.update_num += 1
         if self.update_num % self.step_update_interval != 0 or not self._can_update():
@@ -108,7 +103,7 @@ class DQNTrainer[B: Batch](Trainer):
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
-        qvalues_for_index = torch.sum(qvalues_for_index, -1)
+        # qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         if self.qnetwork.is_multi_objective:

@@ -112,8 +112,6 @@ class ContinuousPPOTrainer(Trainer):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
             new_log_probs = policy.log_prob(minibatch.actions)
             ratio = torch.exp(new_log_probs - mini_log_probs)
-            if torch.any(ratio > 10):
-                print()
             surrogate_loss1 = mini_advantages * ratio
             surrogate_loss2 = mini_advantages * torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip)
             # Minus because we want to maximize the objective
