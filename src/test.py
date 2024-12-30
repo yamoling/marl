@@ -13,7 +13,7 @@ from marl.utils import MultiSchedule, Schedule
 def make_haven(agent_type: Literal["dqn", "ppo"]):
     n_steps = 2_000_000
     test_interval = 5000
-    WARMUP_STEPS = 200_000
+    WARMUP_STEPS = 1
     gamma = 0.95
     N_SUBGOALS = 16
     K = 4
@@ -100,9 +100,9 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
         trainer=meta_trainer,
         test_interval=test_interval,
         test_env=None,
-        logdir=f"logs/haven-no-ir-{agent_type}",
+        # logdir=f"logs/haven-no-ir-{agent_type}",
     )
-    # exp.run()
+    exp.run()
 
 
 def main_lunar_lander_continuous():
@@ -164,7 +164,7 @@ def main_cartpole_vdn():
 
 if __name__ == "__main__":
     # main_cartpole_vdn()
-    make_haven("dqn")
+    # make_haven("dqn")
     make_haven("ppo")
     # main_vdn()
     # main_lunar_lander_continuous()

@@ -73,11 +73,9 @@ class ContinuousPPOTrainer(Trainer):
             log_probs = policy.log_prob(batch.actions)
 
             #  To compute GAEs, we need the value of the state after the last one (if the episode is not done)
-            if batch.dones[-1][0] == 1.0:
-                next_value = torch.zeros_like(batch.rewards[-1], device=self.device)
-            else:
-                next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
-                next_value = self.value_mixer.forward(next_value, batch.states)
+            next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
+            next_value = self.value_mixer.forward(next_value, batch.states)
+            next_value = next_value * (1 - batch.dones[-1])
             advantages = batch.compute_gae(values, next_value, self.gamma, self.gae_lambda)
             returns = advantages + values
             # Normalize advantages
