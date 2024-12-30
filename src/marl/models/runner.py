@@ -7,7 +7,7 @@ from tqdm import tqdm
 from marl.agents import Agent
 from marl.models.run import Run, RunHandle
 from marl.utils import get_device
-from marl.agents.random_algo import RandomAgent
+from marl.agents.random_agent import RandomAgent
 from marl.models.trainer import Trainer
 from marl.training import NoTrain
 

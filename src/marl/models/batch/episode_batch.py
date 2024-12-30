@@ -65,7 +65,7 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(obs).transpose(1, 0).to(self.device)
 
     @cached_property
-    def all_next_obs(self):
+    def all_obs(self):
         all_obs_ = np.array([e.all_observations for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(all_obs_).transpose(1, 0).to(self.device)
 
@@ -80,7 +80,7 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(extras_).transpose(1, 0).to(self.device)
 
     @cached_property
-    def all_next_extras(self):
+    def all_extras(self):
         all_extras_ = np.array([e.all_extras for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(all_extras_).transpose(1, 0).to(self.device)
 

@@ -233,25 +233,15 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         leading_dims_size = math.prod(dims)
         data = data.view(leading_dims_size, channels, height, width)
         extras = extras.view(leading_dims_size, *self.extras_shape)
-        if leading_dims_size > 1:
-            for n, layer in enumerate(self.cnn):
-                data = layer.forward(data)
-                # print(f"CNN layer {n} min={data.min().item()}, max={data.max().item()}, mean={data.mean().item()}")
-            features = data
-        else:
-            features = self.cnn.forward(data)
+        features = self.cnn.forward(data)
         features = torch.cat((features, extras), dim=-1)
-        if leading_dims_size > 1:
-            for n, layer in enumerate(self.common):
-                features = layer.forward(features)
-                # print(f"MLP layer {n} min={features.min().item()}, max={features.max().item()}, mean={features.mean().item()}")
-        else:
-            features = self.common.forward(features)
+        features = self.common.forward(features)
         return features.view(*dims, -1)
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
-        return self.value_network(x)
+        values = self.value_network.forward(x)
+        return values.squeeze(-1)
 
     def _get_distribution(self, means_stds: torch.Tensor):
         batch_size, n_agents, _ = means_stds.shape
@@ -268,17 +258,13 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         extras: torch.Tensor,
     ):
         x = self._common_forward(data, extras)
-        if torch.any(torch.isnan(x)):
-            print("NAN")
         values = self.value_network.forward(x)
         means_stds = self.policy_network.forward(x)
         dist = self._get_distribution(means_stds)
-        return dist, values
+        return dist, values.squeeze(-1)
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor):
         x = self._common_forward(obs, extras)
-        if torch.any(torch.isnan(x)):
-            print("NAN")
         means_and_stds = self.policy_network.forward(x)
         return self._get_distribution(means_and_stds)
 
@@ -317,7 +303,8 @@ class MLPContinuousActorCritic(ContinuousActorCriticNN):
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         data = torch.concat((data, extras), dim=-1)
-        return self.critic.forward(data)
+        values = self.critic.forward(data)
+        return torch.squeeze(values, -1)
 
     def _get_distribution(self, means_stds: torch.Tensor):
         means = means_stds[:, :, : self.n_actions]
@@ -336,7 +323,7 @@ class MLPContinuousActorCritic(ContinuousActorCriticNN):
         values = self.critic.forward(x)
         means_stds = self.actor.forward(x)
         dist = self._get_distribution(means_stds)
-        return dist, values
+        return dist, torch.squeeze(values, -1)
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor):
         x = torch.concat((obs, extras), dim=-1)

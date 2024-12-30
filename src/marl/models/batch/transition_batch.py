@@ -30,13 +30,7 @@ class TransitionBatch(Batch):
         items = np.array([t[key] for t in self.transitions])
         return torch.from_numpy(items).to(self.device)
 
-    @overload
-    def get_minibatch(self, minibatch_size: int) -> Batch: ...
-
-    @overload
-    def get_minibatch(self, indices: Iterable[int]) -> Batch: ...
-
-    def get_minibatch(self, indices_or_size) -> Batch:  # type: ignore
+    def get_minibatch(self, indices_or_size):
         if isinstance(indices_or_size, int):
             indices = np.random.choice(self.size, indices_or_size)
         else:
