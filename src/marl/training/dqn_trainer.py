@@ -1,5 +1,4 @@
 import torch
-from functools import cached_property
 from typing import Any, Literal, Optional
 from copy import deepcopy
 from marlenv import Transition, Episode
@@ -79,10 +78,6 @@ class DQNTrainer[B: Batch](Trainer):
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
-    @cached_property
-    def action_dim(self):
-        return self.qnetwork.action_dim
-
     def _update(self, time_step: int):
         self.update_num += 1
         if self.update_num % self.step_update_interval != 0 or not self._can_update():
@@ -108,12 +103,12 @@ class DQNTrainer[B: Batch](Trainer):
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
-        qvalues_for_index = torch.sum(qvalues_for_index, -1)
+        # qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         # Multi-objective
-        indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
-        next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
+        # indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
+        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
             next_values = self.target_mixer.forward(
                 next_values,
@@ -133,7 +128,7 @@ class DQNTrainer[B: Batch](Trainer):
 
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions).squeeze(self.action_dim)
+        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
 

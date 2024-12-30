@@ -1,11 +1,10 @@
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Optional
 
-import numpy as np
 import torch
-from marlenv.models import Observation
+from marlenv import Observation
 
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 
@@ -27,7 +26,6 @@ class DQN(Agent):
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
-        objective_weights: Optional[np.ndarray] = None,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -36,16 +34,10 @@ class DQN(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
-        if objective_weights is None:
-            objective_weights = np.ones(qnetwork.output_shape, dtype=np.float32)
-        self.objective_weights = torch.from_numpy(objective_weights)
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
-            objective_qvalues = self.qnetwork.qvalues(obs)
-            # Weight the objectives
-            weighted_qvalues = objective_qvalues * self.objective_weights
-            qvalues = torch.sum(weighted_qvalues, dim=-1)
+            qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
         return self.policy.get_action(qvalues, obs.available_actions)
 
@@ -79,13 +71,6 @@ class DQN(Agent):
             self.train_policy = pickle.load(f)
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        self.qnetwork.randomize(method)
-
-    def to(self, device: torch.device):
-        self.qnetwork.to(device)
-        self.objective_weights = self.objective_weights.to(device, non_blocking=True)
 
 
 class RDQN(DQN):
