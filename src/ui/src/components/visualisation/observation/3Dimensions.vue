@@ -11,7 +11,7 @@
         </table>
 
         <h3> Extras </h3>
-        <table v-if="settingsStore.getExtraViewMode() == 'table'" class="table table-responsive">
+        <!-- <table v-if="settingsStore.getExtraViewMode() == 'table'" class="table table-responsive">
             <tbody>
                 <tr>
                     <th :colspan="extras.length" style="background-color: whitesmoke;">Extras</th>
@@ -20,28 +20,28 @@
                     <td class="extras" style="background-color: whitesmoke" v-for="e in extras"> {{ e.toFixed(3) }}</td>
                 </tr>
             </tbody>
+        </table> -->
+        <!-- <template v-else-if="settingsStore.getExtraViewMode() == 'colour'"> -->
+        Min value: {{ Math.min(...extras).toFixed(3) }} <br>
+        Max value: {{ Math.max(...extras).toFixed(3) }}
+        <table class="m-1">
+            <tbody>
+                <template v-for="row in rows">
+                    <tr v-if="row.showMeanings">
+                        <td v-for="meaning in row.meanings()" class="grid-item">
+                            {{ meaning }}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td v-for="extra in row.values()" class="grid-item"
+                            :style="{ backgroundColor: `#${rainbow.colourAt(extra)}` }">
+                            {{ extra.toFixed(3) }}
+                        </td>
+                    </tr>
+                </template>
+            </tbody>
         </table>
-        <template v-else-if="settingsStore.getExtraViewMode() == 'colour'">
-            Min value: {{ Math.min(...extras).toFixed(3) }} <br>
-            Max value: {{ Math.max(...extras).toFixed(3) }}
-            <table class="m-1">
-                <tbody>
-                    <template v-for="row in rows">
-                        <tr v-if="row.showMeanings">
-                            <td v-for="meaning in row.meanings()" class="grid-item">
-                                {{ meaning }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td v-for="extra in row.values()" class="grid-item"
-                                :style="{ backgroundColor: `#${rainbow.colourAt(extra)}` }">
-                                {{ extra.toFixed(3) }}
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </template>
+        <!-- </template> -->
     </div>
 </template>
 
