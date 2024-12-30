@@ -284,7 +284,9 @@ class Experiment[A, AS: ActionSpace]:
         self.agent.load(run.get_saved_algo_dir(time_step))
         runner = self.create_runner()
         seed = runner.get_test_seed(time_step, test_num)
-        episode = runner.test(seed)
+        actions = run.get_test_actions(time_step, test_num)
+        episode = self.test_env.replay(actions, seed=seed)  # type: ignore
+        # episode = runner.test(seed)
         frames = [encode_b64_image(img) for img in episode.get_images(self.test_env, seed=seed)]
         replay = ReplayEpisode(episode_folder, episode, frames)
 

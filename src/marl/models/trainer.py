@@ -1,9 +1,9 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Literal, Any
 from typing_extensions import Self
-from marlenv import Transition, Episode, ActionSpace
-from marl.models import NN
+from marlenv import Transition, Episode
+from marl.models import NN, Batch
 from marl.agents import Agent
 
 import torch
@@ -44,6 +44,14 @@ class Trainer[A](ABC):
             dict[str, Any]: A dictionary of training metrics to log.
         """
         return {}
+
+    def values(self, batch: Batch) -> torch.Tensor:
+        """Compute the value of the batch."""
+        raise NotImplementedError("Trainer did not implement the value method")
+
+    def next_values(self, batch: Batch) -> torch.Tensor:
+        """Compute the value of the next batch."""
+        raise NotImplementedError("Trainer did not implement the next_values method")
 
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""

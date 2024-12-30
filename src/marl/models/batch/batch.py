@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Optional
+from typing import Iterable, Optional, overload
 
 import torch
 
@@ -46,34 +46,30 @@ class Batch(ABC):
         """Normalize the rewards of the batch such that they have a mean of 0 and a std of 1."""
         self.rewards = (self.rewards - self.rewards.mean()) / (self.rewards.std() + 1e-8)
 
-    def compute_gae(self, values: torch.Tensor, last_next_value: torch.Tensor, gamma: float, gae_lambda: float):
+    def compute_gae(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, gae_lambda: float):
         """
         Compute the Generalized Advantage Estimation (GAE).
 
-        Args:
-            values: The values predicted by the critic
-            last_next_value: The value of state after the last one (zero if the episode is done)
-            gamma: The discount factor
-            gae_lambda: The GAE $\\lambda$ hyperparameter
-
         Paper: https://arxiv.org/pdf/1506.02438
         """
-        next_values = torch.cat([values[1:], last_next_value.unsqueeze(0)])
-        deltas = self.rewards + gamma * (1 - self.dones) * next_values - values
-
+        deltas = self.rewards + gamma * next_values - values
         advantages = torch.empty_like(self.rewards)
-        gae = torch.zeros_like(last_next_value)
+        gae = 0.0
         # Iterate backward through rewards to compute GAE
         for t in range(self.size - 1, -1, -1):
-            # TD-error
-            # delta = self.rewards[t] + gamma * (1 - self.dones[t]) * next_value - values[t]
             gae = deltas[t] + gamma * gae_lambda * (1 - self.dones[t]) * gae
             advantages[t] = gae
         return advantages
 
+    @overload
+    def get_minibatch(self, minibatch_size: int) -> "Batch": ...
+
+    @overload
+    def get_minibatch(self, indices: Iterable[int]) -> "Batch": ...
+
     @abstractmethod
-    def get_minibatch(self, minibatch_size: int) -> "Batch":
-        """Get a random minibatch from the batch."""
+    def get_minibatch(self, arg) -> "Batch":  # type: ignore
+        ...
 
     @cached_property
     def n_actions(self) -> int:
@@ -100,7 +96,7 @@ class Batch(ABC):
         return one_hot
 
     @cached_property
-    def all_next_obs(self) -> torch.Tensor:
+    def all_obs(self) -> torch.Tensor:
         """
         The first observation of the batch followed by the
         next observations of the batch.
@@ -111,10 +107,16 @@ class Batch(ABC):
         return torch.cat([first_obs, self.next_obs])
 
     @cached_property
-    def all_next_extras(self) -> torch.Tensor:
+    def all_extras(self) -> torch.Tensor:
         """All extra information from t=0 (reset) up to the end."""
         first_extras = self.extras[0].unsqueeze(0)
         return torch.cat([first_extras, self.next_extras])
+
+    @cached_property
+    def all_states(self) -> torch.Tensor:
+        """All environment states from t=0 (reset) up to the end."""
+        first_states = self.states[0].unsqueeze(0)
+        return torch.cat([first_states, self.next_states])
 
     @abstractmethod  # type: ignore
     @cached_property
@@ -135,6 +137,16 @@ class Batch(ABC):
     @cached_property
     def next_extras(self) -> torch.Tensor:
         """Next extra information"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def states_extras(self) -> torch.Tensor:
+        """State extra information"""
+
+    @abstractmethod  # type: ignore
+    @cached_property
+    def next_states_extras(self) -> torch.Tensor:
+        """Next state extra information"""
 
     @abstractmethod  # type: ignore
     @cached_property

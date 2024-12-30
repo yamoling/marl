@@ -63,13 +63,13 @@ class Run:
         except FileNotFoundError:
             raise TestEnvNotSavedException()
 
-    def get_test_actions(self, time_step: int, test_num: int) -> list[list[int]]:
+    def get_test_actions(self, time_step: int, test_num: int) -> list:
         test_directory = self.test_dir(time_step, test_num)
         actions_file = os.path.join(test_directory, ACTIONS)
         with open(actions_file, "r") as f:
             return orjson.loads(f.read())
 
-    def get_train_actions(self, time_step: int) -> list[list[int]]:
+    def get_train_actions(self, time_step: int) -> list:
         train_directory = self.train_dir(time_step)
         actions_file = os.path.join(train_directory, ACTIONS)
         with open(actions_file, "r") as f:

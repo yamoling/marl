@@ -1,6 +1,5 @@
 from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC
 from .dru import DRU
-from .updatable import Updatable
 from .policy import Policy
 from .batch import Batch
 from .replay_memory import (
@@ -24,7 +23,6 @@ __all__ = [
     "MAICNN",
     "MAIC",
     "DRU",
-    "Updatable",
     "Policy",
     "Batch",
     "ReplayMemory",

@@ -1,13 +1,12 @@
 from dataclasses import dataclass
 from abc import abstractmethod
-from marl.models import Updatable
 from typing import Iterable
 
 import torch
 
 
 @dataclass
-class TargetParametersUpdater(Updatable):
+class TargetParametersUpdater:
     name: str
 
     def __init__(self):
@@ -59,4 +58,4 @@ class SoftUpdate(TargetParametersUpdater):
         for param, target in zip(self.parameters, self.target_params):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
-        return {"tau": self.tau}
+        return {}

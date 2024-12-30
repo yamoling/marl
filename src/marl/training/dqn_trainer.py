@@ -1,16 +1,17 @@
-import torch
-from typing import Any, Literal, Optional
 from copy import deepcopy
-from marlenv import Transition, Episode
-from marl.models import QNetwork, Mixer, ReplayMemory, Policy, PrioritizedMemory
-from marl.models.batch import Batch
-from marl.agents import Agent, IRModule
-from .qtarget_updater import TargetParametersUpdater, SoftUpdate
-from marl.agents import DQN
-
 from dataclasses import dataclass
+from typing import Any, Literal, Optional
 
+import torch
+from marlenv import Episode, Transition
+
+from marl.agents import DQN, Agent
+from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory
+from marl.models.batch import Batch
 from marl.models.trainer import Trainer
+
+from .intrinsic_reward import IRModule
+from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass
@@ -80,26 +81,24 @@ class DQNTrainer[B: Batch](Trainer):
 
     def _update(self, time_step: int):
         self.update_num += 1
-        if self.update_num % self.step_update_interval != 0 or not self._can_update():
+        if self.update_num % self.step_update_interval != 0:
             return {}
-        logs, td_error = self.optimise_qnetwork()
+        if not self.memory.can_sample(self.batch_size):
+            return {}
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+        logs = self.train(batch)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
-        if isinstance(self.memory, PrioritizedMemory):
-            logs = logs | self.memory.update(td_error)
         if self.ir_module is not None:
             logs = logs | self.ir_module.update(time_step)
         return logs
 
-    def _can_update(self):
-        return self.memory.can_sample(self.batch_size)
-
-    def _next_state_value(self, batch: Batch):
+    def next_values(self, batch: Batch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues = self.qtarget.batch_forward(batch.all_next_obs, batch.all_next_extras)[1:]
+        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.all_next_obs, batch.all_next_extras)[1:]
+            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
@@ -118,14 +117,11 @@ class DQNTrainer[B: Batch](Trainer):
             )
         return next_values
 
-    def optimise_qnetwork(self):
-        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+    def train(self, batch: Batch) -> dict[str, Any]:
         if self.mixer is None:
             batch = batch.for_individual_learners()
-        # batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
-
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
@@ -133,7 +129,7 @@ class DQNTrainer[B: Batch](Trainer):
             qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
 
         # Qtargets computation
-        next_values = self._next_state_value(batch)
+        next_values = self.next_values(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == qvalues.shape == batch.masks.shape
         qtargets = batch.rewards + self.gamma * next_values * (1 - batch.dones)
         # Compute the loss
@@ -153,7 +149,9 @@ class DQNTrainer[B: Batch](Trainer):
             grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
-        return logs, td_error
+        if isinstance(self.memory, PrioritizedMemory):
+            logs = logs | self.memory.update(td_error)
+        return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         if self.memory.update_on_transitions:

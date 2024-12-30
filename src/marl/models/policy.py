@@ -1,11 +1,10 @@
 from abc import abstractmethod
 import numpy as np
 from dataclasses import dataclass
-from .updatable import Updatable
 
 
 @dataclass
-class Policy(Updatable):
+class Policy:
     """
     A policy takes decides which action to take given an input.
     """
@@ -21,3 +20,7 @@ class Policy(Updatable):
         Choose an action based on the given qvalues and avalable actions.
         Returns the chosen action.
         """
+
+    @abstractmethod
+    def update(self, time_step: int) -> dict[str, float]:
+        """Update the object and return the corresponding logs."""

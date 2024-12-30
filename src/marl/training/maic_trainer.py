@@ -78,11 +78,11 @@ class MAICTrainer(Trainer):
 
     def _next_state_value(self, batch: EpisodeBatch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_next_obs, batch.all_next_extras)
+        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_obs, batch.all_extras)
         next_qvalues = next_qvalues[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_next_obs, batch.all_next_extras)
+            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_obs, batch.all_extras)
             qvalues_for_index = qvalues_for_index[1:]
         else:
             qvalues_for_index = next_qvalues

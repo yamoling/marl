@@ -6,7 +6,8 @@ import torch
 from marlenv import Transition
 
 from marl.agents import Agent, ContinuousAgent
-from marl.models import Mixer, TransitionMemory
+from marl.models import Mixer
+from marl.models.batch import Batch, TransitionBatch
 from marl.models.nn import ContinuousActorCriticNN
 from marl.models.trainer import Trainer
 from marl.utils import Schedule
@@ -22,7 +23,6 @@ class ContinuousPPOTrainer(Trainer):
     gae_lambda: float
     gamma: float
     lr: float
-    memory: TransitionMemory
     minibatch_size: int
     n_epochs: int
     value_mixer: Mixer
@@ -44,7 +44,7 @@ class ContinuousPPOTrainer(Trainer):
         grad_norm_clipping: Optional[float] = None,
     ):
         super().__init__("step")
-        self.memory = TransitionMemory(batch_size)
+        self.memory = []
         self.batch_size = batch_size
         self.minibatch_size = minibatch_size
         self.actor_critic = actor_critic
@@ -63,21 +63,17 @@ class ContinuousPPOTrainer(Trainer):
         self.gae_lambda = gae_lambda
         self.grad_norm_clipping = grad_norm_clipping
 
-    def network_update(self, time_step: int) -> dict[str, float]:
-        # We retrieve the whole memory sequentially (the order matters for GAE)
-        batch = self.memory.get_batch(range(self.batch_size)).to(self.device)
+    def train(self, batch: Batch) -> dict[str, float]:
         batch.normalize_rewards()
         with torch.no_grad():
             policy, values = self.actor_critic.forward(batch.obs, batch.extras)
-            values = self.value_mixer.forward(values, batch.states)
             log_probs = policy.log_prob(batch.actions)
+            values = self.value_mixer.forward(values, batch.states)
+            next_values = self.next_values(batch)
 
             #  To compute GAEs, we need the value of the state after the last one (if the episode is not done)
-            next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
-            next_value = self.value_mixer.forward(next_value, batch.states)
-            next_value = next_value * (1 - batch.dones[-1])
-            advantages = batch.compute_gae(values, next_value, self.gamma, self.gae_lambda)
-            returns = advantages + values
+            advantages = batch.compute_gae(values, next_values, self.gamma, self.gae_lambda)
+            returns = advantages + next_values
             # Normalize advantages
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
             while advantages.dim() < log_probs.dim():
@@ -104,11 +100,13 @@ class ContinuousPPOTrainer(Trainer):
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
             values = self.value_mixer.forward(values, minibatch.states)
+            assert values.shape == mini_returns.shape
             critic_loss = torch.nn.functional.mse_loss(values, mini_returns)
 
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
             new_log_probs = policy.log_prob(minibatch.actions)
+            assert new_log_probs.shape == mini_log_probs.shape == mini_advantages.shape
             ratio = torch.exp(new_log_probs - mini_log_probs)
             surrogate_loss1 = mini_advantages * ratio
             surrogate_loss2 = mini_advantages * torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip)
@@ -147,10 +145,19 @@ class ContinuousPPOTrainer(Trainer):
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        self.memory.add(transition)
-        if self.memory.can_sample(self.batch_size):
-            return self.network_update(time_step)
+        self.memory.append(transition)
+        if len(self.memory) == self.batch_size:
+            batch = TransitionBatch(self.memory).to(self.device)
+            logs = self.train(batch)
+            self.memory.clear()
+            return logs
         return {}
 
     def make_agent(self) -> Agent:
         return ContinuousAgent(self.actor_critic)
+
+    def next_values(self, batch: Batch) -> torch.Tensor:
+        next_values = self.actor_critic.value(batch.next_obs, batch.next_extras)
+        next_values = self.value_mixer.forward(next_values, batch.next_states)
+        next_values = next_values * (1 - batch.dones)
+        return next_values

@@ -3,11 +3,11 @@ from typing_extensions import Self
 import torch
 from dataclasses import dataclass
 
-from marl.models import Batch, Updatable
+from marl.models import Batch
 
 
 @dataclass
-class IRModule(Updatable):
+class IRModule:
     """Intrinsic Reward Module: a class that adds intrinsic rewards."""
 
     name: str
@@ -18,6 +18,10 @@ class IRModule(Updatable):
     @abstractmethod
     def compute(self, batch: Batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
+
+    def update(self, time_step: int) -> dict[str, float]:
+        """Update the Intrinsic Reward Module."""
+        return {}
 
     def save(self, to_directory: str):
         """Save the IR Module to the given path."""

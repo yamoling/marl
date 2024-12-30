@@ -3,9 +3,10 @@ import marl
 from lle import LLE
 import marlenv
 from marl.training import DQNTrainer, SoftUpdate
+from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
 from marl.training.haven_trainer import HavenTrainer
-from marl.agents import VDN
+from marl.training.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl.utils import MultiSchedule, Schedule
 
@@ -18,7 +19,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
     N_SUBGOALS = 16
     K = 4
 
-    lle = LLE.level(6).obs_type("layered").build()
+    lle = LLE.level(6).obs_type("layered").state_type("layered").build()
     width = lle.width
     height = lle.height
     meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
@@ -59,11 +60,19 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
                 lr=5e-4,
                 train_interval=(1, "step"),
                 gamma=gamma,
-                mixer=marl.agents.VDN.from_env(meta_env),
+                mixer=VDN.from_env(meta_env),
                 grad_norm_clipping=10.0,
             )
         case other:
             raise ValueError(f"Invalid agent type: {other}")
+
+    # TODO: use a simpler network without the actor part
+    value_network = marl.nn.model_bank.actor_critics.CNNContinuousActorCritic(
+        input_shape=meta_env.state_shape,
+        n_extras=meta_env.state_extra_shape[0],
+        action_output_shape=(1,),
+    )
+    ir_module = AdvantageIntrinsicReward(value_network, gamma)
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     dqn_trainer = DQNTrainer(
@@ -79,19 +88,23 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
         lr=5e-4,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.agents.VDN.from_env(env),
+        mixer=VDN.from_env(env),
         grad_norm_clipping=10.0,
+        ir_module=ir_module,
     )
 
     meta_trainer = HavenTrainer(
         meta_trainer=meta_agent,
+        value_network=value_network,
         worker_trainer=dqn_trainer,
         n_subgoals=N_SUBGOALS,
         n_workers=env.n_agents,
         k=K,
         n_meta_extras=meta_env.extra_shape[0],
         n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
-        n_warmup_steps=WARMUP_STEPS,
+        n_meta_warmup_steps=WARMUP_STEPS,
+        gamma=gamma,
+        value_mixer=VDN.from_env(env),
     )
 
     exp = marl.Experiment.create(
