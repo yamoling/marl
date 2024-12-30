@@ -181,6 +181,7 @@ class ExpSchedule(Schedule):
         return self.current_value
 
 
+@dataclass
 class ConstantSchedule(Schedule):
     def __init__(self, value: float):
         super().__init__(value, value)
@@ -194,6 +195,7 @@ class ConstantSchedule(Schedule):
         return self._value
 
 
+@dataclass
 class RoundedSchedule(Schedule):
     def __init__(self, schedule: Schedule, n_digits: int):
         self.schedule = schedule
@@ -208,6 +210,7 @@ class RoundedSchedule(Schedule):
         return round(self.schedule.value, self.n_digits)
 
 
+@dataclass
 class MultiSchedule(Schedule):
     def __init__(self, schedules: dict[int, Schedule]):
         first_schedule = schedules.get(0, None)

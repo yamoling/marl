@@ -1,8 +1,7 @@
-from typing import Any, Literal
+from typing import Literal
 import marl
 from lle import LLE
 import marlenv
-from marlenv import DiscreteActionSpace
 from marl.training import DQNTrainer, SoftUpdate
 from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
 from marl.training.haven_trainer import HavenTrainer
@@ -12,7 +11,7 @@ from marl.utils import MultiSchedule, Schedule
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"]):
-    n_steps = 1_000_000
+    n_steps = 2_000_000
     test_interval = 5000
     WARMUP_STEPS = 200_000
     gamma = 0.95
@@ -101,31 +100,9 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
         trainer=meta_trainer,
         test_interval=test_interval,
         test_env=None,
-        logdir="logs/tests",
+        logdir=f"logs/haven-no-ir-{agent_type}",
     )
-    exp.run()
-
-
-def main_vdn():
-    n_steps = 1_000_000
-    test_interval = 5000
-    gamma = 0.95
-
-    lle = LLE.level(6).obs_type("layered").build()
-    width = lle.width
-    height = lle.height
-    env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
-
-    dqn_trainer = make_vdn_agent(env, gamma)
-    exp = marl.Experiment.create(
-        env=env,
-        n_steps=n_steps,
-        trainer=dqn_trainer,
-        test_interval=test_interval,
-        test_env=None,
-        logdir="logs/tests-vdn",
-    )
-    exp.run()
+    # exp.run()
 
 
 def main_lunar_lander_continuous():
@@ -186,7 +163,8 @@ def main_cartpole_vdn():
 
 
 if __name__ == "__main__":
-    main_cartpole_vdn()
-    # make_haven("dqn")
+    # main_cartpole_vdn()
+    make_haven("dqn")
+    make_haven("ppo")
     # main_vdn()
     # main_lunar_lander_continuous()
