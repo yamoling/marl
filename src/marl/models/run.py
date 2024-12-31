@@ -241,15 +241,20 @@ class RunHandle:
         self.training_data_logger = training_data_logger
         self.run = run
 
-    def log_tests(self, episodes: list[Episode], algo: Agent, time_step: int):
-        algo.save(self.run.test_dir(time_step))
+    def log_tests(self, episodes: list[Episode], time_step: int):
         for i, episode in enumerate(episodes):
             episode_directory = self.run.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
-            os.makedirs(episode_directory)
+            if os.path.exists(episode_directory):
+                print(f"Warning: episode directory {episode_directory} already exists ! Overwriting...")
+            else:
+                os.makedirs(episode_directory)
             with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
                 bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
                 f.write(bytes_data)
+
+    def save_agent(self, agent: Agent, time_step: int):
+        agent.save(self.run.get_saved_algo_dir(time_step))
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)

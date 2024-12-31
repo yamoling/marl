@@ -1,26 +1,26 @@
 from copy import deepcopy
+from pprint import pprint
 from typing import Literal, Optional
-from marlenv import Episode, MARLEnv, Transition, ActionSpace
-import torch
+
 import numpy as np
+import torch
+from marlenv import ActionSpace, Episode, MARLEnv, Transition
 from tqdm import tqdm
-from marl.agents import Agent
-from marl.models.run import Run, RunHandle
-from marl.utils import get_device
-from marl.agents.random_agent import RandomAgent
-from marl.models.trainer import Trainer
-from marl.training import NoTrain
-
-
 from typing_extensions import TypeVar
 
+from marl.agents import Agent
+from marl.agents.random_agent import RandomAgent
+from marl.models.run import Run, RunHandle
+from marl.models.trainer import Trainer
+from marl.training import NoTrain
+from marl.utils import get_device
 
 A = TypeVar("A", bound=ActionSpace)
 
 
 class Runner[A, AS: ActionSpace]:
     _env: MARLEnv[A, AS]
-    _algo: Agent
+    _agent: Agent
     _trainer: Trainer
     _test_env: MARLEnv[A, AS]
 
@@ -35,7 +35,7 @@ class Runner[A, AS: ActionSpace]:
         self._env = env
         if agent is None:
             agent = RandomAgent(env)
-        self._algo = agent  #  or RandomAlgo(env)
+        self._agent = agent  #  or RandomAlgo(env)
         if test_env is None:
             test_env = deepcopy(env)
         self._test_env = test_env
@@ -52,12 +52,12 @@ class Runner[A, AS: ActionSpace]:
         render_tests: bool,
     ):
         obs, state = self._env.reset()
-        self._algo.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._algo.value(obs)})
+        self._agent.new_episode()
+        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs)})
         while not episode.is_finished and step_num < max_step:
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
                 self._test_and_log(n_tests, step_num, quiet, run_handle, render_tests)
-            match self._algo.choose_action(obs):
+            match self._agent.choose_action(obs):
                 case (action, dict(kwargs)):
                     step = self._env.step(action)
                 case action:
@@ -87,15 +87,15 @@ class Runner[A, AS: ActionSpace]:
         render_tests: bool = False,
     ):
         """Start the training loop"""
-        import torch
         import random
-        import numpy as np
+
+        import torch
 
         # The test environment is seeded at each testing step for reproducibility
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
-        self._algo.randomize()
+        self._agent.randomize()
         self._trainer.randomize()
         self._env.seed(seed)
 
@@ -124,27 +124,35 @@ class Runner[A, AS: ActionSpace]:
         pbar.close()
 
     def _test_and_log(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle, render: bool):
+        run_handle.save_agent(self._agent, time_step)
         episodes = self.tests(n_tests, time_step, quiet, render)
-        run_handle.log_tests(episodes, self._algo, time_step)
+        run_handle.log_tests(episodes, time_step)
+        self._agent.set_training()
 
     @staticmethod
     def get_test_seed(time_step: int, test_num: int):
         return time_step + test_num
 
-    def test(self, seed: int, render: bool = False):
-        self._algo.set_testing()
-        self._test_env.seed(seed)
-        self._algo.seed(seed)
-        self._algo.new_episode()
+    def perform_one_test(self, seed: Optional[int] = None, render: bool = False):
+        """
+        Perform a single test episode.
+
+        The test can be seeded for reproducibility purposes, for instance when the policy or the environment is stochastic.
+        """
+        self._agent.set_testing()
+        if seed is not None:
+            self._test_env.seed(seed)
+            self._agent.seed(seed)
+        self._agent.new_episode()
         obs, state = self._test_env.reset()
         episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._algo.value(obs)})
+        episode.add_metrics({"initial_value": self._agent.value(obs)})
         i = 0
         while not episode.is_finished:
             i += 1
             if render:
                 self._test_env.render()
-            match self._algo.choose_action(obs):
+            match self._agent.choose_action(obs):
                 case (action, _):
                     step = self._test_env.step(action)
                 case action:
@@ -159,15 +167,14 @@ class Runner[A, AS: ActionSpace]:
 
     def tests(self, n_tests: int, time_step: int, quiet: bool = True, render: bool = False):
         """Test the agent"""
-        self._algo.set_testing()
         episodes = list[Episode[A]]()
         for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             seed = self.get_test_seed(time_step, test_num)
-            episodes.append(self.test(seed, render))
+            episodes.append(self.perform_one_test(seed, render))
         if not quiet:
-            avg_score = np.sum([e.score for e in episodes], axis=0) / n_tests
-            print(f"{time_step:9d} Average score: {avg_score}")
-        self._algo.set_training()
+            metrics = episodes[0].metrics.keys()
+            avg_metrics = {m: sum([e.metrics[m] for e in episodes])/n_tests for m in metrics}
+            pprint(avg_metrics)
         return episodes
 
     def to(self, device: Literal["auto", "cpu"] | int | torch.device):
@@ -176,6 +183,6 @@ class Runner[A, AS: ActionSpace]:
                 device = get_device(device)
             case int():
                 device = torch.device(device)
-        self._algo.to(device)
+        self._agent.to(device)
         self._trainer.to(device)
         return self

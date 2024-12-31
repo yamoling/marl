@@ -11,7 +11,7 @@ from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl.utils import MultiSchedule, Schedule
 
 
-def make_haven(agent_type: Literal["dqn", "ppo"]):
+def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     n_steps = 2_000_000
     test_interval = 5000
     WARMUP_STEPS = 1
@@ -72,7 +72,10 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
         n_extras=meta_env.state_extra_shape[0],
         action_output_shape=(1,),
     )
-    ir_module = AdvantageIntrinsicReward(value_network, gamma)
+    if ir:
+        ir_module = AdvantageIntrinsicReward(value_network, gamma)
+    else:
+        ir_module = None
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     dqn_trainer = DQNTrainer(
@@ -113,9 +116,9 @@ def make_haven(agent_type: Literal["dqn", "ppo"]):
         trainer=meta_trainer,
         test_interval=test_interval,
         test_env=None,
-        # logdir=f"logs/haven-no-ir-{agent_type}",
+        logdir=f"logs/haven-{agent_type}{'-ir' if ir else ''}",
     )
-    exp.run()
+    # exp.run()
 
 
 def main_lunar_lander_continuous():
@@ -177,7 +180,9 @@ def main_cartpole_vdn():
 
 if __name__ == "__main__":
     # main_cartpole_vdn()
-    # make_haven("dqn")
-    make_haven("ppo")
+    make_haven("dqn", True)
+    make_haven("ppo", True)
+    make_haven("dqn", False)
+    make_haven("ppo", False)
     # main_vdn()
     # main_lunar_lander_continuous()
