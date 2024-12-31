@@ -23,16 +23,9 @@
             <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
                 @view-episode="viewer.viewEpisode" />
             <div v-show="plotOrTable == 'plot'">
-                <Plotter :datasets="datasets" title="All runs" :showLegend="false"
-                    @episode-selected="onEpisodeSelected" />
-                <div>
-                    <template v-for="ds in datasets">
-                        <div>
-                            <input type="color" :value="colourStore.get(ds.logdir)">
-                            <label>{{ ds.logdir.split("/").at(-1) }}</label>
-                        </div>
-                    </template>
-                </div>
+                <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
+                <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets" :title="metric"
+                    :showLegend="false" @episode-selected="onEpisodeSelected" />
             </div>
         </div>
     </div>
@@ -50,7 +43,7 @@ import { useResultsStore } from '../../stores/ResultsStore';
 import { DQN } from '../../models/Agent';
 import EnvironmentParams from './EnvironmentParams.vue';
 import Plotter from '../charts/Plotter.vue';
-import { useColourStore } from '../../stores/ColourStore';
+import SettingsPanel from '../home/SettingsPanel.vue';
 
 const experiment = ref(null as Experiment | null);
 const viewer = ref({} as typeof EpisodeViewer);
@@ -58,9 +51,23 @@ const results = ref(null as ExperimentResults | null);
 const experimentStore = useExperimentStore()
 const plotOrTable = ref("table" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
+const metrics = ref(new Set<string>());
+const selectedMetrics = ref([] as string[]);
 const datasets = ref([] as Dataset[]);
-const colourStore = useColourStore();
+const datasetByMetric = ref(new Map<string, Dataset[]>());
 
+
+function updateDatasets(newSelectedMetrics: string[]) {
+    selectedMetrics.value = newSelectedMetrics;
+    const newDatasets = datasets.value.filter(d => selectedMetrics.value.includes(d.label));
+    datasetByMetric.value = new Map<string, Dataset[]>();
+    newDatasets.forEach(d => {
+        if (!datasetByMetric.value.has(d.label)) {
+            datasetByMetric.value.set(d.label, []);
+        }
+        datasetByMetric.value.get(d.label)?.push(d);
+    });
+}
 
 function onEpisodeSelected(datasetIndex: number, xIndex: number) {
     const run = runResults.value[datasetIndex];
@@ -84,9 +91,14 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    const trainDatasets = runResults.value.map(r => r.datasets).flat().filter(d => d.label == "score [test]");
-    trainDatasets.forEach((ds, i) => ds.logdir = runResults.value[i].logdir)
-    datasets.value = trainDatasets.sort((a, b) => a.logdir.localeCompare(b.logdir));
+    metrics.value = runResults.value.reduce((acc, r) => {
+        r.datasets.forEach(d => acc.add(d.label));
+        return acc;
+    }, new Set<string>());
+    datasets.value = runResults.value.map(r => {
+        r.datasets.forEach(d => d.logdir = r.logdir);
+        return r.datasets;
+    }).flat().sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
 
 </script>

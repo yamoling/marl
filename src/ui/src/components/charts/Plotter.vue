@@ -13,7 +13,7 @@
                     <font-awesome-icon :icon="['fas', 'gear']" />
                     Options
                 </button>
-                <button class="btn btn-light" @click="chart.resetZoom">
+                <button class="btn btn-light" @click="() => chart.resetZoom()">
                     <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
                     Reset zoom
                 </button>
