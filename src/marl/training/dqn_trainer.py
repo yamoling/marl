@@ -50,7 +50,7 @@ class DQNTrainer[B: Batch](Trainer):
         self.qtarget = deepcopy(qnetwork)
         self.device = qnetwork.device
         self.policy = train_policy
-        self.memory = memory  # type: ignore
+        self.memory = memory
         self.gamma = gamma
         self.batch_size = batch_size
         if target_updater is None:
@@ -89,8 +89,6 @@ class DQNTrainer[B: Batch](Trainer):
         logs = self.train(batch)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
-        if self.ir_module is not None:
-            logs = logs | self.ir_module.update(time_step)
         return logs
 
     def next_values(self, batch: Batch):
@@ -101,12 +99,8 @@ class DQNTrainer[B: Batch](Trainer):
             qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
-        # Sum over the objectives
-        # qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        # Multi-objective
-        # indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
             next_values = self.target_mixer.forward(
@@ -154,17 +148,23 @@ class DQNTrainer[B: Batch](Trainer):
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
+        logs = {}
+        if self.ir_module is not None:
+            logs = logs | self.ir_module.update_step(transition, time_step)
         if self.memory.update_on_transitions:
-            self.memory.add(transition)  # type: ignore
+            self.memory.add(transition)
         if not self.update_on_steps:
-            return {}
+            return logs
         return self._update(time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
+        logs = {}
+        if self.ir_module is not None:
+            logs = logs | self.ir_module.update_episode(episode, time_step)
         if self.memory.update_on_episodes:
-            self.memory.add(episode)  # type: ignore
+            self.memory.add(episode)
         if not self.update_on_episodes:
-            return {}
+            return logs
         return self._update(time_step)
 
     def make_agent(self) -> Agent:
@@ -173,3 +173,13 @@ class DQNTrainer[B: Batch](Trainer):
             train_policy=self.policy,
             test_policy=self.test_policy,
         )
+
+    def to(self, device: torch.device):
+        if self.ir_module is not None:
+            self.ir_module.to(device)
+        return super().to(device)
+
+    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
+        super().randomize(method)
+        if self.ir_module is not None:
+            self.ir_module.randomize(method)

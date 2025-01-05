@@ -323,7 +323,7 @@ class MAIC(ABC):
         """Compute the Q-values and return Q-values and Computed messages"""
 
 
-class MAICNN(NN):
+class MAICNN(QNetwork):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
         super().__init__(input_shape, extras_shape, output_shape)
         self.hidden_states: Optional[torch.Tensor] = None

@@ -1,7 +1,9 @@
 from abc import abstractmethod
+from typing import Literal
 from typing_extensions import Self
 import torch
 from dataclasses import dataclass
+from marlenv import Transition, Episode
 
 from marl.models import Batch
 
@@ -19,7 +21,11 @@ class IRModule:
     def compute(self, batch: Batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
 
-    def update(self, time_step: int) -> dict[str, float]:
+    def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
+        """Update the Intrinsic Reward Module."""
+        return {}
+
+    def update_episode(self, episode: Episode, time_step: int) -> dict[str, float]:
         """Update the Intrinsic Reward Module."""
         return {}
 
@@ -35,6 +41,6 @@ class IRModule:
         """Move the IR Module to the given device."""
         raise NotImplementedError()
 
-    def randomize(self):
+    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the Intrinsic Reward Module."""
         raise NotImplementedError()

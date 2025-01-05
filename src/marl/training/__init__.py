@@ -1,3 +1,5 @@
+from .mixers import VDN, Qatten, QMix, QPlex
+from .intrinsic_reward import IRModule, RandomNetworkDistillation
 from .no_train import NoTrain
 from .multi_trainer import MultiTrainer
 from .dqn_trainer import DQNTrainer
@@ -6,8 +8,6 @@ from .maic_trainer import MAICTrainer
 from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 from .ppo_trainer import PPOTrainer
 from .ddpg_trainer import DDPGTrainer
-from .mixers import VDN, Qatten, QMix, QPlex
-from .intrinsic_reward import IRModule, RandomNetworkDistillation
 
 
 __all__ = [

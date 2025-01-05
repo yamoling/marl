@@ -12,7 +12,7 @@ from marlenv import ActionSpace, Observation, DiscreteActionSpace
 from marlenv.models import MARLEnv
 
 from marl.agents.qlearning.maic import MAICParameters
-from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork
+from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork, MAICNN
 from ..utils import make_cnn
 
 
@@ -432,7 +432,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
 
 
-class MAICNetworkCNN(QNetwork):
+class MAICNetworkCNN(MAICNN):
     """
     Source : https://github.com/mansicer/MAIC
     """

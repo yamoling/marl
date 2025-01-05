@@ -4,11 +4,10 @@ from typing import Literal
 
 import numpy as np
 import torch
-from marlenv import Episode, Transition
+from marlenv import Transition
 from torch import device
 
 from marl.agents import Haven
-from marl.models.nn import CriticNN, Mixer
 from marl.models.trainer import Trainer
 from marl.models import TransitionMemory
 
@@ -18,8 +17,6 @@ class HavenTrainer(Trainer):
     def __init__(
         self,
         meta_trainer: Trainer,
-        value_network: CriticNN,
-        value_mixer: Mixer,
         worker_trainer: Trainer,
         n_workers: int,
         n_subgoals: int,
@@ -28,14 +25,11 @@ class HavenTrainer(Trainer):
         n_agent_extras: int,
         n_meta_warmup_steps: int,
         gamma: float,
-        memory_size: int = 50_000,
         batch_size: int = 32,
-        value_lr: float = 1e-4,
     ):
         super().__init__("step")
         self.meta_trainer = meta_trainer
         self.worker_trainer = worker_trainer
-        self.value_network = value_network
         self.k = k
         self.cumulative_reward = np.zeros(0, dtype=np.float32)
         self.n_subgoals = n_subgoals
@@ -45,10 +39,7 @@ class HavenTrainer(Trainer):
         self.available_actions = np.full((self.n_workers, self.n_subgoals), True)
         self.n_warmup_steps = n_meta_warmup_steps
         self.batch_size = batch_size
-        self.value_memory = TransitionMemory(memory_size)
         self.gamma = gamma
-        self.mixer = value_mixer
-        self.value_optimizer = torch.optim.Adam(list(self.value_network.parameters()) + list(value_mixer.parameters()), lr=value_lr)
 
     def update_step(self, transition: Transition, time_step: int):
         logs = dict[str, float]()
@@ -56,7 +47,6 @@ class HavenTrainer(Trainer):
             logs[f"worker-{key}"] = value
         meta_transition = self._build_meta_transition(transition, time_step)
         if meta_transition is not None:
-            logs |= self._train_value_network(meta_transition)
             if time_step >= self.n_warmup_steps:
                 meta_logs = self.meta_trainer.update_step(meta_transition, time_step)
                 for key, value in meta_logs.items():
@@ -72,24 +62,6 @@ class HavenTrainer(Trainer):
             return meta_transition
         else:
             self.cumulative_reward += transition.reward
-
-    def _train_value_network(self, meta_transition: Transition):
-        self.value_memory.add(meta_transition)
-        if not self.value_memory.can_sample(self.batch_size):
-            return {}
-        batch = self.value_memory.sample(self.batch_size).to(self.device)
-        values = self.value_network.value(batch.states, batch.states_extras)
-        with torch.no_grad():
-            next_values = self.meta_trainer.next_values(batch)
-        targets = batch.rewards + self.gamma * next_values
-        loss = torch.nn.functional.mse_loss(values, targets)
-        self.value_optimizer.zero_grad()
-        loss.backward()
-        self.value_optimizer.step()
-        return {"value_loss": float(loss.item())}
-
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        return self.worker_trainer.update_episode(episode, episode_num, time_step)
 
     def make_meta_transition(self, worker_transition: Transition) -> Transition:
         # Avoid overhead with shallow copy
@@ -129,11 +101,9 @@ class HavenTrainer(Trainer):
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         self.meta_trainer.randomize(method)
         self.worker_trainer.randomize(method)
-        self.value_network.randomize(method)
 
     def to(self, device: device):
         self.meta_trainer = self.meta_trainer.to(device)
         self.worker_trainer = self.worker_trainer.to(device)
-        self.value_network = self.value_network.to(device)
         self.device = device
         return self

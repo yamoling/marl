@@ -39,7 +39,7 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.agents.QPlex(
+        mixer=marl.training.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
             state_size=env.state_shape[0],
@@ -103,7 +103,7 @@ def lle_shaping(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=marl.agents.VDN.from_env(env),
+        mixer=marl.training.VDN.from_env(env),
         grad_norm_clipping=10,
         ir_module=None,
     )
@@ -200,7 +200,7 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=200_000,
     )
-    qmix = marl.agents.VDN.from_env(env)
+    qmix = marl.training.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -277,7 +277,7 @@ def create_lle_baseline(args: Arguments):
         batch_size=64,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
@@ -343,7 +343,7 @@ def create_lle_maic(args: Arguments):
         batch_size=batch_size,
         memory=memory,
         gamma=gamma,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -395,7 +395,7 @@ def create_lle_maicRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
@@ -450,7 +450,7 @@ def create_lle_maicCNN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
@@ -505,7 +505,7 @@ def create_lle_maicCNNRDQN(args: Arguments):
         batch_size=bs,
         train_interval=(1, "episode"),
         gamma=gamma,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         grad_norm_clipping=10,
         ir_module=None,
     )
