@@ -48,10 +48,12 @@ class ContinuousPPOTrainer(Trainer):
         self.batch_size = batch_size
         self.minibatch_size = minibatch_size
         self.actor_critic = actor_critic
+        self.value_mixer = value_mixer
         self.gamma = gamma
         self.n_epochs = n_epochs
         self.eps_clip = eps_clip
-        self.parameters = list(actor_critic.parameters()) + list(value_mixer.parameters())
+        self._ratio_min = 1 - eps_clip
+        self._ratio_max = 1 + eps_clip
         self.optimizer = torch.optim.Adam(self.parameters, lr=lr)
         if isinstance(critic_c1, (float, int)):
             critic_c1 = Schedule.constant(critic_c1)
@@ -59,15 +61,15 @@ class ContinuousPPOTrainer(Trainer):
         if isinstance(exploration_c2, (float, int)):
             exploration_c2 = Schedule.constant(exploration_c2)
         self.c2 = exploration_c2
-        self.value_mixer = value_mixer
         self.gae_lambda = gae_lambda
         self.grad_norm_clipping = grad_norm_clipping
 
-    def train(self, batch: Batch) -> dict[str, float]:
+    def train(self, batch: Batch, time_step: int) -> dict[str, float]:
         batch.normalize_rewards()
         with torch.no_grad():
             policy, values = self.actor_critic.forward(batch.obs, batch.extras)
             log_probs = policy.log_prob(batch.actions)
+            log_probs = torch.clamp(log_probs, -20, 20)
             values = self.value_mixer.forward(values, batch.states)
             next_values = self.next_values(batch)
 
@@ -76,6 +78,7 @@ class ContinuousPPOTrainer(Trainer):
             returns = advantages + next_values
             # Normalize advantages
             advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+            print(time_step, advantages.mean(), advantages.min(), advantages.max())
             while advantages.dim() < log_probs.dim():
                 advantages = advantages.unsqueeze(-1)
             advantages = advantages.expand_as(log_probs)
@@ -86,7 +89,7 @@ class ContinuousPPOTrainer(Trainer):
         total_actor_loss = 0.0
         total_entropy_loss = 0.0
         total_loss = 0.0
-        total_norm = torch.zeros(1)
+        total_norm = torch.zeros(1, device=self.device)
         for _ in range(self.n_epochs):
             indices = np.random.choice(self.batch_size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
@@ -106,32 +109,33 @@ class ContinuousPPOTrainer(Trainer):
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
             new_log_probs = policy.log_prob(minibatch.actions)
+            new_log_probs = torch.clamp(new_log_probs, -20, 20)
             assert new_log_probs.shape == mini_log_probs.shape == mini_advantages.shape
             ratio = torch.exp(new_log_probs - mini_log_probs)
+            clamped_ratios = torch.clamp(ratio, self._ratio_min, self._ratio_max)
             surrogate_loss1 = mini_advantages * ratio
-            surrogate_loss2 = mini_advantages * torch.clamp(ratio, 1 - self.eps_clip, 1 + self.eps_clip)
+            surrogate_loss2 = mini_advantages * clamped_ratios
             # Minus because we want to maximize the objective
             actor_loss = -torch.min(surrogate_loss1, surrogate_loss2).mean()
 
             # S[\pi_0](s_t) in the paper
-            entropy_loss = policy.entropy().mean()
+            # entropy_loss = policy.entropy().mean()
 
             self.optimizer.zero_grad()
             # Equation (9) in the paper
-            loss = actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
+            loss = actor_loss + self.c1 * critic_loss  # - self.c2 * entropy_loss
             loss.backward()
             if self.grad_norm_clipping is not None:
-                total_norm += torch.nn.utils.clip_grad_norm_(self.parameters, 10.0)
+                total_norm += torch.nn.utils.clip_grad_norm_(self.parameters, self.grad_norm_clipping)
             self.optimizer.step()
             total_actor_loss += actor_loss.item()
             total_critic_loss += critic_loss.item()
-            total_entropy_loss += entropy_loss.item()
+            # total_entropy_loss += entropy_loss.item()
             total_loss += loss.item()
             min_loss = min(min_loss, loss.item())
             max_loss = max(max_loss, loss.item())
 
         self.memory.clear()
-
         logs = {
             "avg_actor_loss": total_actor_loss / self.n_epochs,
             "avg_critic_loss": total_critic_loss / self.n_epochs,
@@ -140,15 +144,25 @@ class ContinuousPPOTrainer(Trainer):
             "min_loss": min_loss,
             "max_loss": max_loss,
         }
+        for i, layer in enumerate(self.actor_critic.value_parameters):
+            logs[f"critic-layer-{i} mean"] = layer.data.mean().item()
+
+        for i, layer in enumerate(self.actor_critic.policy_parameters):
+            logs[f"actor-layer-{i} mean"] = layer.data.mean().item()
+
         if self.grad_norm_clipping is not None:
             logs["total_grad_norm"] = total_norm.item()
         return logs
+
+    @property
+    def parameters(self):
+        return list(self.actor_critic.parameters()) + list(self.value_mixer.parameters())
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         self.memory.append(transition)
         if len(self.memory) == self.batch_size:
             batch = TransitionBatch(self.memory).to(self.device)
-            logs = self.train(batch)
+            logs = self.train(batch, time_step)
             self.memory.clear()
             return logs
         return {}

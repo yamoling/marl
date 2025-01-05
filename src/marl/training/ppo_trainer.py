@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Any
 
 from dataclasses import dataclass
 import numpy as np
@@ -15,19 +15,19 @@ from marl.models.trainer import Trainer
 
 
 @dataclass
-class PPOTrainer(Trainer):
+class PPOTrainer[B: Batch](Trainer):
     gamma: float
     batch_size: int
     update_interval: int
     n_epochs: int
     c1: float
     c2: float
-    memory: ReplayMemory
+    memory: ReplayMemory[Any, B]
 
     def __init__(
         self,
         network: DiscreteActorCriticNN,
-        memory: ReplayMemory,
+        memory: ReplayMemory[Any, B],
         gamma: float = 0.99,
         batch_size: int = 64,
         lr_critic=1e-4,

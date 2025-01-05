@@ -2,7 +2,7 @@ from typing import Literal
 import marl
 import marlenv
 from lle import LLE, ObservationType
-from marl.agents import mixers
+from marl.training import mixers
 from marlenv import DiscreteActionSpace
 
 

@@ -9,7 +9,6 @@ from . import policy
 from . import training
 from . import agents
 from . import env
-from . import other
 
 from .utils import seed
 
@@ -24,7 +23,6 @@ __all__ = [
     "env",
     "logging",
     "nn",
-    "other",
     "policy",
     "training",
     "seed",

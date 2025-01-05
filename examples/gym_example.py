@@ -30,7 +30,7 @@ def dqn[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, ma
         qnetwork=qnetwork,
         train_policy=train_policy,
         memory=marl.models.TransitionMemory(5_000),
-        mixer=marl.agents.VDN.from_env(env),
+        mixer=marl.training.VDN.from_env(env),
         train_interval=(1, "step"),
         lr=5e-4,
     )

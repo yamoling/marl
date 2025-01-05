@@ -1,5 +1,4 @@
 from typing import Literal
-import marl
 from lle import LLE
 import marlenv
 from marl.training import DQNTrainer, SoftUpdate
@@ -9,6 +8,8 @@ from marl.training.haven_trainer import HavenTrainer
 from marl.training.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl.utils import MultiSchedule, Schedule
+
+import marl
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
@@ -37,6 +38,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 value_mixer=VDN.from_env(meta_env),
                 gamma=gamma,
                 lr=5e-4,
+                # grad_norm_clipping=10.0,
             )
         case "dqn":
             meta_agent = DQNTrainer(
@@ -54,11 +56,11 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                         }
                     )
                 ),
-                memory=marl.models.TransitionMemory(5_000),
+                memory=marl.models.EpisodeMemory(5_000),
                 double_qlearning=True,
                 target_updater=SoftUpdate(0.01),
                 lr=5e-4,
-                train_interval=(1, "step"),
+                train_interval=(1, "episode"),
                 gamma=gamma,
                 mixer=VDN.from_env(meta_env),
                 grad_norm_clipping=10.0,
@@ -66,24 +68,18 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         case other:
             raise ValueError(f"Invalid agent type: {other}")
 
-    # TODO: use a simpler network without the actor part
-    value_network = marl.nn.model_bank.actor_critics.CNNContinuousActorCritic(
-        input_shape=meta_env.state_shape,
-        n_extras=meta_env.state_extra_shape[0],
-        action_output_shape=(1,),
-    )
+    env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     if ir:
-        ir_module = AdvantageIntrinsicReward(value_network, gamma)
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
+        ir_module = AdvantageIntrinsicReward(value_network, gamma, mixer=VDN.from_env(env))
     else:
         ir_module = None
-
-    env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
-    dqn_trainer = DQNTrainer(
+    worker_trainer = DQNTrainer(
         qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
             0.05,
-            n_steps=WARMUP_STEPS,
+            n_steps=200_000,
         ),
         memory=marl.models.TransitionMemory(50_000),
         double_qlearning=True,
@@ -98,8 +94,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     meta_trainer = HavenTrainer(
         meta_trainer=meta_agent,
-        value_network=value_network,
-        worker_trainer=dqn_trainer,
+        worker_trainer=worker_trainer,
         n_subgoals=N_SUBGOALS,
         n_workers=env.n_agents,
         k=K,
@@ -107,16 +102,15 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
         n_meta_warmup_steps=WARMUP_STEPS,
         gamma=gamma,
-        value_mixer=VDN.from_env(env),
     )
 
-    exp = marl.Experiment.create(
+    return marl.Experiment.create(
         env=env,
         n_steps=n_steps,
         trainer=meta_trainer,
         test_interval=test_interval,
         test_env=None,
-        logdir=f"logs/haven-{agent_type}{'-ir' if ir else ''}",
+        # logdir=f"logs/haven-{agent_type}{'-ir' if ir else ''}-clipping=10",
     )
     # exp.run()
 
@@ -180,9 +174,9 @@ def main_cartpole_vdn():
 
 if __name__ == "__main__":
     # main_cartpole_vdn()
-    make_haven("dqn", True)
-    make_haven("ppo", True)
-    make_haven("dqn", False)
-    make_haven("ppo", False)
+    # make_haven("dqn", True)
+    # make_haven("ppo", True).run()
+    make_haven("dqn", True).run()
+    # make_haven("ppo", False)
     # main_vdn()
     # main_lunar_lander_continuous()

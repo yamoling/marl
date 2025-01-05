@@ -9,7 +9,7 @@ def main():
     env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
     parameters = MAICParameters(n_agents=env.n_agents)
 
-    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, parameters)
+    maic_network = marl.nn.model_bank.qnetworks.MAICNetworkCNN.from_env(env, parameters)
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
@@ -31,7 +31,7 @@ def main():
         batch_size=batch_size,
         memory=marl.models.EpisodeMemory(5000),
         gamma=0.95,
-        mixer=marl.agents.VDN(env.n_agents),
+        mixer=marl.training.VDN(env.n_agents),
         # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
         double_qlearning=True,
         target_updater=marl.training.SoftUpdate(0.01),

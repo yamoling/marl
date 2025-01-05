@@ -4,8 +4,8 @@ from dataclasses import dataclass
 import torch
 from marlenv import DiscreteActionSpace, MARLEnv
 
-from marl.models.nn import ContinuousActorCriticNN, DiscreteActorCriticNN
-
+from marl.models.nn import ContinuousActorCriticNN, DiscreteActorCriticNN, CriticNN, ContinuousActorNN
+from .qnetworks import MLP
 from ..utils import make_cnn
 
 
@@ -205,7 +205,37 @@ class SimpleActorCritic(DiscreteActorCriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActorCritic(ContinuousActorCriticNN):
+class CNNCritic(CriticNN):
+    def __init__(self, input_shape: tuple[int, ...], n_extras: int):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(input_shape, (n_extras,))
+
+        kernel_sizes = [3, 3, 3]
+        strides = [1, 1, 1]
+        filters = [32, 64, 64]
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.mlp = MLP(n_features, n_extras, hidden_sizes=[128, 128, 128], output_shape=(1,))
+
+    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        return self.forward(data, extras)
+
+    def forward(
+        self,
+        data: torch.Tensor,
+        extras: torch.Tensor,
+    ):
+        *dims, channels, height, width = data.shape
+        leading_dims_size = math.prod(dims)
+        data = data.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
+        features = self.cnn.forward(data)
+        value = self.mlp.forward(features, extras)
+        value = value.view(*dims)
+        return value
+
+
+@dataclass(unsafe_hash=True)
+class CNNContinuousActor(ContinuousActorNN):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -213,35 +243,12 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        common_input_size = n_features + n_extras
-        self.common = torch.nn.Sequential(
-            torch.nn.Linear(common_input_size, 128),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(128, 128),
-            torch.nn.LeakyReLU(0.1),
-        )
-
         self.n_actions = math.prod(action_output_shape)
         n_means = self.n_actions
         n_stds = self.n_actions
-        self.policy_network = torch.nn.Linear(128, n_means + n_stds)
-        self.value_network = torch.nn.Linear(128, 1)
 
-    def _common_forward(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        *dims, channels, height, width = data.shape
-        leading_dims_size = math.prod(dims)
-        data = data.view(leading_dims_size, channels, height, width)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
-        features = self.cnn.forward(data)
-        features = torch.cat((features, extras), dim=-1)
-        features = self.common.forward(features)
-        return features.view(*dims, -1)
-
-    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        x = self._common_forward(data, extras)
-        values = self.value_network.forward(x)
-        return values.squeeze(-1)
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.mlp = MLP(n_features, n_extras, [128, 128, 128], (n_means + n_stds,))
 
     def _get_distribution(self, means_stds: torch.Tensor):
         batch_size, n_agents, _ = means_stds.shape
@@ -257,24 +264,50 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
         data: torch.Tensor,
         extras: torch.Tensor,
     ):
-        x = self._common_forward(data, extras)
-        values = self.value_network.forward(x)
-        means_stds = self.policy_network.forward(x)
+        *dims, channels, height, width = data.shape
+        leading_dims_size = math.prod(dims)
+        data = data.view(leading_dims_size, channels, height, width)
+        features = self.cnn.forward(data)
+        features = features.view(*dims, -1)
+        means_stds = self.mlp.forward(features, extras)
         dist = self._get_distribution(means_stds)
-        return dist, values.squeeze(-1)
+        return dist
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor):
-        x = self._common_forward(obs, extras)
-        means_and_stds = self.policy_network.forward(x)
-        return self._get_distribution(means_and_stds)
+        return self.forward(obs, extras)
+
+
+@dataclass(unsafe_hash=True)
+class CNNContinuousActorCritic(ContinuousActorCriticNN):
+    def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(input_shape, (n_extras,), action_output_shape)
+
+        self.actor = CNNContinuousActor(input_shape, n_extras, action_output_shape)
+        self.critic = CNNCritic(input_shape, n_extras)
+
+    def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        return self.critic.value(data, extras)
+
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor):
+        return self.actor.forward(obs, extras)
+
+    def forward(
+        self,
+        data: torch.Tensor,
+        extras: torch.Tensor,
+    ):
+        dist = self.actor.forward(data, extras)
+        values = self.critic.forward(data, extras)
+        return dist, values
 
     @property
     def value_parameters(self):
-        return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.value_network.parameters())
+        return list(self.critic.parameters())
 
     @property
     def policy_parameters(self):
-        return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
+        return list(self.actor.parameters())
 
 
 @dataclass(unsafe_hash=True)

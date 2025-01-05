@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Generic, Iterable, Literal, Any
+from typing import Deque, Generic, Iterable, Literal
 from typing_extensions import TypeVar
 
 import numpy as np

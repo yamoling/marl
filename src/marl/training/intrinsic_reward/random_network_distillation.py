@@ -63,11 +63,6 @@ class RandomNetworkDistillation(IRModule):
         self._running_obs = RunningMeanStd(target.input_shape)
         self._running_extras = RunningMeanStd(target.extras_shape)
 
-        # Bookkeeping for update
-        # Squared error must be an attribute to be able to update the model in the `update` method
-        self._squared_error = torch.tensor(0.0)
-        self._intrinsic_reward = torch.tensor(0.0)
-
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
         obs_ = self._running_obs.normalise(batch.next_obs)
@@ -95,9 +90,8 @@ class RandomNetworkDistillation(IRModule):
             self._running_returns.update(returns)
             intrinsic_reward = intrinsic_reward / self._running_returns.std
         # Book keeping
-        self._intrinsic_reward = intrinsic_reward * self.ir_weight.value
-        self._squared_error = squared_error
-        return self._intrinsic_reward
+        intrinsic_reward = intrinsic_reward * self.ir_weight.value
+        return intrinsic_reward
 
     def to(self, device: torch.device):
         self.target.to(device)
@@ -107,16 +101,35 @@ class RandomNetworkDistillation(IRModule):
         self._running_returns.to(device)
         self._running_extras.to(device)
 
-    def update(self, time_step: int):
+    def update(self, time_step: int, batch: Batch):
+        obs_ = self._running_obs.normalise(batch.next_obs, update=False)
+        extras_ = self._running_extras.normalise(batch.extras, update=False)
+        with torch.no_grad():
+            target_features = self.target.forward(obs_, extras_)
+        predicted_features = self.predictor_head.forward(batch.next_obs, extras_)
+        shape = predicted_features.shape
+        new_shape = shape[:-2] + (self.output_size,)
+        predicted_features = predicted_features.view(*new_shape)
+        predicted_features = self.predictor_tail.forward(predicted_features)
+        predicted_features = predicted_features.view(*shape)
+        squared_error = torch.pow(target_features - predicted_features, 2)
+        # squared error has shape (batch_size, n_agents, reward_size, embedding)
+        # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
+        squared_error = torch.sum(squared_error, dim=-1)
+        # squared_error has shape (batch_size, n_agents, reward_size) and we want to sum over the agents to have one common intrinsic reward
+        squared_error = torch.pow(target_features - predicted_features, 2)
+        # squared error has shape (batch_size, n_agents, reward_size, embedding)
+        # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
+        squared_error = torch.sum(squared_error, dim=-1)
+
         # Randomly mask some of the features and perform the optimization
-        masks = torch.rand_like(self._squared_error) < self.update_ratio
-        loss = torch.sum(self._squared_error * masks) / torch.sum(masks)
+        masks = torch.rand_like(squared_error) < self.update_ratio
+        loss = torch.sum(squared_error * masks) / torch.sum(masks)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         self.ir_weight.update(time_step)
-        ir = self._intrinsic_reward.mean().item()
-        return {"ir-loss": loss.item(), "ir": ir, "ir-weight": self.ir_weight.value}
+        return {"ir-loss": loss.item(), "ir-weight": self.ir_weight.value}
 
     def randomize(self):
         self.target.randomize()
