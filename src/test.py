@@ -71,7 +71,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     if ir:
         value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
-        ir_module = AdvantageIntrinsicReward(value_network, gamma, mixer=VDN.from_env(env))
+        ir_module = AdvantageIntrinsicReward(value_network, gamma)
     else:
         ir_module = None
     worker_trainer = DQNTrainer(

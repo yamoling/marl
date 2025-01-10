@@ -1,10 +1,11 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
-from typing import Literal, Any
+from typing import Literal, Any, Optional
 from typing_extensions import Self
 from marlenv import Transition, Episode
 from marl.models import NN, Batch
 from marl.agents import Agent
+from .nn import IRModule
 
 import torch
 
@@ -24,7 +25,7 @@ class Trainer[A](ABC):
         self.update_on_steps = update_type in ["step", "both"]
         self.update_on_episodes = update_type in ["episode", "both"]
 
-    def make_agent(self) -> Agent:
+    def make_agent(self, *, ir_module: Optional[IRModule] = None) -> Agent:
         raise NotImplementedError("Trainer must implement make_agent method")
 
     def update_step(self, transition: Transition[A], time_step: int) -> dict[str, Any]:
