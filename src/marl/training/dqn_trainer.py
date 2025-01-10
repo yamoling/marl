@@ -39,13 +39,24 @@ class DQNTrainer[B: Batch](Trainer):
         optimiser: Literal["adam", "rmsprop"] = "adam",
         target_updater: Optional[TargetParametersUpdater] = None,
         double_qlearning: bool = False,
-        train_interval: tuple[int, Literal["step", "episode"]] = (5, "step"),
+        train_interval: tuple[int, Literal["step", "episode", "both"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
         test_policy: Optional[Policy] = None,
     ):
         super().__init__(train_interval[1])
-        self.step_update_interval = train_interval[0]
+        match train_interval:
+            case (n, "step"):
+                self.step_update_interval = n
+                self.episode_update_interval = 0
+            case (n, "episode"):
+                self.step_update_interval = 0
+                self.episode_update_interval = n
+            case (n, "both"):
+                self.step_update_interval = n
+                self.episode_update_interval = n
+            case other:
+                raise ValueError(f"Unknown train_interval: {other}. Expected (int, 'step' | 'episode').")
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
         self.device = qnetwork.device
@@ -60,7 +71,6 @@ class DQNTrainer[B: Batch](Trainer):
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
-        self.update_num = 0
         if test_policy is None:
             test_policy = train_policy
         self.test_policy = test_policy
@@ -80,9 +90,6 @@ class DQNTrainer[B: Batch](Trainer):
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
     def _update(self, time_step: int):
-        self.update_num += 1
-        if self.update_num % self.step_update_interval != 0:
-            return {}
         if not self.memory.can_sample(self.batch_size):
             return {}
         batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
@@ -158,9 +165,9 @@ class DQNTrainer[B: Batch](Trainer):
             logs = logs | self.ir_module.update_step(transition, time_step)
         if self.memory.update_on_transitions:
             self.memory.add(transition)
-        if not self.update_on_steps:
-            return logs
-        return self._update(time_step)
+        if self.update_on_steps and time_step % self.step_update_interval == 0:
+            logs = logs | self._update(time_step)
+        return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         logs = {}
@@ -168,9 +175,9 @@ class DQNTrainer[B: Batch](Trainer):
             logs = logs | self.ir_module.update_episode(episode, time_step)
         if self.memory.update_on_episodes:
             self.memory.add(episode)
-        if not self.update_on_episodes:
-            return logs
-        return self._update(time_step)
+        if self.update_on_episodes and episode_num % self.episode_update_interval == 0:
+            logs = logs | self._update(time_step)
+        return logs
 
     def make_agent(self) -> Agent:
         return DQN(

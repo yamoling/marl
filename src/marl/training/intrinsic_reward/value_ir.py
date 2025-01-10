@@ -1,29 +1,19 @@
 from dataclasses import dataclass
 from typing import Literal
-from typing_extensions import Literal
 from marlenv import Transition
 import torch
 from copy import deepcopy
 
 from marl.models.batch import Batch
 from marl.models import TransitionMemory
-from marl.models.nn import CriticNN, Mixer
+from marl.models.nn import CriticNN
 from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 
 from .ir_module import IRModule
 
 
 @dataclass
-class AdvantageIntrinsicReward(IRModule):
-    """
-    Computes an intrinsic reward that is the advantage of the action taken by the agent. Papers such as Haven use
-    this approach https://arxiv.org/pdf/2110.07246.
-
-    We compute the advantage as the difference between the reward obtained + the discounted value of the next state
-    and the value of the current state:
-    A(s_t, a_t) = r + \\gamma V(s_{t+1}) - V(s_t)
-    """
-
+class ValuePotentialIntrinsicReward(IRModule):
     def __init__(
         self,
         value_network: CriticNN,
@@ -55,9 +45,8 @@ class AdvantageIntrinsicReward(IRModule):
         with torch.no_grad():
             values = self.network.value(batch.states, batch.states_extras)
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
-            # Equation 2 in Haven's paper
-            advantage = batch.rewards + self.gamma * next_values - values
-        return advantage
+        delta_potential = self.gamma * next_values - values
+        return delta_potential
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
         self.memory.add(transition)
@@ -74,7 +63,7 @@ class AdvantageIntrinsicReward(IRModule):
         loss = torch.nn.functional.mse_loss(values, targets)
         self.optimizer.zero_grad()
         loss.backward()
-        logs = {"adantage-ir-loss": float(loss.item())}
+        logs = {"ir-value-potential-loss": float(loss.item())}
         if self.grad_norm_clipping is not None:
             grad_norm = torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.grad_norm_clipping)
             logs["ir-grad-norm"] = float(grad_norm.item())

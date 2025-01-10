@@ -21,7 +21,7 @@ class Haven(Agent[tuple[np.ndarray, dict[str, np.ndarray]]]):
     workers: Agent[np.ndarray]
     n_subgoals: int
     k: int
-    """Number of steps between meta-actions."""
+    """The number of steps that meta-actions lasts."""
 
     def __init__(
         self,
