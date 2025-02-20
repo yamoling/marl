@@ -1,0 +1,21 @@
+world_string = """
+ .  . . . . . 
+ .  . . . .  .   
+L0E . . . .  .   
+ .  . . . .  .   
+ .  . . . . L1W
+ .  . . . .  .
+ .  X X X X  . 
+"""
+
+[[agents]]
+start_positions = [{ i_max = 1 }]
+
+[[agents]]
+start_positions = [{ i_max = 1 }]
+
+[[agents]]
+start_positions = [{ i_max = 1 }]
+
+[[agents]]
+start_positions = [{ i_max = 1 }]

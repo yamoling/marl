@@ -120,7 +120,7 @@ class Runner[A, AS: ActionSpace]:
                 pbar.update(len(episode))
             # Test the final agent
             if n_tests > 0 and test_interval > 0:
-                self._test_and_log(n_tests, 0, quiet, run, render_tests)
+                self._test_and_log(n_tests, n_steps, quiet, run, render_tests)
         pbar.close()
 
     def _test_and_log(self, n_tests: int, time_step: int, quiet: bool, run_handle: RunHandle, render: bool):
@@ -173,7 +173,7 @@ class Runner[A, AS: ActionSpace]:
             episodes.append(self.perform_one_test(seed, render))
         if not quiet:
             metrics = episodes[0].metrics.keys()
-            avg_metrics = {m: sum([e.metrics[m] for e in episodes])/n_tests for m in metrics}
+            avg_metrics = {m: sum([e.metrics[m] for e in episodes]) / n_tests for m in metrics}
             pprint(avg_metrics)
         return episodes
 

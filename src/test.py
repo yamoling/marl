@@ -101,7 +101,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         n_meta_extras=meta_env.extra_shape[0],
         n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
         n_meta_warmup_steps=WARMUP_STEPS,
-        gamma=gamma,
     )
 
     return marl.Experiment.create(

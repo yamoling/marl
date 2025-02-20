@@ -1,4 +1,4 @@
-from .nn import NN, RecurrentNN
+from .nn import NN, RecurrentNN, randomize
 from .qnetwork import QNetwork, RecurrentQNetwork
 from .actor_critic import DiscreteActorNN, DiscreteActorCriticNN, ContinuousActorNN, ContinuousActorCriticNN, CriticNN
 from .mixer import Mixer
@@ -9,6 +9,7 @@ from .ir_module import IRModule
 __all__ = [
     "NN",
     "RecurrentNN",
+    "randomize",
     "QNetwork",
     "RecurrentQNetwork",
     "DiscreteActorNN",
