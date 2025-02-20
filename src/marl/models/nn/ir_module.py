@@ -5,8 +5,6 @@ import torch
 from dataclasses import dataclass
 from marlenv import Transition, Episode
 
-from marl.models import Batch
-
 
 @dataclass
 class IRModule:
@@ -18,7 +16,7 @@ class IRModule:
         self.name = self.__class__.__name__
 
     @abstractmethod
-    def compute(self, batch: Batch) -> torch.Tensor:
+    def compute(self, batch) -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:

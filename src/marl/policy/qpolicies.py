@@ -40,12 +40,12 @@ class EpsilonGreedy(Policy):
         self.epsilon = epsilon
 
     @classmethod
-    def linear(cls, start_eps: float, min_eps: float, n_steps: int):
-        return cls(schedule.LinearSchedule(start_eps, min_eps, n_steps))
+    def linear(cls, start_eps: float, end_eps: float, n_steps: int):
+        return cls(schedule.LinearSchedule(start_eps, end_eps, n_steps))
 
     @classmethod
-    def exponential(cls, start_eps: float, min_eps: float, n_steps: int):
-        return cls(schedule.ExpSchedule(start_eps, min_eps, n_steps))
+    def exponential(cls, start_eps: float, end_eps: float, n_steps: int):
+        return cls(schedule.ExpSchedule(start_eps, end_eps, n_steps))
 
     @classmethod
     def constant(cls, eps: float):
