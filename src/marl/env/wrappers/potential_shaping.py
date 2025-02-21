@@ -21,7 +21,11 @@ class PotentialShaping[A, AS: ActionSpace](RLEnvWrapper[A, AS]):
     gamma: float
 
     def __init__(self, env: MARLEnv[A, AS], gamma: float, extra_shape: Optional[tuple[int]]):
-        super().__init__(env, extra_shape=extra_shape)
+        if extra_shape is None:
+            extras_meanings = None
+        else:
+            extras_meanings = [f"potential-{i}" for i in range(extra_shape[0])]
+        super().__init__(env, extra_shape=extra_shape, extra_meanings=extras_meanings)
         self.gamma = gamma
 
     def add_extras(self, obs: Observation) -> Observation:
@@ -107,9 +111,9 @@ class LLEPotentialShaping(PotentialShaping):
             # Make sure that the source and direction are compatible
             source_is_vertical = source.direction in VERTICAL
             goal_direction_is_horizontal = direction in HORIZONTAL
-            assert (
-                source_is_vertical == goal_direction_is_horizontal
-            ), "The source and direction are incompatible. For horizontal lasers, the direction must be vertical and vice versa."
+            assert source_is_vertical == goal_direction_is_horizontal, (
+                "The source and direction are incompatible. For horizontal lasers, the direction must be vertical and vice versa."
+            )
             in_laser_rewards = set[Position]()
             after_laser_rewards = set[Position]()
             for (i, j), laser in world.lasers:
