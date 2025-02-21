@@ -96,8 +96,18 @@ class BShaping(RLEnvWrapper):
                 reward_positions[agent_id].add(i + 1)
         self.delayed_rewards = DelayedRewardHandler(world.n_agents, reward_positions, delay, extra_reward)
         extras_shape = (env.extra_shape[0] + self.delayed_rewards.extras_size,)
-        super().__init__(env, extra_shape=extras_shape)
+        super().__init__(env, extra_shape=extras_shape, extra_meanings=[f"{i}" for i in range(self.delayed_rewards.extras_size)])
         self.world = world
+
+    def reset(self):
+        self.delayed_rewards.reset()
+        obs, state = super().reset()
+        return self.add_extra_information(obs), state
+
+    def step(self, actions):
+        step = super().step(actions)
+        step.obs = self.add_extra_information(step.obs)
+        return step
 
     def add_extra_information(self, obs: Observation):
         extra = self.delayed_rewards.get_state()
@@ -105,13 +115,6 @@ class BShaping(RLEnvWrapper):
         obs.extras = np.concatenate([obs.extras, extra], axis=-1)
         return obs
 
-    def reset(self):
-        self.delayed_rewards.reset()
-        obs, state = self.wrapped.reset()
-        return self.add_extra_information(obs), state
-
-    def step(self, actions):
-        step = self.wrapped.step(actions)
-        step.reward += self.delayed_rewards.trigger(self.world.agents_positions)
-        step.obs = self.add_extra_information(step.obs)
-        return step
+    def get_observation(self):
+        obs = super().get_observation()
+        return self.add_extra_information(obs)
