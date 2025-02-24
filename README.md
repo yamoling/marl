@@ -5,14 +5,15 @@ This repository contains a variety of Multi-Agent Reinforcement Learning (MARL) 
 `marl` comes with a web interface to visualise the results of your experiments (more info down below).
 
 ## Requirements
-- poetry
+- uv (`pip install uv`)
 - python >=  3.10
-- torch (does not work well with poetry, you should install it with pip as shown on the pytorch website)
 
 ## Getting started
+To install all the dependencies, simply run `uv sync`. This will install all the dependencies except pytorch.
+To install pytorch, you have to specify which variant you want to install, i.e. `torch-cu124` for CUDA 12.4 support, `torch-cu118` for CUDA 11.8 support or `torch-cpu` for CPU only support. Specify your variant with the `--extra` flag.
 ```bash
-$ poetry install
-$ poetry shell
+$ uv sync --extra=torch-cu124 # To use CUDA 12.4
+```
 (your-venv) $ python src/main.py
 ```
 
