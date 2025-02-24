@@ -28,33 +28,49 @@ dependencies = [
     "swig>=4.3.0",
     # "gymnasium[box2d]>=1.0.0",
     "pettingzoo>=1.24.3",
-    "torch>=2.6.0",
+]
+
+[project.optional-dependencies]
+torch-cpu = ["torch>=2.6.0"]
+torch-cu118 = ["torch>=2.6.0"]
+torch-cu124 = ["torch>=2.6.0"]
+
+[[tool.uv.index]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "torch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[[tool.uv.index]]
+name = "torch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "torch-cpu" },
+        { extra = "torch-cu124" },
+        { extra = "torch-cu118" },
+    ],
+]
+dev-dependencies = ["pytest>=8.3.2", "pytest-xdist>=3.6.1"]
+
+
+[tool.uv.sources]
+torch = [
+    { index = "torch-cpu", extra = "torch-cpu" },
+    { index = "torch-cu118", extra = "torch-cu118" },
+    { index = "torch-cu124", extra = "torch-cu124" },
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[[tool.uv.index]]
-name = "pytorch-cu118"
-url = "https://download.pytorch.org/whl/cu118"
-explicit = true
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
-]
-
-
-# [[tool.uv.index]]
-# # Optional name for the index.
-# name = "pytorch"
-# # Required URL for the index.
-# url = "https://download.pytorch.org/whl/cu118"
-
-
-[tool.uv]
-dev-dependencies = ["pytest>=8.3.2", "pytest-xdist>=3.6.1"]
 
 
 [tool.ruff]
