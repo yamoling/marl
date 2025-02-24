@@ -5,13 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10,<4"
 dependencies = [
-    "laser-learning-environment>=2.1.1",
+    "laser-learning-environment>=2.2.0",
     "python-dotenv>=1.0.1",
     "tqdm>=4.66.5",
     "scipy>=1.14.1",
     "sumtree>=0.2.7",
     "polars>=1.5.0",
-    "torch>=2.4.0",
     "neptune>=1.10.4",
     "matplotlib>=3.9.2",
     "flask>=3.0.3",
@@ -25,20 +24,32 @@ dependencies = [
     "scikit-learn>=1.5.2",
     "pygame>=2.6.1",
     "orjson>=3.10.12",
-    "numpy>=2.2.0",
+    "numpy>=2.0",
     "swig>=4.3.0",
     # "gymnasium[box2d]>=1.0.0",
     "pettingzoo>=1.24.3",
+    "torch>=2.6.0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[[tool.uv.index]]
+name = "pytorch-cu118"
+url = "https://download.pytorch.org/whl/cu118"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu118", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
 
 # [[tool.uv.index]]
-# name = "pytorch-cu118"
-# To install torch with legacy drivers, do uv pip install torch  --index-url https://download.pytorch.org/whl/cu118
+# # Optional name for the index.
+# name = "pytorch"
+# # Required URL for the index.
 # url = "https://download.pytorch.org/whl/cu118"
 
 
