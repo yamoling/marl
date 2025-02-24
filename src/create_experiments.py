@@ -70,21 +70,22 @@ def create_smac(args: Arguments):
 
 
 def create_lle(args: Arguments):
-    n_steps = 2_000_000
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective().build()
+    env = LLE.level(6).obs_type("layered").state_type("state").pbrs(gamma).build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
+    # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=200_000,
     )
-    qmix = marl.training.VDN.from_env(env)
+    mixer = marl.training.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -96,7 +97,7 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=qmix,
+        mixer=mixer,
         grad_norm_clipping=10,
         ir_module=None,
     )
@@ -136,12 +137,7 @@ def create_lle(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_ddpg_lle(args)
-        exp = create_multiobj_lle(args)
-        #exp = create_lle(args)
-        # exp = create_lle(args)
-        # exp = create_lle_maic(args)
-        # exp = create_lle_maicRQN(args)
+        exp = create_lle(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
