@@ -61,11 +61,11 @@ class Schedule:
     def __rmul__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value * other
 
-    def __pow__[T: ArithmeticProtocol](self, exp: float) -> float:
+    def __pow__(self, exp: float) -> float:
         return self.value**exp
 
-    def __rpow__[T: ArithmeticProtocol](self, other: T) -> T:
-        return other**self.value
+    def __rpow__[T](self, other: T) -> T:
+        return other**self.value  # type: ignore
 
     def __add__[T: ArithmeticProtocol](self, other: T) -> T:
         return self.value + other

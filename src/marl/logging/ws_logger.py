@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import ClassVar
 from websockets.exceptions import ConnectionClosed
-from marl.models.replay_episode import ReplayEpisodeSummary
+from marl.models.replay_episode import LightEpisodeSummary
 from .logger_interface import Logger
 import orjson
 
@@ -49,7 +49,7 @@ class WSLogger(Logger):
 
     async def update_loop(self):
         while not self._stop:
-            log: ReplayEpisodeSummary = await self.messages.get()
+            log: LightEpisodeSummary = await self.messages.get()
             data = orjson.dumps(log)
             to_remove = set()
             for client in self.clients:
@@ -75,7 +75,7 @@ class WSLogger(Logger):
 
     def log(self, tag: str, data: dict[str, float], time_step: int):
         directory = os.path.join(self.logdir, tag, f"{time_step}")
-        self.messages.put_nowait(ReplayEpisodeSummary(directory, data))
+        self.messages.put_nowait(LightEpisodeSummary(directory, data))
 
     def __del__(self):
         self.stop()

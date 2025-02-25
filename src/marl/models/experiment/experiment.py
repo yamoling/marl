@@ -8,26 +8,27 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 import numpy as np
-import orjson
 import torch
 from marlenv.models import ActionSpace, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
 from marl.agents import DQN, Agent, ContinuousAgent
+from marl.models.run import Run
+from marl.models.runner import Runner
+from marl.models.trainer import Trainer
+from marl.models.batch import TransitionBatch
+from marl.models.replay_episode import ReplayEpisode
 from marl.training import NoTrain
-from marl.utils import default_serialization, encode_b64_image, stats
+from marl.utils import encode_b64_image
 from marl.utils.gpu import get_device
 
-from .batch import TransitionBatch
-from .replay_episode import ReplayEpisode, ReplayEpisodeSummary
-from .run import Run
-from .runner import Runner
-from .trainer import Trainer
+
+from .light_experiment import LightExperiment
 
 
 @dataclass
-class Experiment[A, AS: ActionSpace]:
+class Experiment[A, AS: ActionSpace](LightExperiment):
     logdir: str
     agent: Agent
     trainer: Trainer
@@ -48,11 +49,10 @@ class Experiment[A, AS: ActionSpace]:
         creation_timestamp: int,
         test_env: MARLEnv[A, AS],
     ):
-        self.logdir = logdir
+        super().__init__(logdir, test_interval)
         self.trainer = trainer
         self.agent = agent
         self.env = env
-        self.test_interval = test_interval
         self.n_steps = n_steps
         self.creation_timestamp = creation_timestamp
         self.test_env = test_env
@@ -115,80 +115,11 @@ class Experiment[A, AS: ActionSpace]:
             experiment: Experiment = pickle.load(f)
         return experiment
 
-    @staticmethod
-    def get_parameters(logdir: str) -> dict:
-        """Get the parameters of an experiment."""
-        with open(os.path.join(logdir, "experiment.json"), "r") as f:
-            return orjson.loads(f.read())
-
-    def move(self, new_logdir: str):
-        """Move an experiment to a new directory."""
-        shutil.move(self.logdir, new_logdir)
-        self.logdir = new_logdir
-        self.save()
-
-    def copy(self, new_logdir: str, copy_runs: bool = True):
-        new_exp = deepcopy(self)
-        new_exp.logdir = new_logdir
-        new_exp.save()
-        if copy_runs:
-            for run in self.runs:
-                new_rundir = run.rundir.replace(self.logdir, new_logdir)
-                shutil.copytree(run.rundir, new_rundir)
-        return new_exp
-
-    def delete(self):
-        shutil.rmtree(self.logdir)
-
-    @property
-    def is_running(self):
-        """Check if an experiment is running."""
-        for run in self.runs:
-            if run.is_running:
-                return True
-        return False
-
-    def get_tests_at(self, time_step: int):
-        summary = list[ReplayEpisodeSummary]()
-        for run in self.runs:
-            summary += run.get_test_episodes(time_step)
-        return summary
-
     def save(self):
         """Save the experiment to disk."""
-        os.makedirs(self.logdir, exist_ok=True)
-
-        with open(os.path.join(self.logdir, "experiment.json"), "wb") as f:
-            f.write(orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY))
+        super().save()
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
-
-    @property
-    def runs(self):
-        for run in os.listdir(self.logdir):
-            if run.startswith("run_"):
-                try:
-                    yield Run.load(os.path.join(self.logdir, run))
-                except Exception:
-                    pass
-
-    @staticmethod
-    def is_experiment_directory(logdir: str) -> bool:
-        """Check if a directory is an experiment directory."""
-        try:
-            return os.path.exists(os.path.join(logdir, "experiment.json"))
-        except FileNotFoundError:
-            return False
-
-    @staticmethod
-    def find_experiment_directory(subdir: str) -> str | None:
-        """Find the experiment directory containing a given subdirectory."""
-        if Experiment.is_experiment_directory(subdir):
-            return subdir
-        parent = os.path.dirname(subdir)
-        if parent == subdir:
-            return None
-        return Experiment.find_experiment_directory(parent)
 
     def run(
         self,
@@ -252,27 +183,6 @@ class Experiment[A, AS: ActionSpace]:
             trainer=self.trainer,
             test_env=self.test_env,
         )
-
-    @property
-    def train_dir(self):
-        return os.path.join(self.logdir, "train")
-
-    @property
-    def test_dir(self):
-        return os.path.join(self.logdir, "test")
-
-    def n_active_runs(self):
-        return len([run for run in self.runs if run.is_running])
-
-    def get_experiment_results(self, replace_inf=False):
-        """Get all datasets of an experiment."""
-        runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, suffix=" [test]")
-        datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, suffix=" [train]"
-        )
-        datasets += stats.compute_datasets([run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf)
-        return datasets
 
     def replay_episode(self, episode_folder: str):
         # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>

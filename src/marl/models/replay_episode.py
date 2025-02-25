@@ -5,7 +5,7 @@ from typing import Optional
 
 
 @dataclass
-class ReplayEpisodeSummary:
+class LightEpisodeSummary:
     name: str
     directory: str
     metrics: dict[str, float]
@@ -17,7 +17,7 @@ class ReplayEpisodeSummary:
 
 
 @dataclass
-class ReplayEpisode(ReplayEpisodeSummary):
+class ReplayEpisode(LightEpisodeSummary):
     episode: Episode
     qvalues: Optional[list[list[list[float]]]]
     state_values: Optional[list[float]]
