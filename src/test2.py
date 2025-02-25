@@ -1,31 +1,27 @@
-from typing import Literal
-from lle import LLE
+from lle import LLE, Action
+import time
 import marlenv
-from marl.training import DQNTrainer, SoftUpdate
-from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
-from marl.training.haven_trainer import HavenTrainer
-from marl.policy import EpsilonGreedy, ArgMax
-from marl.training.mixers import VDN
-from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
-from marl.utils import MultiSchedule, Schedule
-from marl.models import TransitionMemory
 
-import marl
 
-env = LLE.from_file("maps/2b-quad.toml").obs_type("layered").build()
-env = marlenv.Builder(env).time_limit(28).agent_id().build()
+def create_lle():
+    n_steps = 1_000_000
+    test_interval = 5000
+    gamma = 0.95
+    env = LLE.level(6).obs_type("layered").state_type("state").pbrs(gamma).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
 
-trainer = DQNTrainer(
-    marl.nn.model_bank.qnetworks.CNN.from_env(env),
-    EpsilonGreedy.linear(1.0, 0.05, 100_000),
-    TransitionMemory(50_000),
-    mixer=VDN(env.n_agents),
-    double_qlearning=True,
-    gamma=0.95,
-    test_policy=ArgMax(),
-)
+    actions = [
+        [Action.SOUTH.value] * 4,
+        [Action.SOUTH.value] * 4,
+        [Action.SOUTH.value] * 4,
+        [Action.SOUTH.value] * 2 + [Action.STAY.value] * 2,
+    ]
 
-trainer.make_agent()
-exp = marl.Experiment.create(env, 300_000, trainer=trainer, test_interval=5000, logdir="2b-quad")
-# exp.run(n_tests=10)
+    for a in actions:
+        s = env.step(a)
+        print(s.reward)
+        env.render()
+        time.sleep(1)
+
+
+create_lle()

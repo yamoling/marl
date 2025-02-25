@@ -3,7 +3,6 @@ from sumtree import SumTree
 import torch
 from dataclasses import dataclass
 from .replay_memory import ReplayMemory, T, B
-from marl.models import Batch
 from marl.utils import Schedule
 
 

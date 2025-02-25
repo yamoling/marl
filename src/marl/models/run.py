@@ -18,7 +18,7 @@ from marl.exceptions import (
 )
 from marl.utils import stats
 from marl import logging
-from .replay_episode import ReplayEpisodeSummary
+from .replay_episode import LightEpisodeSummary
 
 
 TRAIN = "train.csv"
@@ -181,7 +181,7 @@ class Run:
         except FileNotFoundError:
             raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 
-    def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
+    def get_test_episodes(self, time_step: int) -> list[LightEpisodeSummary]:
         try:
             test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
             test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
@@ -189,7 +189,7 @@ class Run:
             for test_num, row in enumerate(test_metrics.rows()):
                 episode_dir = self.test_dir(time_step, test_num)
                 metrics = dict(zip(test_metrics.columns, row))
-                episode = ReplayEpisodeSummary(episode_dir, metrics)
+                episode = LightEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
         except pl.ColumnNotFoundError:
