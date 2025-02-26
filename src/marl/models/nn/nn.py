@@ -49,7 +49,7 @@ class NN(torch.nn.Module, ABC):
     @classmethod
     def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS]):
         """Construct a NN from environment specifications"""
-        return cls(input_shape=env.observation_shape, extras_shape=env.extra_shape, output_shape=(env.n_actions,))
+        return cls(input_shape=env.observation_shape, extras_shape=env.extras_shape, output_shape=(env.n_actions,))
 
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)

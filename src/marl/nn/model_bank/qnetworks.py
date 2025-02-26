@@ -50,7 +50,7 @@ class MLP(QNetwork):
             hidden_sizes = (64,)
         return cls(
             env.observation_shape[0],
-            env.extra_shape[0],
+            env.extras_shape[0],
             tuple(hidden_sizes),
             output_shape,
         )
@@ -119,7 +119,7 @@ class DuelingMLP(QNetwork):
     @classmethod
     def from_env(cls, env: MARLEnv, nn: QNetwork):
         assert nn.input_shape == env.observation_shape
-        assert nn.extras_shape == env.extra_shape
+        assert nn.extras_shape == env.extras_shape
         return cls(nn, env.n_actions)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -179,7 +179,7 @@ class CNN(QNetwork):
             output_shape = (env.n_actions,)
         else:
             output_shape = (env.n_actions, env.reward_space.size)
-        return cls(env.observation_shape, env.extra_shape[0], output_shape, mlp_sizes)
+        return cls(env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -237,7 +237,7 @@ class IndependentCNN(QNetwork):
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        return cls(env.n_agents, env.observation_shape, env.extra_shape[0], output_shape, mlp_sizes)
+        return cls(env.n_agents, env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -281,7 +281,7 @@ class RCNN(RecurrentQNetwork):
         else:
             output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extra_shape[0], output_shape)
+        return cls(env.observation_shape, env.extras_shape[0], output_shape)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -429,7 +429,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
-        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
 class MAICNetworkCNN(MAICNN):
@@ -543,7 +543,7 @@ class MAICNetworkCNN(MAICNN):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
-        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
 class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
@@ -669,4 +669,4 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
-        return cls(env.observation_shape, env.extra_shape, env.n_actions, args)
+        return cls(env.observation_shape, env.extras_shape, env.n_actions, args)

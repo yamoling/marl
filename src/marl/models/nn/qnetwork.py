@@ -69,7 +69,7 @@ class QNetwork(NN):
             output_shape = (env.n_actions, env.reward_space.size)
         return cls(
             input_shape=env.observation_shape,
-            extras_shape=env.extra_shape,
+            extras_shape=env.extras_shape,
             output_shape=output_shape,
         )
 
