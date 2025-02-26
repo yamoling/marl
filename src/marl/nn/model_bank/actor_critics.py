@@ -77,10 +77,10 @@ class DDPG_NN_TEST(DiscreteActorCriticNN):
     @classmethod
     def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 3
-        assert len(env.extra_shape) == 1
+        assert len(env.extras_shape) == 1
         return cls(
             input_shape=env.observation_shape,
-            extras_shape=env.extra_shape,
+            extras_shape=env.extras_shape,
             output_shape=(env.n_actions,),
             n_agents=env.n_agents,
             n_actions=env.n_actions,
@@ -200,8 +200,8 @@ class SimpleActorCritic(DiscreteActorCriticNN):
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
         assert len(env.observation_shape) == 1
-        assert len(env.extra_shape) == 1
-        return SimpleActorCritic(env.observation_shape[0], env.extra_shape[0], env.n_actions)
+        assert len(env.extras_shape) == 1
+        return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)
 
 
 @dataclass(unsafe_hash=True)

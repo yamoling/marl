@@ -28,7 +28,7 @@ def main(args: Arguments):
     if not exp.env.has_same_inouts(env):
         print(env.action_space.shape, exp.env.action_space.shape)
         print(env.observation_shape, exp.env.observation_shape)
-        print(env.extra_shape, exp.env.extra_shape)
+        print(env.extras_shape, exp.env.extras_shape)
 
         raise ValueError("The environment of the experiment and the test environment must have the same inputs and outputs")
     exp.test_on_other_env(env, args.dest, args.n_tests, args.quiet, device=args.device)

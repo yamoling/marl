@@ -135,5 +135,5 @@ class CNetNN(NN):  # Source : https://github.com/minqi/learning-to-communicate-p
     @classmethod
     def from_env(cls, env: MARLEnv, opt):
         assert len(env.observation_shape) == 1
-        assert len(env.extra_shape) == 1
-        return cls(env.observation_shape, env.extra_shape, opt.game_action_space_total, opt)
+        assert len(env.extras_shape) == 1
+        return cls(env.observation_shape, env.extras_shape, opt.game_action_space_total, opt)

@@ -6,7 +6,7 @@ import marl
 exp = marl.Experiment.load("logs/LLE-lvl6-PBRS-VDN")
 env = exp.env
 print(env.observation_shape)
-print(env.extra_shape)
+print(env.extras_shape)
 print(env.extras_meanings)
 root = "logs/LLE-lvl6-PBRS-VDN/run_2025-02-24_17:29:11.134180_seed=0/test"
 for item in os.listdir(root):

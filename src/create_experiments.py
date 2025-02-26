@@ -7,9 +7,8 @@ from marl.training import DQNTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
 
-from lle import LLE, ObservationType
+from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
-from marl.utils import Schedule
 
 
 class Arguments(RunArguments):

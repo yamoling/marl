@@ -29,7 +29,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
             meta_agent = ContinuousPPOTrainer(
                 actor_critic=CNNContinuousActorCritic(
                     input_shape=meta_env.observation_shape,
-                    n_extras=meta_env.extra_shape[0],
+                    n_extras=meta_env.extras_shape[0],
                     action_output_shape=(N_SUBGOALS,),
                 ),
                 batch_size=1024,
@@ -44,7 +44,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
             meta_agent = DQNTrainer(
                 qnetwork=marl.nn.model_bank.qnetworks.CNN(
                     input_shape=meta_env.observation_shape,
-                    extras_size=meta_env.extra_shape[0],
+                    extras_size=meta_env.extras_shape[0],
                     output_shape=(N_SUBGOALS,),
                 ),
                 train_policy=marl.policy.EpsilonGreedy(
@@ -70,7 +70,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     if ir:
-        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extras_shape[0])
         ir_module = AdvantageIntrinsicReward(value_network, gamma)
     else:
         ir_module = None
@@ -98,8 +98,8 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         n_subgoals=N_SUBGOALS,
         n_workers=env.n_agents,
         k=K,
-        n_meta_extras=meta_env.extra_shape[0],
-        n_agent_extras=env.extra_shape[0] - meta_env.extra_shape[0] - N_SUBGOALS,
+        n_meta_extras=meta_env.extras_shape[0],
+        n_agent_extras=env.extras_shape[0] - meta_env.extras_shape[0] - N_SUBGOALS,
         n_meta_warmup_steps=WARMUP_STEPS,
     )
 
@@ -121,7 +121,7 @@ def main_lunar_lander_continuous():
     env = Gym(gym.make("LunarLanderContinuous-v3", render_mode="rgb_array"))
     actor_critic = marl.nn.model_bank.actor_critics.MLPContinuousActorCritic(
         input_shape=env.observation_shape,
-        n_extras=env.extra_shape[0],
+        n_extras=env.extras_shape[0],
         action_output_shape=(env.n_actions,),
     )
     trainer = ContinuousPPOTrainer(
