@@ -95,9 +95,9 @@ class Runner[A, AS: ActionSpace]:
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
+        self._env.seed(seed)
         self._agent.randomize()
         self._trainer.randomize()
-        self._env.seed(seed)
 
         max_step = n_steps
         episode_num = 0

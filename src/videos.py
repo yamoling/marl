@@ -1,13 +1,11 @@
 import os
-import time
 
 import orjson
-from lle import LLE, Direction, WorldState
-from marlenv import Builder
-from marlenv.wrappers import RLEnvWrapper, VideoRecorder
+from lle import LLE, World, WorldState
+from marlenv import Builder, MARLEnv
+from marlenv.wrappers import VideoRecorder
 
 import marl
-from marl.env.wrappers import LLEPotentialShaping
 
 
 def replay(rundir: str, env, t: int):
@@ -44,41 +42,35 @@ def with_shaping():
     dqn.set_testing()
 
 
-if __name__ == "__main__":
-    lle = LLE.level(6).obs_type("layered").build()
-    world = lle.world
-    # l1 = world.laser_sources[4, 0]
-    # l2 = world.laser_sources[6, 12]
-    # l1.set_colour(1)
-    # l2.set_colour(0)
-    from marl.env.wrappers import BShaping
+def swap_initial_pos(exp: marl.Experiment):
+    exp.env.reset()
+    world: World = exp.env.wrapped.wrapped.wrapped.world  # type: ignore
+    state = world.get_state()
+    agents_positions = world.agents_positions
+    new_agents_pos = [agents_positions[1], agents_positions[0], agents_positions[2], agents_positions[3]]
+    new_state = WorldState(new_agents_pos, state.gems_collected, state.agents_alive)
+    world.set_state(new_state)
 
-    lle = BShaping(lle, world, 1, 0, True)
-    print(lle.extra_shape)
-    # lle = LLEPotentialShaping(lle, {l1: Direction.SOUTH, l2: Direction.SOUTH}, 0.95)
-    env = Builder(lle).agent_id().time_limit(78).build()
-    env = VideoRecorder(env, end_pause_frames=5, initial_pause_frames=5, fps=3)
-    print(env.extra_shape)
 
-    qnetwork = marl.nn.model_bank.qnetworks.CNN.from_env(env)
-    agent = marl.agents.DQN(qnetwork, marl.policy.ArgMax(), marl.policy.ArgMax())
-    agent.load("shaped")
-    agent.set_testing()
-
-    obs, state = env.reset()
-    # state = world.get_state()
-    # agents_positions = world.agents_positions
-    # new_agents_pos = [agents_positions[1], agents_positions[0], agents_positions[2], agents_positions[3]]
-    # new_state = WorldState(new_agents_pos, state.gems_collected, state.agents_alive)
-    # world.set_state(new_state)
-
+def run(env: MARLEnv, agent: marl.Agent, checkpoint: str):
+    agent.load(checkpoint)
     obs = env.get_observation()
-    env.render()
+    # env.render()
     is_terminal = False
     while not is_terminal:
         action = agent.choose_action(obs)
         step = env.step(action)
-        env.render()
-        input()
+        # env.render()
         obs = step.obs
         is_terminal = step.is_terminal
+
+
+if __name__ == "__main__":
+    ------
+    # The problem is that the previous experiment was launched with a previous version of multi-agent-rlenv
+    # So the attributes do not match anymore.
+    # A new experiment should be started, making sure that the reward scheme is correct and the subgoals are indeed given.
+    exp = marl.Experiment.load("logs/LLE-lvl6-PBRS-VDN")
+    exp.env = VideoRecorder(exp.env, end_pause_frames=5, initial_pause_frames=5, fps=3)
+    swap_initial_pos(exp)
+    run(exp.env, exp.agent, "logs/LLE-lvl6-PBRS-VDN/run_2025-02-26_12:59:23.108388_seed=0/test/650000")

@@ -34,6 +34,8 @@ class QTRAN(Mixer):
             n_agents,
             64,
         )
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.clip_norm = 10.0
 
         raise NotImplementedError("QTRAN is not implemented yet")
 
@@ -93,7 +95,7 @@ class QTRAN(Mixer):
         new_batch_size = batch_size * self.nr_agents
         observations = observations.view(new_batch_size, -1)
         actions = joint_actions.view(new_batch_size, 1)
-        Q_local_values, _ = self.Q_net(observations)
+        Q_local_values, _ = self.Q_net(observations)  # type: ignore
         Q_local_values_real = Q_local_values.gather(1, actions).squeeze()
         Q_local_values_max = Q_local_values.max(1)[0].squeeze()
         Q_local_values_real = Q_local_values_real.view(batch_size, self.nr_agents)

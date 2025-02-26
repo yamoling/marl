@@ -47,8 +47,8 @@ class PPO(Agent):
         self.ac_network = policy
         self.optimizer = torch.optim.Adam(
             [
-                {"params": self.ac_network.actions_mean_std.parameters(), "lr": lr_actor},
-                {"params": self.ac_network.critic.parameters(), "lr": lr_critic},
+                {"params": self.ac_network.actions_mean_std.parameters(), "lr": lr_actor},  # type: ignore
+                {"params": self.ac_network.critic.parameters(), "lr": lr_critic},  # type: ignore
             ]
         )
 
@@ -102,10 +102,6 @@ class PPO(Agent):
             old_states = old_states.unsqueeze(-1)
         # old_actions = torch.squeeze(torch.from_numpy(np.stack(self.buffer.actions))).to(self.device)
         old_actions = torch.squeeze(torch.from_numpy(np.stack([action for action in self.buffer.actions]))).to(self.device)
-        if old_actions.dim() <= 1:
-            # old_actions = old_actions.unsqueeze(-1)
-            DEBUG = 0
-
         old_logprobs = torch.squeeze(torch.from_numpy(np.stack(self.buffer.logprobs))).to(self.device)
         old_state_values = torch.tensor(self.buffer.state_values, device=self.device)
 
@@ -115,9 +111,9 @@ class PPO(Agent):
         # Optimize policy for K epochs
         for _ in range(self.k_epochs):
             # Evaluating old actions and values
-            logprobs, dist_entropy = self.ac_network.evaluate(old_states, old_actions)
+            logprobs, dist_entropy = self.ac_network.evaluate(old_states, old_actions)  # type: ignore
 
-            state_values = self.ac_network.value(old_states)
+            state_values = self.ac_network.value(old_states)  # type: ignore
             # match state_values tensor dimensions with rewards tensor
             state_values = torch.squeeze(state_values)
 

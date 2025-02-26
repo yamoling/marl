@@ -14,20 +14,19 @@ To install pytorch, you have to specify which variant you want to install, i.e. 
 ```bash
 $ uv sync --extra=torch-cu124 # To use CUDA 12.4
 ```
-(your-venv) $ python src/main.py
-```
+
 
 ## Web UI to inspect your experiments
 **With the Brave browser:** you have to deactivate the Brave shield.
 
-After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed.
+After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed, but npm or deno should work similarly.
 
 Serve the files in production mode:
 ```bash
 $ cd src/ui
 $ bun install
 $ bun run build # Build the sources to src/ui/dist.
-$ cd ../..      # Go back to the root of the marl.
+$ cd ../..      # Go back to the root of the project
 $ python src/serve.py
 ```
 

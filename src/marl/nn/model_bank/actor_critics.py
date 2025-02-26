@@ -191,11 +191,11 @@ class SimpleActorCritic(DiscreteActorCriticNN):
 
     @property
     def value_parameters(self):
-        return list(self.common.parameters()) + list(self.value_network.parameters())
+        return list(self.value_network.parameters())
 
     @property
     def policy_parameters(self):
-        return list(self.common.parameters()) + list(self.policy_network.parameters())
+        return list(self.policy_network.parameters())
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):

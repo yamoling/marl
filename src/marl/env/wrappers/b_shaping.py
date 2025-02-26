@@ -87,7 +87,8 @@ class BShaping(RLEnvWrapper):
         # - the lasers are horizontal
         # - lasers do not cross
         reward_positions = [set[int]() for _ in range(world.n_agents)]
-        for (i, _), laser in world.lasers:
+        for laser in world.lasers:
+            i, _ = laser.pos
             if laser.direction not in [Direction.EAST, Direction.WEST]:
                 continue
             for agent_id in range(world.n_agents):

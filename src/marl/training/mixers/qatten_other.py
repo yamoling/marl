@@ -27,7 +27,7 @@ class QattenMixer(Mixer):
 
         self.query_embedding_layers = nn.ModuleList()
         self.key_embedding_layers = nn.ModuleList()
-        for i in range(n_heads):
+        for _ in range(n_heads):
             self.query_embedding_layers.append(
                 nn.Sequential(
                     nn.Linear(self.state_dim, hypernetwork_embed_size),
@@ -84,7 +84,7 @@ class QattenMixer(Mixer):
         if self.weighted:
             # shape: [-1, n_attention_head, 1]
             w_h = th.abs(self.head_embedding_layer(states))
-            w_h = w_h.reshape(-1, self.n_head_embedding_layer2, 1)
+            w_h = w_h.reshape(-1, self.n_attention_head, 1)
 
             # shape: [-1, 1]
             sum_q_h = th.matmul(q_h, w_h)

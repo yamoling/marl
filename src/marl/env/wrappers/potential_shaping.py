@@ -116,7 +116,8 @@ class LLEPotentialShaping(PotentialShaping):
             )
             in_laser_rewards = set[Position]()
             after_laser_rewards = set[Position]()
-            for (i, j), laser in world.lasers:
+            for laser in world.lasers:
+                i, j = laser.pos
                 if laser.laser_id == source.laser_id:
                     in_laser_rewards.add((i, j))
                     di, dj = direction.delta()
