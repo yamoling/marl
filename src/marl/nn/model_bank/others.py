@@ -78,7 +78,7 @@ class CNetNN(NN):  # Source : https://github.com/minqi/learning-to-communicate-p
 
     def reset_parameters(self):
         opt = self.opt
-        self.messages_mlp.linear1.reset_parameters()
+        self.messages_mlp.linear1.reset_parameters()  # type: ignore
         self.rnn.reset_parameters()
         self.agent_lookup.reset_parameters()
         self.state_lookup.reset_parameters()
@@ -86,9 +86,9 @@ class CNetNN(NN):  # Source : https://github.com/minqi/learning-to-communicate-p
         if self.prev_message_lookup:
             self.prev_message_lookup.reset_parameters()
         if opt.comm_enabled and opt.model_dial:
-            self.messages_mlp.batchnorm1.reset_parameters()
-        self.outputs.linear1.reset_parameters()
-        self.outputs.linear2.reset_parameters()
+            self.messages_mlp.batchnorm1.reset_parameters()  # type: ignore
+        self.outputs.linear1.reset_parameters()  # type: ignore
+        self.outputs.linear2.reset_parameters()  # type: ignore
         for p in self.rnn.parameters():
             p.data.uniform_(*self.init_param_range)
 

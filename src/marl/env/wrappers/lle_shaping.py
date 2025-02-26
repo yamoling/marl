@@ -14,7 +14,7 @@ class LLEShaping(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
         super().__init__(env)
         self.lle = env
         self.world = env.world
-        self.laser_colours = {pos: laser.agent_id for pos, laser in self.world.lasers}
+        self.laser_colours = {laser.pos: laser.agent_id for laser in self.world.lasers}
         self.reward_for_blocking = reward_for_blocking
 
     def additional_reward(self, actions):

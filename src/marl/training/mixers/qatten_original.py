@@ -17,6 +17,7 @@ class QattenOriginal(Mixer):
         n_heads: int = 4,
         weighted_head: bool = False,
         nonlinear: bool = False,
+        is_minus_one: bool = False,
     ):
         super().__init__(n_agents)
 
@@ -25,6 +26,7 @@ class QattenOriginal(Mixer):
         self.state_dim = state_size
         self.action_dim = n_agents * self.n_actions
         self.state_action_dim = self.state_dim + self.action_dim + 1
+        self.is_minus_one = is_minus_one
         self.unit_dim = agent_state_size
 
         self.attention_weight = Qatten_Weight(
@@ -70,7 +72,7 @@ class QattenOriginal(Mixer):
         adv_w_final = self.si_weight(states, actions)
         adv_w_final = adv_w_final.view(-1, self.n_agents)
 
-        if self.args.is_minus_one:
+        if self.is_minus_one:
             adv_tot = th.sum(adv_q * (adv_w_final - 1.0), dim=1)
         else:
             adv_tot = th.sum(adv_q * adv_w_final, dim=1)
@@ -132,6 +134,7 @@ class Qatten_Weight(nn.Module):
         self.n_actions = n_actions
         self.sa_dim = self.state_dim + self.n_agents * self.n_actions
         self.n_head = n_heads  # attention head num
+        self.nonlinear = False
 
         self.embed_dim = mixing_embed_dim
         self.attend_reg_coef = attend_reg_coef
@@ -149,7 +152,7 @@ class Qatten_Weight(nn.Module):
                 nn.Linear(hypernet_embed, self.embed_dim, bias=False),
             )
             self.query_extractors.append(selector_nn)  # query
-            if self.args.nonlinear:  # add qs
+            if self.nonlinear:  # add qs
                 self.key_extractors.append(nn.Linear(self.unit_dim + 1, self.embed_dim, bias=False))  # key
             else:
                 self.key_extractors.append(nn.Linear(self.unit_dim, self.embed_dim, bias=False))  # key
@@ -168,7 +171,7 @@ class Qatten_Weight(nn.Module):
 
         agent_qs = agent_qs.view(-1, 1, self.n_agents)  # agent_qs: (batch_size, 1, agent_num)
 
-        if self.args.nonlinear:
+        if self.nonlinear:
             unit_states = th.cat((unit_states, agent_qs.permute(2, 0, 1)), dim=2)
         # states: (batch_size, state_dim)
         all_head_selectors = [sel_ext(states) for sel_ext in self.query_extractors]
@@ -198,7 +201,7 @@ class Qatten_Weight(nn.Module):
         head_attend = head_attend.view(-1, self.n_head, self.n_agents)
 
         # head_qs: [head_num, bs, 1]
-        if self.args.weighted_head:
+        if self.weighted_head:
             w_head = th.abs(self.hyper_w_head(states))  # w_head: (bs, head_num)
             w_head = w_head.view(-1, self.n_head, 1).repeat(1, 1, self.n_agents)  # w_head: (bs, head_num, self.n_agents)
             head_attend *= w_head
@@ -218,7 +221,7 @@ class Qatten_Weight(nn.Module):
 
         agent_qs = agent_qs.view(-1, 1, self.n_agents)  # agent_qs: (batch_size, 1, agent_num)
 
-        if self.args.nonlinear:
+        if self.nonlinear:
             unit_states = th.cat((unit_states, agent_qs.permute(2, 0, 1)), dim=2)
 
         all_queries = th.stack([sel_ext(states) for sel_ext in self.query_extractors])
@@ -232,7 +235,7 @@ class Qatten_Weight(nn.Module):
         head_attend = head_attend.view(-1, self.n_head, self.n_agents)
 
         # head_qs: [head_num, bs, 1]
-        if self.args.weighted_head:
+        if self.weighted_head:
             w_head = th.abs(self.hyper_w_head(states))  # w_head: (bs, head_num)
             w_head = w_head.view(-1, self.n_head, 1).repeat(1, 1, self.n_agents)  # w_head: (bs, head_num, self.n_agents)
             head_attend *= w_head
