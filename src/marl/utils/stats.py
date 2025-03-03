@@ -1,4 +1,3 @@
-from serde import serde
 import torch
 from dataclasses import dataclass
 import numpy as np
@@ -8,7 +7,6 @@ import polars.exceptions as pl_errors
 from typing import Optional
 
 
-@serde
 @dataclass
 class Dataset:
     logdir: str
@@ -21,7 +19,6 @@ class Dataset:
     ci95: list[float]
 
 
-@serde
 @dataclass
 class ExperimentResults:
     logdir: str
@@ -203,3 +200,22 @@ def agregate_metrics(
                 res[f"min_{key}"] = float(values.min())
                 res[f"max_{key}"] = float(values.max())
     return res
+
+
+def moving_average(x: np.ndarray, window_size: int) -> np.ndarray:
+    data_shape = x.shape
+    ones = np.ones_like((window_size, *data_shape[1:]))
+    return np.convolve(x, ones, "valid") / window_size
+
+
+def ensure_numerical(df: pl.DataFrame, drop_non_numeric: bool = True):
+    non_numerical = [col for col in df.select(~pl.selectors.numeric()).columns]
+    to_drop = []
+    for col in non_numerical:
+        try:
+            df = df.cast({col: pl.Float32})
+        except pl.exceptions.InvalidOperationError:
+            to_drop.append(col)
+    if drop_non_numeric:
+        df = df.drop(to_drop)
+    return df

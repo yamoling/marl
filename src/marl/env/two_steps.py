@@ -3,8 +3,7 @@ from typing import Literal
 import marlenv
 import numpy as np
 import numpy.typing as npt
-from marlenv.models import DiscreteActionSpace
-from marlenv.models.observation import Observation
+from marlenv import Observation, State, DiscreteActionSpace
 
 PAYOFF_INITIAL = [[0, 0], [0, 0]]
 
@@ -25,7 +24,7 @@ class TwoStepsState(IntEnum):
         return res
 
 
-class TwoSteps(marlenv.MARLEnv[DiscreteActionSpace, np.ndarray, np.ndarray]):
+class TwoSteps(marlenv.MARLEnv):
     """
     Two-steps game used in QMix paper (https://arxiv.org/pdf/1803.11485.pdf, section 5)
     to demonstrate is superior representationability compared to VDN.
@@ -69,12 +68,12 @@ class TwoSteps(marlenv.MARLEnv[DiscreteActionSpace, np.ndarray, np.ndarray]):
         return obs, reward, done, False, {}
 
     def get_state(self):
-        return self.state.one_hot()
+        return State(self.state.one_hot())
 
     def observation(self):
         obs_data = np.array([self.state.one_hot(), self.state.one_hot()])
         extras = self._identity
-        return Observation(obs_data, self.available_actions(), self.get_state(), extras)
+        return Observation(obs_data, self.available_actions(), extras)
 
     def render(self, mode: Literal["human", "rgb_array"] = "human"):
         print(self.state)

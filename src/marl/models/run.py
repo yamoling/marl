@@ -1,14 +1,14 @@
 import os
 import shutil
 import polars as pl
-import json
+import orjson
 import signal
 import pickle
 from datetime import datetime
 from marlenv import Episode, MARLEnv
 from typing import Optional
 from dataclasses import dataclass
-from marl.algo import RLAlgo
+from marl.agents import Agent
 from marl.exceptions import (
     CorruptExperimentException,
     TestEnvNotSavedException,
@@ -18,7 +18,7 @@ from marl.exceptions import (
 )
 from marl.utils import stats
 from marl import logging
-from .replay_episode import ReplayEpisodeSummary
+from .replay_episode import LightEpisodeSummary
 
 
 TRAIN = "train.csv"
@@ -63,17 +63,17 @@ class Run:
         except FileNotFoundError:
             raise TestEnvNotSavedException()
 
-    def get_test_actions(self, time_step: int, test_num: int) -> list[list[int]]:
+    def get_test_actions(self, time_step: int, test_num: int) -> list:
         test_directory = self.test_dir(time_step, test_num)
         actions_file = os.path.join(test_directory, ACTIONS)
         with open(actions_file, "r") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
-    def get_train_actions(self, time_step: int) -> list[list[int]]:
+    def get_train_actions(self, time_step: int) -> list:
         train_directory = self.train_dir(time_step)
         actions_file = os.path.join(train_directory, ACTIONS)
         with open(actions_file, "r") as f:
-            return json.load(f)
+            return orjson.loads(f.read())
 
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.rundir, "test", f"{time_step}")
@@ -111,9 +111,11 @@ class Run:
     def training_data(self, delta_x: int):
         try:
             df = pl.read_csv(self.training_data_filename)
+            # Make sure we are working with numerical values
+            df = stats.ensure_numerical(df, drop_non_numeric=True)
             if delta_x != 0:
                 df = stats.round_col(df, TIME_STEP_COL, delta_x)
-                df = df.group_by(TIME_STEP_COL).mean()
+                df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
             return df
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
@@ -179,7 +181,7 @@ class Run:
         except FileNotFoundError:
             raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 
-    def get_test_episodes(self, time_step: int) -> list[ReplayEpisodeSummary]:
+    def get_test_episodes(self, time_step: int) -> list[LightEpisodeSummary]:
         try:
             test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
             test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
@@ -187,7 +189,7 @@ class Run:
             for test_num, row in enumerate(test_metrics.rows()):
                 episode_dir = self.test_dir(time_step, test_num)
                 metrics = dict(zip(test_metrics.columns, row))
-                episode = ReplayEpisodeSummary(episode_dir, metrics)
+                episode = LightEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
         except pl.ColumnNotFoundError:
@@ -239,14 +241,20 @@ class RunHandle:
         self.training_data_logger = training_data_logger
         self.run = run
 
-    def log_tests(self, episodes: list[Episode], algo: RLAlgo, time_step: int):
-        algo.save(self.run.test_dir(time_step))
+    def log_tests(self, episodes: list[Episode], time_step: int):
         for i, episode in enumerate(episodes):
             episode_directory = self.run.test_dir(time_step, i)
             self.test_logger.log(episode.metrics, time_step)
-            os.makedirs(episode_directory)
-            with open(os.path.join(episode_directory, ACTIONS), "w") as a:
-                json.dump(episode.actions.tolist(), a)
+            if os.path.exists(episode_directory):
+                print(f"Warning: episode directory {episode_directory} already exists ! Overwriting...")
+            else:
+                os.makedirs(episode_directory)
+            with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
+                bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
+                f.write(bytes_data)
+
+    def save_agent(self, agent: Agent, time_step: int):
+        agent.save(self.run.get_saved_algo_dir(time_step))
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
         self.train_logger.log(episode.metrics, time_step)

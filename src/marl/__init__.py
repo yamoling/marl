@@ -7,16 +7,14 @@ from . import logging
 from . import nn
 from . import policy
 from . import training
-from . import algo
+from . import agents
 from . import env
-from . import other
 
 from .utils import seed
 
 
-from .models import Experiment, Runner, Run, Policy
-from .algo import RLAlgo
-from .training import Trainer
+from .models import Experiment, Runner, Run, Policy, Trainer
+from .agents import Agent
 
 
 __all__ = [
@@ -25,16 +23,15 @@ __all__ = [
     "env",
     "logging",
     "nn",
-    "other",
     "policy",
     "training",
     "seed",
     "Experiment",
-    "RLAlgo",
+    "Agent",
     "Runner",
     "Run",
     "Policy",
     "Trainer",
     "exceptions",
-    "algo",
+    "agents",
 ]

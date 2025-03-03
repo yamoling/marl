@@ -2,13 +2,11 @@ import random
 import numpy as np
 import numpy.typing as npt
 from dataclasses import dataclass
-from serde import serde
 
 from marl.utils import schedule
 from marl.models import Policy
 
 
-@serde
 @dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
@@ -31,7 +29,6 @@ class SoftmaxPolicy(Policy):
         return {"softmax-tau": self.tau}
 
 
-@serde
 @dataclass
 class EpsilonGreedy(Policy):
     """Epsilon Greedy policy"""
@@ -43,12 +40,12 @@ class EpsilonGreedy(Policy):
         self.epsilon = epsilon
 
     @classmethod
-    def linear(cls, start_eps: float, min_eps: float, n_steps: int):
-        return cls(schedule.LinearSchedule(start_eps, min_eps, n_steps))
+    def linear(cls, start_eps: float, end_eps: float, n_steps: int):
+        return cls(schedule.LinearSchedule(start_eps, end_eps, n_steps))
 
     @classmethod
-    def exponential(cls, start_eps: float, min_eps: float, n_steps: int):
-        return cls(schedule.ExpSchedule(start_eps, min_eps, n_steps))
+    def exponential(cls, start_eps: float, end_eps: float, n_steps: int):
+        return cls(schedule.ExpSchedule(start_eps, end_eps, n_steps))
 
     @classmethod
     def constant(cls, eps: float):
@@ -68,7 +65,6 @@ class EpsilonGreedy(Policy):
         return {"epsilon": self.epsilon.value}
 
 
-@serde
 @dataclass
 class ArgMax(Policy):
     """Exploiting the strategy"""

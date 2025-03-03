@@ -28,11 +28,11 @@ class NStepMemory(TransitionMemory):
         if item.is_terminal:
             # Update the last n observations such that their next obs is the one of the episode
             for i in range(2, min(self._n, self._episode_len) + 1):
-                self._update_transition(-i, item.obs_, item.done, item.truncated)
+                self._update_transition(-i, item.next_obs, item.done, item.truncated)
             self._episode_len = 0
 
     def _update_transition(self, index: int, obs_, done, truncated):
         t = self._memory[index]
-        t.obs_ = obs_
+        t.next_obs = obs_
         t.done = done
         t.truncated = truncated

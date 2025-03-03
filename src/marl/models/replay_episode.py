@@ -1,13 +1,11 @@
 import os
 from dataclasses import dataclass
 from marlenv.models import Episode
-from serde import serde
 from typing import Optional
 
 
-@serde
 @dataclass
-class ReplayEpisodeSummary:
+class LightEpisodeSummary:
     name: str
     directory: str
     metrics: dict[str, float]
@@ -18,12 +16,11 @@ class ReplayEpisodeSummary:
         self.name = os.path.basename(directory)
 
 
-@serde
 @dataclass
-class ReplayEpisode(ReplayEpisodeSummary):
+class ReplayEpisode(LightEpisodeSummary):
     episode: Episode
     qvalues: Optional[list[list[list[float]]]]
-    state_values: list[float]
+    state_values: Optional[list[float]]
     frames: list[str]
     logits: Optional[list[list[list[float]]]]
     probs: Optional[list[list[list[float]]]]
@@ -34,10 +31,9 @@ class ReplayEpisode(ReplayEpisodeSummary):
     def __init__(
         self,
         directory: str,
-        metrics: dict[str, float],
         episode: Episode,
-        state_values: list[float],
         frames: list[str],
+        state_values: Optional[list[float]] = None,
         qvalues: Optional[list[list[list[float]]]] = None,
         logits: Optional[list[list[list[float]]]] = None,
         probs: Optional[list[list[list[float]]]] = None,
@@ -45,7 +41,7 @@ class ReplayEpisode(ReplayEpisodeSummary):
         received_messages: Optional[list[list[float]]] = None,
         init_qvalues: Optional[list[list[list[float]]]] = None,
     ):
-        super().__init__(directory, metrics)
+        super().__init__(directory, episode.metrics)
         self.episode = episode
         self.qvalues = qvalues
         self.state_values = state_values

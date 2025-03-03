@@ -3,18 +3,17 @@ from typing import Any
 
 import torch
 from marlenv import Episode, Transition
-from serde import serialize
 
-from marl.algo.qlearning.cnet import CNet, EpisodeCommWrapper
+from marl.agents.qlearning.cnet import CNet, EpisodeCommWrapper
 
-from .trainer import Trainer
+from ..models.trainer import Trainer
 
 
-@serialize
 @dataclass
 class CNetTrainer(Trainer):
     def __init__(self, opt, agents: CNet):
-        super().__init__("episode", opt.bs)
+        super().__init__("episode")
+        self.step_update_interval = opt.bs
         self.opt = opt
         self.agents = agents
         self.memory = EpisodeCommWrapper()
@@ -49,7 +48,7 @@ class CNetTrainer(Trainer):
         episode_from_agent = self.agents.get_episode()
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))  # type: ignore
 
-        if (episode_num + 1) % self.steps_update_interval == 0:
+        if (episode_num + 1) % self.step_update_interval == 0:
             self._update(time_step)
 
         return {}

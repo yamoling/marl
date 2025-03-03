@@ -1,13 +1,14 @@
 import threading
 import os
 import asyncio
-from serde.json import to_json
 from dataclasses import dataclass
 from typing import ClassVar
-from websockets.server import serve, WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosed
-from marl.models.replay_episode import ReplayEpisodeSummary
+from marl.models.replay_episode import LightEpisodeSummary
 from .logger_interface import Logger
+import orjson
+
+from websockets.asyncio.server import serve, ServerConnection
 
 
 @dataclass
@@ -16,7 +17,7 @@ class WSLogger(Logger):
 
     WS_FILE: ClassVar[str] = "ws_port"
 
-    clients: set[WebSocketServerProtocol]
+    clients: set[ServerConnection]
     port: int
 
     def __init__(self, logdir: str, port: int) -> None:
@@ -26,15 +27,10 @@ class WSLogger(Logger):
         self.messages = asyncio.Queue()
         self._stop = False
         self._started = False
-        self._ws_file = os.path.join(logdir, WSLogger.WS_FILE)
         self.start()
 
     def stop(self):
         self._stop = True
-        try:
-            os.remove(self._ws_file)
-        except FileNotFoundError:
-            pass
 
     def start(self):
         self._started = False
@@ -42,8 +38,7 @@ class WSLogger(Logger):
         while not self._started:
             pass
 
-    async def connection_handler(self, ws: WebSocketServerProtocol, path):
-        print(f"New connection at {path}")
+    async def connection_handler(self, ws: ServerConnection):
         self.clients.add(ws)
         # The client gets disconnected when this method returns
         while not self._stop:
@@ -54,8 +49,8 @@ class WSLogger(Logger):
 
     async def update_loop(self):
         while not self._stop:
-            log: ReplayEpisodeSummary = await self.messages.get()
-            data = to_json(log)
+            log: LightEpisodeSummary = await self.messages.get()
+            data = orjson.dumps(log)
             to_remove = set()
             for client in self.clients:
                 try:
@@ -67,12 +62,10 @@ class WSLogger(Logger):
     async def accept_connections(self):
         try:
             # If self.port is None, then the OS will choose a random port
-            async with serve(self.connection_handler, "0.0.0.0", self.port) as s:
+            async with serve(self.connection_handler, "0.0.0.0", self.port) as server:
                 # Retrieve the port number that was chosen
-                self.port: int = list(s.sockets)[0].getsockname()[1]
+                self.port: int = list(server.sockets)[0].getsockname()[1]
                 print("Starting websocket server on port", self.port, "...")
-                with open(self._ws_file, "w") as f:
-                    f.write(str(self.port))
                 self._started = True
                 while not self._stop:
                     await asyncio.sleep(1)
@@ -82,13 +75,7 @@ class WSLogger(Logger):
 
     def log(self, tag: str, data: dict[str, float], time_step: int):
         directory = os.path.join(self.logdir, tag, f"{time_step}")
-        self.messages.put_nowait(ReplayEpisodeSummary(directory, data))
-
-    def print(self, tag: str, data):
-        pass
-
-    def flush(self, prefix: str | None = None):
-        pass
+        self.messages.put_nowait(LightEpisodeSummary(directory, data))
 
     def __del__(self):
         self.stop()

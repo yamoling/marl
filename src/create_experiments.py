@@ -3,16 +3,12 @@ import marl
 import marlenv
 from typing import Optional
 import typed_argparse as tap
-from marl.training import DQNTrainer, DDPGTrainer, PPOTrainer, MAICTrainer
+from marl.training import DQNTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
-from marl.nn import model_bank
-from marl.algo.qlearning.maic import MAICParameters
 
-# from marl.algo.qlearning.maic import MAICParameters
-from lle import LLE, ObservationType
+from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
-from marl.utils import Schedule
 
 
 class Arguments(RunArguments):
@@ -41,7 +37,7 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.algo.QPlex(
+        mixer=marl.training.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
             state_size=env.state_shape[0],
@@ -52,7 +48,7 @@ def create_smac(args: Arguments):
         grad_norm_clipping=10,
     )
 
-    algo = marl.algo.RDQN(
+    algo = marl.agents.RDQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=test_policy,
@@ -69,109 +65,40 @@ def create_smac(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
-
-
-def create_ddpg_lle(args: Arguments):
-    n_steps = 500_000
-    env = LLE.level(2).obs_type(ObservationType.LAYERED).state_type(ObservationType.LAYERED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-
-    ac_network = marl.nn.model_bank.DDPG_NN_TEST.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
-
-    train_policy = marl.policy.NoisyCategoricalPolicy()
-    test_policy = marl.policy.ArgMax()
-
-    trainer = DDPGTrainer(
-        network=ac_network, memory=memory, batch_size=64, optimiser="adam", train_every="step", update_interval=5, gamma=0.95, lr=1e-5
-    )
-
-    algo = marl.algo.DDPG(ac_network=ac_network, train_policy=train_policy, test_policy=test_policy)
-    # logdir = f"logs/{env.name}-TEST-DDPG"
-    logdir = "logs/ddpg_lvl2_lr_1e-5"
-    if args.debug:
-        logdir = "logs/debug"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
-
-
-def create_ppo_lle(args: Arguments):
-    n_steps = 1_000_000
-    walkable_lasers = True
-    temperature = 1
-    # env = LLE.from_file("maps/lvl3_without_gem").obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
-    env = LLE.level(3).obs_type(ObservationType.LAYERED).walkable_lasers(walkable_lasers).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
-
-    ac_network = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
-    ac_network.temperature = temperature
-
-    entropy_schedule = None
-    # entropy_schedule = schedule.LinearSchedule(0.05, 0.01, round(1/3 * n_steps))
-
-    temperature_schedule = None
-    # temperature_schedule = schedule.LinearSchedule(50, 1, round(2/3 * n_steps))
-
-    # ac_network = marl.nn.model_bank.Clipped_CNN_ActorCritic.from_env(env)
-    memory = marl.models.TransitionMemory(78)
-
-    logits_clip_low = -2.0
-    logits_clip_high = 2.0
-
-    trainer = PPOTrainer(
-        network=ac_network,
-        memory=memory,
-        gamma=0.99,
-        batch_size=2,
-        lr_critic=1e-4,
-        lr_actor=1e-4,
-        optimiser="adam",
-        train_every="step",
-        update_interval=8,
-        n_epochs=4,
-        clip_eps=0.2,
-        c1=0.5,
-        c2=0.01,
-        c2_schedule=entropy_schedule,
-        softmax_temp_schedule=temperature_schedule,
-        logits_clip_low=logits_clip_low,
-        logits_clip_high=logits_clip_high,
-    )
-
-    algo = marl.algo.PPO(
-        ac_network=ac_network,
-        train_policy=marl.policy.CategoricalPolicy(),
-        test_policy=marl.policy.ArgMax(),
-        logits_clip_low=logits_clip_low,
-        logits_clip_high=logits_clip_high,
-    )
-
-    # logdir = f"logs/PPO-{env.name}-batch_{trainer.update_interval}_{trainer.batch_size}-gamma_{trainer.gamma}-WL_{walkable_lasers}-C2_{trainer.c2}-C1_{trainer.c1}"
-    # logdir += "-epsGreedy" if isinstance(algo.train_policy, marl.policy.EpsilonGreedy) else ""
-    # logdir += "-clipped" if isinstance(ac_network, marl.nn.model_bank.Clipped_CNN_ActorCritic) else ""
-    logdir = "logs/ppo_lvl3_default"
-    if args.debug:
-        logdir = "logs/debug"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 def create_lle(args: Arguments):
-    n_steps = 2_000_000
+    from marl.env.wrappers.randomized_lasers import RandomizedLasers
+
+    n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type(ObservationType.LAYERED).state_type(ObservationType.STATE).multi_objective()
-    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    lle = RandomizedLasers(
+        LLE.level(6)
+        # LLE.from_file("maps/lvl6-start-above.toml")
+        .obs_type("layered")
+        .state_type("state")
+        # .pbrs(
+        #     1.0,
+        #     reward_value=1,
+        #     lasers_to_reward=[(4, 0), (6, 12)],
+        # )
+        .build()
+    )
+    env = marlenv.Builder(lle).agent_id().time_limit(78, add_extra=True).build()
+
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
-    memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
+    # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
         1.0,
         0.05,
         n_steps=200_000,
     )
-    qmix = marl.algo.VDN.from_env(env)
+    mixer = marl.training.VDN.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -183,12 +110,12 @@ def create_lle(args: Arguments):
         batch_size=64,
         train_interval=(5, "step"),
         gamma=gamma,
-        mixer=qmix,
+        mixer=mixer,
         grad_norm_clipping=10,
         ir_module=None,
     )
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -210,309 +137,20 @@ def create_lle(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             args.logdir += "-PER"
     return marl.Experiment.create(
-        args.logdir,
-        algo=algo,
+        logdir=args.logdir,
+        agent=algo,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
         n_steps=n_steps,
         test_env=test_env,
     )
-
-
-def create_lle_baseline(args: Arguments):
-    # use Episode update -> use reshape in the nn
-    n_steps = 500_000
-    test_interval = 5000
-    gamma = 0.95
-    obs_type = ObservationType.LAYERED
-    env = LLE.level(3).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
-    test_env = None
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    memory = marl.models.EpisodeMemory(5000)
-    steps_eps = 500_000
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=steps_eps,
-    )
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=64,
-        train_interval=(1, "episode"),
-        gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=None,
-    )
-
-    algo = marl.algo.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    if args.logdir is not None:
-        logdir = f"logs/{args.logdir}"
-    elif args.debug:
-        logdir = "logs/debug"
-    else:
-        logdir = f"logs/baseline-qnetwork-eps{steps_eps}-{env.name}-{obs_type}"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if trainer.ir_module is not None:
-            logdir += f"-{trainer.ir_module.name}"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
-    return marl.Experiment.create(
-        logdir,
-        algo=algo,
-        trainer=trainer,
-        env=env,
-        test_interval=test_interval,
-        n_steps=n_steps,
-        test_env=test_env,
-    )
-
-
-def create_lle_maic(args: Arguments):
-    n_steps = 200_000
-    test_interval = 5000
-    obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(2).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
-    # TODO : improve args
-    opt = MAICParameters(n_agents=env.n_agents, com=True)
-
-    gamma = 0.95
-    eps_steps = 50_000
-    # Add the MAICNetwork (MAICAgent)
-    maic_network = marl.nn.model_bank.MAICNetwork.from_env(env, opt)
-    memory = marl.models.EpisodeMemory(5000)
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        eps_steps,
-    )
-    # Add the MAICAlgo (MAICMAC)
-    algo = marl.algo.MAIC(maic_network=maic_network, train_policy=train_policy, test_policy=marl.policy.ArgMax(), args=opt)
-    batch_size = 32
-    # Add the MAICTrainer (MAICLearner)
-    trainer = MAICTrainer(
-        args=opt,
-        maic_network=maic_network,
-        train_policy=train_policy,
-        batch_size=batch_size,
-        memory=memory,
-        gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
-        # mixer=marl.qlearning.QMix(env.state_shape[0], env.n_agents), #TODO: try with QMix : state needed
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        grad_norm_clipping=10,
-    )
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "MAIC-NoCOM" if not opt.com else "MAIC"
-        logdir = f"logs/{name}-{batch_size}-eps{eps_steps}-{env.name}-{obs_type}"
-        if trainer.double_qlearning:
-            logdir += "-double"
-        else:
-            logdir += "-single"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
-
-
-def create_lle_maicRDQN(args: Arguments):
-    n_steps = 2_000_000
-    test_interval = 5000
-    obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
-    # TODO : improve args
-    opt = MAICParameters(n_agents=env.n_agents, com=True)
-
-    gamma = 0.95
-    qnetwork = marl.nn.model_bank.MAICNetworkRDQN.from_env(env, opt)
-    memory = marl.models.EpisodeMemory(5000)
-    eps_steps = 200_000
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
-    bs = 64
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=bs,
-        train_interval=(1, "episode"),
-        gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=None,
-    )
-
-    algo = marl.algo.RDQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "MAICRDQN-NoCOM" if not opt.com else "MAICRDQN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-steps{n_steps}-{env.name}-{obs_type}"
-        if trainer.double_qlearning:
-            logdir += "-double"
-        else:
-            logdir += "-single"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
-
-
-def create_lle_maicCNN(args: Arguments):
-    n_steps = 1_000_000
-    test_interval = 5000
-    obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(6).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
-    # TODO : improve args
-    opt = MAICParameters(n_agents=env.n_agents, com=True)
-
-    gamma = 0.95
-    qnetwork = marl.nn.model_bank.MAICNetworkCNN.from_env(env, opt)
-    memory = marl.models.EpisodeMemory(5000)
-    eps_steps = 200_000
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
-    bs = 64
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=bs,
-        train_interval=(1, "episode"),
-        gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=None,
-    )
-
-    algo = marl.algo.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "MAICCNN-NoCOM" if not opt.com else "MAICCNN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
-        if trainer.double_qlearning:
-            logdir += "-double"
-        else:
-            logdir += "-single"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
-
-
-def create_lle_maicCNNRDQN(args: Arguments):
-    n_steps = 1_000_000
-    test_interval = 5000
-    obs_type = ObservationType.PARTIAL_7x7
-    env = LLE.level(4).obs_type(obs_type).state_type(ObservationType.FLATTENED).build()
-    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2, add_extra=True).build()
-    # TODO : improve args
-    opt = MAICParameters(n_agents=env.n_agents, com=True)
-
-    gamma = 0.95
-    qnetwork = marl.nn.model_bank.MAICNetworkCNNRDQN.from_env(env, opt)
-    memory = marl.models.EpisodeMemory(5000)
-    eps_steps = 150_000
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, eps_steps)
-    bs = 64
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=bs,
-        train_interval=(1, "episode"),
-        gamma=gamma,
-        mixer=marl.algo.VDN(env.n_agents),
-        grad_norm_clipping=10,
-        ir_module=None,
-    )
-
-    algo = marl.algo.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    if args.debug:
-        logdir = "logs/debug"
-    else:
-        name = "MAICCNNRDQN-NoCOM" if not opt.com else "MAICCNNDRQN"
-        logdir = f"logs/{name}-{bs}-eps{eps_steps}-{env.name}-{obs_type}"
-        if trainer.double_qlearning:
-            logdir += "-double"
-        else:
-            logdir += "-single"
-        if trainer.mixer is not None:
-            logdir += f"-{trainer.mixer.name}"
-        else:
-            logdir += "-iql"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            logdir += "-PER"
-    return marl.Experiment.create(logdir, algo=algo, trainer=trainer, env=env, test_interval=test_interval, n_steps=n_steps)
 
 
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_ddpg_lle(args)
         exp = create_lle(args)
-        # exp = create_lle(args)
-        # exp = create_lle_maic(args)
-        # exp = create_lle_maicRQN(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:

@@ -7,10 +7,10 @@ from marlenv import Episode, Transition
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
 from marl.models.batch import EpisodeBatch
 from marl.utils import defaults_to
-from marl.algo.qlearning.maic import MAICParameters
+from marl.agents.qlearning.maic import MAICParameters
 
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 class MAICTrainer(Trainer):
@@ -30,7 +30,8 @@ class MAICTrainer(Trainer):
         train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_interval[1], train_interval[0])
+        super().__init__(train_interval[1])
+        self.step_update_interval = train_interval[0]
         self.n_agents = args.n_agents
         self.maic_network = maic_network
         self.target_network = deepcopy(maic_network)
@@ -62,7 +63,7 @@ class MAICTrainer(Trainer):
 
     def _update(self, episode_num: int, time_step: int):
         self.update_num += 1
-        if self.update_num % self.steps_update_interval != 0 or not self._can_update():
+        if self.update_num % self.step_update_interval != 0 or not self._can_update():
             return {}
         logs, td_error = self.optimise_network()
         logs = logs | self.policy.update(time_step)
@@ -77,21 +78,23 @@ class MAICTrainer(Trainer):
 
     def _next_state_value(self, batch: EpisodeBatch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_obs_, batch.all_extras_)
+        next_qvalues, _, _ = self.target_network.batch_forward(batch.all_obs, batch.all_extras)
         next_qvalues = next_qvalues[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
-            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_obs_, batch.all_extras_)
+            qvalues_for_index, _, _ = self.maic_network.batch_forward(batch.all_obs, batch.all_extras)
             qvalues_for_index = qvalues_for_index[1:]
         else:
             qvalues_for_index = next_qvalues
         # Sum over the objectives
         qvalues_for_index = torch.sum(qvalues_for_index, -1)
-        qvalues_for_index[batch.available_actions_ == 0.0] = -torch.inf
+        qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
-        mixed_next_values = self.target_mixer.forward(next_values, batch.states_, batch.one_hot_actions, next_qvalues)
+        mixed_next_values = self.target_mixer.forward(
+            next_values, batch.next_states, one_hot_actions=batch.one_hot_actions, next_qvalues=next_qvalues
+        )
         return mixed_next_values
 
     def optimise_network(self):
@@ -103,7 +106,7 @@ class MAICTrainer(Trainer):
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
-        mixed_qvalues = self.mixer.forward(chosen_action_qvals, batch.states, batch.one_hot_actions, qvalues)
+        mixed_qvalues = self.mixer.forward(chosen_action_qvals, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
 
         # Drop variables to prevent using them mistakenly
         del qvalues

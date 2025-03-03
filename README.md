@@ -5,28 +5,28 @@ This repository contains a variety of Multi-Agent Reinforcement Learning (MARL) 
 `marl` comes with a web interface to visualise the results of your experiments (more info down below).
 
 ## Requirements
-- poetry
+- uv (`pip install uv`)
 - python >=  3.10
-- torch (does not work well with poetry, you should install it with pip as shown on the pytorch website)
 
 ## Getting started
+To install all the dependencies, simply run `uv sync`. This will install all the dependencies except pytorch.
+To install pytorch, you have to specify which variant you want to install, i.e. `torch-cu124` for CUDA 12.4 support, `torch-cu118` for CUDA 11.8 support or `torch-cpu` for CPU only support. Specify your variant with the `--extra` flag.
 ```bash
-$ poetry install
-$ poetry shell
-(your-venv) $ python src/main.py
+$ uv sync --extra=torch-cu124 # To use CUDA 12.4
 ```
+
 
 ## Web UI to inspect your experiments
 **With the Brave browser:** you have to deactivate the Brave shield.
 
-After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed.
+After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed, but npm or deno should work similarly.
 
 Serve the files in production mode:
 ```bash
 $ cd src/ui
 $ bun install
 $ bun run build # Build the sources to src/ui/dist.
-$ cd ../..      # Go back to the root of the marl.
+$ cd ../..      # Go back to the root of the project
 $ python src/serve.py
 ```
 

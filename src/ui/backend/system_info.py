@@ -1,8 +1,8 @@
 import asyncio
 from threading import Thread
-from serde.json import to_json
-from websockets.server import serve, WebSocketServerProtocol
 from websockets.exceptions import ConnectionClosed
+from websockets import serve
+import orjson
 import psutil
 from marl.utils import list_gpus
 
@@ -18,11 +18,11 @@ def get_system_info():
     }
 
 
-async def send_system_info(websocket: WebSocketServerProtocol):
+async def send_system_info(websocket):
     try:
         while not stop:
             await asyncio.sleep(1)
-            data = to_json(get_system_info())
+            data = orjson.dumps(get_system_info())
             await websocket.send(data)
     except ConnectionClosed:
         return

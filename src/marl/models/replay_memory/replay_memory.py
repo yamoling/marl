@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Generic, Iterable, Literal, TypeVar
+from typing import Deque, Generic, Iterable, Literal
+from typing_extensions import TypeVar
 
-from serde import serde
 import numpy as np
 from marlenv import Episode, Transition
 
@@ -11,12 +11,11 @@ from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
 
 T = TypeVar("T")
-B = TypeVar("B", bound=Batch)
+B = TypeVar("B", bound=Batch, default=Batch)
 
 
-@serde
 @dataclass
-class ReplayMemory(Generic[B, T], ABC):
+class ReplayMemory(Generic[T, B], ABC):
     """Parent class of any ReplayMemory"""
 
     max_size: int
@@ -62,7 +61,7 @@ class ReplayMemory(Generic[B, T], ABC):
         return self._memory[index]
 
 
-class TransitionMemory(ReplayMemory[TransitionBatch, Transition]):
+class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
     """Replay Memory that stores Transitions"""
 
     def __init__(self, max_size: int):
@@ -73,7 +72,7 @@ class TransitionMemory(ReplayMemory[TransitionBatch, Transition]):
         return TransitionBatch(transitions)
 
 
-class EpisodeMemory(ReplayMemory[EpisodeBatch, Episode]):
+class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
     """Replay Memory that stores and samples full Episodes"""
 
     def __init__(self, max_size: int):

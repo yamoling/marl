@@ -1,11 +1,9 @@
-from serde import serde
 from typing import Literal
 import torch
 import subprocess
 from dataclasses import dataclass
 
 
-@serde
 @dataclass
 class GPU:
     index: int
@@ -75,6 +73,9 @@ def get_max_gpu_usage(pids: set[int]):
                 max_memory = max(max_memory, used_memory)
         return max_memory
     except subprocess.CalledProcessError:
+        return 0
+    except ValueError:
+        # There is no process and int('') raises a ValueError
         return 0
 
 

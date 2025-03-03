@@ -1,102 +1,181 @@
-from typing import Any, Literal, Self
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from icecream import ic
-from lle import LLE, Action
-from marlenv import Episode, Transition
-from torch import device
+from typing import Literal
+from lle import LLE
 import marlenv
+from marl.training import DQNTrainer, SoftUpdate
+from marl.training.intrinsic_reward import AdvantageIntrinsicReward
+from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
+from marl.training.haven_trainer import HavenTrainer
+from marl.training.mixers import VDN
+from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.utils import MultiSchedule, Schedule
 
-from lle import World
 import marl
-from marl.other.subgoal import LocalGraph
 
 
-class LocalGraphTrainer(marl.Trainer):
-    def __init__(
-        self,
-        world: World,
-        trajectory_length: int,
-        t_o: int,
-        t_p: float,
-    ):
-        super().__init__()
-        all_pos = set((i, j) for i in range(world.height) for j in range(world.width)) - set(world.wall_pos)
-        self.graph = LocalGraph(t_o, t_p, all_pos)
-        self.world = world
-        self.trajectory = [tuple[int, int](world.start_pos[0])]
-        self.trajectory_length = trajectory_length
+def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
+    n_steps = 2_000_000
+    test_interval = 5000
+    WARMUP_STEPS = 1
+    gamma = 0.95
+    N_SUBGOALS = 16
+    K = 4
 
-    def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        # print(time_step)
-        prev_pos = self.trajectory[-1]
-        agent_pos = self.world.agents_positions[0]
-        diff = abs(agent_pos[0] - prev_pos[0] + agent_pos[1] - prev_pos[1])
-        if diff > 1:
-            action = Action(transition.action[0])
-            ic(time_step, agent_pos, prev_pos, action)
-        self.trajectory.append(agent_pos)
-        if transition.is_terminal or (time_step > 0 and time_step % self.trajectory_length == 0):
-            self.graph.add_trajectory(self.trajectory)
-            self.trajectory = [agent_pos]
-        if time_step > 0 and time_step % self.trajectory_length == 0:
-            # pos = {x: (x[1], -x[0]) for x in self.graph.local_graph.nodes}
-            # self.graph.show(pos)
-            self.graph.partition()
-            self.graph.clear()
-        return {}
+    lle = LLE.level(6).obs_type("layered").state_type("layered").build()
+    width = lle.width
+    height = lle.height
+    meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
+    match agent_type:
+        case "ppo":
+            meta_agent = ContinuousPPOTrainer(
+                actor_critic=CNNContinuousActorCritic(
+                    input_shape=meta_env.observation_shape,
+                    n_extras=meta_env.extras_shape[0],
+                    action_output_shape=(N_SUBGOALS,),
+                ),
+                batch_size=1024,
+                minibatch_size=64,
+                n_epochs=32,
+                value_mixer=VDN.from_env(meta_env),
+                gamma=gamma,
+                lr=5e-4,
+                # grad_norm_clipping=10.0,
+            )
+        case "dqn":
+            meta_agent = DQNTrainer(
+                qnetwork=marl.nn.model_bank.qnetworks.CNN(
+                    input_shape=meta_env.observation_shape,
+                    extras_size=meta_env.extras_shape[0],
+                    output_shape=(N_SUBGOALS,),
+                ),
+                train_policy=marl.policy.EpsilonGreedy(
+                    # Epsilon is 1 in the first 200k steps, then decays linearly to 0.05
+                    MultiSchedule(
+                        {
+                            0: Schedule.constant(1.0),
+                            WARMUP_STEPS: Schedule.linear(1.0, 0.05, 200_000),
+                        }
+                    )
+                ),
+                memory=marl.models.EpisodeMemory(5_000),
+                double_qlearning=True,
+                target_updater=SoftUpdate(0.01),
+                lr=5e-4,
+                train_interval=(1, "episode"),
+                gamma=gamma,
+                mixer=VDN.from_env(meta_env),
+                grad_norm_clipping=10.0,
+            )
+        case other:
+            raise ValueError(f"Invalid agent type: {other}")
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
-        return {}
-
-    def randomize(self):
-        return
-
-    def to(self, device: device) -> Self:
-        return self
-
-
-def main():
-    map_str = """
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-S0 . . . .  . . . . .  . . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . .
-.  . . . .  . . . . .  @ . . . . . . . . . X
-"""
-    env = LLE.from_str(map_str).single_objective()
-    world = env.world
-
-    mask = np.ones((env.n_agents, env.n_actions), dtype=bool)
-    mask[:, Action.STAY.value] = False
-    env = marlenv.Builder(env).agent_id().available_actions_mask(mask).build()
-
-    trainer = LocalGraphTrainer(
-        world,
-        t_o=10,
-        t_p=0.25,
-        trajectory_length=500,
+    env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
+    if ir:
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extras_shape[0])
+        ir_module = AdvantageIntrinsicReward(value_network, gamma)
+    else:
+        ir_module = None
+    worker_trainer = DQNTrainer(
+        qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
+        train_policy=marl.policy.EpsilonGreedy.linear(
+            1.0,
+            0.05,
+            n_steps=200_000,
+        ),
+        memory=marl.models.TransitionMemory(50_000),
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        train_interval=(5, "step"),
+        gamma=gamma,
+        mixer=VDN.from_env(env),
+        grad_norm_clipping=10.0,
+        ir_module=ir_module,
     )
-    exp = marl.Experiment.create("logs/test", trainer=trainer, n_steps=50_000, test_interval=0, env=env)
-    exp.run(0)
 
-    heatmap = np.zeros((world.height, world.width))
-    for i in range(world.height):
-        for j in range(world.width):
-            pos = (i, j)
-            n_hits = trainer.graph.hits.get(pos, 0)
-            hit_percentage = n_hits / trainer.graph.node_apparition_count.get(pos, 1)
-            heatmap[i, j] = hit_percentage
-            ic(pos, n_hits, hit_percentage)
-    sns.heatmap(heatmap, annot=True, fmt=".2f")
-    plt.show()
+    meta_trainer = HavenTrainer(
+        meta_trainer=meta_agent,
+        worker_trainer=worker_trainer,
+        n_subgoals=N_SUBGOALS,
+        n_workers=env.n_agents,
+        k=K,
+        n_meta_extras=meta_env.extras_shape[0],
+        n_agent_extras=env.extras_shape[0] - meta_env.extras_shape[0] - N_SUBGOALS,
+        n_meta_warmup_steps=WARMUP_STEPS,
+    )
+
+    return marl.Experiment.create(
+        env=env,
+        n_steps=n_steps,
+        trainer=meta_trainer,
+        test_interval=test_interval,
+        test_env=None,
+        # logdir=f"logs/haven-{agent_type}{'-ir' if ir else ''}-clipping=10",
+    )
+    # exp.run()
 
 
-main()
+def main_lunar_lander_continuous():
+    import gymnasium as gym
+    from marlenv.adapters import Gym
+
+    env = Gym(gym.make("LunarLanderContinuous-v3", render_mode="rgb_array"))
+    actor_critic = marl.nn.model_bank.actor_critics.MLPContinuousActorCritic(
+        input_shape=env.observation_shape,
+        n_extras=env.extras_shape[0],
+        action_output_shape=(env.n_actions,),
+    )
+    trainer = ContinuousPPOTrainer(
+        actor_critic=actor_critic,
+        value_mixer=VDN.from_env(env),  # type: ignore
+        gamma=0.99,
+        lr=1e-3,
+        exploration_c2=0.01,
+    )
+    exp = marl.Experiment.create(
+        env,
+        1_000_000,
+        trainer=trainer,
+        test_interval=5_000,
+        # logdir="logs/lunar-lander-ppo-with-entropy",
+    )
+    exp.run(
+        render_tests=False,
+        n_tests=5,
+    )
+
+
+def main_cartpole_vdn():
+    import gymnasium as gym
+    from marlenv.adapters import Gym
+    from marl.policy import EpsilonGreedy
+
+    env = Gym(gym.make("CartPole-v1", render_mode="rgb_array"))
+
+    trainer = DQNTrainer(
+        marl.nn.model_bank.MLP.from_env(env),
+        EpsilonGreedy.linear(1.0, 0.05, 10_000),
+        marl.models.TransitionMemory(10_000),
+        mixer=VDN.from_env(env),  # type: ignore
+        lr=1e-3,
+    )
+    exp = marl.Experiment.create(
+        env,
+        1_000_000,
+        trainer=trainer,
+        test_interval=2500,
+        logdir="logs/debug",
+    )
+    exp.run(
+        render_tests=False,
+        n_tests=5,
+    )
+
+
+if __name__ == "__main__":
+    # main_cartpole_vdn()
+    # make_haven("dqn", True)
+    # make_haven("ppo", True).run()
+    make_haven("dqn", True).run()
+    # make_haven("ppo", False)
+    # main_vdn()
+    # main_lunar_lander_continuous()

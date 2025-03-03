@@ -2,12 +2,13 @@ from typing import Literal
 import marl
 import marlenv
 from lle import LLE, ObservationType
-from marl.algo import mixers
+from marl.training import mixers
+from marlenv import DiscreteActionSpace
 
 
-def mappo(env: marlenv.MARLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
+def mappo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, marl.Trainer]:
     nn = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
-    algo = marl.algo.PPO(
+    algo = marl.agents.PPO(
         ac_network=nn,
         train_policy=marl.policy.CategoricalPolicy(),
     )
@@ -18,11 +19,11 @@ def mappo(env: marlenv.MARLEnv) -> tuple[marl.RLAlgo, marl.Trainer]:
     return algo, trainer
 
 
-def dqn_with_mixer(env: marlenv.MARLEnv, mixer_str: Literal["vdn", "qmix", "qplex"]):
+def dqn_with_mixer[A](env: marlenv.MARLEnv[A, DiscreteActionSpace], mixer_str: Literal["vdn", "qmix", "qplex"]):
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     train_policy = marl.policy.EpsilonGreedy.constant(0.1)
 
-    algo = marl.algo.DQN(
+    algo = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
     )

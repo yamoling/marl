@@ -46,21 +46,21 @@ export interface ReplayEpisode {
 //         this.qvalues = qvalues;
 //         this.frames = frames;
 
-//         this.obs = remoteEpisode._observations.slice(0, -2);
-//         this.obs_ = remoteEpisode._observations.slice(1);
-//         this.extras = remoteEpisode._extras;
+//         this.obs = remoteEpisode.all_observations.slice(0, -2);
+//         this.obs_ = remoteEpisode.all_observations.slice(1);
+//         this.extras = remoteEpisode.all_extras;
 //         this.actions = remoteEpisode.actions;
 //         this.rewards = remoteEpisode.rewards;
-//         this.available_actions = remoteEpisode._available_actions.slice(0, -2);
-//         this.available_actions_ = remoteEpisode._available_actions.slice(1);
+//         this.available_actions = remoteEpisode.all_available_actions.slice(0, -2);
+//         this.available_actions_ = remoteEpisode.all_available_actions.slice(1);
 //         this.states = remoteEpisode.states;
 //     }
 // }
 
 export interface Episode {
-    _available_actions: number[][][]
-    _extras: number[][][]
-    _observations: number[][][] | number[][][][][]
+    all_available_actions: number[][][]
+    all_extras: number[][][]
+    all_observations: number[][][] | number[][][][][]
     actions: number[][]
     episode_len: number
     is_finished: boolean

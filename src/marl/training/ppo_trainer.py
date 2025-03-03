@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Any
 
 from dataclasses import dataclass
 import numpy as np
@@ -6,35 +6,34 @@ import torch
 from marlenv import Episode, Transition
 
 from marl.models import Batch
-from marl.models.nn import ActorCriticNN
+from marl.models.nn import DiscreteActorCriticNN
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.nn.model_bank import CNN_ActorCritic
 from marl.utils import schedule
 
-from .trainer import Trainer
+from marl.models.trainer import Trainer
 
 
 @dataclass
-class PPOTrainer(Trainer):
+class PPOTrainer[B: Batch](Trainer):
     gamma: float
     batch_size: int
     update_interval: int
     n_epochs: int
     c1: float
     c2: float
-    memory: ReplayMemory[Batch, Transition | Episode]
+    memory: ReplayMemory[Any, B]
 
     def __init__(
         self,
-        network: ActorCriticNN,
-        memory: ReplayMemory,
+        network: DiscreteActorCriticNN,
+        memory: ReplayMemory[Any, B],
         gamma: float = 0.99,
         batch_size: int = 64,
         lr_critic=1e-4,
         lr_actor=1e-4,
         optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
-        update_interval: int = 5,
         clip_eps: float = 0.2,
         c1: float = 0.5,  # C1 and C2 from the paper equation 9
         c2: float = 0.01,
@@ -45,7 +44,7 @@ class PPOTrainer(Trainer):
         logits_clip_low: float = -10,
         logits_clip_high: float = 10,
     ):
-        super().__init__(train_every, update_interval)
+        super().__init__(train_every)
         self.network = network
         self.memory = memory
         self.gamma = gamma
@@ -134,7 +133,7 @@ class PPOTrainer(Trainer):
 
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
-        
+
         # # TRUNCATED ADV
         for t in range(mem_len - 1):
             discount = 1
@@ -145,8 +144,8 @@ class PPOTrainer(Trainer):
                     break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()
-        advantages = torch.from_numpy(advantages).to(self.device)        
-        
+        advantages = torch.from_numpy(advantages).to(self.device)
+
         # # TGAE
         # for t in reversed(range(mem_len)):
         #     last_adv = torch.zeros(batch_values[0].shape).to(self.device)
@@ -159,8 +158,6 @@ class PPOTrainer(Trainer):
         #     a = tmp.cpu().squeeze()
         #     advantages[t] = a
         # advantages = torch.from_numpy(advantages).to(self.device)
-            
-
 
         for _ in range(self.n_epochs):
             # shuffle and split in batches
@@ -203,7 +200,7 @@ class PPOTrainer(Trainer):
                     surrogate_2 = rho * advantages[b]
                 else:
                     surrogate_2 = torch.clip(rho, min=self.clip_low, max=self.clip_high) * advantages[b]
-                actore_loss = torch.min(surrogate_1, surrogate_2).mean()
+                actor_loss = torch.min(surrogate_1, surrogate_2).mean()
 
                 # Value estimation loss
                 returns = advantages[b] + values.reshape(advantages[b].shape)
@@ -247,7 +244,7 @@ class PPOTrainer(Trainer):
         if self.softmax_temp_schedule is not None:
             if isinstance(self.network, CNN_ActorCritic):
                 self.softmax_temp_schedule.update(time_step)
-                self.network.temperature = self.softmax_temp_schedule.value
+                # self.network.temperature = self.softmax_temp_schedule.value
 
     def to(self, device: torch.device):
         self.device = device

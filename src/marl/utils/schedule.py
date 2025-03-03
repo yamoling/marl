@@ -1,11 +1,9 @@
 from typing import Optional
 from dataclasses import dataclass
-from serde import serde
 
 from abc import abstractmethod
 
 
-@serde
 @dataclass(eq=False)
 class Schedule:
     name: str
@@ -42,47 +40,47 @@ class Schedule:
         return ExpSchedule(start_value, end_value, n_steps)
 
     # Operator overloading
-    def __mul__(self, other):
-        return self.value * other
+    def __mul__[T](self, other: T) -> T:
+        return self.value * other  # type: ignore
 
-    def __rmul__(self, other):
-        return self.value * other
+    def __rmul__[T](self, other: T) -> T:
+        return self.value * other  # type: ignore
 
     def __pow__(self, exp: float) -> float:
         return self.value**exp
 
-    def __rpow__(self, other):
-        return other**self.value
+    def __rpow__[T](self, other: T) -> T:
+        return other**self.value  # type: ignore
 
-    def __add__(self, other):
-        return self.value + other
+    def __add__[T](self, other: T) -> T:
+        return self.value + other  # type: ignore
 
-    def __neg__(self) -> float:
+    def __radd__[T](self, other: T) -> T:
+        return self.value + other  # type: ignore
+
+    def __neg__(self):
         return -self.value
 
-    def __pos__(self) -> float:
+    def __pos__(self):
         return +self.value
 
-    def __radd__(self, other):
-        return self.value + other
+    def __sub__[T](self, other: T) -> T:
+        return self.value - other  # type: ignore
 
-    def __sub__(self, other):
-        return self.value - other
+    def __rsub__[T](self, other: T) -> T:
+        return other - self.value  # type: ignore
 
-    def __rsub__(self, other):
-        return other - self.value
+    def __div__[T](self, other: T) -> T:
+        return self.value // other  # type: ignore
 
-    def __div__(self, other):
-        return self.value / other
+    def __rdiv__[T](self, other: T) -> T:
+        return other // self.value  # type: ignore
 
-    def __rdiv__(self, other):
-        return other / self.value
+    def __truediv__[T](self, other: T) -> T:
+        return self.value / other  # type: ignore
 
-    def __truediv__(self, other):
-        return self.value / other
-
-    def __rtruediv__(self, other):
-        return other / self.value
+    def __rtruediv__[T](self, other: T) -> T:
+        return other / self.value  # type: ignore
 
     def __lt__(self, other) -> bool:
         return self.value < other
@@ -109,7 +107,6 @@ class Schedule:
         return int(self.value)
 
 
-@serde
 @dataclass(eq=False)
 class LinearSchedule(Schedule):
     n_steps: int
@@ -138,7 +135,6 @@ class LinearSchedule(Schedule):
         return self.current_value
 
 
-@serde
 @dataclass(eq=False)
 class ExpSchedule(Schedule):
     """Exponential schedule. After n_steps, the value will be min_value.
@@ -170,6 +166,7 @@ class ExpSchedule(Schedule):
         return self.current_value
 
 
+@dataclass
 class ConstantSchedule(Schedule):
     def __init__(self, value: float):
         super().__init__(value, value)
@@ -183,6 +180,7 @@ class ConstantSchedule(Schedule):
         return self._value
 
 
+@dataclass
 class RoundedSchedule(Schedule):
     def __init__(self, schedule: Schedule, n_digits: int):
         self.schedule = schedule
@@ -197,6 +195,7 @@ class RoundedSchedule(Schedule):
         return round(self.schedule.value, self.n_digits)
 
 
+@dataclass
 class MultiSchedule(Schedule):
     def __init__(self, schedules: dict[int, Schedule]):
         first_schedule = schedules.get(0, None)

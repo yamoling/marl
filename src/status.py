@@ -14,11 +14,6 @@ class KillArguments(tap.TypedArgs):
     logdir: str = tap.arg(positional=True, help="The experiment directory")
 
 
-class Arguments(tap.TypedArgs):
-    logdir: str = tap.arg(positional=True, help="The experiment directory")
-    kill: bool = tap.arg(default=False, help="Whether to send a SIGINT to all active runs")
-
-
 def print_status(experiment):
     from marl import Experiment
 
@@ -40,7 +35,7 @@ def print_status(experiment):
 
 
 def interrupt_runs(experiment):
-    from marl.utils import exceptions
+    from marl import exceptions
     from marl import Experiment, Run
 
     exp: Experiment = experiment

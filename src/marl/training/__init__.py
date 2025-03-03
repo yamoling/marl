@@ -1,5 +1,7 @@
-from .trainer import Trainer
+from .mixers import VDN, Qatten, QMix, QPlex
+from .intrinsic_reward import IRModule, RandomNetworkDistillation
 from .no_train import NoTrain
+from .multi_trainer import MultiTrainer
 from .dqn_trainer import DQNTrainer
 from .cnet_trainer import CNetTrainer
 from .maic_trainer import MAICTrainer
@@ -9,8 +11,8 @@ from .ddpg_trainer import DDPGTrainer
 
 
 __all__ = [
-    "Trainer",
     "NoTrain",
+    "MultiTrainer",
     "DQNTrainer",
     "PPOTrainer",
     "DDPGTrainer",
@@ -19,4 +21,12 @@ __all__ = [
     "TargetParametersUpdater",
     "SoftUpdate",
     "HardUpdate",
+    "RandomNetworkDistillation",
+    "intrinsic_reward",
+    "IRModule",
+    "VDN",
+    "QMix",
+    "Qatten",
+    "QPlex",
+    "mixers",
 ]

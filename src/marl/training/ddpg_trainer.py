@@ -1,30 +1,26 @@
-from copy import deepcopy
 from typing import Any, Literal
 from marlenv import Episode, Transition
 
 import torch
-from marl.models import Batch, Policy
-from marl.models import NN
 from marl.models.replay_memory.replay_memory import ReplayMemory
-from marl.models.nn import ActorCriticNN
-
-from .trainer import Trainer
+from marl.models.nn import DiscreteActorCriticNN
+from marl.models.trainer import Trainer
 
 
 class DDPGTrainer(Trainer):
     def __init__(
         self,
-        network: ActorCriticNN,
+        network: DiscreteActorCriticNN,
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,
         lr: float = 1e-4,
-        optimiser: Literal["adam", "rmsprop"] = "adam",
         train_every: Literal["step", "episode"] = "step",
         update_interval: int = 5,
         tau: float = 0.01,
     ):
-        super().__init__(update_type=train_every, update_interval=update_interval)
+        super().__init__(update_type=train_every)
+        self.step_update_interval = update_interval
         self.network = network
         # self.target_network = deepcopy(network)
         self.memory = memory
@@ -64,7 +60,7 @@ class DDPGTrainer(Trainer):
 
     def _update(self, time_step: int):
         self.step_num += 1
-        if self.step_num % self.steps_update_interval != 0:
+        if self.step_num % self.step_update_interval != 0:
             return {}
 
         if not self.memory.can_sample(self.batch_size):
@@ -75,12 +71,12 @@ class DDPGTrainer(Trainer):
         extras = batch.extras
         actions = batch.actions
         dones = batch.dones
-        obs_ = batch.obs_
-        extras_ = batch.extras_
+        obs_ = batch.next_obs
+        extras_ = batch.next_extras
         available_actions = batch.available_actions
         rewards = batch.rewards.squeeze(-1)
         states = batch.states
-        states_ = batch.states_
+        states_ = batch.next_states
         probs = batch.probs
         with torch.no_grad():
             # get next actions
@@ -92,7 +88,7 @@ class DDPGTrainer(Trainer):
 
             # get next values
             # new_values = self.network.value(states_ , extras_, new_logits)
-            new_values = self.network.value(states_, extras_, new_probs)
+            new_values = self.network.value(states_, extras_, new_probs)  # type: ignore
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
@@ -111,7 +107,7 @@ class DDPGTrainer(Trainer):
         logits_current_policy[available_actions.reshape(logits_current_policy.shape) == 0] = -torch.inf
         probs_current_policy = torch.distributions.Categorical(logits=logits_current_policy).probs
 
-        actor_loss = self.network.value(states, extras, probs_current_policy)
+        actor_loss = self.network.value(states, extras, probs_current_policy)  # type: ignore
         # actor_loss = self.network.value(states, extras, logits_current_policy)
         actor_loss = -actor_loss.mean()
 
