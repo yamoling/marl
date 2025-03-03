@@ -3,11 +3,12 @@ import subprocess
 import time
 from threading import Thread
 from typing import Optional
-from marl.models import Experiment, ReplayEpisode
+from marl.models import Experiment, ReplayEpisode, LightExperiment
 
 
 class ServerState:
-    def __init__(self, logdir="logs"):
+    def __init__(self, logdir: str = "logs"):
+        self._light_experiments = dict[str, LightExperiment]()
         self._experiments = dict[str, Experiment]()
         self.last_accessed = dict[str, float]()
         self.logdir = logdir
@@ -33,6 +34,11 @@ class ServerState:
         return
         # Start a completely detached new run
         p = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    def get_light_experiment(self, logdir: str) -> LightExperiment:
+        if logdir in self._light_experiments:
+            return self._light_experiments[logdir]
+        return LightExperiment.load(logdir)
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()

@@ -49,12 +49,10 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         creation_timestamp: int,
         test_env: MARLEnv[A, AS],
     ):
-        super().__init__(logdir, test_interval)
+        super().__init__(logdir, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
-        self.n_steps = n_steps
-        self.creation_timestamp = creation_timestamp
         self.test_env = test_env
 
     @staticmethod

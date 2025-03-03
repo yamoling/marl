@@ -5,7 +5,7 @@ import orjson
 @app.route("/runs/get/<path:logdir>")
 def list_runs(logdir: str):
     try:
-        exp = state.get_experiment(logdir)
+        exp = state.get_light_experiment(logdir)
         runs = []
         for run in exp.runs:
             runs.append(
