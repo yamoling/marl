@@ -1,9 +1,10 @@
 from lle import LLE
 import time
+from marl.env.wrappers.randomized_lasers import RandomizedLasers
 
 
 def main():
-    env = LLE.from_file("maps/lvl6-start-above.toml").build()
+    env = RandomizedLasers(LLE.from_file("maps/lvl6-start-above.toml").build())  # , [(4, 0), (6, 12)])
     while True:
         env.reset()
         env.render()
