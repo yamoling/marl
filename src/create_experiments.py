@@ -72,8 +72,16 @@ def create_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type("layered").state_type("state").pbrs(gamma).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    env = (
+        LLE.level(6)
+        .obs_type("layered")
+        .state_type("state")
+        .pbrs(gamma, reward_value=0.5)
+        .builder()
+        .agent_id()
+        .time_limit(78, add_extra=True)
+        .build()
+    )
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
