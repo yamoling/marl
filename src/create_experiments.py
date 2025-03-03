@@ -69,19 +69,24 @@ def create_smac(args: Arguments):
 
 
 def create_lle(args: Arguments):
+    from marl.env.wrappers.randomized_lasers import RandomizedLasers
+
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = (
+    lle = RandomizedLasers(
         LLE.level(6)
         .obs_type("layered")
         .state_type("state")
-        .pbrs(gamma, reward_value=0.5)
-        .builder()
-        .agent_id()
-        .time_limit(78, add_extra=True)
+        .pbrs(
+            gamma,
+            reward_value=1,
+            lasers_to_reward=[(4, 0), (6, 12)],
+        )
         .build()
     )
+    env = marlenv.Builder(lle).agent_id().time_limit(78, add_extra=True).build()
+
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
