@@ -76,13 +76,14 @@ def create_lle(args: Arguments):
     gamma = 0.95
     lle = RandomizedLasers(
         LLE.level(6)
+        # LLE.from_file("maps/lvl6-start-above.toml")
         .obs_type("layered")
         .state_type("state")
-        .pbrs(
-            gamma,
-            reward_value=1,
-            lasers_to_reward=[(4, 0), (6, 12)],
-        )
+        # .pbrs(
+        #     1.0,
+        #     reward_value=1,
+        #     lasers_to_reward=[(4, 0), (6, 12)],
+        # )
         .build()
     )
     env = marlenv.Builder(lle).agent_id().time_limit(78, add_extra=True).build()
