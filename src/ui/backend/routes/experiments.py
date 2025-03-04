@@ -1,4 +1,3 @@
-import json
 from http import HTTPStatus
 
 import cv2
@@ -81,7 +80,7 @@ def rename_experiment():
 @app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
 def delete_experiment(logdir: str):
     try:
-        exp = state.get_experiment(logdir)
+        exp = state.get_light_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
     except FileNotFoundError as e:

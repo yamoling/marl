@@ -79,7 +79,7 @@ def list_active_runs(args: ListArguments):
 def kill_runs(args: KillArguments):
     import marl
 
-    exp = marl.Experiment.load(args.logdir)
+    exp = marl.LightExperiment.load(args.logdir)
     print_status(exp)
     n_active = exp.n_active_runs()
     if n_active == 0:

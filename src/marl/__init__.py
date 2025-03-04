@@ -13,7 +13,7 @@ from . import env
 from .utils import seed
 
 
-from .models import Experiment, Runner, Run, Policy, Trainer
+from .models import Experiment, LightExperiment, Runner, Run, Policy, Trainer
 from .agents import Agent
 
 
@@ -27,6 +27,7 @@ __all__ = [
     "training",
     "seed",
     "Experiment",
+    "LightExperiment",
     "Agent",
     "Runner",
     "Run",
