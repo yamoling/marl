@@ -18,7 +18,7 @@ def swap_initial_pos(env: VideoRecorder):
     env._recorder.release()
     img = env.get_image()
     height, width, _ = img.shape
-    env._recorder = cv2.VideoWriter("swapped-pos", cv2.VideoWriter_fourcc(*"mp4v"), env.fps, (width, height))
+    env._recorder = cv2.VideoWriter("swapped-pos", cv2.VideoWriter_fourcc(*"mp4v"), env.fps, (width, height))  # type: ignore
     for _ in range(env.initial_pause_frames):
         env._recorder.write(img)
     env._recorder.write(img)

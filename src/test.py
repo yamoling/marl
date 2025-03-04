@@ -24,6 +24,13 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     width = lle.width
     height = lle.height
     meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
+
+    if ir:
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
+        ir_module = AdvantageIntrinsicReward(value_network, gamma)
+    else:
+        ir_module = None
+
     match agent_type:
         case "ppo":
             meta_agent = ContinuousPPOTrainer(
@@ -47,20 +54,15 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                     extras_size=meta_env.extras_shape[0],
                     output_shape=(N_SUBGOALS,),
                 ),
-                train_policy=marl.policy.EpsilonGreedy(
-                    # Epsilon is 1 in the first 200k steps, then decays linearly to 0.05
-                    MultiSchedule(
-                        {
-                            0: Schedule.constant(1.0),
-                            WARMUP_STEPS: Schedule.linear(1.0, 0.05, 200_000),
-                        }
-                    )
-                ),
-                memory=marl.models.EpisodeMemory(5_000),
+                train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 200_000),
+                memory=marl.models.TransitionMemory(5_000),
                 double_qlearning=True,
                 target_updater=SoftUpdate(0.01),
                 lr=5e-4,
-                train_interval=(1, "episode"),
+                train_interval=(1, "step"),
+                use_ir=False,
+                train_ir=True,
+                ir_module=ir_module,
                 gamma=gamma,
                 mixer=VDN.from_env(meta_env),
                 grad_norm_clipping=10.0,
@@ -69,11 +71,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
             raise ValueError(f"Invalid agent type: {other}")
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
-    if ir:
-        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extras_shape[0])
-        ir_module = AdvantageIntrinsicReward(value_network, gamma)
-    else:
-        ir_module = None
     worker_trainer = DQNTrainer(
         qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
@@ -90,6 +87,8 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         mixer=VDN.from_env(env),
         grad_norm_clipping=10.0,
         ir_module=ir_module,
+        train_ir=False,
+        use_ir=True,
     )
 
     meta_trainer = HavenTrainer(
@@ -175,7 +174,7 @@ if __name__ == "__main__":
     # main_cartpole_vdn()
     # make_haven("dqn", True)
     # make_haven("ppo", True).run()
-    make_haven("dqn", True).run()
+    make_haven(agent_type="dqn", ir=True).run()
     # make_haven("ppo", False)
     # main_vdn()
     # main_lunar_lander_continuous()

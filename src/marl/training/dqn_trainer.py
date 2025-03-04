@@ -26,6 +26,8 @@ class DQNTrainer[B: Batch](Trainer):
     mixer: Optional[Mixer]
     ir_module: Optional[IRModule]
     grad_norm_clipping: Optional[float]
+    train_ir: bool
+    use_ir: bool
 
     def __init__(
         self,
@@ -41,6 +43,8 @@ class DQNTrainer[B: Batch](Trainer):
         double_qlearning: bool = False,
         train_interval: tuple[int, Literal["step", "episode", "both"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
+        train_ir: bool = True,
+        use_ir: bool = True,
         grad_norm_clipping: Optional[float] = None,
         test_policy: Optional[Policy] = None,
     ):
@@ -71,6 +75,8 @@ class DQNTrainer[B: Batch](Trainer):
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
+        self.train_ir = train_ir
+        self.use_ir = use_ir
         if test_policy is None:
             test_policy = train_policy
         self.test_policy = test_policy
@@ -121,7 +127,7 @@ class DQNTrainer[B: Batch](Trainer):
     def train(self, batch: Batch) -> dict[str, Any]:
         if self.mixer is None:
             batch = batch.for_individual_learners()
-        if self.ir_module is not None:
+        if self.ir_module is not None and self.use_ir:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
@@ -156,7 +162,7 @@ class DQNTrainer[B: Batch](Trainer):
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         logs = {}
-        if self.ir_module is not None:
+        if self.ir_module is not None and self.train_ir:
             logs = logs | self.ir_module.update_step(transition, time_step)
         if self.memory.update_on_transitions:
             self.memory.add(transition)
@@ -166,7 +172,7 @@ class DQNTrainer[B: Batch](Trainer):
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         logs = {}
-        if self.ir_module is not None:
+        if self.ir_module is not None and self.train_ir:
             logs = logs | self.ir_module.update_episode(episode, time_step)
         if self.memory.update_on_episodes:
             self.memory.add(episode)

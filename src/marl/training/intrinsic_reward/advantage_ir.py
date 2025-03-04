@@ -7,7 +7,7 @@ from copy import deepcopy
 
 from marl.models.batch import Batch
 from marl.models import TransitionMemory
-from marl.models.nn import CriticNN, Mixer
+from marl.models.nn import CriticNN
 from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 
 from .ir_module import IRModule
@@ -70,11 +70,12 @@ class AdvantageIntrinsicReward(IRModule):
         values = self.network.value(batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
+            next_values = next_values * (1 - batch.dones)
         targets = batch.rewards + self.gamma * next_values
         loss = torch.nn.functional.mse_loss(values, targets)
         self.optimizer.zero_grad()
         loss.backward()
-        logs = {"adantage-ir-loss": float(loss.item())}
+        logs = {"ir-loss": float(loss.item())}
         if self.grad_norm_clipping is not None:
             grad_norm = torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.grad_norm_clipping)
             logs["ir-grad-norm"] = float(grad_norm.item())
