@@ -226,34 +226,3 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
         return replay
-
-    # def replay_episode(self, episode_folder: str):
-    #     # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
-    #     # possibly with a trailing slash
-    #     path = pathlib.Path(episode_folder)
-    #     test_num = int(path.name)
-    #     time_step = int(path.parent.name)
-    #     run = Run.load(path.parent.parent.parent.as_posix())
-    #     self.agent.load(run.get_saved_algo_dir(time_step))
-    #     runner = self.create_runner()
-    #     seed = runner.get_test_seed(time_step, test_num)
-    #     actions = run.get_test_actions(time_step, test_num)
-    #     episode = self.test_env.replay(actions, seed=seed)  # type: ignore
-    #     # episode = runner.test(seed)
-    #     frames = [encode_b64_image(img) for img in episode.get_images(self.test_env, seed=seed)]
-    #     replay = ReplayEpisode(episode_folder, episode, frames)
-
-    #     # Add extra data to the replay depending on the algorithm
-    #     obs = torch.from_numpy(np.array(episode.obs))
-    #     extras = torch.from_numpy(np.array(episode.extras))
-    #     actions = torch.from_numpy(np.array(episode.actions))
-    #     if isinstance(self.agent, ContinuousAgent):
-    #         dist = self.agent.actor_network.policy(obs, extras)
-    #         logits = dist.log_prob(actions)
-    #         replay.logits = logits.tolist()
-    #         replay.probs = torch.exp(logits).tolist()
-    #         replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
-    #     elif isinstance(self.agent, DQN):
-    #         batch = TransitionBatch(list(episode.transitions()))
-    #         replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
-    #     return replay
