@@ -1,8 +1,7 @@
 from lle import World, WorldState
-from marlenv import MARLEnv
 from marlenv.wrappers import VideoRecorder
 import cv2
-
+import os
 import marl
 
 
@@ -34,7 +33,15 @@ def swap_laser_colours(exp: marl.Experiment):
     exp.env.reset()
 
 
-def run(env: MARLEnv, agent: marl.Agent, checkpoint: str):
+def get_checkpoint(logdir: str, run_num: int, step: int):
+    runs = [run for run in os.listdir(logdir) if run.endswith(f"seed={run_num}")]
+    return os.path.join(logdir, runs[0], "test", str(step))
+
+
+def run(exp: marl.Experiment, run_num: int, test_step: int):
+    checkpoint = get_checkpoint(exp.logdir, run_num, test_step)
+    agent = exp.agent
+    env = exp.env
     agent.load(checkpoint)
     obs = env.get_observation()
     is_terminal = False
@@ -49,9 +56,16 @@ if __name__ == "__main__":
     # The problem is that the previous experiment was launched with a previous version of multi-agent-rlenv
     # So the attributes do not match anymore.
     # A new experiment should be started, making sure that the reward scheme is correct and the subgoals are indeed given.
-    exp = marl.Experiment.load("logs/shaped-lle-reward1-two-sources")
+    TEST_STEP = 980_000
+    RUN_NUM = 0
+    exp = marl.Experiment.load("logs/pbrs-randomized_lasers")
     exp.env = VideoRecorder(exp.env, end_pause_frames=5, initial_pause_frames=5, fps=3)
-    exp.env.reset()
+    runs = sorted(list(exp.runs), key=lambda r: r.seed)
+    the_run = runs[RUN_NUM]
+    actions = the_run.get_test_actions(TEST_STEP, 0)
+    seed = marl.Runner.get_test_seed(TEST_STEP, 0)
+    episode = exp.env.replay(actions, seed)
+    print(len(episode))
     # swap_initial_pos(exp)
-    swap_laser_colours(exp)
-    run(exp.env, exp.agent, "logs/shaped-lle-reward1-two-sources/run_2025-03-02_17:29:46.117007_seed=0/test/1000000")
+    # swap_laser_colours(exp)
+    # run(exp, 8, 975000)
