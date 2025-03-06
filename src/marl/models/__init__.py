@@ -10,8 +10,7 @@ from .replay_memory import (
     TransitionMemory,
 )
 from .replay_episode import ReplayEpisode, LightEpisodeSummary
-from .run import Run, RunHandle
-from .runner import Runner
+from .run import Run, Runner
 from .experiment import LightExperiment, Experiment
 from .trainer import Trainer
 
@@ -31,12 +30,11 @@ __all__ = [
     "EpisodeMemory",
     "PrioritizedMemory",
     "NStepMemory",
-    "Runner",
     "LightExperiment",
     "Experiment",
     "ReplayEpisode",
     "LightEpisodeSummary",
-    "Run",
-    "RunHandle",
     "Trainer",
+    "Run",
+    "Runner",
 ]

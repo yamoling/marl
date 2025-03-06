@@ -21,7 +21,7 @@ class WSLogger(Logger):
     port: int
 
     def __init__(self, logdir: str, port: int) -> None:
-        super().__init__(logdir)
+        super().__init__(logdir)  # type: ignore
         self.port = port
         self.clients = set()
         self.messages = asyncio.Queue()

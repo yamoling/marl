@@ -265,8 +265,8 @@ def create_lle(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_lle(args)
-        exp = make_haven("dqn", ir=True)
+        exp = create_lle(args)
+        # exp = make_haven("dqn", ir=True)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:

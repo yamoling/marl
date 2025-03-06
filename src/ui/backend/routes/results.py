@@ -31,7 +31,7 @@ def get_experiment_results_by_run(logdir: str):
     exp = state.get_light_experiment(logdir)
     for run in exp.runs:
         datasets = stats.compute_datasets([run.test_metrics], logdir, True, suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True)
+        datasets += stats.compute_datasets([run.train_metrics], logdir, True, suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data], logdir, True)
         runs_results.append(stats.ExperimentResults(run.rundir, datasets))
     return Response(orjson.dumps(runs_results), mimetype="application/json")

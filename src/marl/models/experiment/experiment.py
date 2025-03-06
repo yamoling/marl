@@ -14,8 +14,7 @@ from tqdm import tqdm
 
 from marl import exceptions
 from marl.agents import DQN, Agent, ContinuousAgent
-from marl.models.run import Run
-from marl.models.runner import Runner
+from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
 from marl.models.replay_episode import ReplayEpisode
@@ -66,17 +65,16 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         test_env: Optional[MARLEnv[A, AS]] = None,
     ):
         """Create a new experiment."""
-        if test_env is not None:
-            if not env.has_same_inouts(test_env):
-                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
-        else:
+        if test_env is None:
             test_env = deepcopy(env)
+        if not env.has_same_inouts(test_env):
+            raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
 
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
 
-            # Remove the test and debug logs
-        if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+        # Remove the test and debug logs
+        if logdir in ("logs/test", "logs/debug", "logs/tests"):
             try:
                 shutil.rmtree(logdir)
             except FileNotFoundError:
@@ -130,18 +128,10 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
-        runner = self.create_runner()
+        runner = Runner.from_experiment(self, seed, quiet=quiet, n_tests=n_tests)
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         runner = runner.to(selected_device)
-        runner.run(
-            self.logdir,
-            seed=seed,
-            n_tests=n_tests,
-            quiet=quiet,
-            n_steps=self.n_steps,
-            test_interval=self.test_interval,
-            render_tests=render_tests,
-        )
+        runner.run(render_tests)
 
     def test_on_other_env(
         self,
@@ -165,22 +155,12 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             test_interval=self.test_interval,
             test_env=other_env,
         )
-        runner = new_experiment.create_runner().to(device)
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
         for i, base_run in enumerate(runs):
-            new_run = Run.create(new_experiment.logdir, base_run.seed)
-            with new_run as run_handle:
-                for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                    self.agent.load(base_run.get_saved_algo_dir(time_step))
-                    runner._test_and_log(n_tests, time_step, run_handle=run_handle, quiet=True, render=False)
-
-    def create_runner(self):
-        return Runner(
-            env=self.env,
-            agent=self.agent,
-            trainer=self.trainer,
-            test_env=self.test_env,
-        )
+            runner = Runner.from_experiment(new_experiment, base_run.seed).to(device)
+            for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
+                self.agent.load(base_run.get_saved_algo_dir(time_step))
+                runner._test_and_log(time_step, render=False)
 
     @overload
     def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode: ...
@@ -205,7 +185,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         episode_folder = run.test_dir(time_step, test_num)
         self.agent.load(run.get_saved_algo_dir(time_step))
         # runner = self.create_runner()
-        seed = Runner.get_test_seed(time_step, test_num)
+        seed = Run.get_test_seed(time_step, test_num)
         actions = run.get_test_actions(time_step, test_num)
         episode = self.test_env.replay(actions, seed=seed)
         # episode = runner.test(seed)

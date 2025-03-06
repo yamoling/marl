@@ -11,7 +11,7 @@ class Message:
     #     self.n_agents = n_agents
 
     def __init__(self, data: npt.NDArray[np.float32]):
-        self.dat = data
+        self.data = data
 
     @property
     def n_agents(self) -> int:
