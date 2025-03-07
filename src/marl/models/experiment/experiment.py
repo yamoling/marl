@@ -163,10 +163,16 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
                 runner._test_and_log(time_step, render=False)
 
     @overload
-    def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode: ...
+    def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
+        """
+        Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run. 
+        
+        Note that the actions are not re-evaluated from the agent but loaded from the `actions.json` file.
+        """
 
     @overload
-    def replay_episode(self, episode_folder: str, /) -> ReplayEpisode: ...
+    def replay_episode(self, episode_folder: str, /) -> ReplayEpisode:
+        """Replay the episode whose actions are saved in the given test folder."""
 
     def replay_episode(self, *args):
         match args:
