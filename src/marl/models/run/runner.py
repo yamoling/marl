@@ -216,3 +216,7 @@ class Runner[A, AS: ActionSpace](Run):
 
     def __del__(self):
         self.close()
+
+    def agent_at(self, time_step: int) -> Agent:
+        self._agent.load(self.get_saved_algo_dir(time_step))
+        return self._agent

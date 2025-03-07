@@ -206,3 +206,13 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
         return replay
+
+    def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
+        """Load the agent at a specific time step."""
+        if time_step % self.test_interval != 0:
+            raise ValueError(f"Time step must be a multiple of the test interval ({self.test_interval})")
+        for run in self.runs:
+            if run.seed == run_seed:
+                self.agent.load(run.get_saved_algo_dir(time_step))
+                return self.agent
+        raise ValueError(f"No run with seed {run_seed} found in the experiment.")

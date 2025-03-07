@@ -1,4 +1,5 @@
 import os
+import math
 import shutil
 import polars as pl
 import orjson
@@ -68,10 +69,29 @@ class Run:
 
     @staticmethod
     def load(rundir: str):
-        with open(os.path.join(rundir, "run.json"), "rb") as f:
-            run = orjson.loads(f.read())
         reader = CSVLogger.reader(rundir)
-        return Run(**run, reader=reader)
+        try:
+            with open(os.path.join(rundir, "run.json"), "rb") as f:
+                run = orjson.loads(f.read())
+            return Run(**run, reader=reader)
+        except FileNotFoundError:
+            # If there is no run.json file, deduce the parameters from the directory structure
+            splits = rundir.split("seed=")
+            seed = int(splits[-1])
+            test_steps = []
+            n_tests = 1
+            for folder in os.listdir(os.path.join(rundir, "test")):
+                basename = folder
+                folder = os.path.join(rundir, "test", folder)
+                if os.path.isdir(folder):
+                    try:
+                        n_tests = max(n_tests, len([t for t in os.listdir(folder) if t.isnumeric()]))
+                        test_steps.append(int(basename))
+                    except ValueError:
+                        pass
+            n_steps = max(test_steps)
+            test_interval = math.gcd(*test_steps)
+            return Run(rundir, seed, n_tests, test_interval, n_steps, reader)
 
     @staticmethod
     def get_test_seed(time_step: int, test_num: int):
@@ -196,3 +216,11 @@ class Run:
     @property
     def pid_filename(self):
         return os.path.join(self.rundir, PID)
+
+    @property
+    def test_dirs(self):
+        """
+        Ordered test directories from t=0 to t=n_steps.
+        """
+        for t in range(0, self.n_steps, self.test_interval):
+            yield self.test_dir(t)

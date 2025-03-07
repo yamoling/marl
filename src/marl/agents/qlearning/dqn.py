@@ -41,6 +41,9 @@ class DQN(Agent):
         qvalues = qvalues.numpy(force=True)
         return self.policy.get_action(qvalues, obs.available_actions)
 
+    def qvalues(self, obs: Observation) -> torch.Tensor:
+        return self.qnetwork.qvalues(obs)
+
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()
 

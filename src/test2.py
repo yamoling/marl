@@ -1,17 +1,16 @@
-from lle import LLE
-import time
-from marl.env.wrappers.randomized_lasers import RandomizedLasers
+import marl
 
-
-def main():
-    env = RandomizedLasers(LLE.from_file("maps/lvl6-start-above.toml").build())  # , [(4, 0), (6, 12)])
-    while True:
-        env.reset()
-        env.render()
-        time.sleep(0.2)
-        env.render()
-        time.sleep(0.2)
-
-
-if __name__ == "__main__":
-    main()
+exp = marl.Experiment.load("logs/pbrs-baseline/")
+runs = list(exp.runs)
+print(runs)
+run = runs[0]
+agent = exp.agent
+for d in run.test_dirs:
+    exp.agent.load(d)
+    weights = []
+    for network in agent.networks:
+        for name, params in network.named_parameters():
+            if "weight" in name:
+                w = params.detach().numpy()
+                print(w.shape)
+                weights.append(w)

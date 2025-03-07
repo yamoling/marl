@@ -257,7 +257,7 @@ class PPOTrainer[B: Batch](Trainer):
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"]):
         match optimiser:
             case "adam":
-                return torch.optim.Adam(self.parameters, lr=self.lr_actor)
+                return torch.optim.Adam(self.parameters, lr=self.lr_actor, weight_decay=1e-4)
             case "rmsprop":
                 return torch.optim.RMSprop(self.parameters, lr=self.lr_actor)
             case other:
