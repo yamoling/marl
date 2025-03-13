@@ -1,7 +1,8 @@
 import shutil
 import marl
 import marlenv
-from typing import Optional, Literal
+from marlenv import MARLEnv, DiscreteActionSpace
+from typing import Any, Optional, Literal
 import typed_argparse as tap
 from marl.training import DQNTrainer
 from marl.training.qtarget_updater import SoftUpdate, HardUpdate
@@ -174,37 +175,15 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def create_lle(args: Arguments):
-    n_steps = 1_000_000
-    test_interval = 5000
-    gamma = 0.95
-    # lle = RandomizedLasers(
-    env = (
-        LLE.level(6)
-        # LLE.from_file("maps/lvl6-start-above.toml")
-        .obs_type("layered")
-        .state_type("state")
-        # .pbrs(
-        #    gamma=gamma,
-        #    reward_value=1,
-        #    lasers_to_reward=[(4, 0), (6, 12)],
-        # )
-        .builder()
-        .agent_id()
-        .time_limit(78, add_extra=True)
-        .build()
-    )
-
-    test_env = (
-        LLE.from_file("maps/lvl6-start-above.toml")
-        .obs_type("layered")
-        .state_type("state")
-        .builder()
-        .agent_id()
-        .time_limit(78, add_extra=True)
-        .build()
-    )
-
+def make_dqn(
+    args: Arguments,
+    env: MARLEnv[Any, DiscreteActionSpace],
+    test_env: Optional[MARLEnv[Any, DiscreteActionSpace]] = None,
+    mixing: Literal["vdn", "qmix", "qplex"] = "vdn",
+    gamma=0.95,
+    n_steps=1_000_000,
+    test_interval=5000,
+):
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
@@ -213,7 +192,15 @@ def create_lle(args: Arguments):
         0.05,
         n_steps=200_000,
     )
-    mixer = marl.training.VDN.from_env(env)
+    match mixing:
+        case "vdn":
+            mixer = VDN.from_env(env)
+        case "qmix":
+            mixer = marl.training.QMix.from_env(env)
+        case "qplex":
+            mixer = marl.training.QPlex.from_env(env)
+        case other:
+            raise ValueError(f"Invalid mixer: {other}")
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -262,10 +249,48 @@ def create_lle(args: Arguments):
     )
 
 
+def create_lle(args: Arguments):
+    # lle = RandomizedLasers(
+    env = (
+        LLE.level(6)
+        # LLE.from_file("maps/lvl6-start-above.toml")
+        .obs_type("layered")
+        .state_type("state")
+        # .pbrs(
+        #    gamma=gamma,
+        #    reward_value=1,
+        #    lasers_to_reward=[(4, 0), (6, 12)],
+        # )
+        .builder()
+        .agent_id()
+        .time_limit(78, add_extra=True)
+        .build()
+    )
+
+    test_env = (
+        LLE.from_file("maps/lvl6-start-above.toml")
+        .obs_type("layered")
+        .state_type("state")
+        .builder()
+        .agent_id()
+        .time_limit(78, add_extra=True)
+        .build()
+    )
+    return make_dqn(args, env, test_env)
+
+
+def create_overcooked(args: Arguments):
+    horizon = 400
+    env = marlenv.adapters.Overcooked.from_layout("bottleneck", horizon)
+    env = marlenv.Builder(env).agent_id().time_limit(horizon).build()
+    return make_dqn(args, env)
+
+
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        exp = create_lle(args)
+        # exp = create_lle(args)
+        exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
