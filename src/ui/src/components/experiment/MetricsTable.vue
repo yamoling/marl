@@ -1,78 +1,60 @@
 <template>
-    <div class="row text-center">
-        <div class="col-auto">
-            <h4> Tests </h4>
-            <div class="table-scrollable">
-                <table class="table table-sm table-striped table-hover table-scrollable">
-                    <thead>
-                        <tr>
-                            <th class="px-1"> # Step </th>
-                            <th v-for="col in labels" class="text-capitalize">
-                                {{ col.replaceAll('_', ' ').replaceAll(" [test]", "") }}
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(time_step, i) in results.datasets[0].ticks" @click="() => onTestClicked(time_step)"
-                            :class="(time_step == selectedTimeStep) ? 'selected' : ''">
-                            <td> {{ time_step }} </td>
-                            <td v-for="ds in testDatasets">
-                                {{ ds.mean[i]?.toFixed(3) }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="col-auto mx-auto text-center" v-if="selectedTimeStep != null">
-            <h4>Tests at time step {{ selectedTimeStep }}</h4>
-            <div class="table-scrollable">
-                <table v-if="testsAtStep.length > 0" class="table table-sm table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th v-for="column in Object.keys(testsAtStep[0].metrics)" class="text-capitalize">
-                                {{ column.replaceAll("_", " ") }}
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-if="testsAtStep == null">
-                            <td colspan="5">
-                                <font-awesome-icon icon="spinner" spin />
-                            </td>
-                        </tr>
-                        <tr v-for="test in testsAtStep" @click="() => emits('view-episode', test.directory)">
-                            <td v-for="value in test.metrics">
-                                {{ formatFloat(value) }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <font-awesome-icon v-else icon="spinner" spin />
-            </div>
-
-        </div>
+    <div v-if="dataset != null" class="row text-center">
+        <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
+            @row-expand="onRowExpanded">
+            <Column expander style="width: 3rem" />
+            <Column field="step" header="Time step"></Column>
+            <Column v-for="label in dataset.columns()" :field="label" :header="label">
+                <template #body="{ data }">
+                    {{ formatFloat(data[label]) }}
+                </template>
+            </Column>
+            <template #expansion="slotProps">
+                <div class="p-4">
+                    <h5>Results at test step {{ slotProps.data.step }}</h5>
+                    <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
+                    <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
+                        @row-select="e => { console.log(e.data); emits('view-episode', e.data.directory) }">
+                        <Column v-for="column in testColumns" :header="column" :field="column">
+                            <template #body="{ data }">
+                                <template v-if="typeof data[column] === 'number'">
+                                    {{ formatFloat(data[column]) }}
+                                </template>
+                                <template v-else>
+                                    {{ data[column] }}
+                                </template>
+                            </template>
+                        </Column>
+                    </DataTable>
+                </div>
+            </template>
+        </DataTable>
     </div>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import type { ReplayEpisodeSummary } from "../../models/Episode";
-import { Experiment, ExperimentResults } from '../../models/Experiment';
+import { DataTable, Column, DataTableRowExpandEvent } from "primevue";
+import { ref } from 'vue';
+import { DatasetTable, Experiment } from '../../models/Experiment';
 import { useResultsStore } from '../../stores/ResultsStore';
+import { onMounted } from "vue";
 
 
 const props = defineProps<{
     experiment: Experiment
-    results: ExperimentResults
 }>();
 
-const selectedTimeStep = ref(null as number | null);
-const testsAtStep = ref([] as ReplayEpisodeSummary[]);
-const testDatasets = computed(() => {
-    return props.results.datasets.filter(d => d.label.includes("[test]"));
-});
-const labels = computed(() => testDatasets.value.map(d => d.label));
+const expanded = ref();
 const resultsStore = useResultsStore();
+const dataset = ref(null as DatasetTable | null);
+const testsAtStep = ref({} as { [key: number]: any })
+const testColumns = ref(new Set<string>());
+
+onMounted(async () => {
+    const experimentResults = await resultsStore.load(props.experiment.logdir);
+    dataset.value = DatasetTable.fromTestDatasets(experimentResults.datasets);
+})
+
+
 
 
 function formatFloat(value: number) {
@@ -84,15 +66,20 @@ function formatFloat(value: number) {
     return value.toFixed(3);
 }
 
-async function onTestClicked(time_step: number) {
-    selectedTimeStep.value = time_step;
-    testsAtStep.value = [];
-    try {
-        testsAtStep.value = await resultsStore.getTestsResultsAt(props.experiment.logdir, time_step);
-    } catch (e) {
-        selectedTimeStep.value = null;
-        alert("Failed to load test episodes");
+async function onRowExpanded(event: DataTableRowExpandEvent) {
+    const testsDataset = [];
+    const results = await resultsStore.getTestsResultsAt(props.experiment.logdir, event.data.step);
+    for (const res of results) {
+        testsDataset.push({
+            testNum: res.name,
+            directory: res.directory,
+            ...res.metrics
+        })
     }
+    for (const column of Object.keys(testsDataset[0])) {
+        testColumns.value.add(column);
+    }
+    testsAtStep.value[event.data.step] = testsDataset;
 }
 
 

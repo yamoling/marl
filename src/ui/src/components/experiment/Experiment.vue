@@ -9,7 +9,7 @@
                 :algo="(experiment.agent as DQN)" class="mb-1" />
             <EnvironmentParams :env="experiment.env" />
         </div>
-        <div class="col" v-if="results != null">
+        <div class="col">
             <div class="input-group mb-2">
                 <label class="btn" :class="plotOrTable == 'plot' ? 'btn-success' : 'btn-outline-dark'">
                     Plot
@@ -20,8 +20,7 @@
                     <input type="radio" value="table" class="btn-check" v-model="plotOrTable">
                 </label>
             </div>
-            <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" :results="results"
-                @view-episode="viewer.viewEpisode" />
+            <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" @view-episode="viewer.viewEpisode" />
             <div v-show="plotOrTable == 'plot'">
                 <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
                 <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets" :title="metric"
@@ -89,7 +88,6 @@ onMounted(async () => {
     }
     experiment.value = res;
     const resultsStore = useResultsStore();
-    results.value = await resultsStore.load(res.logdir);
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
     metrics.value = runResults.value.reduce((acc, r) => {
         r.datasets.forEach(d => acc.add(d.label));

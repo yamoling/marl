@@ -15,7 +15,7 @@ from . import app, state
 def replay(path: str):
     try:
         replay_episode = state.replay_episode(path)
-        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY)
+        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
         return serialized, HTTPStatus.OK
     except ValueError as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR

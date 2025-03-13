@@ -194,7 +194,12 @@ class Runner[A, AS: ActionSpace](Run):
             episodes.append(self.perform_one_test(time_step, test_num, render))
         if not self._quiet:
             metrics = episodes[0].metrics.keys()
-            avg_metrics = {m: sum([e.metrics[m] for e in episodes]) / self.n_tests for m in metrics}
+            avg_metrics = {}
+            for key in metrics:
+                try:
+                    avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / self.n_tests
+                except TypeError:
+                    pass
             pprint(avg_metrics)
         return episodes
 

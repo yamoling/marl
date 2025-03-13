@@ -93,7 +93,8 @@ class LightExperiment:
     def get_experiment_results(self, replace_inf=False):
         """Get all datasets of an experiment."""
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, suffix=" [test]")
+        metrics = [run.test_metrics for run in runs]
+        datasets = stats.compute_datasets(metrics, self.logdir, replace_inf, suffix=" [test]")
         datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, suffix=" [train]")
         datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf)
         return datasets

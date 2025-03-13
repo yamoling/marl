@@ -57,4 +57,8 @@ def default_serialization(obj):
                 "name": optim.__class__.__name__,
                 "param_groups": [{k: v for k, v in group.items()} for group in optim.param_groups],
             }
+        case np.signedinteger():
+            return int(obj)
+        case np.floating():
+            return float(obj)
     return str(obj)

@@ -1,8 +1,11 @@
-from marlenv.adapters import Overcooked
-from lle import LLE
+import marl
 
 
-env = Overcooked.from_layout("bottleneck")
+def main():
+    exp = marl.LightExperiment.load("logs/Overcooked-VDN")
+    results = exp.get_experiment_results(replace_inf=True)
+    print(results)
 
-obs, state = env.reset()
-print(obs.data.shape)
+
+if __name__ == "__main__":
+    main()

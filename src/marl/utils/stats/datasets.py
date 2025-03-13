@@ -89,6 +89,11 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
         return []
     df = pl.concat(dfs)
     df = df.drop("timestamp_sec")
+    to_drop = list[str]()
+    for col, dtype in zip(df.columns, df.dtypes):
+        if not dtype.is_numeric():
+            to_drop.append(col)
+    df = df.drop(to_drop)
     df_stats = stats_by("time_step", df, replace_inf)
     res = list[Dataset]()
     ticks = df_stats["time_step"].to_list()

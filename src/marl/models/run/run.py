@@ -137,6 +137,8 @@ class Run:
     @property
     def training_data(self):
         df = self._reader.training_data
+        if df.is_empty():
+            return df
         # Make sure we are working with numerical values
         df = stats.ensure_numerical(df, drop_non_numeric=True)
         df = stats.round_col(df, TIME_STEP_COL, self.test_interval)

@@ -14,6 +14,7 @@ def get_experiment_results(logdir: str):
         results = exp.get_experiment_results(replace_inf=True)
         return Response(orjson.dumps(results), mimetype="application/json")
     except Exception as e:
+        print(e)
         return Response(str(e), status=500)
 
 

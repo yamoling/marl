@@ -14,6 +14,7 @@ PID = "pid"
 # Dataframe columns
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
+SCHEMA = "schema.json"
 
 
 class CSVWriter(LogWriter):
@@ -23,6 +24,10 @@ class CSVWriter(LogWriter):
         self._writer = None
         self._flush_interval = flush_interval_sec
         self._next_flush = time.time() + flush_interval_sec
+        self._schema = {
+            TIME_STEP_COL: "int",
+            TIMESTAMP_COL: "float",
+        }
 
     def log(self, data: dict[str, float], time_step: int):
         if len(data) == 0:
