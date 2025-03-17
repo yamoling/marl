@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 import cv2
 import orjson
-from flask import request
+from flask import request, Response
 
 import marl
 from marl.exceptions import ExperimentVersionMismatch
@@ -16,7 +16,7 @@ def replay(path: str):
     try:
         replay_episode = state.replay_episode(path)
         serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
-        return serialized, HTTPStatus.OK
+        return Response(serialized, mimetype="application/json", status=HTTPStatus.OK)
     except ValueError as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 

@@ -57,8 +57,10 @@ def default_serialization(obj):
                 "name": optim.__class__.__name__,
                 "param_groups": [{k: v for k, v in group.items()} for group in optim.param_groups],
             }
+        case np.ndarray():
+            return obj.tolist()
         case np.signedinteger():
             return int(obj)
         case np.floating():
             return float(obj)
-    return str(obj)
+    raise NotImplementedError(f"Serialization of {obj} (type {type(obj)}) not implemented")

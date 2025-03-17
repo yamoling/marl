@@ -40,7 +40,9 @@ const clickedExperiment = ref({} as Experiment);
 const experimentStore = useExperimentStore();
 
 document.addEventListener('click', () => {
-    contextMenu.value.style.display = 'none';
+    if (contextMenu.value) {
+        contextMenu.value.style.display = 'none';
+    }
 });
 
 // Escape key also closes the context menu
@@ -81,9 +83,6 @@ function archive() {
     experimentStore.rename(currentLogdir, newLogdir);
 }
 
-function newRun() {
-
-}
 </script>
 
 

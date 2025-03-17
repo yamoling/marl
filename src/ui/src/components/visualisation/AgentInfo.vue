@@ -110,7 +110,10 @@ const obsShape = computed(() => {
     return computeShape(props.episode.episode.all_observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
-const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
+const episodeLength = computed(() => {
+    if (props.episode == null) return 0;
+    return props.episode.frames.length - 1;
+});
 
 const obs = computed(() => {
     if (props.episode == null) return [];

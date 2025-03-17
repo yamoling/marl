@@ -11,19 +11,6 @@
         </table>
 
         <h3> Extras </h3>
-        <!-- <table v-if="settingsStore.getExtraViewMode() == 'table'" class="table table-responsive">
-            <tbody>
-                <tr>
-                    <th :colspan="extras.length" style="background-color: whitesmoke;">Extras</th>
-                </tr>
-                <tr>
-                    <td class="extras" style="background-color: whitesmoke" v-for="e in extras"> {{ e.toFixed(3) }}</td>
-                </tr>
-            </tbody>
-        </table> -->
-        <!-- <template v-else-if="settingsStore.getExtraViewMode() == 'colour'"> -->
-        Min value: {{ Math.min(...extras).toFixed(3) }} <br>
-        Max value: {{ Math.max(...extras).toFixed(3) }}
         <table class="m-1">
             <tbody>
                 <template v-for="row in rows">
@@ -47,8 +34,7 @@
 
 <script setup lang="ts">
 import Rainbow from 'rainbowvis.js';
-import { useSettingsStore } from '../../../stores/SettingsStore';
-import { ref } from 'vue';
+import { computed } from 'vue';
 
 
 class RowDef {
@@ -88,17 +74,20 @@ const props = defineProps<{
     extrasMeanings: string[]
 }>();
 
-const settingsStore = useSettingsStore();
 const rainbow = new Rainbow()
 rainbow.setNumberRange(Math.min(...props.extras), Math.max(...props.extras));
 rainbow.setSpectrum("blue", "white", "red");
-const rows = ref([
-    new RowDef("Extras", 0, 5),
-    new RowDef("Extras", 5, 4, false),
-    new RowDef("Extras", 9, 4, false),
-    new RowDef("Extras", 13, 4, false),
-    new RowDef("Extras", 17, 4, false),
-]);
+const rows = computed(() => {
+    let i = 0;
+    const res = []
+    while (i < props.extras.length) {
+        const rowDef = new RowDef("Extras", i, 4, true);
+        i += rowDef.nItems;
+        res.push(rowDef);
+    }
+    return res;
+});
+
 
 function getColour(value: number) {
     if (value == 1) return "red";
