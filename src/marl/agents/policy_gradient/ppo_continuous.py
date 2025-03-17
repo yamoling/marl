@@ -40,7 +40,7 @@ class PPO(Agent):
         update_interval=16,
         device_name: str = "cpu",
     ):
-        self.device = torch.device(device_name)
+        super().__init__(device_name)
         self.gamma = gamma
         self.eps_clip = eps_clip
         self.k_epochs = k_epochs
@@ -62,8 +62,8 @@ class PPO(Agent):
 
     def choose_action(self, observation: Observation):
         with torch.no_grad():
-            obs = torch.from_numpy(observation.data).to(self.device)
-            extras = torch.from_numpy(observation.extras).to(self.device)
+            obs = torch.from_numpy(observation.data).to(self._device)
+            extras = torch.from_numpy(observation.extras).to(self._device)
             logits, value = self.ac_network.forward(obs, extras)
 
         self.buffer.state_values.append(value.item())
@@ -93,17 +93,17 @@ class PPO(Agent):
         """
 
         # Normalizing the rewards
-        rewards = torch.tensor(rewards, dtype=torch.float32).to(self.device)
+        rewards = torch.tensor(rewards, dtype=torch.float32).to(self._device)
         rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-5)  # 1e-7 originally
 
         # convert list to tensor
-        old_states = torch.squeeze(torch.from_numpy(np.stack(self.buffer.states))).to(self.device)
+        old_states = torch.squeeze(torch.from_numpy(np.stack(self.buffer.states))).to(self._device)
         if old_states.dim() <= 1:
             old_states = old_states.unsqueeze(-1)
         # old_actions = torch.squeeze(torch.from_numpy(np.stack(self.buffer.actions))).to(self.device)
-        old_actions = torch.squeeze(torch.from_numpy(np.stack([action for action in self.buffer.actions]))).to(self.device)
-        old_logprobs = torch.squeeze(torch.from_numpy(np.stack(self.buffer.logprobs))).to(self.device)
-        old_state_values = torch.tensor(self.buffer.state_values, device=self.device)
+        old_actions = torch.squeeze(torch.from_numpy(np.stack([action for action in self.buffer.actions]))).to(self._device)
+        old_logprobs = torch.squeeze(torch.from_numpy(np.stack(self.buffer.logprobs))).to(self._device)
+        old_state_values = torch.tensor(self.buffer.state_values, device=self._device)
 
         # calculate advantages
         advantages = rewards - old_state_values  # There is no grad function here since they were added in "with torch.no_grad()"
@@ -147,5 +147,5 @@ class PPO(Agent):
     def to(self, device: torch.device):
         self.ac_network.to(device)
         self.policy_old.to(device)
-        self.device = device
+        self._device = device
         return self

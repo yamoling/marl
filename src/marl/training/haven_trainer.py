@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 import numpy as np
 from marlenv import Episode, Transition
-from torch import device
+import torch
 
 from marl.agents import Haven
 from marl.models.trainer import Trainer
@@ -133,8 +133,8 @@ class HavenTrainer(Trainer):
         self.meta_trainer.randomize(method)
         self.worker_trainer.randomize(method)
 
-    def to(self, device: device):
+    def to(self, device: torch.device):
         self.meta_trainer = self.meta_trainer.to(device)
         self.worker_trainer = self.worker_trainer.to(device)
-        self.device = device
+        self._device = device
         return self

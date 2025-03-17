@@ -89,7 +89,7 @@ class ContinuousPPOTrainer(Trainer):
         total_actor_loss = 0.0
         total_entropy_loss = 0.0
         total_loss = 0.0
-        total_norm = torch.zeros(1, device=self.device)
+        total_norm = torch.zeros(1, device=self._device)
         for _ in range(self.n_epochs):
             indices = np.random.choice(self.batch_size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
@@ -161,7 +161,7 @@ class ContinuousPPOTrainer(Trainer):
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         self.memory.append(transition)
         if len(self.memory) == self.batch_size:
-            batch = TransitionBatch(self.memory).to(self.device)
+            batch = TransitionBatch(self.memory).to(self._device)
             logs = self.train(batch, time_step)
             self.memory.clear()
             return logs

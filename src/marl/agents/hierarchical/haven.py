@@ -98,7 +98,7 @@ class Haven(Agent[tuple[np.ndarray, dict[str, np.ndarray]]]):
         self._t = self._t_train
 
     def to(self, device: device):
-        self.device = device
+        self._device = device
         self.meta.to(device)
         self.workers.to(device)
         return self

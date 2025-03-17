@@ -18,12 +18,16 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-if="currentQvalues.length > 0"
-                    v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+                <tr v-if="qvalues.length > 0" v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                     <th scope="row" class="text-capitalize"> {{ objective }} </th>
-                    <td v-for="action in currentQvalues.length"
+                    <td v-for="action in experiment.env.n_actions"
                         :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
-                        {{ currentQvalues[action - 1][objectiveNum].toFixed(4) }}
+                        <template v-if="isMultiObjective">
+                            {{ multiObjectiveQvalues[action - 1][objectiveNum].toFixed(4) }}
+                        </template>
+                        <template v-else>
+                            {{ singleObjectiveQvalues[action - 1].toFixed(4) }}
+                        </template>
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
@@ -75,7 +79,7 @@
                 <tr>
                     <!-- Sum all objectives for that action -->
                     <td> <b>Q-Total</b></td>
-                    <td v-for="action in currentQvalues.length"
+                    <td v-for="action in qvalues.length"
                         :style='{ "background-color": "#" + totalQValuesColours[action - 1] }'>
                         {{ totalQValues[action - 1].toFixed(4) }}
                     </td>
@@ -114,6 +118,7 @@ const episodeLength = computed(() => {
     if (props.episode == null) return 0;
     return props.episode.frames.length - 1;
 });
+const isMultiObjective = computed(() => props.experiment.env.reward_space.size > 1);
 
 const obs = computed(() => {
     if (props.episode == null) return [];
@@ -132,7 +137,11 @@ const availableActions = computed(() => {
     return props.episode.episode.all_available_actions[props.currentStep][props.agentNum];
 });
 
-const currentQvalues = computed(() => {
+const multiObjectiveQvalues = computed(() => qvalues.value as number[][])
+
+const singleObjectiveQvalues = computed(() => qvalues.value as number[])
+
+const qvalues = computed(() => {
     if (props.episode == null) return [];
     if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
     if (props.currentStep >= episodeLength.value) return [];
@@ -141,10 +150,10 @@ const currentQvalues = computed(() => {
 
 const totalQValues = computed(() => {
     const res = [] as number[];
-    for (let i = 0; i < currentQvalues.value.length; i++) {
+    for (let i = 0; i < multiObjectiveQvalues.value.length; i++) {
         let sum = 0;
-        for (let j = 0; j < currentQvalues.value[i].length; j++) {
-            sum += currentQvalues.value[i][j];
+        for (let j = 0; j < multiObjectiveQvalues.value[i].length; j++) {
+            sum += multiObjectiveQvalues.value[i][j];
         }
         res.push(sum);
     }
@@ -152,7 +161,11 @@ const totalQValues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    const colours = currentQvalues.value.map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    let actionQvalues = qvalues.value
+    if (!isMultiObjective.value) {
+        actionQvalues = actionQvalues.map(q => [q]) as number[][];
+    }
+    const colours = (actionQvalues as number[][]).map(qs => qs.map(q => props.rainbow.colourAt(q)));
     return colours;
 });
 

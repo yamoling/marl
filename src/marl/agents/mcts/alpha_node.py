@@ -109,9 +109,9 @@ class AlphaNode:
         if self.is_terminal:
             return
         env.set_state(self.state)
-        state = torch.from_numpy(self.state.data).unsqueeze(0).to(nn.device)
-        extras = torch.from_numpy(self.state.extras).unsqueeze(0).to(nn.device)
-        available = torch.from_numpy(env.available_actions()).to(nn.device)
+        state = torch.from_numpy(self.state.data).unsqueeze(0).to(nn._device)
+        extras = torch.from_numpy(self.state.extras).unsqueeze(0).to(nn._device)
+        available = torch.from_numpy(env.available_actions()).to(nn._device)
         with torch.no_grad():
             priors = nn.policy(state, extras, available)[0].tolist()
         for action, prior in enumerate(priors):
@@ -122,8 +122,8 @@ class AlphaNode:
             if step.is_terminal:
                 next_value = 0.0
             else:
-                next_state = torch.from_numpy(step.state.data).unsqueeze(0).to(nn.device)
-                next_extras = torch.from_numpy(step.state.extras).unsqueeze(0).to(nn.device)
+                next_state = torch.from_numpy(step.state.data).unsqueeze(0).to(nn._device)
+                next_extras = torch.from_numpy(step.state.extras).unsqueeze(0).to(nn._device)
                 with torch.no_grad():
                     next_value = nn.value(next_state, next_extras).item()
             self.children.append(

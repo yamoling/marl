@@ -14,9 +14,11 @@ from marl.models.nn import NN, RecurrentNN
 class Agent[A](ABC):
     name: str
 
-    def __init__(self):
+    def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
         self.name = self.__class__.__name__
-        self.device = torch.device("cpu")
+        if isinstance(device, str):
+            device = torch.device(device)
+        self._device = torch.device("cpu")
 
     @property
     def action_space(self) -> ActionSpace:
@@ -69,7 +71,7 @@ class Agent[A](ABC):
 
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
-        self.device = device
+        self._device = device
         for nn in self.networks:
             nn.to(device)
         return self

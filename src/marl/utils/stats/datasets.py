@@ -26,6 +26,8 @@ class ExperimentResults:
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):
+    if round_value == 0:
+        raise ValueError("round_value must be different from 0")
     try:
         col = df[col_name] / round_value
         col = col.round(0)

@@ -63,7 +63,7 @@ class DQNTrainer[B: Batch](Trainer):
                 raise ValueError(f"Unknown train_interval: {other}. Expected (int, 'step' | 'episode').")
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
-        self.device = qnetwork.device
+        self._device = qnetwork.device
         self.policy = train_policy
         self.memory = memory
         self.gamma = gamma
@@ -98,7 +98,7 @@ class DQNTrainer[B: Batch](Trainer):
     def _update(self, time_step: int):
         if not self.memory.can_sample(self.batch_size):
             return {}
-        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork._device)
         logs = self.train(batch)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)

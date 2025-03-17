@@ -56,7 +56,7 @@ class Trainer[A](ABC):
 
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""
-        self.device = device
+        self._device = device
         for nn in self.networks:
             nn.to(device)
         return self

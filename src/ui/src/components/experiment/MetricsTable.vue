@@ -14,7 +14,7 @@
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        @row-select="e => { console.log(e.data); emits('view-episode', e.data.directory) }">
+                        @row-select="e => emits('view-episode', e.data.directory)">
                         <Column v-for="column in testColumns" :header="column" :field="column">
                             <template #body="{ data }">
                                 <template v-if="typeof data[column] === 'number'">

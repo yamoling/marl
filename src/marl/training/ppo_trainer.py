@@ -65,13 +65,13 @@ class PPOTrainer[B: Batch](Trainer):
         self.parameters = list(self.network.parameters())
         self.optimiser = self._make_optimizer(optimiser)
         self.update_num = 0
-        self.device = network.device
+        self._device = network.device
         self.update_num = 0
 
         self.logits_clip_low = logits_clip_low
         self.logits_clip_high = logits_clip_high
 
-        self.to(self.device)
+        self.to(self._device)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         # single episode updates are saved as steps in memory
@@ -116,7 +116,7 @@ class PPOTrainer[B: Batch](Trainer):
 
         mem_len = len(self.memory)
         # get whole memory
-        batch = self.memory.get_batch(range(mem_len)).to(self.device)
+        batch = self.memory.get_batch(range(mem_len)).to(self._device)
         self.memory.clear()
         batch.actions = batch.actions.squeeze(-1)
 
@@ -127,9 +127,9 @@ class PPOTrainer[B: Batch](Trainer):
             value, log_probs = self.get_value_and_action_probs(batch.obs[i], batch.extras[i], batch.available_actions[i], batch.actions[i])
             batch_values.append(value)
             batch_log_probs.append(log_probs)
-        batch_values = torch.stack(batch_values).to(self.device)
+        batch_values = torch.stack(batch_values).to(self._device)
         # batch_log_probs = torch.tensor(np.array(batch_log_probs)).to(self.device)
-        batch_log_probs = torch.stack(batch_log_probs).to(self.device)
+        batch_log_probs = torch.stack(batch_log_probs).to(self._device)
 
         # compute advantages
         advantages = np.zeros((batch_values.shape[0], batch_values.shape[1]), dtype=np.float32)
@@ -137,14 +137,14 @@ class PPOTrainer[B: Batch](Trainer):
         # # TRUNCATED ADV
         for t in range(mem_len - 1):
             discount = 1
-            a_t = torch.zeros(batch_values[0].shape).to(self.device)
+            a_t = torch.zeros(batch_values[0].shape).to(self._device)
             for k in range(t, mem_len - 1):
                 a_t += discount * (batch.rewards[k].squeeze(-1) + self.gamma * batch_values[k + 1] * (1 - batch.dones[k]) - batch_values[k])
                 if batch.dones[k] == 1:
                     break
                 discount *= self.gamma
             advantages[t] = a_t.cpu().squeeze()
-        advantages = torch.from_numpy(advantages).to(self.device)
+        advantages = torch.from_numpy(advantages).to(self._device)
 
         # # TGAE
         # for t in reversed(range(mem_len)):
@@ -247,7 +247,7 @@ class PPOTrainer[B: Batch](Trainer):
                 # self.network.temperature = self.softmax_temp_schedule.value
 
     def to(self, device: torch.device):
-        self.device = device
+        self._device = device
         self.network.to(device)
         return self
 

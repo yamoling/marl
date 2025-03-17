@@ -81,7 +81,7 @@ const rows = computed(() => {
     let i = 0;
     const res = []
     while (i < props.extras.length) {
-        const rowDef = new RowDef("Extras", i, 4, true);
+        const rowDef = new RowDef("Extras", i, Math.min(props.extras.length - i, 4), true);
         i += rowDef.nItems;
         res.push(rowDef);
     }

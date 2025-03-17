@@ -34,7 +34,7 @@ class DDPGTrainer(Trainer):
         self.value_optimiser = torch.optim.Adam(self.network.value_parameters, self.lr)
 
         self.step_num = 0
-        self.device = network.device
+        self.device = network._device
         self.to(device=self.device)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:

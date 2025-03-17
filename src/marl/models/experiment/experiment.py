@@ -28,13 +28,9 @@ from .light_experiment import LightExperiment
 
 @dataclass
 class Experiment[A, AS: ActionSpace](LightExperiment):
-    logdir: str
     agent: Agent
     trainer: Trainer
     env: MARLEnv[A, AS]
-    test_interval: int
-    n_steps: int
-    creation_timestamp: int
     test_env: MARLEnv[A, AS]
 
     def __init__(
@@ -165,8 +161,8 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
     @overload
     def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
         """
-        Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run. 
-        
+        Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run.
+
         Note that the actions are not re-evaluated from the agent but loaded from the `actions.json` file.
         """
 

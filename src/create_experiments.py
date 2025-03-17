@@ -282,7 +282,7 @@ def create_lle(args: Arguments):
 def create_overcooked(args: Arguments):
     horizon = 400
     env = marlenv.adapters.Overcooked.from_layout("bottleneck", horizon)
-    env = marlenv.Builder(env).agent_id().time_limit(horizon).build()
+    env = marlenv.Builder(env).agent_id().build()
     return make_dqn(args, env)
 
 

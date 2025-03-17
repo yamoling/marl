@@ -20,7 +20,7 @@ class DiscreteAgent(Agent):
         logits_clip_high: Optional[float] = None,
     ):
         super().__init__()
-        self.actor_network = ac_network.to(self.device)
+        self.actor_network = ac_network.to(self._device)
         self.action_probs: np.ndarray = np.array([])
         self.train_policy = train_policy
         if test_policy is None:
@@ -34,9 +34,9 @@ class DiscreteAgent(Agent):
 
     def choose_action(self, observation: Observation) -> npt.NDArray[np.int64]:
         with torch.no_grad():
-            obs_data = torch.tensor(observation.data).to(self.device, non_blocking=True)
-            obs_extras = torch.tensor(observation.extras).to(self.device, non_blocking=True)
-            available_actions = torch.tensor(observation.available_actions).to(self.device, non_blocking=True)
+            obs_data = torch.tensor(observation.data).to(self._device, non_blocking=True)
+            obs_extras = torch.tensor(observation.extras).to(self._device, non_blocking=True)
+            available_actions = torch.tensor(observation.available_actions).to(self._device, non_blocking=True)
 
             logits = self.actor_network.policy(obs_data, obs_extras, available_actions)  # get action logits
             logits = torch.clamp(logits, self.logits_clip_low, self.logits_clip_high)  # clamp logits to avoid overflow
@@ -45,8 +45,8 @@ class DiscreteAgent(Agent):
         return actions
 
     def value(self, obs: Observation) -> float:
-        obs_data = torch.from_numpy(obs.data).to(self.device, non_blocking=True)
-        obs_extras = torch.from_numpy(obs.extras).to(self.device, non_blocking=True)
+        obs_data = torch.from_numpy(obs.data).to(self._device, non_blocking=True)
+        obs_extras = torch.from_numpy(obs.extras).to(self._device, non_blocking=True)
         value = self.actor_network.value(obs_data, obs_extras)
         return torch.mean(value).item()
 

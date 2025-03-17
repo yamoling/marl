@@ -31,7 +31,11 @@ class NN(torch.nn.Module, ABC):
         self.extras_shape = extras_shape
         self.output_shape = output_shape
         self.name = self.__class__.__name__
-        self.device = torch.device("cpu")
+        self._device = torch.device("cpu")
+
+    @property
+    def device(self):
+        return self._device
 
     @abstractmethod
     def forward(self, *args) -> torch.Tensor:
@@ -60,7 +64,7 @@ class NN(torch.nn.Module, ABC):
             from marl.utils import get_device
 
             device = get_device(device)
-        self.device = device
+        self._device = device
         return super().to(device, dtype, non_blocking)
 
 

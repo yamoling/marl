@@ -16,8 +16,8 @@ class ContinuousAgent(Agent):
 
     def choose_action(self, observation: Observation):
         with torch.no_grad():
-            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self.device, non_blocking=True)
-            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self.device, non_blocking=True)
+            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
+            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
             # There is no such thing as available actions in continuous action space
             distribution = self.actor_network.policy(obs_data, obs_extras)
         actions = distribution.sample().squeeze(0)

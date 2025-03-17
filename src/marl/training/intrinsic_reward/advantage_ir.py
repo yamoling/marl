@@ -48,7 +48,7 @@ class AdvantageIntrinsicReward(IRModule):
         self.update_method.add_parameters(self.network.parameters(), self.target_network.parameters())
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
         self.memory = TransitionMemory(5_000)
-        self.device = self.network.device
+        self._device = self.network.device
         self.grad_norm_clipping = grad_norm_clipping
 
     def compute(self, batch: Batch) -> torch.Tensor:
@@ -63,7 +63,7 @@ class AdvantageIntrinsicReward(IRModule):
         self.memory.add(transition)
         if not self.memory.can_sample(self.batch_size):
             return {}
-        batch = self.memory.sample(self.batch_size).to(self.device)
+        batch = self.memory.sample(self.batch_size).to(self._device)
         return self.update(time_step, batch)
 
     def update(self, time_step: int, batch: Batch) -> dict[str, float]:
@@ -86,7 +86,7 @@ class AdvantageIntrinsicReward(IRModule):
     def to(self, device: torch.device):
         self.network.to(device)
         self.target_network.to(device)
-        self.device = device
+        self._device = device
         return self
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
