@@ -12,7 +12,7 @@ from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
 from marl.training import VDN
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
+from marl.training.ppo_trainer import PPOTrainer
 from marl.training.haven_trainer import HavenTrainer
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 
@@ -95,7 +95,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     match agent_type:
         case "ppo":
-            meta_agent = ContinuousPPOTrainer(
+            meta_agent = PPOTrainer(
                 actor_critic=CNNContinuousActorCritic(
                     input_shape=meta_env.observation_shape,
                     n_extras=meta_env.extras_shape[0],
@@ -229,7 +229,7 @@ def make_dqn(
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/{env.name}"
+        args.logdir = f"logs/{env.name}-DQN"
         if trainer.mixer is not None:
             args.logdir += f"-{trainer.mixer.name}"
         else:
@@ -246,6 +246,41 @@ def make_dqn(
         test_interval=test_interval,
         n_steps=n_steps,
         test_env=test_env,
+    )
+
+
+def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_000_000, test_interval=5000):
+    actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env, -10, 10)
+    trainer = PPOTrainer(
+        actor_critic=actor_critic,
+        batch_size=1024,
+        minibatch_size=64,
+        n_epochs=32,
+        value_mixer=VDN.from_env(env),
+        gamma=0.95,
+        lr=5e-4,
+    )
+    algo = marl.agents.Actor(actor_critic)
+    if args.logdir is not None:
+        if not args.logdir.startswith("logs/"):
+            args.logdir = "logs/" + args.logdir
+    elif args.debug:
+        args.logdir = "logs/debug"
+    else:
+        args.logdir = f"logs/{env.name}-PPO"
+        if trainer.value_mixer is not None:
+            args.logdir += f"-{trainer.value_mixer.name}"
+        else:
+            args.logdir += "-iql"
+        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+            args.logdir += "-PER"
+    return marl.Experiment.create(
+        logdir=args.logdir,
+        agent=algo,
+        trainer=trainer,
+        env=env,
+        test_interval=test_interval,
+        n_steps=n_steps,
     )
 
 
@@ -283,7 +318,7 @@ def create_overcooked(args: Arguments):
     horizon = 400
     env = marlenv.adapters.Overcooked.from_layout("bottleneck", horizon)
     env = marlenv.Builder(env).agent_id().build()
-    return make_dqn(args, env)
+    return make_ppo(args, env)
 
 
 def main(args: Arguments):

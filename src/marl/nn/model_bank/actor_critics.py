@@ -1,15 +1,17 @@
 import math
 from dataclasses import dataclass
+from typing import Any, Optional
 
 import torch
 from marlenv import DiscreteActionSpace, MARLEnv
+from torch.distributions.distribution import Distribution
 
-from marl.models.nn import ContinuousActorCriticNN, DiscreteActorCriticNN, CriticNN, ContinuousActorNN
+from marl.models.nn import CriticNN, ActorCriticNN, ActorNN, DiscreteActorCriticNN
 from .qnetworks import MLP
 from ..utils import make_cnn
 
 
-class DDPG_NN_TEST(DiscreteActorCriticNN):
+class DDPG_NN_TEST(ActorCriticNN):
     def __init__(
         self,
         input_shape: tuple[int, int, int],
@@ -20,7 +22,7 @@ class DDPG_NN_TEST(DiscreteActorCriticNN):
         state_size: int,
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, extras_shape, output_shape[0])
+        super().__init__(input_shape, extras_shape, output_shape)
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
@@ -96,11 +98,24 @@ class DDPG_NN_TEST(DiscreteActorCriticNN):
         return list(self.cnn.parameters()) + list(self.policy_network.parameters())
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class CNN_ActorCritic(DiscreteActorCriticNN):
-    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int], output_shape: tuple[int]):
+    def __init__(
+        self,
+        input_shape: tuple[int, int, int],
+        extras_shape: tuple[int],
+        output_shape: tuple[int],
+        logits_clipping_low: Optional[float] = None,
+        logits_clipping_high: Optional[float] = None,
+    ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(input_shape, extras_shape, output_shape[0])
+        super().__init__(
+            input_shape,
+            extras_shape,
+            output_shape,
+        )
+        self.min_logits = logits_clipping_low
+        self.max_logits = logits_clipping_high
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
@@ -122,32 +137,36 @@ class CNN_ActorCritic(DiscreteActorCriticNN):
         *dims, channels, height, width = data.shape
         leading_dims_size = math.prod(dims)
         data = data.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
         features = self.cnn.forward(data)
         features = torch.cat((features, extras), dim=-1)
-        return self.common(features)
+        output: torch.Tensor = self.common(features)
+        return output.view(*dims, -1)
 
-    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
         logits = self.policy_network(x)
-        return logits
+        logits = torch.clamp(logits, self.min_logits, self.max_logits)
+        return self.mask(logits, available_actions)
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
-        return self.value_network(x)
+        v = self.value_network(x)
+        return torch.squeeze(v, dim=-1)
 
-    def forward(
-        self,
-        data: torch.Tensor,
-        extras: torch.Tensor,
-        action_mask: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
+        logits = self.logits(data, extras, available_actions)
+        return torch.distributions.Categorical(logits=logits)
+
+    def forward(self, data: torch.Tensor, extras: torch.Tensor, action_mask: torch.Tensor):
         x = self._common_forward(data, extras)
         logits = self.policy_network(x)
-        if action_mask is not None:
-            logits = logits * action_mask
-        pi = torch.nn.functional.softmax(logits, dim=-1)
+        logits = torch.clamp(logits, self.min_logits, self.max_logits)
+        logits = self.mask(logits, action_mask)
+        dist = torch.distributions.Categorical(logits=logits)
         v = self.value_network(x)
-        return pi, v
+        v = torch.squeeze(v, dim=-1)
+        return dist, v
 
     @property
     def value_parameters(self) -> list[torch.nn.Parameter]:
@@ -157,11 +176,27 @@ class CNN_ActorCritic(DiscreteActorCriticNN):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
 
+    @staticmethod
+    def from_env(
+        env: MARLEnv[Any, DiscreteActionSpace],
+        logits_clipping_low: Optional[float] = None,
+        logits_clipping_high: Optional[float] = None,
+    ):
+        assert len(env.observation_shape) == 3
+        assert len(env.extras_shape) == 1
+        return CNN_ActorCritic(
+            env.observation_shape,
+            env.extras_shape,
+            (env.n_actions,),
+            logits_clipping_low,
+            logits_clipping_high,
+        )
+
 
 @dataclass
-class SimpleActorCritic(DiscreteActorCriticNN):
+class SimpleActorCritic(ActorCriticNN):
     def __init__(self, input_size: int, extras_size: int, n_actions: int):
-        super().__init__((input_size,), (extras_size,), n_actions)
+        super().__init__((input_size,), (extras_size,), (n_actions,))
         self.policy_network = torch.nn.Sequential(
             torch.nn.Linear(input_size + extras_size, 256),
             torch.nn.ReLU(),
@@ -177,9 +212,14 @@ class SimpleActorCritic(DiscreteActorCriticNN):
             torch.nn.Linear(256, 1),
         )
 
-    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
         x = torch.cat((data, extras), dim=-1)
-        return self.policy_network(x)
+        logits = self.policy_network(x)
+        return self.mask(logits, available_actions)
+
+    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
+        logits = self.logits(data, extras, available_actions)
+        return torch.distributions.Categorical(logits=logits)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         x = torch.cat((obs, extras), dim=-1)
@@ -235,7 +275,7 @@ class CNNCritic(CriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActor(ContinuousActorNN):
+class CNNContinuousActor(ActorNN):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -255,8 +295,8 @@ class CNNContinuousActor(ContinuousActorNN):
         means = means_stds[:, :, : self.n_actions]
         stds = torch.nn.functional.softplus(means_stds[:, :, self.n_actions :])
         # batch_size = means.shape[0] * means.shape[1]
-        means = means.view(batch_size, n_agents, *self.action_output_shape)
-        stds = stds.view(batch_size, n_agents, *self.action_output_shape)
+        means = means.view(batch_size, n_agents, *self.action_shape)
+        stds = stds.view(batch_size, n_agents, *self.action_shape)
         return torch.distributions.Normal(means, stds)
 
     def forward(
@@ -278,7 +318,7 @@ class CNNContinuousActor(ContinuousActorNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActorCritic(ContinuousActorCriticNN):
+class CNNContinuousActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -311,7 +351,7 @@ class CNNContinuousActorCritic(ContinuousActorCriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class MLPContinuousActorCritic(ContinuousActorCriticNN):
+class MLPContinuousActorCritic(ActorCriticNN):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 1
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -343,8 +383,8 @@ class MLPContinuousActorCritic(ContinuousActorCriticNN):
         means = means_stds[:, :, : self.n_actions]
         stds = torch.nn.functional.softplus(means_stds[:, :, self.n_actions :])
         *dims, _ = means.shape
-        means = means.view(*dims, *self.action_output_shape)
-        stds = stds.view(*dims, *self.action_output_shape)
+        means = means.view(*dims, *self.action_shape)
+        stds = stds.view(*dims, *self.action_shape)
         return torch.distributions.Normal(means, stds)
 
     def forward(

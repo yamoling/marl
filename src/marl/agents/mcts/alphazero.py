@@ -98,7 +98,7 @@ class AlphaZero:
         availables = torch.from_numpy(np.array([all_availables[i] for i in indices])).to(self.device)
 
         pi, value = self.network.forward(states_data, state_extras, availables)
-        pi = torch.gather(pi, 1, actions.unsqueeze(-1)).squeeze()
+        pi = torch.gather(pi, 1, actions.unsqueeze(-1)).squeeze()  # type: ignore
         value = value.squeeze()
         value_loss = torch.nn.functional.mse_loss(value, qvalues)
         policy_loss = torch.nn.functional.cross_entropy(pi, target_probs)

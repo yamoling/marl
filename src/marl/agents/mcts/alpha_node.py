@@ -113,7 +113,7 @@ class AlphaNode:
         extras = torch.from_numpy(self.state.extras).unsqueeze(0).to(nn._device)
         available = torch.from_numpy(env.available_actions()).to(nn._device)
         with torch.no_grad():
-            priors = nn.policy(state, extras, available)[0].tolist()
+            priors = nn.logits(state, extras, available)[0].tolist()
         for action, prior in enumerate(priors):
             if prior == 0.0:
                 continue

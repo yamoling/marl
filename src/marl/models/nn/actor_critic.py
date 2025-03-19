@@ -1,45 +1,71 @@
-from typing import Optional
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
-import torch
+from dataclasses import dataclass
+from typing import Optional
 
+import torch
 
 from .nn import NN
 
 
 @dataclass
-class DiscreteActorNN(NN, ABC):
-    """Actor neural network"""
-
+class ActorNN(NN, ABC):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], action_output_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, action_output_shape)
-        self.action_output_shape = action_output_shape
+        NN.__init__(self, input_shape, extras_shape, action_output_shape)
+        self.action_shape = action_output_shape
 
     @abstractmethod
-    def logits(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        """Returns the logits of the policy distribution"""
-
-    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+    def policy(
+        self,
+        data: torch.Tensor,
+        extras: torch.Tensor,
+        available_actions: Optional[torch.Tensor] = None,
+    ) -> torch.distributions.Distribution:
         """
-        Returns the probabilities of the policy distribution, i.e. the softmax of the logits.
+        Returns the probability distribution over the actions.
 
+        Note that the `available_actions` are only relevant to discrete action spaces.
         The `available_actions` should be a boolean tensor of shape (*dims, n_actions) where `True` means that the action is available.
+        The probability of actions that are not avaliable is zero.
         """
-        logits = self.logits(data, extras)
-        if available_actions is not None:
-            logits[~available_actions] = -torch.inf
-        return torch.nn.functional.softmax(logits, -1)
+
+    def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
+        """Masks the input tensor `x` with the boolean tensor `mask`"""
+        x[~mask] = replacement
+        return x
 
 
 @dataclass
-class ContinuousActorNN(NN):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], action_output_shape: tuple[int, ...]):
-        NN.__init__(self, input_shape, extras_shape, action_output_shape)
+class DiscreteActorNN(ActorNN, ABC):
+    """Discrete actor neural network"""
+
+    clip_logits_low: Optional[float]
+    clip_logits_high: Optional[float]
+
+    def __init__(
+        self,
+        input_shape: tuple[int, ...],
+        extras_shape: tuple[int, ...],
+        action_output_shape: tuple[int, ...],
+        clip_logits_low: Optional[float] = None,
+        clip_logits_high: Optional[float] = None,
+    ):
+        ActorNN.__init__(self, input_shape, extras_shape, action_output_shape)
         self.action_output_shape = action_output_shape
+        self.clip_logits_low = clip_logits_low
+        self.clip_logits_high = clip_logits_high
 
     @abstractmethod
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.distributions.Distribution:
-        """Returns the policy distribution over actions"""
+    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
+        """Returns the logits of the policy distribution (clipped if necessary)"""
+
+    def mask(self, t: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
+        """Masks the tensor `t` with the boolean tensor `mask`"""
+        t[~mask] = replacement
+        return t
+
+    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
+        logits = self.logits(data, extras, available_actions)
+        return torch.distributions.Categorical(logits=logits)
 
 
 @dataclass
@@ -47,48 +73,18 @@ class CriticNN(NN, ABC):
     """Critic neural network"""
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, (1,))
+        NN.__init__(self, input_shape, extras_shape, (1,))
         self.value_output_shape = (1,)
 
     @abstractmethod
-    def value(self, data: torch.Tensor, extras: torch.Tensor, action_probs: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Returns the value function of an observation"""
+    def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        """Returns the value of an observation (for each agent)"""
 
 
 @dataclass
-class DiscreteActorCriticNN(DiscreteActorNN, CriticNN, ABC):
-    """Actor critic neural network"""
-
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], n_actions: int):
-        DiscreteActorNN.__init__(self, input_shape, extras_shape, (n_actions,))
-        CriticNN.__init__(self, input_shape, extras_shape)
-
-    @property
-    @abstractmethod
-    def policy_parameters(self) -> list[torch.nn.Parameter]:
-        pass
-
-    @property
-    @abstractmethod
-    def value_parameters(self) -> list[torch.nn.Parameter]:
-        pass
-
-    def forward(
-        self,
-        obs: torch.Tensor,
-        extras: torch.Tensor,
-        action_mask: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Returns the logits of the policy distribution and the value function given an observation"""
-        return self.policy(obs, extras, action_mask), self.value(obs, extras)
-
-
-@dataclass
-class ContinuousActorCriticNN(ContinuousActorNN, CriticNN, ABC):
-    """Actor critic neural network"""
-
+class ActorCriticNN(ActorNN, CriticNN):
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], action_output_shape: tuple[int, ...]):
-        ContinuousActorNN.__init__(self, input_shape, extras_shape, action_output_shape)
+        ActorNN.__init__(self, input_shape, extras_shape, action_output_shape)
         CriticNN.__init__(self, input_shape, extras_shape)
 
     @property
@@ -105,6 +101,21 @@ class ContinuousActorCriticNN(ContinuousActorNN, CriticNN, ABC):
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
+        available_actions: torch.Tensor,
+    ) -> tuple[torch.distributions.Distribution, torch.Tensor]:
+        """Returns the logits of the policy distribution and the value function given an observation"""
+        return self.policy(obs, extras, available_actions), self.value(obs, extras)
+
+
+@dataclass
+class DiscreteActorCriticNN(ActorCriticNN, DiscreteActorNN):
+    def __init__(
+        self,
+        input_shape: tuple[int, ...],
+        extras_shape: tuple[int, ...],
+        action_output_shape: tuple[int, ...],
+        clip_logits_low: Optional[float] = None,
+        clip_logits_high: Optional[float] = None,
     ):
-        """Returns the means and std of the policy distribution and the value function given an observation"""
-        return self.policy(obs, extras), self.value(obs, extras)
+        ActorCriticNN.__init__(self, input_shape, extras_shape, action_output_shape)
+        DiscreteActorNN.__init__(self, input_shape, extras_shape, action_output_shape, clip_logits_low, clip_logits_high)

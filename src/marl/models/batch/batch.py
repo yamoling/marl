@@ -50,6 +50,8 @@ class Batch(ABC):
         """
         Compute the Generalized Advantage Estimation (GAE).
 
+        Note: the next_values should already be set to 0 for terminal states.
+
         Paper: https://arxiv.org/pdf/1506.02438
         """
         deltas = self.rewards + gamma * next_values - values

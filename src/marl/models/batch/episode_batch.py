@@ -96,12 +96,12 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def available_actions(self):
-        available_actions = np.array([e.available_actions for e in self.episodes], dtype=np.int64)
+        available_actions = np.array([e.available_actions for e in self.episodes], dtype=np.bool)
         return torch.from_numpy(available_actions).transpose(1, 0).to(self.device)
 
     @cached_property
     def next_available_actions(self):
-        available_actions_ = np.array([e.next_available_actions for e in self.episodes], dtype=np.int64)
+        available_actions_ = np.array([e.next_available_actions for e in self.episodes], dtype=np.bool)
         return torch.from_numpy(available_actions_).transpose(1, 0).to(self.device)
 
     @cached_property

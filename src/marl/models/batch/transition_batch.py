@@ -1,5 +1,5 @@
 from functools import cached_property
-from typing import Optional, Iterable, overload
+from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
@@ -57,9 +57,6 @@ class TransitionBatch(Batch):
     def actions(self):
         np_actions = np.array([t.action for t in self.transitions], dtype=self.actions_dtype)
         torch_actions = torch.from_numpy(np_actions).to(self.device)
-        if self.is_discrete:
-            torch_actions = torch_actions.unsqueeze(-1)
-            # torch_actions = torch_actions.unsqueeze(-1).repeat(*(1 for _ in torch_actions.shape), self.reward_size)
         return torch_actions
 
     @cached_property
@@ -79,11 +76,11 @@ class TransitionBatch(Batch):
 
     @cached_property
     def available_actions(self):
-        return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
+        return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.bool)).to(self.device)
 
     @cached_property
     def next_available_actions(self):
-        return torch.from_numpy(np.array([t.next_obs.available_actions for t in self.transitions], dtype=np.int64)).to(self.device)
+        return torch.from_numpy(np.array([t.next_obs.available_actions for t in self.transitions], dtype=np.bool)).to(self.device)
 
     @cached_property
     def states(self):

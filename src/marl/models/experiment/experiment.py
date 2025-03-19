@@ -13,7 +13,7 @@ from marlenv.models import ActionSpace, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQN, Agent, ContinuousAgent
+from marl.agents import DQN, Agent, Actor
 from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
@@ -198,7 +198,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         obs = torch.from_numpy(np.array(episode.obs))
         extras = torch.from_numpy(np.array(episode.extras))
         actions = torch.from_numpy(np.array(episode.actions))
-        if isinstance(self.agent, ContinuousAgent):
+        if isinstance(self.agent, Actor):
             dist = self.agent.actor_network.policy(obs, extras)
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()

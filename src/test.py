@@ -3,7 +3,7 @@ from lle import LLE
 import marlenv
 from marl.training import DQNTrainer, SoftUpdate
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from marl.training.continuous_ppo_trainer import ContinuousPPOTrainer
+from marl.training.ppo_trainer import ContinuousPPOTrainer
 from marl.training.haven_trainer import HavenTrainer
 from marl.training.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic

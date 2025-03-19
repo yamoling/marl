@@ -80,7 +80,7 @@ class DDPGTrainer(Trainer):
         probs = batch.probs
         with torch.no_grad():
             # get next actions
-            new_logits, _ = self.network.forward(obs_, extras_)
+            new_logits, _ = self.network.logits(obs_, extras_, available_actions)
             # new_logits, _ = self.target_network.forward(obs_, extras_)
             new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
             new_logits = new_logits.reshape(actions.shape[0], actions.shape[1], -1)
@@ -92,7 +92,7 @@ class DDPGTrainer(Trainer):
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
-        old_value = self.network.value(states, extras, probs)
+        old_value = self.network.value(states, extras, probs)  # type: ignore
 
         value_loss = torch.nn.functional.mse_loss(old_value, target_values)
         self.value_optimiser.zero_grad()
@@ -100,7 +100,7 @@ class DDPGTrainer(Trainer):
         self.value_optimiser.step()
 
         # get actions
-        logits_current_policy, _ = self.network.forward(obs, extras)
+        logits_current_policy, _ = self.network.forward(obs, extras)  # type: ignore
 
         # reshape and mask unavailable actions
         logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)

@@ -2,15 +2,15 @@ from dataclasses import dataclass
 
 import torch
 from marlenv import Observation
-from marl.models.nn import ContinuousActorCriticNN
+from marl.models.nn import ActorCriticNN
 from .agent import Agent
 
 
 @dataclass
-class ContinuousAgent(Agent):
-    actor_network: ContinuousActorCriticNN
+class Actor(Agent):
+    actor_network: ActorCriticNN
 
-    def __init__(self, actor_network: ContinuousActorCriticNN):
+    def __init__(self, actor_network: ActorCriticNN):
         super().__init__()
         self.actor_network = actor_network
 
@@ -18,7 +18,7 @@ class ContinuousAgent(Agent):
         with torch.no_grad():
             obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
             obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
-            # There is no such thing as available actions in continuous action space
-            distribution = self.actor_network.policy(obs_data, obs_extras)
+            available_actions = torch.from_numpy(observation.available_actions).unsqueeze(0).to(self._device, non_blocking=True)
+            distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
         actions = distribution.sample().squeeze(0)
         return actions.numpy(force=True)

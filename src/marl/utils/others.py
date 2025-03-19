@@ -5,6 +5,7 @@ from typing import Callable, Optional, TypeVar
 import re
 from marlenv import MARLEnv, ActionSpace
 import torch
+from lle import World
 
 
 def seed[A, AS: ActionSpace](seed_value: int, env: Optional[MARLEnv[A, AS]] = None):
@@ -63,4 +64,6 @@ def default_serialization(obj):
             return int(obj)
         case np.floating():
             return float(obj)
-    raise NotImplementedError(f"Serialization of {obj} (type {type(obj)}) not implemented")
+        case World():
+            return obj.world_string
+    raise TypeError(f"Type {type(obj)} is not serializable")

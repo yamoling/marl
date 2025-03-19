@@ -131,7 +131,7 @@ class DQNTrainer[B: Batch](Trainer):
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
 
