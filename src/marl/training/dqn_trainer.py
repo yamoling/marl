@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 import torch
+from functools import cached_property
 from marlenv import Episode, Transition
 
 from marl.agents import DQN, Agent
@@ -88,6 +89,10 @@ class DQNTrainer[B: Batch](Trainer):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)  # type: ignore
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
+
+    @cached_property
+    def action_dim(self):
+        return self.qnetwork.action_dim
 
     def _update(self, time_step: int):
         if not self.memory.can_sample(self.batch_size):

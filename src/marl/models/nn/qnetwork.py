@@ -19,9 +19,11 @@ class QNetwork(NN):
         match output_shape:
             case (_,):
                 self.action_dim = -1
+                self.is_multi_objective = False
                 """The action dimention when predicting qvalues. The value is -1 for single objective RL and -2 for multi-objective RL."""
             case (_, _):
                 self.action_dim = -2
+                self.is_multi_objective = True
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 
