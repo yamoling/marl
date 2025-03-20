@@ -22,7 +22,7 @@ def create_multiobj_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(5).obs_type("layered").state_type("state").multi_objective()
+    env = LLE.level(5).obs_type("layered").state_type("state").build()
     env = marlenv.Builder(env).centralised().agent_id().time_limit(78, add_extra=True).build()
     #env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
     test_env = None
@@ -34,8 +34,8 @@ def create_multiobj_lle(args: Arguments):
         0.05,
         n_steps=500_000,
     )
-    #mixer = marl.algo.VDN.from_env(env)
-    mixer=marl.algo.QMix.from_env(env)
+    mixer = marl.training.mixers.VDN.from_env(env)
+    #mixer=marl.training.mixers.QMix.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -52,7 +52,7 @@ def create_multiobj_lle(args: Arguments):
         # ir_module=rnd,
     )
 
-    algo = marl.algo.DQN(
+    agent = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
@@ -74,8 +74,8 @@ def create_multiobj_lle(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             args.logdir += "-PER"
     return marl.Experiment.create(
-        args.logdir,
-        algo=algo,
+        logdir=args.logdir,
+        agent=agent,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
@@ -151,6 +151,7 @@ def create_lle(args: Arguments):
             args.logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             args.logdir += "-PER"
+    print(type(env))
     return marl.Experiment.create(
         logdir=args.logdir,
         agent=algo,
@@ -164,7 +165,8 @@ def create_lle(args: Arguments):
 
 def main(args: Arguments):
     try:
-        exp = create_lle(args)
+        exp = create_multiobj_lle(args)
+        #exp = create_lle(args)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:

@@ -10,7 +10,7 @@ from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class QMix(Mixer):
     """
     QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning
