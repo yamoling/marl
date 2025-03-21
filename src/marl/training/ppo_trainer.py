@@ -187,7 +187,7 @@ class PPOTrainer(Trainer):
         return {}
 
     def make_agent(self):
-        return SimpleAgent(self.actor_critic, self.value_mixer)
+        return SimpleAgent(self.actor_critic)
 
     def next_values(self, batch: Batch) -> torch.Tensor:
         next_values = self.actor_critic.value(batch.next_obs, batch.next_extras)

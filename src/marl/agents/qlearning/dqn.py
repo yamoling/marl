@@ -45,7 +45,7 @@ class DQN(Agent):
         return self.qnetwork.qvalues(obs)
 
     def value(self, obs: Observation) -> float:
-        return self.qnetwork.value(obs).item()
+        return torch.mean(self.qnetwork.value(obs)).item()
 
     def set_testing(self):
         self.policy = self.test_policy

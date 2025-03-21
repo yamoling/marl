@@ -65,7 +65,7 @@ class Agent[A](ABC):
         for nn in self.recurrent_networks:
             nn.reset_hidden_states()
 
-    def value(self, obs: Observation, state: State) -> float:
+    def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""
         return 0.0
 
@@ -120,10 +120,9 @@ class Agent[A](ABC):
 class SimpleAgent(Agent):
     actor_network: ActorCritic
 
-    def __init__(self, actor_network: ActorCritic, mixer: Mixer):
+    def __init__(self, actor_network: ActorCritic):
         super().__init__()
         self.actor_network = actor_network
-        self.mixer = mixer
 
     def choose_action(self, observation: Observation):
         with torch.no_grad():
@@ -134,10 +133,9 @@ class SimpleAgent(Agent):
         actions = distribution.sample().squeeze(0)
         return actions.numpy(force=True)
 
-    def value(self, observation: Observation, state: State) -> float:
+    def value(self, observation: Observation) -> float:
         with torch.no_grad():
             obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
             obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
-            state_data = torch.from_numpy(state.data).unsqueeze(0).to(self._device, non_blocking=True)
             values = self.actor_network.value(obs_data, obs_extras)
-            return self.mixer.forward(values, state_data).item()
+            return torch.mean(values).item()

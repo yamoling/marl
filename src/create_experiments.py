@@ -184,7 +184,8 @@ def make_dqn(
     n_steps=1_000_000,
     test_interval=5000,
 ):
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    # qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
     memory = marl.models.TransitionMemory(50_000)
     # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
     train_policy = marl.policy.EpsilonGreedy.linear(
@@ -323,8 +324,8 @@ def create_overcooked(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # exp = create_lle(args)
-        exp = create_overcooked(args)
+        exp = create_lle(args)
+        # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")

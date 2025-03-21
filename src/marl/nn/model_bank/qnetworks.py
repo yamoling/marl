@@ -2,7 +2,7 @@ import math
 import operator
 from dataclasses import dataclass
 from functools import reduce
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import torch
 import torch.distributions as D
@@ -195,10 +195,12 @@ class CNN(QNetwork):
         return res.view(*dims, *self.output_shape)
 
 
+@dataclass(unsafe_hash=True)
 class IndependentCNN(QNetwork):
     """
-    CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
-    concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
+    CNN whose flattened output is concatenated with the extras to be fed to the linear layers.
+
+    The CNN part of the network is shared but the linear layers are separated.
     """
 
     def __init__(
@@ -208,15 +210,15 @@ class IndependentCNN(QNetwork):
         extras_size: int,
         output_shape: tuple[int, ...],
         mlp_sizes: tuple[int, ...] = (64, 64),
+        kernel_sizes: tuple[int, ...] = (3, 3, 3),
+        strides: tuple[int, ...] = (1, 1, 1),
+        filters: tuple[int, ...] = (32, 64, 64),
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
         self.n_agents = n_agents
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
+        assert len(strides) == len(filters) == len(kernel_sizes)
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.layer_sizes = (n_features + extras_size, *mlp_sizes, math.prod(output_shape))
         linears = []
         for _ in range(n_agents):
             layers = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
@@ -229,10 +231,11 @@ class IndependentCNN(QNetwork):
 
     def to(self, device: torch.device, dtype: torch.dtype | None = None, non_blocking=True):
         self.linears.to(device, dtype, non_blocking)
-        return super().to(device, dtype, non_blocking)
+        self.cnn.to(device, dtype, non_blocking=True)
+        return self
 
     @classmethod
-    def from_env(cls, env: MARLEnv, mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env(cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:

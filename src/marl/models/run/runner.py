@@ -104,7 +104,7 @@ class Runner[A, AS: ActionSpace](Run):
     ):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs, state)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs)})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
                 self._test_and_log(step_num, render_tests)
@@ -173,7 +173,7 @@ class Runner[A, AS: ActionSpace](Run):
         self._agent.new_episode()
         obs, state = self._test_env.reset()
         episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._agent.value(obs, state)})
+        episode.add_metrics({"initial_value": self._agent.value(obs)})
         i = 0
         while not episode.is_finished:
             i += 1
