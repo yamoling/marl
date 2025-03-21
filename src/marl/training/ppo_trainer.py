@@ -6,10 +6,10 @@ import numpy as np
 import torch
 from marlenv import Transition
 
-from marl.agents import Agent
+from marl.agents import SimpleAgent
 from marl.models import Mixer
 from marl.models.batch import Batch, TransitionBatch
-from marl.models.nn import ActorCriticNN
+from marl.models.nn import ActorCritic
 from marl.models.trainer import Trainer
 from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
 from marl.utils import Schedule
@@ -17,7 +17,7 @@ from marl.utils import Schedule
 
 @dataclass
 class PPOTrainer(Trainer):
-    actor_critic: ActorCriticNN
+    actor_critic: ActorCritic
     batch_size: int
     c1: Schedule
     c2: Schedule
@@ -34,7 +34,7 @@ class PPOTrainer(Trainer):
 
     def __init__(
         self,
-        actor_critic: ActorCriticNN,
+        actor_critic: ActorCritic,
         value_mixer: Mixer,
         gamma: float,
         lr: float,
@@ -42,7 +42,7 @@ class PPOTrainer(Trainer):
         eps_clip: float = 0.2,
         critic_c1: Schedule | float = 1.0,
         exploration_c2: Schedule | float = 0.01,
-        batch_size: int = 2048,
+        train_interval: int = 2048,
         minibatch_size: int = 64,
         gae_lambda: float = 0.95,
         grad_norm_clipping: Optional[float] = None,
@@ -50,7 +50,7 @@ class PPOTrainer(Trainer):
     ):
         super().__init__("step")
         self.memory = []
-        self.batch_size = batch_size
+        self.batch_size = train_interval
         self.minibatch_size = minibatch_size
         self.actor_critic = actor_critic
         self.target_critic = deepcopy(actor_critic)
@@ -186,8 +186,8 @@ class PPOTrainer(Trainer):
             return logs
         return {}
 
-    def make_agent(self) -> Agent:
-        raise NotImplementedError("Impossible to determine the type of agent to create")
+    def make_agent(self):
+        return SimpleAgent(self.actor_critic, self.value_mixer)
 
     def next_values(self, batch: Batch) -> torch.Tensor:
         next_values = self.actor_critic.value(batch.next_obs, batch.next_extras)

@@ -2,6 +2,7 @@ import os
 from copy import deepcopy
 from pprint import pprint
 from typing import Literal, Optional
+import logging
 
 import torch
 from marlenv import ActionSpace, Episode, MARLEnv, Transition
@@ -29,12 +30,12 @@ class Runner[A, AS: ActionSpace](Run):
     def __init__(
         self,
         rundir: str,
-        seed: int,
-        n_tests: int,
-        quiet: bool,
-        test_interval: int,
         n_steps: int,
         env: MARLEnv[A, AS],
+        n_tests: int = 1,
+        test_interval: int = 5000,
+        quiet: bool = False,
+        seed: int = 0,
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
         test_env: Optional[MARLEnv[A, AS]] = None,
@@ -46,7 +47,11 @@ class Runner[A, AS: ActionSpace](Run):
         self._trainer = trainer
         self._env = env
         if agent is None:
-            agent = RandomAgent(env)
+            try:
+                agent = trainer.make_agent()
+            except NotImplementedError:
+                logging.warning("No agent provided, using a random agent")
+                agent = RandomAgent(env)
         self._agent = agent
         if test_env is None:
             test_env = deepcopy(env)
@@ -99,7 +104,7 @@ class Runner[A, AS: ActionSpace](Run):
     ):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs, state)})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
                 self._test_and_log(step_num, render_tests)
@@ -168,7 +173,7 @@ class Runner[A, AS: ActionSpace](Run):
         self._agent.new_episode()
         obs, state = self._test_env.reset()
         episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._agent.value(obs)})
+        episode.add_metrics({"initial_value": self._agent.value(obs, state)})
         i = 0
         while not episode.is_finished:
             i += 1

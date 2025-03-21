@@ -13,7 +13,7 @@ from marlenv.models import ActionSpace, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQN, Agent, Actor
+from marl.agents import DQN, Agent, SimpleAgent
 from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
@@ -57,10 +57,15 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         logdir: str = "logs/tests",
         trainer: Optional[Trainer] = None,
         agent: Optional[Agent] = None,
-        test_interval: int = 0,
+        test_interval: int = 5_000,
         test_env: Optional[MARLEnv[A, AS]] = None,
     ):
-        """Create a new experiment."""
+        """
+        Create a new experiment in the specified directory.
+
+        `trainer` defaults to `NoTrain` trainer if not provided.
+        If not provided, `agent` defaults to `trainer.make_agent()`.
+        """
         if test_env is None:
             test_env = deepcopy(env)
         if not env.has_same_inouts(test_env):
@@ -198,7 +203,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         obs = torch.from_numpy(np.array(episode.obs))
         extras = torch.from_numpy(np.array(episode.extras))
         actions = torch.from_numpy(np.array(episode.actions))
-        if isinstance(self.agent, Actor):
+        if isinstance(self.agent, SimpleAgent):
             dist = self.agent.actor_network.policy(obs, extras)
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()

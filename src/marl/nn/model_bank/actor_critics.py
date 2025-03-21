@@ -6,12 +6,12 @@ import torch
 from marlenv import DiscreteActionSpace, MARLEnv
 from torch.distributions.distribution import Distribution
 
-from marl.models.nn import CriticNN, ActorCriticNN, ActorNN, DiscreteActorCriticNN
+from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic
 from .qnetworks import MLP
 from ..utils import make_cnn
 
 
-class DDPG_NN_TEST(ActorCriticNN):
+class DDPG_NN_TEST(ActorCritic):
     def __init__(
         self,
         input_shape: tuple[int, int, int],
@@ -99,7 +99,7 @@ class DDPG_NN_TEST(ActorCriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNN_ActorCritic(DiscreteActorCriticNN):
+class CNN_ActorCritic(DiscreteActorCritic):
     def __init__(
         self,
         input_shape: tuple[int, int, int],
@@ -193,8 +193,8 @@ class CNN_ActorCritic(DiscreteActorCriticNN):
         )
 
 
-@dataclass
-class SimpleActorCritic(ActorCriticNN):
+@dataclass(unsafe_hash=True)
+class SimpleActorCritic(ActorCritic):
     def __init__(self, input_size: int, extras_size: int, n_actions: int):
         super().__init__((input_size,), (extras_size,), (n_actions,))
         self.policy_network = torch.nn.Sequential(
@@ -221,13 +221,12 @@ class SimpleActorCritic(ActorCriticNN):
         logits = self.logits(data, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        x = torch.cat((obs, extras), dim=-1)
-        return self.policy_network(x), self.value_network(x)
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
+        return self.policy(obs, extras, available_actions), self.value(obs, extras)
 
     def value(self, x: torch.Tensor, extras: torch.Tensor):
         x = torch.cat((x, extras), dim=-1)
-        return self.value_network(x)
+        return torch.squeeze(self.value_network(x), -1)
 
     @property
     def value_parameters(self):
@@ -245,7 +244,7 @@ class SimpleActorCritic(ActorCriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNCritic(CriticNN):
+class CNNCritic(Critic):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,))
@@ -275,7 +274,7 @@ class CNNCritic(CriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActor(ActorNN):
+class CNNContinuousActor(Actor):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -318,7 +317,7 @@ class CNNContinuousActor(ActorNN):
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActorCritic(ActorCriticNN):
+class CNNContinuousActorCritic(ActorCritic):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (n_extras,), action_output_shape)
@@ -351,7 +350,7 @@ class CNNContinuousActorCritic(ActorCriticNN):
 
 
 @dataclass(unsafe_hash=True)
-class MLPContinuousActorCritic(ActorCriticNN):
+class MLPContinuousActorCritic(ActorCritic):
     def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
         assert len(input_shape) == 1
         super().__init__(input_shape, (n_extras,), action_output_shape)

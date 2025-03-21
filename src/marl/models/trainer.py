@@ -24,6 +24,7 @@ class Trainer[A](ABC):
         self.name = self.__class__.__name__
         self.update_on_steps = update_type in ["step", "both"]
         self.update_on_episodes = update_type in ["episode", "both"]
+        self._device = torch.device("cpu")
 
     def make_agent(self, *, ir_module: Optional[IRModule] = None) -> Agent:
         raise NotImplementedError("Trainer must implement make_agent method")

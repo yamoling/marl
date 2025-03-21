@@ -6,7 +6,7 @@ from copy import deepcopy
 
 from marl.models.batch import Batch
 from marl.models import TransitionMemory
-from marl.models.nn import CriticNN
+from marl.models.nn import Critic
 from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 
 from .ir_module import IRModule
@@ -16,7 +16,7 @@ from .ir_module import IRModule
 class ValuePotentialIntrinsicReward(IRModule):
     def __init__(
         self,
-        value_network: CriticNN,
+        value_network: Critic,
         gamma: float,
         update_method: TargetParametersUpdater | Literal["soft", "hard"] = "soft",
         lr: float = 1e-4,

@@ -32,7 +32,7 @@ class TransitionBatch(Batch):
 
     def get_minibatch(self, indices_or_size):
         if isinstance(indices_or_size, int):
-            indices = np.random.choice(self.size, indices_or_size)
+            indices = np.random.choice(self.size, indices_or_size, replace=False)
         else:
             indices = indices_or_size
         return TransitionBatch([self.transitions[i] for i in indices], self.device)

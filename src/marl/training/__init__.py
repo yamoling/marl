@@ -1,4 +1,3 @@
-from .mixers import VDN, Qatten, QMix, QPlex
 from .intrinsic_reward import IRModule, RandomNetworkDistillation
 from .no_train import NoTrain
 from .multi_trainer import MultiTrainer
@@ -24,9 +23,4 @@ __all__ = [
     "RandomNetworkDistillation",
     "intrinsic_reward",
     "IRModule",
-    "VDN",
-    "QMix",
-    "Qatten",
-    "QPlex",
-    "mixers",
 ]

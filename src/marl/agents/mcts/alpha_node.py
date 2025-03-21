@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import math
 import random
-from marl.models.nn import DiscreteActorCriticNN
+from marl.models.nn import DiscreteActorCritic
 
 
 class AlphaNode:
@@ -105,7 +105,7 @@ class AlphaNode:
         assert self.parent is not None
         return self.q_value + c * self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
 
-    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCriticNN, gamma: float):
+    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCritic, gamma: float):
         if self.is_terminal:
             return
         env.set_state(self.state)

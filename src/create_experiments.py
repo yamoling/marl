@@ -10,7 +10,7 @@ from marl.exceptions import ExperimentAlreadyExistsException
 
 from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
-from marl.training import VDN
+from marl.nn.mixers import VDN
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from marl.training.ppo_trainer import PPOTrainer
 from marl.training.haven_trainer import HavenTrainer
@@ -43,7 +43,7 @@ def create_smac(args: Arguments):
         batch_size=32,
         train_interval=(1, "episode"),
         gamma=0.99,
-        mixer=marl.training.QPlex(
+        mixer=marl.nn.mixers.QPlex(
             n_agents=env.n_agents,
             n_actions=env.n_actions,
             state_size=env.state_shape[0],
@@ -101,7 +101,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                     n_extras=meta_env.extras_shape[0],
                     action_output_shape=(N_SUBGOALS,),
                 ),
-                batch_size=1024,
+                train_interval=1024,
                 minibatch_size=64,
                 n_epochs=32,
                 value_mixer=VDN.from_env(meta_env),
@@ -196,9 +196,9 @@ def make_dqn(
         case "vdn":
             mixer = VDN.from_env(env)
         case "qmix":
-            mixer = marl.training.QMix.from_env(env)
+            mixer = marl.nn.mixers.QMix.from_env(env)
         case "qplex":
-            mixer = marl.training.QPlex.from_env(env)
+            mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
     trainer = DQNTrainer(
@@ -251,16 +251,16 @@ def make_dqn(
 
 def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_000_000, test_interval=5000):
     actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env, -10, 10)
+    mixer = VDN.from_env(env)
     trainer = PPOTrainer(
         actor_critic=actor_critic,
-        batch_size=1024,
+        train_interval=1024,
         minibatch_size=64,
         n_epochs=32,
-        value_mixer=VDN.from_env(env),
+        value_mixer=mixer,
         gamma=0.95,
         lr=5e-4,
     )
-    algo = marl.agents.Actor(actor_critic)
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
             args.logdir = "logs/" + args.logdir
@@ -276,7 +276,6 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_
             args.logdir += "-PER"
     return marl.Experiment.create(
         logdir=args.logdir,
-        agent=algo,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
