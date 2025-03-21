@@ -46,7 +46,6 @@ class DQNTrainer[B: Batch](Trainer):
         train_ir: bool = True,
         use_ir: bool = True,
         grad_norm_clipping: Optional[float] = None,
-        test_policy: Optional[Policy] = None,
     ):
         super().__init__(train_interval[1])
         match train_interval:
@@ -77,9 +76,6 @@ class DQNTrainer[B: Batch](Trainer):
         self.ir_module = ir_module
         self.train_ir = train_ir
         self.use_ir = use_ir
-        if test_policy is None:
-            test_policy = train_policy
-        self.test_policy = test_policy
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping
@@ -180,11 +176,11 @@ class DQNTrainer[B: Batch](Trainer):
             logs = logs | self._update(time_step)
         return logs
 
-    def make_agent(self) -> Agent:
+    def make_agent(self, test_policy: Optional[Policy] = None) -> Agent:
         return DQN(
             qnetwork=self.qnetwork,
             train_policy=self.policy,
-            test_policy=self.test_policy,
+            test_policy=test_policy,
         )
 
     def to(self, device: torch.device):

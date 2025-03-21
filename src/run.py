@@ -60,7 +60,7 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
 
 
 def main(args: Arguments):
-    if args.debug:
+    if args.debug or args.n_runs == 1:
         start_run(args, 0, 0)
         return
 

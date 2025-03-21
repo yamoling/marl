@@ -184,15 +184,6 @@ def make_dqn(
     n_steps=1_000_000,
     test_interval=5000,
 ):
-    # qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
-    # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=200_000,
-    )
     match mixing:
         case "vdn":
             mixer = VDN.from_env(env)
@@ -203,9 +194,13 @@ def make_dqn(
         case other:
             raise ValueError(f"Invalid mixer: {other}")
     trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
+        qnetwork=marl.nn.model_bank.IndependentCNN.from_env(env),
+        train_policy=marl.policy.EpsilonGreedy.linear(
+            1.0,
+            0.05,
+            n_steps=200_000,
+        ),
+        memory=marl.models.TransitionMemory(50_000),
         optimiser="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -217,12 +212,7 @@ def make_dqn(
         grad_norm_clipping=10,
         ir_module=None,
     )
-
-    algo = marl.agents.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
+    algo = trainer.make_agent(marl.policy.ArgMax())
 
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
@@ -284,7 +274,7 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_
     )
 
 
-def create_lle(args: Arguments):
+def make_lle(args: Arguments):
     # lle = RandomizedLasers(
     env = (
         LLE.level(6)
@@ -297,21 +287,12 @@ def create_lle(args: Arguments):
         #    lasers_to_reward=[(4, 0), (6, 12)],
         # )
         .builder()
-        .agent_id()
+        # .agent_id()
         .time_limit(78, add_extra=True)
         .build()
     )
-
-    test_env = (
-        LLE.from_file("maps/lvl6-start-above.toml")
-        .obs_type("layered")
-        .state_type("state")
-        .builder()
-        .agent_id()
-        .time_limit(78, add_extra=True)
-        .build()
-    )
-    return make_dqn(args, env, test_env)
+    test_env = None
+    return env, test_env
 
 
 def create_overcooked(args: Arguments):
@@ -324,10 +305,10 @@ def create_overcooked(args: Arguments):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        exp = create_lle(args)
+        env, test_env = make_lle(args)
+        exp = make_dqn(args, env, test_env)
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
-        print(exp.logdir)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
             args.logdir = exp.logdir

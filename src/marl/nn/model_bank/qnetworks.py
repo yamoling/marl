@@ -232,6 +232,7 @@ class IndependentCNN(QNetwork):
     def to(self, device: torch.device, dtype: torch.dtype | None = None, non_blocking=True):
         self.linears.to(device, dtype, non_blocking)
         self.cnn.to(device, dtype, non_blocking=True)
+        self._device = device
         return self
 
     @classmethod
@@ -244,7 +245,7 @@ class IndependentCNN(QNetwork):
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
-        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
+        # For episodes, the shape is (time, batch_size, n_agents, channels, height, width) -> Not implemented
         batch_size, n_agents, channels, height, width = obs.shape
         # Transpose to (batch_size, n_agents, channels, height, width)
         obs = obs.transpose(0, 1)
@@ -260,7 +261,7 @@ class IndependentCNN(QNetwork):
             res.append(linear.forward(agent_feature))
         res = torch.stack(res)
         res = res.transpose(0, 1)
-        return res.reshape(batch_size, n_agents, *self.output_shape)
+        return res.view(batch_size, n_agents, *self.output_shape)
 
 
 class RCNN(RecurrentQNetwork):
