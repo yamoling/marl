@@ -203,7 +203,6 @@ class SimpleActorCritic(ActorCritic):
             torch.nn.Linear(256, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, n_actions),
-            torch.nn.Softmax(dim=-1),
         )
         self.value_network = torch.nn.Sequential(
             torch.nn.Linear(input_size + extras_size, 256),
@@ -215,9 +214,9 @@ class SimpleActorCritic(ActorCritic):
 
     def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
         x = torch.cat((data, extras), dim=-1)
-        probs = self.policy_network(x)
-        # probs = self.mask(probs, available_actions, replacement=0.0)
-        return torch.distributions.Categorical(probs=probs)
+        logits = self.policy_network(x)
+        logits = self.mask(logits, available_actions, replacement=-torch.inf)
+        return torch.distributions.Categorical(logits=logits)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
