@@ -11,8 +11,9 @@ from marl.models import Mixer
 from marl.models.batch import Batch, TransitionBatch
 from marl.models.nn import ActorCritic
 from marl.models.trainer import Trainer
-from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
 from marl.utils import Schedule
+
+torch.autograd.set_detect_anomaly(True)
 
 
 @dataclass
@@ -30,14 +31,14 @@ class PPOTrainer(Trainer):
     value_mixer: Mixer
     target_value_mixer: Mixer
     grad_norm_clipping: Optional[float]
-    target_updater: TargetParametersUpdater
 
     def __init__(
         self,
         actor_critic: ActorCritic,
         value_mixer: Mixer,
         gamma: float,
-        lr: float,
+        lr_actor: float,
+        lr_critic: float,
         n_epochs: int = 64,
         eps_clip: float = 0.2,
         critic_c1: Schedule | float = 1.0,
@@ -46,7 +47,6 @@ class PPOTrainer(Trainer):
         minibatch_size: int = 64,
         gae_lambda: float = 0.95,
         grad_norm_clipping: Optional[float] = None,
-        target_updater: Optional[TargetParametersUpdater] = None,
     ):
         super().__init__("step")
         self.memory = []
@@ -62,12 +62,12 @@ class PPOTrainer(Trainer):
         self.eps_clip = eps_clip
         self._ratio_min = 1 - eps_clip
         self._ratio_max = 1 + eps_clip
-        if target_updater is None:
-            target_updater = SoftUpdate(1e-2)
-        self.target_updater = target_updater
-        self.target_updater.add_parameters(self.actor_critic.parameters(), self.target_critic.parameters())
-        self.target_updater.add_parameters(self.value_mixer.parameters(), self.target_value_mixer.parameters())
-        self.optimizer = torch.optim.Adam(self.parameters, lr=lr)
+        self.optimizer = torch.optim.Adam(
+            [
+                {"params": self.actor_critic.policy_parameters, "lr": lr_actor},
+                {"params": self.actor_critic.value_parameters, "lr": lr_critic},
+            ]
+        )
         if isinstance(critic_c1, (float, int)):
             critic_c1 = Schedule.constant(critic_c1)
         self.c1 = critic_c1
@@ -77,29 +77,26 @@ class PPOTrainer(Trainer):
         self.gae_lambda = gae_lambda
         self.grad_norm_clipping = grad_norm_clipping
 
-    def train(self, batch: Batch, time_step: int) -> dict[str, float]:
-        batch.normalize_rewards()
-        self.c1.update(time_step)
-        self.c2.update(time_step)
-
-        # Compute current log_probs, advantages and returns
+    def _compute_training_data(self, batch: Batch):
+        """Compute the returns, advantages and action log_probs according to the current policy"""
         with torch.no_grad():
             policy, values = self.actor_critic.forward(batch.obs, batch.extras, batch.available_actions)
             log_probs = policy.log_prob(batch.actions)
             values = self.value_mixer.forward(values, batch.states)
-            next_values = self.target_critic.value(batch.next_obs, batch.next_extras)
-            next_values = self.target_value_mixer.forward(next_values, batch.next_states)
-            next_values = next_values * (1 - batch.dones)
+        returns = batch.compute_returns(self.gamma)
+        advantages = returns - values
+        # Since we multiply the ratios (derived from log_probs) by the advantages,
+        # we need to expand the advantages in order to have the same shape as the log_probs
+        while advantages.dim() < log_probs.dim():
+            advantages = advantages.unsqueeze(-1)
+        advantages = advantages.expand_as(log_probs)
+        return returns, advantages, log_probs
 
-            #  To compute GAEs, we need the value of the state after the last one (if the episode is not done)
-            advantages = batch.compute_gae(values, next_values, self.gamma, self.gae_lambda)
-            returns = advantages + next_values
-            # Normalize advantages
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-            # print(time_step, advantages.mean(), advantages.min(), advantages.max())
-            while advantages.dim() < log_probs.dim():
-                advantages = advantages.unsqueeze(-1)
-            advantages = advantages.expand_as(log_probs)
+    def train(self, batch: Batch, time_step: int) -> dict[str, float]:
+        # batch.normalize_rewards()
+        self.c1.update(time_step)
+        self.c2.update(time_step)
+        returns, advantages, log_probs = self._compute_training_data(batch)
 
         min_loss = 0.0
         max_loss = 0.0
@@ -107,7 +104,8 @@ class PPOTrainer(Trainer):
         total_actor_loss = 0.0
         total_entropy_loss = 0.0
         total_loss = 0.0
-        total_norm = torch.zeros(1, device=self._device)
+        total_norm = torch.zeros(1, dtype=torch.float32, device=self._device)
+        # Perform the minibatch updates
         for _ in range(self.n_epochs):
             indices = np.random.choice(self.batch_size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
@@ -115,29 +113,24 @@ class PPOTrainer(Trainer):
             mini_returns = returns[indices]
             mini_advantages = advantages[indices]
 
-            policy, values = self.actor_critic.forward(minibatch.obs, minibatch.extras, minibatch.available_actions)
-            # Can we use the target values from the critic ?
-            # target_values = batch.rewards + self.gamma * next_values
+            mini_policy, mini_values = self.actor_critic.forward(minibatch.obs, minibatch.extras, minibatch.available_actions)
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
-            values = self.value_mixer.forward(values, minibatch.states)
-            assert values.shape == mini_returns.shape
-            critic_loss = torch.nn.functional.mse_loss(values, mini_returns)
+            mini_values = self.value_mixer.forward(mini_values, minibatch.states)
+            critic_loss = torch.nn.functional.mse_loss(mini_values, mini_returns)
 
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
-            new_log_probs = policy.log_prob(minibatch.actions)
-            new_log_probs = torch.clamp(new_log_probs, -20, 20)
-            assert new_log_probs.shape == mini_log_probs.shape == mini_advantages.shape
-            ratio = torch.exp(new_log_probs - mini_log_probs)
-            clamped_ratios = torch.clamp(ratio, self._ratio_min, self._ratio_max)
-            surrogate_loss1 = mini_advantages * ratio
-            surrogate_loss2 = mini_advantages * clamped_ratios
+            new_log_probs = mini_policy.log_prob(minibatch.actions)
+            # assert new_log_probs.shape == mini_log_probs.shape == mini_advantages.shape
+            ratios = torch.exp(new_log_probs - mini_log_probs)
+            surrogate1 = mini_advantages * ratios
+            surrogate2 = torch.clamp(ratios, self._ratio_min, self._ratio_max) * mini_advantages
             # Minus because we want to maximize the objective
-            actor_loss = -torch.min(surrogate_loss1, surrogate_loss2).mean()
+            actor_loss = -torch.min(surrogate1, surrogate2).mean()
 
             # S[\pi_0](s_t) in the paper
-            entropy_loss = policy.entropy().mean()
+            entropy_loss = mini_policy.entropy().mean()
 
             self.optimizer.zero_grad()
             # Equation (9) in the paper
@@ -163,7 +156,6 @@ class PPOTrainer(Trainer):
             "avg_loss": total_loss / self.n_epochs,
             "min_loss": min_loss,
             "max_loss": max_loss,
-            **self.target_updater.update(time_step),
         }
         # for i, layer in enumerate(self.actor_critic.value_parameters):
         #     logs[f"critic-layer-{i} mean"] = layer.data.mean().item()
@@ -177,6 +169,10 @@ class PPOTrainer(Trainer):
     @property
     def parameters(self):
         return list(self.actor_critic.parameters()) + list(self.value_mixer.parameters())
+
+    @property
+    def device(self):
+        return self._device
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         self.memory.append(transition)

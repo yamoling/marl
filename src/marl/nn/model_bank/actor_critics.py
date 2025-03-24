@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import DiscreteActionSpace, MARLEnv, ActionSpace
 from torch.distributions.distribution import Distribution
 
 from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic
@@ -203,6 +203,7 @@ class SimpleActorCritic(ActorCritic):
             torch.nn.Linear(256, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, n_actions),
+            torch.nn.Softmax(dim=-1),
         )
         self.value_network = torch.nn.Sequential(
             torch.nn.Linear(input_size + extras_size, 256),
@@ -212,14 +213,11 @@ class SimpleActorCritic(ActorCritic):
             torch.nn.Linear(256, 1),
         )
 
-    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
-        x = torch.cat((data, extras), dim=-1)
-        logits = self.policy_network(x)
-        return self.mask(logits, available_actions)
-
     def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
-        logits = self.logits(data, extras, available_actions)
-        return torch.distributions.Categorical(logits=logits)
+        x = torch.cat((data, extras), dim=-1)
+        probs = self.policy_network(x)
+        # probs = self.mask(probs, available_actions, replacement=0.0)
+        return torch.distributions.Categorical(probs=probs)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
@@ -237,7 +235,7 @@ class SimpleActorCritic(ActorCritic):
         return list(self.policy_network.parameters())
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
+    def from_env(cls, env: MARLEnv[Any, Any]):
         assert len(env.observation_shape) == 1
         assert len(env.extras_shape) == 1
         return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)

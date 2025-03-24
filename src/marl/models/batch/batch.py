@@ -33,34 +33,62 @@ class Batch(ABC):
     def __getitem__(self, key: str) -> torch.Tensor:
         """Retrieve a dynamic attribute of the batch."""
 
-    def compute_returns(self, gamma: float, next_value: torch.Tensor):
-        returns = torch.empty_like(self.rewards)
-        next_return = next_value
-        for i in range(len(self.rewards), -1, -1):
-            return_t = self.rewards[i] + gamma * next_return
-            returns[i] = return_t
-            next_return = return_t
-        return returns
-
     def normalize_rewards(self):
         """Normalize the rewards of the batch such that they have a mean of 0 and a std of 1."""
         self.rewards = (self.rewards - self.rewards.mean()) / (self.rewards.std() + 1e-8)
 
-    def compute_gae(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, gae_lambda: float):
-        """
-        Compute the Generalized Advantage Estimation (GAE).
+    def compute_advantages2(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, gae_lambda: float):
+        advantage = torch.zeros(self.size, dtype=torch.float32)
+        for t in range(self.size - 1):
+            discount = 1
+            a_t = 0
+            for k in range(t, self.size - 1):
+                a_t += discount * (self.rewards[k] + gamma * values[k + 1] * (1 - int(self.dones[k])) - values[k])
+                discount *= gamma * gae_lambda
+            advantage[t] = a_t
+        advantage = torch.tensor(advantage).to(self.device)
+        return advantage
 
-        Note: the next_values should already be set to 0 for terminal states.
+    def compute_returns(self, gamma: float, normalize: bool = True):
+        returns = []
+        discounted_return = 0.0
+        for reward, done in zip(reversed(self.rewards), reversed(self.dones)):
+            if done:
+                discounted_return = 0.0
+            discounted_return = reward + discounted_return * gamma
+            returns.insert(0, discounted_return)
+        returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
+        if normalize:
+            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        return returns
 
-        Paper: https://arxiv.org/pdf/1506.02438
+    def calculate_advantages(self, values, discount_factor, trace_decay, normalize=True):
+        advantages = []
+        advantage = 0
+        next_value = 0
+        for r, v in zip(reversed(self.rewards), reversed(values)):
+            td_error = r + next_value * discount_factor - v
+            advantage = td_error + advantage * discount_factor * trace_decay
+            next_value = v
+            advantages.insert(0, advantage)
+        advantages = torch.tensor(advantages)
+        if normalize:
+            advantages = (advantages - advantages.mean()) / advantages.std()
+        return advantages
+
+    def compute_advantage(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, trace_decay: float = 1.0, normalize=True):
         """
-        deltas = self.rewards + gamma * next_values - values
-        advantages = torch.empty_like(self.rewards)
+        Compute the advantages (GAE if `trace_decay` is provided).
+        GAE Paper: https://arxiv.org/pdf/1506.02438
+        """
+        advantages = torch.empty(self.size, dtype=torch.float32)
+        td_errors = self.rewards + gamma * next_values - values
         gae = 0.0
-        # Iterate backward through rewards to compute GAE
         for t in range(self.size - 1, -1, -1):
-            gae = deltas[t] + gamma * gae_lambda * (1 - self.dones[t]) * gae
+            gae = td_errors[t] + gae * gamma * trace_decay
             advantages[t] = gae
+        if normalize:
+            advantages = (advantages - advantages.mean()) / advantages.std()
         return advantages
 
     @overload
