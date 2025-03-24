@@ -62,12 +62,13 @@ class PPOTrainer(Trainer):
         self.eps_clip = eps_clip
         self._ratio_min = 1 - eps_clip
         self._ratio_max = 1 + eps_clip
-        self.optimizer = torch.optim.Adam(
-            [
-                {"params": self.actor_critic.policy_parameters, "lr": lr_actor},
-                {"params": self.actor_critic.value_parameters, "lr": lr_critic},
-            ]
-        )
+        param_groups = [
+            {"params": self.actor_critic.policy_parameters, "lr": lr_actor},
+            {"params": self.actor_critic.value_parameters, "lr": lr_critic},
+        ]
+        if len(self.actor_critic.shared_parameters) > 0:
+            param_groups.append({"params": self.actor_critic.shared_parameters, "lr": min(lr_actor, lr_critic)})
+        self.optimizer = torch.optim.Adam(param_groups)
         if isinstance(critic_c1, (float, int)):
             critic_c1 = Schedule.constant(critic_c1)
         self.c1 = critic_c1

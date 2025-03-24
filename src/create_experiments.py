@@ -106,7 +106,8 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 n_epochs=32,
                 value_mixer=VDN.from_env(meta_env),
                 gamma=gamma,
-                lr=5e-4,
+                lr_actor=5e-4,
+                lr_critic=1e-3,
                 # grad_norm_clipping=10.0,
             )
         case "dqn":
@@ -240,15 +241,14 @@ def make_dqn(
     )
 
 
-def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_000_000, test_interval=5000):
-    actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env, -10, 10)
-    mixer = VDN.from_env(env)
+def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], test_env=None, n_steps=1_000_000, test_interval=5000):
+    actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
     trainer = PPOTrainer(
         actor_critic=actor_critic,
-        train_interval=1024,
-        minibatch_size=64,
-        n_epochs=32,
-        value_mixer=mixer,
+        train_interval=4096,
+        minibatch_size=256,
+        n_epochs=64,
+        value_mixer=VDN.from_env(env),
         gamma=0.95,
         lr_actor=5e-4,
         lr_critic=1e-3,
@@ -264,14 +264,13 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_
             args.logdir += f"-{trainer.value_mixer.name}"
         else:
             args.logdir += "-iql"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            args.logdir += "-PER"
     return marl.Experiment.create(
         logdir=args.logdir,
         trainer=trainer,
         env=env,
         test_interval=test_interval,
         n_steps=n_steps,
+        test_env=test_env,
     )
 
 
@@ -288,7 +287,7 @@ def make_lle(args: Arguments):
         #    lasers_to_reward=[(4, 0), (6, 12)],
         # )
         .builder()
-        # .agent_id()
+        .agent_id()
         .time_limit(78, add_extra=True)
         .build()
     )
@@ -307,11 +306,8 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         env, test_env = make_lle(args)
-        exp = make_dqn(args, env, test_env)
-        exp = make_ppo(
-            args,
-            env,
-        )
+        # exp = make_dqn(args, env, test_env)
+        exp = make_ppo(args, env, test_env)
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")

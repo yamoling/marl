@@ -1,9 +1,9 @@
 import math
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv, ActionSpace
+from marlenv import DiscreteActionSpace, MARLEnv
 from torch.distributions.distribution import Distribution
 
 from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic
@@ -105,8 +105,6 @@ class CNN_ActorCritic(DiscreteActorCritic):
         input_shape: tuple[int, int, int],
         extras_shape: tuple[int],
         output_shape: tuple[int],
-        logits_clipping_low: Optional[float] = None,
-        logits_clipping_high: Optional[float] = None,
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(
@@ -114,8 +112,6 @@ class CNN_ActorCritic(DiscreteActorCritic):
             extras_shape,
             output_shape,
         )
-        self.min_logits = logits_clipping_low
-        self.max_logits = logits_clipping_high
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
@@ -123,15 +119,20 @@ class CNN_ActorCritic(DiscreteActorCritic):
 
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         common_input_size = n_features + self.extras_shape[0]
-        self.common = torch.nn.Sequential(
+        self.actor = torch.nn.Sequential(
             torch.nn.Linear(common_input_size, 128),
             torch.nn.LeakyReLU(0.1),
             torch.nn.Linear(128, 128),
             torch.nn.LeakyReLU(0.1),
+            torch.nn.Linear(128, *output_shape),
         )
-
-        self.policy_network = torch.nn.Linear(128, *output_shape)
-        self.value_network = torch.nn.Linear(128, 1)
+        self.critic = torch.nn.Sequential(
+            torch.nn.Linear(common_input_size, 128),
+            torch.nn.LeakyReLU(0.1),
+            torch.nn.Linear(128, 128),
+            torch.nn.LeakyReLU(0.1),
+            torch.nn.Linear(128, 1),
+        )
 
     def _common_forward(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         *dims, channels, height, width = data.shape
@@ -140,18 +141,16 @@ class CNN_ActorCritic(DiscreteActorCritic):
         extras = extras.view(leading_dims_size, *self.extras_shape)
         features = self.cnn.forward(data)
         features = torch.cat((features, extras), dim=-1)
-        output: torch.Tensor = self.common(features)
-        return output.view(*dims, -1)
+        return features.view(*dims, -1)
 
     def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
-        logits = self.policy_network(x)
-        logits = torch.clamp(logits, self.min_logits, self.max_logits)
+        logits = self.actor(x)
         return self.mask(logits, available_actions)
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         x = self._common_forward(data, extras)
-        v = self.value_network(x)
+        v = self.critic(x)
         return torch.squeeze(v, dim=-1)
 
     def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
@@ -160,27 +159,28 @@ class CNN_ActorCritic(DiscreteActorCritic):
 
     def forward(self, data: torch.Tensor, extras: torch.Tensor, action_mask: torch.Tensor):
         x = self._common_forward(data, extras)
-        logits = self.policy_network(x)
-        logits = torch.clamp(logits, self.min_logits, self.max_logits)
+        logits = self.actor(x)
         logits = self.mask(logits, action_mask)
         dist = torch.distributions.Categorical(logits=logits)
-        v = self.value_network(x)
+        v = self.critic(x)
         v = torch.squeeze(v, dim=-1)
         return dist, v
 
     @property
+    def shared_parameters(self) -> list[torch.nn.Parameter]:
+        return list(self.cnn.parameters())
+
+    @property
     def value_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.value_network.parameters())
+        return list(self.critic.parameters())
 
     @property
     def policy_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.cnn.parameters()) + list(self.common.parameters()) + list(self.policy_network.parameters())
+        return list(self.actor.parameters())
 
     @staticmethod
     def from_env(
         env: MARLEnv[Any, DiscreteActionSpace],
-        logits_clipping_low: Optional[float] = None,
-        logits_clipping_high: Optional[float] = None,
     ):
         assert len(env.observation_shape) == 3
         assert len(env.extras_shape) == 1
@@ -188,8 +188,6 @@ class CNN_ActorCritic(DiscreteActorCritic):
             env.observation_shape,
             env.extras_shape,
             (env.n_actions,),
-            logits_clipping_low,
-            logits_clipping_high,
         )
 
 

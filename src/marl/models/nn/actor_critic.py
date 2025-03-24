@@ -65,6 +65,10 @@ class ActorCritic(Actor, Critic):
     def value_parameters(self) -> list[torch.nn.Parameter]:
         pass
 
+    @property
+    def shared_parameters(self) -> list[torch.nn.Parameter]:
+        return []
+
     def forward(
         self,
         obs: torch.Tensor,
