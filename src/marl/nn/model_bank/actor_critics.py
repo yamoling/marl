@@ -117,7 +117,8 @@ class CNN_ActorCritic(DiscreteActorCritic):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn_actor, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn_critic, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         common_input_size = n_features + self.extras_shape[0]
         self.actor = torch.nn.Sequential(
             torch.nn.Linear(common_input_size, 128),
@@ -139,44 +140,43 @@ class CNN_ActorCritic(DiscreteActorCritic):
         leading_dims_size = math.prod(dims)
         data = data.view(leading_dims_size, channels, height, width)
         extras = extras.view(leading_dims_size, *self.extras_shape)
-        features = self.cnn.forward(data)
+        features = self.cnn_actor.forward(data)
         features = torch.cat((features, extras), dim=-1)
         return features.view(*dims, -1)
 
     def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
-        x = self._common_forward(data, extras)
-        logits = self.actor(x)
+        *dims, channels, height, width = data.shape
+        leading_dims_size = math.prod(dims)
+        data = data.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
+        features = self.cnn_actor.forward(data)
+        features = torch.cat((features, extras), dim=-1)
+        features = features.view(*dims, -1)
+        logits = self.actor(features)
         return self.mask(logits, available_actions)
 
     def value(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
-        x = self._common_forward(data, extras)
-        v = self.critic(x)
+        *dims, channels, height, width = data.shape
+        leading_dims_size = math.prod(dims)
+        data = data.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, *self.extras_shape)
+        features = self.cnn_critic.forward(data)
+        features = torch.cat((features, extras), dim=-1)
+        features = features.view(*dims, -1)
+        v = self.critic(features)
         return torch.squeeze(v, dim=-1)
 
     def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
         logits = self.logits(data, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 
-    def forward(self, data: torch.Tensor, extras: torch.Tensor, action_mask: torch.Tensor):
-        x = self._common_forward(data, extras)
-        logits = self.actor(x)
-        logits = self.mask(logits, action_mask)
-        dist = torch.distributions.Categorical(logits=logits)
-        v = self.critic(x)
-        v = torch.squeeze(v, dim=-1)
-        return dist, v
-
-    @property
-    def shared_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.cnn.parameters())
-
     @property
     def value_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.critic.parameters())
+        return list(self.critic.parameters()) + list(self.cnn_critic.parameters())
 
     @property
     def policy_parameters(self) -> list[torch.nn.Parameter]:
-        return list(self.actor.parameters())
+        return list(self.actor.parameters()) + list(self.cnn_actor.parameters())
 
     @staticmethod
     def from_env(

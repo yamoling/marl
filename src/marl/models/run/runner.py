@@ -118,13 +118,13 @@ class Runner[A, AS: ActionSpace](Run):
                 step.truncated = True
             transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
-            self.logger.train.log(training_metrics, step_num)
+            self.logger.training_data.log(training_metrics, step_num)
             episode.add(transition)
             obs = step.obs
             state = step.state
             step_num += 1
-        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         self.logger.train.log(episode.metrics, step_num)
+        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         self.logger.training_data.log(training_logs, step_num)
         return episode
 

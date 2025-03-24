@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -29,7 +28,6 @@ class PPOTrainer(Trainer):
     minibatch_size: int
     n_epochs: int
     value_mixer: Mixer
-    target_value_mixer: Mixer
     grad_norm_clipping: Optional[float]
 
     def __init__(
@@ -41,7 +39,7 @@ class PPOTrainer(Trainer):
         lr_critic: float,
         n_epochs: int = 64,
         eps_clip: float = 0.2,
-        critic_c1: Schedule | float = 1.0,
+        critic_c1: Schedule | float = 0.5,
         exploration_c2: Schedule | float = 0.01,
         train_interval: int = 2048,
         minibatch_size: int = 64,
@@ -49,17 +47,14 @@ class PPOTrainer(Trainer):
         grad_norm_clipping: Optional[float] = None,
     ):
         super().__init__("step")
-        self.memory = []
         self.batch_size = train_interval
         self.minibatch_size = minibatch_size
         self.actor_critic = actor_critic
-        self.target_critic = deepcopy(actor_critic)
         self.value_mixer = value_mixer
-        self.target_value_mixer = deepcopy(value_mixer)
-        self.target_value_mixer.randomize()
         self.gamma = gamma
         self.n_epochs = n_epochs
         self.eps_clip = eps_clip
+        self._memory = []
         self._ratio_min = 1 - eps_clip
         self._ratio_max = 1 + eps_clip
         param_groups = [
@@ -151,7 +146,7 @@ class PPOTrainer(Trainer):
             min_loss = min(min_loss, loss.item())
             max_loss = max(max_loss, loss.item())
 
-        self.memory.clear()
+        self._memory.clear()
         logs = {
             "avg_actor_loss": total_actor_loss / self.n_epochs,
             "avg_critic_loss": total_critic_loss / self.n_epochs,
@@ -178,9 +173,9 @@ class PPOTrainer(Trainer):
         return self._device
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        self.memory.append(transition)
-        if len(self.memory) == self.batch_size:
-            batch = TransitionBatch(self.memory).to(self._device)
+        self._memory.append(transition)
+        if len(self._memory) == self.batch_size:
+            batch = TransitionBatch(self._memory).to(self._device)
             logs = self.train(batch, time_step)
             return logs
         return {}
