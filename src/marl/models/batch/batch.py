@@ -49,14 +49,13 @@ class Batch(ABC):
         advantage = torch.tensor(advantage).to(self.device)
         return advantage
 
-    def compute_returns(self, gamma: float, normalize: bool = True):
+    def compute_returns(self, gamma: float, next_value: torch.Tensor, normalize: bool = True):
         returns = []
-        discounted_return = 0.0
         for reward, done in zip(reversed(self.rewards), reversed(self.dones)):
             if done:
-                discounted_return = 0.0
-            discounted_return = reward + discounted_return * gamma
-            returns.insert(0, discounted_return)
+                next_value = next_value.zero_()
+            next_value = reward + next_value * gamma
+            returns.insert(0, next_value)
         returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
         if normalize:
             returns = (returns - returns.mean()) / (returns.std() + 1e-8)

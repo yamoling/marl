@@ -250,7 +250,8 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], n_steps=1_
         n_epochs=32,
         value_mixer=mixer,
         gamma=0.95,
-        lr=5e-4,
+        lr_actor=5e-4,
+        lr_critic=1e-3,
     )
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
@@ -307,6 +308,10 @@ def main(args: Arguments):
         # exp = create_smac(args)
         env, test_env = make_lle(args)
         exp = make_dqn(args, env, test_env)
+        exp = make_ppo(
+            args,
+            env,
+        )
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")

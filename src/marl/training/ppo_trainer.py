@@ -83,7 +83,9 @@ class PPOTrainer(Trainer):
             policy, values = self.actor_critic.forward(batch.obs, batch.extras, batch.available_actions)
             log_probs = policy.log_prob(batch.actions)
             values = self.value_mixer.forward(values, batch.states)
-        returns = batch.compute_returns(self.gamma)
+            next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
+            next_value = self.value_mixer.forward(next_value, batch.next_states[-1])
+        returns = batch.compute_returns(self.gamma, next_value)
         advantages = returns - values
         # Since we multiply the ratios (derived from log_probs) by the advantages,
         # we need to expand the advantages in order to have the same shape as the log_probs
