@@ -12,8 +12,6 @@ from marl.models.nn import ActorCritic
 from marl.models.trainer import Trainer
 from marl.utils import Schedule
 
-torch.autograd.set_detect_anomaly(True)
-
 
 @dataclass
 class PPOTrainer(Trainer):

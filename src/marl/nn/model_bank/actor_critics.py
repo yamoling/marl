@@ -179,9 +179,7 @@ class CNN_ActorCritic(DiscreteActorCritic):
         return list(self.actor.parameters()) + list(self.cnn_actor.parameters())
 
     @staticmethod
-    def from_env(
-        env: MARLEnv[Any, DiscreteActionSpace],
-    ):
+    def from_env(env: MARLEnv[Any, DiscreteActionSpace]):
         assert len(env.observation_shape) == 3
         assert len(env.extras_shape) == 1
         return CNN_ActorCritic(

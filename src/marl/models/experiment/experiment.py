@@ -63,8 +63,11 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         """
         Create a new experiment in the specified directory.
 
-        `trainer` defaults to `NoTrain` trainer if not provided.
-        If not provided, `agent` defaults to `trainer.make_agent()`.
+        Parameters
+        ----------
+        - `trainer` defaults to `NoTrain` trainer if not provided
+        - `agent` defaults to `trainer.make_agent()` if not provided
+        - `test_env` defaults to a deep copy of `env` if not provided
         """
         if test_env is None:
             test_env = deepcopy(env)
@@ -203,8 +206,9 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         obs = torch.from_numpy(np.array(episode.obs))
         extras = torch.from_numpy(np.array(episode.extras))
         actions = torch.from_numpy(np.array(episode.actions))
+        available_actions = torch.from_numpy(np.array(episode.available_actions))
         if isinstance(self.agent, SimpleAgent):
-            dist = self.agent.actor_network.policy(obs, extras)
+            dist = self.agent.actor_network.policy(obs, extras, available_actions)
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()
             replay.probs = torch.exp(logits).tolist()

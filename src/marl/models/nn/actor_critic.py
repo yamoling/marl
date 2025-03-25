@@ -18,7 +18,7 @@ class Actor(NN, ABC):
         self,
         data: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: Optional[torch.Tensor] = None,
+        available_actions: torch.Tensor,
     ) -> torch.distributions.Distribution:
         """
         Returns the probability distribution over the actions.
