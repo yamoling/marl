@@ -1,12 +1,13 @@
 import os
 import pickle
+import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 
 import torch
 from marlenv import Observation
 
-from marl.models import Policy, QNetwork, RecurrentQNetwork
+from marl.models import Policy, QNetwork, RecurrentQNetwork, Mixer
 
 from ..agent import Agent
 
@@ -26,6 +27,8 @@ class DQN(Agent):
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
+        mixer: Optional[Mixer] = None,
+        is_multi_objective: Optional[bool] = False,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -34,11 +37,14 @@ class DQN(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
+        self.mixer = mixer
+        self.is_multi_objective = is_multi_objective
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
+        if self.is_multi_objective: qvalues = np.sum(qvalues,-1)
         return self.policy.get_action(qvalues, obs.available_actions)
 
     def value(self, obs: Observation) -> float:
