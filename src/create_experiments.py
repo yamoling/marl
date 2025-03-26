@@ -5,17 +5,17 @@ from marlenv import MARLEnv, DiscreteActionSpace
 from marlenv.utils import Schedule
 from typing import Any, Optional, Literal
 import typed_argparse as tap
-from marl.training import DQNTrainer
-from marl.training.qtarget_updater import SoftUpdate, HardUpdate
-from marl.exceptions import ExperimentAlreadyExistsException
+
 
 from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
 from marl.nn.mixers import VDN
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from marl.training.ppo_trainer import PPOTrainer
 from marl.training.haven_trainer import HavenTrainer
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl import Trainer
+from marl.training import DQNTrainer, PPOTrainer, SoftUpdate, HardUpdate
+from marl.exceptions import ExperimentAlreadyExistsException
 
 
 class Arguments(RunArguments):
@@ -178,7 +178,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
 
 def make_dqn(
-    args: Arguments,
     env: MARLEnv[Any, DiscreteActionSpace],
     test_env: Optional[MARLEnv[Any, DiscreteActionSpace]] = None,
     mixing: Literal["vdn", "qmix", "qplex"] = "vdn",
@@ -195,7 +194,7 @@ def make_dqn(
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
-    trainer = DQNTrainer(
+    return DQNTrainer(
         qnetwork=marl.nn.model_bank.IndependentCNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
@@ -214,40 +213,15 @@ def make_dqn(
         grad_norm_clipping=10,
         ir_module=None,
     )
-    algo = trainer.make_agent(marl.policy.ArgMax())
-
-    if args.logdir is not None:
-        if not args.logdir.startswith("logs/"):
-            args.logdir = "logs/" + args.logdir
-    elif args.debug:
-        args.logdir = "logs/debug"
-    else:
-        args.logdir = f"logs/{env.name}-DQN"
-        if trainer.mixer is not None:
-            args.logdir += f"-{trainer.mixer.name}"
-        else:
-            args.logdir += "-iql"
-        if trainer.ir_module is not None:
-            args.logdir += f"-{trainer.ir_module.name}"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            args.logdir += "-PER"
-    return marl.Experiment.create(
-        logdir=args.logdir,
-        agent=algo,
-        trainer=trainer,
-        env=env,
-        test_interval=test_interval,
-        n_steps=n_steps,
-        test_env=test_env,
-    )
 
 
-def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], test_env=None, n_steps=1_000_000, test_interval=5000):
+def make_ppo(env: MARLEnv[Any, DiscreteActionSpace]):
     actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
-    trainer = PPOTrainer(
+    return PPOTrainer(
         actor_critic=actor_critic,
-        train_interval=6,
+        train_interval=2400,
         n_epochs=8,
+        minibatch_size=1200,
         value_mixer=VDN.from_env(env),
         gamma=0.99,
         gae_lambda=0.98,
@@ -257,22 +231,42 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], test_env=N
         exploration_c2=0.1,
         grad_norm_clipping=0.1,
     )
+
+
+def make_experiment(
+    args: Arguments,
+    trainer: Trainer,
+    env: MARLEnv[Any, Any],
+    test_env: Optional[MARLEnv[Any, Any]],
+    n_steps: int,
+):
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
             args.logdir = "logs/" + args.logdir
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/{env.name}-PPO"
-        if trainer.value_mixer is not None:
-            args.logdir += f"-{trainer.value_mixer.name}"
-        else:
-            args.logdir += "-iql"
+        args.logdir = f"logs/{env.name}-{trainer.name}"
+        match trainer:
+            case DQNTrainer():
+                if trainer.mixer is not None:
+                    args.logdir += f"-{trainer.mixer.name}"
+                else:
+                    args.logdir += "-iql"
+                if trainer.ir_module is not None:
+                    args.logdir += f"-{trainer.ir_module.name}"
+                if isinstance(trainer.memory, marl.models.PrioritizedMemory):
+                    args.logdir += "-PER"
+            case PPOTrainer():
+                if trainer.value_mixer is not None:
+                    args.logdir += f"-{trainer.value_mixer.name}"
+                else:
+                    args.logdir += "-iql"
     return marl.Experiment.create(
         logdir=args.logdir,
         trainer=trainer,
         env=env,
-        test_interval=test_interval,
+        test_interval=5000,
         n_steps=n_steps,
         test_env=test_env,
     )
@@ -299,14 +293,17 @@ def make_lle():
     return env, test_env
 
 
-def make_overcooked(args: Arguments):
+def make_overcooked(shape_tests: bool):
     env = marlenv.adapters.Overcooked.from_layout(
         "cramped_room",
         reward_shaping_factor=Schedule.linear(1.0, 0, 2_500_000),
     )
     env = marlenv.Builder(env).agent_id().build()
-    test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
-    test_env = marlenv.Builder(test_env).agent_id().build()
+    if shape_tests:
+        test_env = None
+    else:
+        test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+        test_env = marlenv.Builder(test_env).agent_id().build()
     return env, test_env
 
 
@@ -314,9 +311,10 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_lle(args)
-        env, test_env = make_overcooked(args)
-        # exp = make_dqn(args, env, test_env)
-        exp = make_ppo(args, env, test_env, n_steps=4_000_000)
+        env, test_env = make_overcooked(True)
+        # trainer = make_dqn(env, test_env)
+        trainer = make_ppo(env)
+        exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")
