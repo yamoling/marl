@@ -2,6 +2,7 @@ import shutil
 import marl
 import marlenv
 from marlenv import MARLEnv, DiscreteActionSpace
+from marlenv.utils import Schedule
 from typing import Any, Optional, Literal
 import typed_argparse as tap
 from marl.training import DQNTrainer
@@ -245,14 +246,16 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], test_env=N
     actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
     trainer = PPOTrainer(
         actor_critic=actor_critic,
-        train_interval=4096,
-        minibatch_size=256,
-        n_epochs=64,
+        train_interval=6,
+        n_epochs=8,
         value_mixer=VDN.from_env(env),
-        gamma=0.95,
-        lr_actor=5e-4,
+        gamma=0.99,
+        gae_lambda=0.98,
+        lr_actor=1e-3,
         lr_critic=1e-3,
-        exploration_c2=0.005,
+        critic_c1=0.5,
+        exploration_c2=0.1,
+        grad_norm_clipping=0.1,
     )
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
@@ -275,7 +278,7 @@ def make_ppo(args: Arguments, env: MARLEnv[Any, DiscreteActionSpace], test_env=N
     )
 
 
-def make_lle(args: Arguments):
+def make_lle():
     # lle = RandomizedLasers(
     env = (
         LLE.level(6)
@@ -296,17 +299,22 @@ def make_lle(args: Arguments):
     return env, test_env
 
 
-def create_overcooked(args: Arguments):
-    horizon = 400
-    env = marlenv.adapters.Overcooked.from_layout("bottleneck", horizon)
+def make_overcooked(args: Arguments):
+    env = marlenv.adapters.Overcooked.from_layout(
+        "cramped_room",
+        reward_shaping_factor=Schedule.linear(1.0, 0, 2_500_000),
+    )
     env = marlenv.Builder(env).agent_id().build()
-    return make_ppo(args, env)
+    test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+    test_env = marlenv.Builder(test_env).agent_id().build()
+    return env, test_env
 
 
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        env, test_env = make_lle(args)
+        # env, test_env = make_lle(args)
+        env, test_env = make_overcooked(args)
         # exp = make_dqn(args, env, test_env)
         exp = make_ppo(args, env, test_env, n_steps=4_000_000)
         # exp = create_overcooked(args)

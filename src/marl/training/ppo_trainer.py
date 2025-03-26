@@ -10,7 +10,7 @@ from marl.models import Mixer
 from marl.models.batch import Batch, TransitionBatch
 from marl.models.nn import ActorCritic
 from marl.models.trainer import Trainer
-from marl.utils import Schedule
+from marlenv.utils import Schedule
 
 
 @dataclass
@@ -40,12 +40,14 @@ class PPOTrainer(Trainer):
         critic_c1: Schedule | float = 0.5,
         exploration_c2: Schedule | float = 0.01,
         train_interval: int = 2048,
-        minibatch_size: int = 64,
+        minibatch_size: Optional[int] = None,
         gae_lambda: float = 0.95,
         grad_norm_clipping: Optional[float] = None,
     ):
         super().__init__("step")
         self.batch_size = train_interval
+        if minibatch_size is None:
+            minibatch_size = train_interval
         self.minibatch_size = minibatch_size
         self.actor_critic = actor_critic
         self.value_mixer = value_mixer

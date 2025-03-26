@@ -8,7 +8,7 @@ import math
 
 from marl.models.batch import Batch, EpisodeBatch
 from marl.models.nn import randomize, NN
-from marl.utils import Schedule
+from marlenv.utils import Schedule
 from marl.utils.stats import RunningMeanStd
 
 from .ir_module import IRModule
