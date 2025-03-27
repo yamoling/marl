@@ -12,7 +12,7 @@ def mappo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, 
         ac_network=nn,
         train_policy=marl.policy.CategoricalPolicy(),
     )
-    trainer = marl.training.PPOTrainer(
+    trainer = marl.training.PPO(
         network=nn,
         memory=marl.models.TransitionMemory(20),
     )
@@ -37,7 +37,7 @@ def dqn_with_mixer[A](env: marlenv.MARLEnv[A, DiscreteActionSpace], mixer_str: L
         case _:
             raise ValueError()
 
-    trainer = marl.training.DQNTrainer(
+    trainer = marl.training.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         memory=marl.models.TransitionMemory(5_000),

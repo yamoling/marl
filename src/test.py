@@ -1,14 +1,13 @@
 import marlenv
-from marl.training import PPOTrainer
+from marl.training import PPO
 from marl.nn import model_bank, mixers
 from marl import Experiment
-from lle import LLE
 
 if __name__ == "__main__":
     env = marlenv.make("CartPole-v1")
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
     ac = model_bank.SimpleActorCritic.from_env(env)
-    trainer = PPOTrainer(
+    trainer = PPO(
         ac,
         value_mixer=mixers.VDN(1),
         gamma=0.99,

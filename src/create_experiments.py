@@ -14,7 +14,7 @@ from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from marl.training.haven_trainer import HavenTrainer
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl import Trainer
-from marl.training import DQNTrainer, PPOTrainer, SoftUpdate, HardUpdate
+from marl.training import DQN, PPO, SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
 
 
@@ -33,7 +33,7 @@ def create_smac(args: Arguments):
     memory = marl.models.EpisodeMemory(5_000)
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     test_policy = train_policy
-    trainer = DQNTrainer(
+    trainer = DQN(
         qnetwork,
         train_policy=train_policy,
         memory=memory,
@@ -55,7 +55,7 @@ def create_smac(args: Arguments):
         grad_norm_clipping=10,
     )
 
-    algo = marl.agents.RDQN(
+    algo = marl.agents.RDQNAgent(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=test_policy,
@@ -96,7 +96,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     match agent_type:
         case "ppo":
-            meta_agent = PPOTrainer(
+            meta_agent = PPO(
                 actor_critic=CNNContinuousActorCritic(
                     input_shape=meta_env.observation_shape,
                     n_extras=meta_env.extras_shape[0],
@@ -112,7 +112,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 # grad_norm_clipping=10.0,
             )
         case "dqn":
-            meta_agent = DQNTrainer(
+            meta_agent = DQN(
                 qnetwork=marl.nn.model_bank.qnetworks.CNN(
                     input_shape=meta_env.observation_shape,
                     extras_size=meta_env.extras_shape[0],
@@ -135,7 +135,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
             raise ValueError(f"Invalid agent type: {other}")
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
-    worker_trainer = DQNTrainer(
+    worker_trainer = DQN(
         qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
@@ -194,7 +194,7 @@ def make_dqn(
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
-    return DQNTrainer(
+    return DQN(
         qnetwork=marl.nn.model_bank.IndependentCNN.from_env(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
@@ -217,7 +217,7 @@ def make_dqn(
 
 def make_ppo(env: MARLEnv[Any, DiscreteActionSpace]):
     actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
-    return PPOTrainer(
+    return PPO(
         actor_critic=actor_critic,
         train_interval=2400,
         n_epochs=8,
@@ -248,7 +248,7 @@ def make_experiment(
     else:
         args.logdir = f"logs/{env.name}-{trainer.name}"
         match trainer:
-            case DQNTrainer():
+            case DQN():
                 if trainer.mixer is not None:
                     args.logdir += f"-{trainer.mixer.name}"
                 else:
@@ -257,7 +257,7 @@ def make_experiment(
                     args.logdir += f"-{trainer.ir_module.name}"
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
                     args.logdir += "-PER"
-            case PPOTrainer():
+            case PPO():
                 if trainer.value_mixer is not None:
                     args.logdir += f"-{trainer.value_mixer.name}"
                 else:
@@ -311,10 +311,11 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_lle(args)
-        env, test_env = make_overcooked(True)
+        env, test_env = make_overcooked(False)
         # trainer = make_dqn(env, test_env)
         trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
+        print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         shutil.copyfile(__file__, exp.logdir + "/tmp.py")

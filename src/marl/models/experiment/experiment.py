@@ -13,7 +13,7 @@ from marlenv.models import ActionSpace, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQN, Agent, SimpleAgent
+from marl.agents import DQNAgent, Agent, SimpleAgent
 from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
@@ -213,7 +213,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             replay.logits = logits.tolist()
             replay.probs = torch.exp(logits).tolist()
             replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
-        elif isinstance(self.agent, DQN):
+        elif isinstance(self.agent, DQNAgent):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
         return replay

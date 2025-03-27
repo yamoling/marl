@@ -11,7 +11,7 @@ def ppo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, ma
         ac_network=nn,
         train_policy=train_policy,
     )
-    trainer = marl.training.PPOTrainer(
+    trainer = marl.training.PPO(
         network=nn,
         memory=marl.models.TransitionMemory(20),
     )
@@ -26,7 +26,7 @@ def dqn[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, ma
         qnetwork=qnetwork,
         train_policy=train_policy,
     )
-    trainer = marl.training.DQNTrainer(
+    trainer = marl.training.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         memory=marl.models.TransitionMemory(5_000),

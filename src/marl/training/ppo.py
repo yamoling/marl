@@ -14,7 +14,7 @@ from marlenv.utils import Schedule
 
 
 @dataclass
-class PPOTrainer(Trainer):
+class PPO(Trainer):
     actor_critic: ActorCritic
     batch_size: int
     c1: Schedule
@@ -44,6 +44,25 @@ class PPOTrainer(Trainer):
         gae_lambda: float = 0.95,
         grad_norm_clipping: Optional[float] = None,
     ):
+        """
+        Proximal Policy Optimization (PPO) training algorithm.
+        https://arxiv.org/abs/1707.06347
+
+        Parameters
+        - `actor_critic`: The actor-critic neural network
+        - `value_mixer`: The mixer to use for the value function
+        - `gamma`: The discount factor
+        - `lr_actor`: The learning rate for the actor
+        - `lr_critic`: The learning rate for the critic
+        - `n_epochs`: The number of epochs (K) to train the model, i.e. the number of gradient steps
+        - `eps_clip`: The clipping parameter for the PPO loss
+        - `critic_c1`: The coefficient for the critic loss
+        - `exploration_c2`: The coefficient for the entropy loss
+        - `train_interval`: The number of steps between training iterations, i.e. the number of steps to collect before training
+        - `minibatch_size`: The size of the minibatches to use for training, must be lower or equal to `train_interval`
+        - `gae_lambda`: The lambda parameter (trace decay) for the generalized advantage estimation
+        - `grad_norm_clipping`: The maximum norm of the gradients at each epoch
+        """
         super().__init__("step")
         self.batch_size = train_interval
         if minibatch_size is None:

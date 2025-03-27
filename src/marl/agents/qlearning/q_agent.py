@@ -12,7 +12,7 @@ from ..agent import Agent
 
 
 @dataclass
-class DQN(Agent):
+class DQNAgent(Agent):
     """
     Deep Q-Network Interface with shared QNetwork.
     """
@@ -76,9 +76,9 @@ class DQN(Agent):
         self.policy = self.train_policy
 
 
-class RDQN(DQN):
+class RDQNAgent(DQNAgent):
     """
-    Recurrent DQN.
+    Recurrent DQN agent.
 
     Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
     """

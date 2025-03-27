@@ -1,11 +1,11 @@
-from .dqn import DQN, RDQN
+from .q_agent import DQNAgent, RDQNAgent
 from .maic import MAIC
 from .cnet import CNet, EpisodeCommWrapper
 
 
 __all__ = [
-    "DQN",
-    "RDQN",
+    "DQNAgent",
+    "RDQNAgent",
     "CNet",
     "EpisodeCommWrapper",
     "MAIC",
