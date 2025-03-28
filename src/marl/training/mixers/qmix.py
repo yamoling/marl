@@ -26,7 +26,7 @@ class QMix(Mixer):
         hypernet_embed_size=64,
         n_objectives=1,
     ):
-        super().__init__(n_agents)
+        super().__init__(n_agents, n_objectives)
 
         self.state_shape = state_shape
         self.n_agents = n_agents

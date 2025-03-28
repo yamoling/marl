@@ -24,8 +24,8 @@ def create_multiobj_lle(args: Arguments):
     gamma = 0.95
     env = LLE.level(5).obs_type("layered").state_type("state").multi_objective().build()
     #env = LLE.level(5).obs_type("layered").state_type("state").build()
-    env = marlenv.Builder(env).centralised().agent_id().time_limit(78, add_extra=True).build()
-    #env = marlenv.Builder(env).centralised().time_limit(78, add_extra=True).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
+    #env = marlenv.Builder(env).time_limit(78, add_extra=True).build()
     test_env = None
 
     qnetwork = marl.nn.model_bank.CNN.from_env(env)
@@ -57,7 +57,7 @@ def create_multiobj_lle(args: Arguments):
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
-        is_multi_objective=True,
+        is_multi_objective=qnetwork.is_multi_objective,
     )
 
     if args.logdir is not None:

@@ -75,6 +75,7 @@ class DQNTrainer[B: Batch](Trainer):
         if test_policy is None:
             test_policy = train_policy
         self.test_policy = test_policy
+        self.multi_objective = qnetwork.is_multi_objective
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping
@@ -111,34 +112,33 @@ class DQNTrainer[B: Batch](Trainer):
             qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
+        if self.qnetwork.is_multi_objective:
+            # Sum over the objectives
+            qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         if self.qnetwork.is_multi_objective:
             indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
 
-        next_values = torch.gather(next_qvalues, self.action_dim, indices)
-        if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
-            next_values = next_values.squeeze(-1)
-        else: # Mixer requires qvalues to not be squeezed yet
-            next_values.squeeze(self.action_dim)
+        next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
+        next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
+
         return next_values
 
     def train(self, batch: Batch) -> dict[str, Any]:
         if self.mixer is None:
             batch = batch.for_individual_learners()
+        if self.multi_objective:
+            batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions)
-        if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
-            qvalues = qvalues.squeeze(-1)
-        # Mixer requires qvalues to not be squeezed yet
-        else: 
-            qvalues = qvalues.squeeze(self.action_dim)
-
+        
+        qvalues = qvalues.squeeze(self.action_dim)
+        qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
+        
         # Qtargets computation
         next_values = self.next_values(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == qvalues.shape == batch.masks.shape
