@@ -112,13 +112,10 @@ class DQNTrainer[B: Batch](Trainer):
             qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
-        if self.qnetwork.is_multi_objective:
-            # Sum over the objectives
-            qvalues_for_index = torch.sum(qvalues_for_index, -1)
+
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
-        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        if self.qnetwork.is_multi_objective:
-            indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
+        indices = torch.argmax(qvalues_for_index, dim=self.action_dim, keepdim=True)
+
 
         next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
         next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
