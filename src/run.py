@@ -13,7 +13,7 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
-    device: Literal["auto", "cpu"] | int = tap.arg(default="auto")
+    device: Literal["auto", "cpu"] | str = tap.arg(default="auto")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
 
     @property

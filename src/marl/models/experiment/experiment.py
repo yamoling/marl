@@ -130,6 +130,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
+        if device != "cpu" and device != "auto": device = int(device)
         runner = self.create_runner()
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         runner = runner.to(selected_device)
