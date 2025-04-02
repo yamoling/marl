@@ -134,7 +134,7 @@ class DQN[B: Batch](Trainer):
         # Qtargets computation
         next_values = self.next_values(batch)
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == qvalues.shape == batch.masks.shape
-        qtargets = batch.rewards + self.gamma * next_values * (~batch.dones)
+        qtargets = batch.rewards + self.gamma * next_values * batch.not_dones
         # Compute the loss
         td_error = qvalues - qtargets.detach()
         td_error = td_error * batch.masks

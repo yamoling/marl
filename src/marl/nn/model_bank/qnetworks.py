@@ -261,24 +261,25 @@ class IndependentCNN(QNetwork):
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width) -> Not implemented
         batch_size, n_agents, channels, height, width = obs.shape
-        # Transpose to (batch_size, n_agents, channels, height, width)
-        obs = obs.transpose(0, 1)
-        extras = extras.transpose(0, 1)
         # Reshape to be able forward the CNN
         obs = obs.reshape(-1, channels, height, width)
         features = self.cnn.forward(obs)
-        # Reshape to retrieve the 'agent' dimension
-        features = torch.reshape(features, (n_agents, batch_size, -1))
+        # Restore the batch dimension
+        features = torch.reshape(features, (batch_size, n_agents, -1))
         features = torch.concatenate((features, extras), dim=-1)
+        # Features have shape (batch_size, n_agents, ...) but we want to transpose to (n_agents, batch_size, ...)
+        # such that each individual agent can process its batch.
+        # Reshape to retrieve the 'agent' dimension
+        features = features.transpose(0, 1)
         res = []
         for agent_feature, linear in zip(features, self.linears):
-            output = linear.forward(agent_feature)
-            if self.duelling:
-                value = output[:, -1]
-                advantage = output[:, :-1]
-                output = value + advantage - advantage.mean(dim=-1, keepdim=True)
-            res.append(output)
+            res.append(linear.forward(agent_feature))
         res = torch.stack(res)
+        if self.duelling:
+            value = torch.unsqueeze(res[:, :, -1], -1)  # Unsqueeze to keep 3 dimensions (batch_size, n_agents, 1)
+            adv = res[:, :, :-1]
+            mean_adv = torch.mean(adv, dim=-1, keepdim=True)
+            res = value + adv - mean_adv
         res = res.transpose(0, 1)
         return res.view(batch_size, n_agents, *self.output_shape)
 

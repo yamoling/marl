@@ -28,8 +28,8 @@ def main():
                         nn = marl.nn.model_bank.CNN_ActorCritic.from_env(env)
                         ppo_trainer = marl.training.PPO(
                             nn,
+                            gamma,
                             marl.nn.mixers.VDN.from_env(env),
-                            gamma=gamma,
                             lr_actor=lr_actor,
                             lr_critic=lr_critic,
                             n_epochs=64,

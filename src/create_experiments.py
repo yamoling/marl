@@ -307,7 +307,7 @@ def main(args: Arguments):
         # env, test_env = make_overcooked(False)
         trainer = make_dqn(env)
         # trainer = make_ppo(env)
-        exp = make_experiment(args, trainer, env, test_env, 4_000_000)
+        exp = make_experiment(args, trainer, env, test_env, 1_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
