@@ -19,7 +19,9 @@ class DDPGTrainer(Trainer):
         update_interval: int = 5,
         tau: float = 0.01,
     ):
-        super().__init__(update_type=train_every)
+        super().__init__()
+        self.update_on_episodes = train_every == "episode"
+        self.update_on_steps = train_every == "step"
         self.step_update_interval = update_interval
         self.network = network
         # self.target_network = deepcopy(network)
@@ -34,8 +36,6 @@ class DDPGTrainer(Trainer):
         self.value_optimiser = torch.optim.Adam(self.network.value_parameters, self.lr)
 
         self.step_num = 0
-        self.device = network._device
-        self.to(device=self.device)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.update_on_episodes:
@@ -123,16 +123,6 @@ class DDPGTrainer(Trainer):
 
         # self._update_networks()
         return {"value_loss": value_loss.item(), "actor_loss": actor_loss.item()}
-
-    def randomize(self):
-        self.network.randomize()
-        # self.target_network.randomize()
-
-    def to(self, device: torch.device):
-        self.network.to(device)
-        # self.target_network.to(device)
-        self.device = device
-        return self
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"], parameters):
         if optimiser == "adam":

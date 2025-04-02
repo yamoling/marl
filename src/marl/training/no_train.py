@@ -5,14 +5,8 @@ from marlenv import MARLEnv, ActionSpace
 
 class NoTrain[A, AS: ActionSpace](Trainer):
     def __init__(self, env: MARLEnv[A, AS]):
-        super().__init__("episode")
+        super().__init__()
         self.env = env
-
-    def to(self, _):
-        return self
-
-    def randomize(self):
-        return
 
     def make_agent(self) -> Agent:
         return RandomAgent(self.env)

@@ -1,9 +1,14 @@
-from marl.training import PPO
+from marl.training import PPO, DQN
 from marl.nn import model_bank
 from marl import Experiment
 from lle import LLE
+from marl.training.intrinsic_reward import TOMIR, RandomNetworkDistillation
+from marl.policy import EpsilonGreedy
+from marl.models import TransitionMemory
+import marl
 
-if __name__ == "__main__":
+
+def main_ppo():
     env = LLE.level(6).obs_type("flattened").pbrs().builder().agent_id().time_limit(78).build()
     # env = marlenv.make("CartPole-v1")
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
@@ -23,3 +28,28 @@ if __name__ == "__main__":
 
     exp = Experiment.create(env, 2_000_000, trainer=trainer, logdir="logs/test2")
     exp.run(render_tests=True, n_tests=10)
+
+
+def main_dqn():
+    env = LLE.level(6).pbrs().builder().agent_id().time_limit(78).build()
+    # env = marlenv.make("CartPole-v1")
+    # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
+    qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env)
+    start_index = env.extras_meanings.index("Agent ID-0")
+    ir = TOMIR(qnetwork, list(range(start_index, start_index + env.n_agents)))
+    ir = RandomNetworkDistillation.from_env(env)
+    trainer = DQN(
+        qnetwork,
+        # mixer=marl.nn.mixers.VDN.from_env(env),
+        train_policy=EpsilonGreedy.linear(1.0, 0.05, 100_000),
+        memory=TransitionMemory(10_000),
+        gamma=0.99,
+        ir_module=ir,
+    )
+
+    exp = Experiment.create(env, 2_000_000, trainer=trainer)
+    exp.run(render_tests=True, n_tests=10)
+
+
+if __name__ == "__main__":
+    main_dqn()

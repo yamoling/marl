@@ -97,9 +97,7 @@ class TransitionBatch(Batch):
 
     @cached_property
     def masks(self):
-        if self.reward_size == 1:
-            return torch.ones(self.size).to(self.device)
-        return torch.ones(self.size, self.reward_size).to(self.device)
+        return torch.ones(self.size).to(self.device)
 
     @cached_property
     def probs(self):

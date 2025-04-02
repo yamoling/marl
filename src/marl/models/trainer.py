@@ -1,32 +1,25 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import Literal, Any, Optional
-from typing_extensions import Self
-from marlenv import Transition, Episode
-from marl.models import NN, Batch
-from marl.agents import Agent
-from .nn import IRModule
+from typing import Any, Optional
 
 import torch
+from marlenv import Episode, Transition
+
+from marl.agents import Agent
+from marl.utils import HasDevice
 
 
 @dataclass
-class Trainer[A](ABC):
+class Trainer[A](HasDevice, ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str
-    update_on_steps: bool
-    """Whether to update on steps."""
-    update_on_episodes: bool
-    """Whether to update on episodes."""
 
-    def __init__(self, update_type: Literal["step", "episode", "both"] = "both"):
+    def __init__(self, device: Optional[torch.device] = None):
+        super().__init__(device)
         self.name = self.__class__.__name__
-        self.update_on_steps = update_type in ["step", "both"]
-        self.update_on_episodes = update_type in ["episode", "both"]
-        self._device = torch.device("cpu")
 
-    def make_agent(self, *, ir_module: Optional[IRModule] = None) -> Agent:
+    def make_agent(self) -> Agent:
         raise NotImplementedError("Trainer must implement make_agent method")
 
     def update_step(self, transition: Transition[A], time_step: int) -> dict[str, Any]:
@@ -46,28 +39,3 @@ class Trainer[A](ABC):
             dict[str, Any]: A dictionary of training metrics to log.
         """
         return {}
-
-    def values(self, batch: Batch) -> torch.Tensor:
-        """Compute the value of the batch."""
-        raise NotImplementedError("Trainer did not implement the value method")
-
-    def next_values(self, batch: Batch) -> torch.Tensor:
-        """Compute the value of the next batch."""
-        raise NotImplementedError("Trainer did not implement the next_values method")
-
-    def to(self, device: torch.device) -> Self:
-        """Send the networks to the given device."""
-        self._device = device
-        for nn in self.networks:
-            nn.to(device)
-        return self
-
-    @property
-    def networks(self):
-        """Dynamic list of neural networks attributes in the trainer"""
-        return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        """Randomize the state of the trainer."""
-        for nn in self.networks:
-            nn.randomize(method)

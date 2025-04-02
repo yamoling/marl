@@ -1,4 +1,4 @@
-from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC
+from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC, IRModule
 from .dru import DRU
 from .policy import Policy
 from .batch import Batch
@@ -37,4 +37,5 @@ __all__ = [
     "Trainer",
     "Run",
     "Runner",
+    "IRModule",
 ]

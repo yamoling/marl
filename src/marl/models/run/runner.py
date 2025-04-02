@@ -13,7 +13,6 @@ from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
 from marl.logging import CSVLogger
 from marl.models.trainer import Trainer
-from marl.training import NoTrain
 from marl.utils import get_device
 
 from .run import Run
@@ -43,6 +42,8 @@ class Runner[A, AS: ActionSpace](Run):
         self.logger = CSVLogger(rundir)
         super().__init__(rundir, seed, n_tests, test_interval, n_steps, self.logger.reader(rundir))
         if trainer is None:
+            from marl.training import NoTrain
+
             trainer = NoTrain(env)
         self._trainer = trainer
         self._env = env

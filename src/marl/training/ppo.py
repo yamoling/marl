@@ -7,10 +7,9 @@ from marlenv import Transition
 from marlenv.utils import Schedule
 
 from marl.agents import SimpleAgent
-from marl.models import Mixer
+from marl.models import Mixer, Trainer
 from marl.models.batch import Batch, TransitionBatch
-from marl.models.nn import ActorCritic
-from marl.models.trainer import Trainer
+from marl.models.nn import ActorCritic, IRModule
 
 
 @dataclass
@@ -34,6 +33,7 @@ class PPO(Trainer):
     n_epochs: int
     value_mixer: Optional[Mixer]
     grad_norm_clipping: Optional[float]
+    ir_module: Optional[IRModule]
 
     def __init__(
         self,
@@ -50,6 +50,7 @@ class PPO(Trainer):
         minibatch_size: Optional[int] = None,
         gae_lambda: float = 0.95,
         grad_norm_clipping: Optional[float] = None,
+        ir_module: Optional[IRModule] = None,
     ):
         """
         Parameters
@@ -66,8 +67,9 @@ class PPO(Trainer):
         - `minibatch_size`: The size of the minibatches to use for training, must be lower or equal to `train_interval`
         - `gae_lambda`: The lambda parameter (trace decay) for the generalized advantage estimation
         - `grad_norm_clipping`: The maximum norm of the gradients at each epoch
+        - `ir_module`: The intrinsic reward module to generate an intrinsic reward signal.
         """
-        super().__init__("step")
+        super().__init__()
         self.batch_size = train_interval
         if minibatch_size is None:
             minibatch_size = train_interval
@@ -90,6 +92,7 @@ class PPO(Trainer):
         self.c2 = exploration_c2
         self.gae_lambda = gae_lambda
         self.grad_norm_clipping = grad_norm_clipping
+        self.ir_module = ir_module
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         all_parameters = list(self.actor_critic.parameters())
@@ -124,6 +127,9 @@ class PPO(Trainer):
 
     def train(self, batch: Batch, time_step: int) -> dict[str, float]:
         # batch.normalize_rewards()
+        if self.ir_module is not None:
+            ir = self.ir_module.compute(batch)
+            batch.rewards += ir
         if self.value_mixer is None:
             batch.for_individual_learners()
         self.c1.update(time_step)

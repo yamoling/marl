@@ -20,7 +20,7 @@ class IndividualLocalGraphTrainer(Trainer):
     update_after_n_states: int
 
     def __init__(self, env: MARLEnv, update_after_n_states: int, logdir: str):
-        super().__init__("episode")
+        super().__init__()
         self.agent_dims = env.agent_state_size
         self.n_agents = env.n_agents
         self.local_graphs = [LocalGraphBottleneckFinder[np.ndarray]() for _ in range(self.n_agents)]

@@ -23,7 +23,7 @@ class HavenTrainer(Trainer):
         n_agent_extras: int,
         n_meta_warmup_steps: int,
     ):
-        super().__init__("step")
+        super().__init__()
         self.meta_trainer = meta_trainer
         self.worker_trainer = worker_trainer
         self.k = k
@@ -34,7 +34,6 @@ class HavenTrainer(Trainer):
         self.n_warmup_steps = n_meta_warmup_steps
         self._available_actions = np.full((self.n_workers, self.n_subgoals), True)
         self._cumulative_reward = np.zeros(0, dtype=np.float32)
-        self._episode_step = 0
 
     def update_step(self, transition: Transition, time_step: int):
         logs = dict[str, float]()
@@ -43,19 +42,18 @@ class HavenTrainer(Trainer):
         if time_step < self.n_warmup_steps:
             self._cumulative_reward = np.zeros_like(transition.reward)
             return logs
-        if self.meta_trainer.update_on_steps:
-            meta_transition = self._build_meta_transition(transition)
-            if meta_transition is not None:
-                meta_logs = self.meta_trainer.update_step(meta_transition, time_step)
-                for key, value in meta_logs.items():
-                    logs[f"meta-{key}"] = value
+        meta_transition = self._build_meta_transition(transition)
+        if meta_transition is not None:
+            meta_logs = self.meta_trainer.update_step(meta_transition, time_step)
+            for key, value in meta_logs.items():
+                logs[f"meta-{key}"] = value
         return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         logs = dict[str, float]()
         for key, value in self.worker_trainer.update_episode(episode, episode_num, time_step).items():
             logs[f"worker-{key}"] = value
-        if self.meta_trainer.update_on_episodes and time_step >= self.n_warmup_steps:
+        if time_step >= self.n_warmup_steps:
             meta_episode = self._build_meta_episode(episode)
             meta_logs = self.meta_trainer.update_episode(meta_episode, episode_num, time_step)
             for key, value in meta_logs.items():

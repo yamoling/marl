@@ -18,7 +18,6 @@ from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
 from marl.models.replay_episode import ReplayEpisode
-from marl.training import NoTrain
 from marl.utils import encode_b64_image
 from marl.utils.gpu import get_device
 
@@ -86,6 +85,8 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         try:
             os.makedirs(logdir, exist_ok=False)
             if trainer is None:
+                from marl.training import NoTrain
+
                 trainer = NoTrain(env)
             if agent is None:
                 agent = trainer.make_agent()

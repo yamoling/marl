@@ -1,18 +1,22 @@
 from abc import abstractmethod
-from typing import Literal
-from typing_extensions import Self
-import torch
 from dataclasses import dataclass
-from marlenv import Transition, Episode
+from typing import Optional
+
+import torch
+from marlenv import Episode, Transition
+
+from marl.models.batch import Batch
+from marl.utils.has_device import HasDevice
 
 
 @dataclass
-class IRModule:
+class IRModule(HasDevice):
     """Intrinsic Reward Module: a class that adds intrinsic rewards."""
 
     name: str
 
-    def __init__(self):
+    def __init__(self, device: Optional[torch.device] = None):
+        super().__init__(device)
         self.name = self.__class__.__name__
 
     @abstractmethod
@@ -27,18 +31,14 @@ class IRModule:
         """Update the Intrinsic Reward Module."""
         return {}
 
+    def update(self, batch: Batch, time_step: int) -> dict[str, float]:
+        """Update the Intrinsic Reward Module."""
+        return {}
+
     def save(self, to_directory: str):
         """Save the IR Module to the given path."""
         raise NotImplementedError()
 
     def load(self, from_directory: str):
         """Load the IR Module from the given path."""
-        raise NotImplementedError()
-
-    def to(self, device: torch.device) -> Self:
-        """Move the IR Module to the given device."""
-        raise NotImplementedError()
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        """Randomize the Intrinsic Reward Module."""
         raise NotImplementedError()

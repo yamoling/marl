@@ -6,11 +6,10 @@ import torch
 from marlenv import Episode, Transition
 
 from marl.agents import DQNAgent, RDQNAgent, Agent
-from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork
+from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule
 from marl.models.batch import Batch
 from marl.models.trainer import Trainer
 
-from .intrinsic_reward import IRModule
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
@@ -26,8 +25,6 @@ class DQN[B: Batch](Trainer):
     mixer: Optional[Mixer]
     ir_module: Optional[IRModule]
     grad_norm_clipping: Optional[float]
-    train_ir: bool
-    use_ir: bool
 
     def __init__(
         self,
@@ -43,11 +40,9 @@ class DQN[B: Batch](Trainer):
         double_qlearning: bool = False,
         train_interval: tuple[int, Literal["step", "episode", "both"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
-        train_ir: bool = True,
-        use_ir: bool = True,
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_interval[1])
+        super().__init__()
         match train_interval:
             case (n, "step"):
                 self.step_update_interval = n
@@ -74,8 +69,8 @@ class DQN[B: Batch](Trainer):
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
         self.ir_module = ir_module
-        self.train_ir = train_ir
-        self.use_ir = use_ir
+        self.update_on_steps = train_interval[1] == "step"
+        self.update_on_episodes = train_interval[1] == "episode"
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping
@@ -96,6 +91,8 @@ class DQN[B: Batch](Trainer):
             return {}
         batch = self.memory.sample(self.batch_size).to(self.qnetwork._device)
         logs = self.train(batch)
+        if self.ir_module is not None:
+            logs = logs | self.ir_module.update(batch, time_step)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
         return logs
@@ -121,10 +118,14 @@ class DQN[B: Batch](Trainer):
         return next_values
 
     def train(self, batch: Batch) -> dict[str, Any]:
+        if self.ir_module is not None:
+            ir = self.ir_module.compute(batch)
+            # If there is a single objective, then squeeze it
+            ir = ir.squeeze()
+            batch.rewards = batch.rewards + ir
         if self.mixer is None:
+            # Call this after the IR module for shape reasons
             batch = batch.for_individual_learners()
-        if self.ir_module is not None and self.use_ir:
-            batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
@@ -158,7 +159,7 @@ class DQN[B: Batch](Trainer):
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         logs = {}
-        if self.ir_module is not None and self.train_ir:
+        if self.ir_module is not None:
             logs = logs | self.ir_module.update_step(transition, time_step)
         if self.memory.update_on_transitions:
             self.memory.add(transition)
@@ -168,7 +169,7 @@ class DQN[B: Batch](Trainer):
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         logs = {}
-        if self.ir_module is not None and self.train_ir:
+        if self.ir_module is not None:
             logs = logs | self.ir_module.update_episode(episode, time_step)
         if self.memory.update_on_episodes:
             self.memory.add(episode)
