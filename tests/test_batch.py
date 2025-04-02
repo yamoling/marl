@@ -28,8 +28,8 @@ def test_transition_batch_creation():
     batch = _make_batch(10, step_reward=1.0)
     assert len(batch) == 10
     assert batch.size == 10
-    assert batch.done_masks[-1]
-    assert torch.all(~batch.done_masks[:-2])
+    assert batch.dones[-1]
+    assert torch.all(~batch.dones[:-2])
     assert torch.all(batch.rewards == 1.0)
 
 

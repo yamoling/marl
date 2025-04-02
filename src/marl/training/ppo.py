@@ -4,13 +4,13 @@ from typing import Any, Optional
 import numpy as np
 import torch
 from marlenv import Transition
+from marlenv.utils import Schedule
 
 from marl.agents import SimpleAgent
 from marl.models import Mixer
 from marl.models.batch import Batch, TransitionBatch
 from marl.models.nn import ActorCritic
 from marl.models.trainer import Trainer
-from marlenv.utils import Schedule
 
 
 @dataclass
@@ -105,14 +105,15 @@ class PPO(Trainer):
 
     def _compute_training_data(self, batch: Batch):
         """Compute the returns, advantages and action log_probs according to the current policy"""
-        with torch.no_grad():
-            policy = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
-            log_probs = policy.log_prob(batch.actions)
-            all_values = self.actor_critic.value(batch.all_obs, batch.all_extras)
-            if self.value_mixer is not None:
-                all_values = self.value_mixer.forward(all_values, batch.states)
+        policy = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
+        log_probs = policy.log_prob(batch.actions)
+        all_values = self.actor_critic.value(batch.all_obs, batch.all_extras)
+        if self.value_mixer is not None:
+            all_values = self.value_mixer.forward(all_values, batch.states)
+
         advantages = batch.compute_gae(self.gamma, all_values, self.gae_lambda)
         returns = advantages + all_values[:-1]
+
         if self.value_mixer is not None:
             # Since we later multiply the ratios (derived from log_probs) by the advantages,
             # we need to expand the advantages in order to have the same shape as the log_probs
@@ -123,9 +124,12 @@ class PPO(Trainer):
 
     def train(self, batch: Batch, time_step: int) -> dict[str, float]:
         # batch.normalize_rewards()
+        if self.value_mixer is None:
+            batch.for_individual_learners()
         self.c1.update(time_step)
         self.c2.update(time_step)
-        returns, advantages, log_probs = self._compute_training_data(batch)
+        with torch.no_grad():
+            returns, advantages, log_probs = self._compute_training_data(batch)
 
         min_loss = 0.0
         max_loss = 0.0

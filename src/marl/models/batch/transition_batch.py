@@ -67,12 +67,9 @@ class TransitionBatch(Batch):
         return rewards.squeeze(-1)
 
     @cached_property
-    def done_masks(self):
+    def dones(self):
         dones = np.array([t.done for t in self.transitions], dtype=np.bool)
-        dones = torch.from_numpy(dones).to(self.device)
-        if self.reward_size > 1:
-            dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return dones
+        return torch.from_numpy(dones).to(self.device)
 
     @cached_property
     def available_actions(self):

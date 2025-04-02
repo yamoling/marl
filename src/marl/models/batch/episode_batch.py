@@ -124,7 +124,7 @@ class EpisodeBatch(Batch):
         return torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
 
     @cached_property
-    def done_masks(self):
+    def dones(self):
         return torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device)
 
     @cached_property

@@ -273,18 +273,13 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def done_masks(self) -> torch.BoolTensor:
+    def dones(self) -> torch.BoolTensor:
         """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
 
-    @cached_property
-    def dones(self):
-        """Done flags. 1.0 if the corresponding transition lead to a terminal state, 0.0 otherwise."""
-        return self.done_masks.float()
-
-    @cached_property
+    @property
     def not_dones(self) -> torch.BoolTensor:
-        """Whether the corresponding transition lead to a non-terminal state. 1 for "continued" states, 0 for terminal states."""
-        return ~self.done_masks  # type: ignore
+        """Whether the corresponding transition lead to a non-terminal state. True for "continued" states, False for terminal states."""
+        return ~self.dones  # type: ignore
 
     @abstractmethod  # type: ignore
     @cached_property
