@@ -15,6 +15,13 @@ from marlenv.utils import Schedule
 
 @dataclass
 class PPO(Trainer):
+    """
+    Proximal Policy Optimization (PPO) training algorithm. If a value mixer is provided, this is MAPPO (Multi-Agent PPO). Otherwise,
+    it is IPPO (Independent PPO).
+    PPO paper: https://arxiv.org/abs/1707.06347
+    MAPPO/IPPO paper: https://arxiv.org/abs/2103.01955
+    """
+
     actor_critic: ActorCritic
     batch_size: int
     c1: Schedule
@@ -25,16 +32,16 @@ class PPO(Trainer):
     lr: float
     minibatch_size: int
     n_epochs: int
-    value_mixer: Mixer
+    value_mixer: Optional[Mixer]
     grad_norm_clipping: Optional[float]
 
     def __init__(
         self,
         actor_critic: ActorCritic,
-        value_mixer: Mixer,
         gamma: float,
-        lr_actor: float,
-        lr_critic: float,
+        value_mixer: Optional[Mixer] = None,
+        lr_actor: float = 1e-3,
+        lr_critic: float = 1e-3,
         n_epochs: int = 64,
         eps_clip: float = 0.2,
         critic_c1: Schedule | float = 0.5,
@@ -45,9 +52,6 @@ class PPO(Trainer):
         grad_norm_clipping: Optional[float] = None,
     ):
         """
-        Proximal Policy Optimization (PPO) training algorithm.
-        https://arxiv.org/abs/1707.06347
-
         Parameters
         - `actor_critic`: The actor-critic neural network
         - `value_mixer`: The mixer to use for the value function
@@ -76,12 +80,7 @@ class PPO(Trainer):
         self._memory = []
         self._ratio_min = 1 - eps_clip
         self._ratio_max = 1 + eps_clip
-        param_groups = [
-            {"params": self.actor_critic.policy_parameters, "lr": lr_actor},
-            {"params": self.actor_critic.value_parameters, "lr": lr_critic},
-        ]
-        if len(self.actor_critic.shared_parameters) > 0:
-            param_groups.append({"params": self.actor_critic.shared_parameters, "lr": min(lr_actor, lr_critic)})
+        param_groups, self._parameters = self._compute_param_groups(lr_actor, lr_critic)
         self.optimizer = torch.optim.Adam(param_groups)
         if isinstance(critic_c1, (float, int)):
             critic_c1 = Schedule.constant(critic_c1)
@@ -92,21 +91,34 @@ class PPO(Trainer):
         self.gae_lambda = gae_lambda
         self.grad_norm_clipping = grad_norm_clipping
 
+    def _compute_param_groups(self, lr_actor: float, lr_critic: float):
+        all_parameters = list(self.actor_critic.parameters())
+        params = [
+            {"params": self.actor_critic.policy_parameters, "lr": lr_actor, "name": "actor parameters"},
+            {"params": self.value_parameters, "lr": lr_critic, "name": "critic parameters"},
+            {"params": self.actor_critic.shared_parameters, "lr": min(lr_actor, lr_critic), "name": "shared parameters"},
+        ]
+        if self.value_mixer is not None:
+            params += [{"params": self.value_mixer.parameters(), "lr": lr_critic, "name": "mixer parameters"}]
+            all_parameters += list(self.value_mixer.parameters())
+        return params, all_parameters
+
     def _compute_training_data(self, batch: Batch):
         """Compute the returns, advantages and action log_probs according to the current policy"""
         with torch.no_grad():
-            policy, values = self.actor_critic.forward(batch.obs, batch.extras, batch.available_actions)
+            policy = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
             log_probs = policy.log_prob(batch.actions)
-            values = self.value_mixer.forward(values, batch.states)
-            next_value = self.actor_critic.value(batch.next_obs[-1], batch.next_extras[-1])
-            next_value = self.value_mixer.forward(next_value, batch.next_states[-1])
-        returns = batch.compute_returns(self.gamma, next_value)
-        advantages = returns - values
-        # Since we multiply the ratios (derived from log_probs) by the advantages,
-        # we need to expand the advantages in order to have the same shape as the log_probs
-        while advantages.dim() < log_probs.dim():
-            advantages = advantages.unsqueeze(-1)
-        advantages = advantages.expand_as(log_probs)
+            all_values = self.actor_critic.value(batch.all_obs, batch.all_extras)
+            if self.value_mixer is not None:
+                all_values = self.value_mixer.forward(all_values, batch.states)
+        advantages = batch.compute_gae(self.gamma, all_values, self.gae_lambda)
+        returns = advantages + all_values[:-1]
+        if self.value_mixer is not None:
+            # Since we later multiply the ratios (derived from log_probs) by the advantages,
+            # we need to expand the advantages in order to have the same shape as the log_probs
+            while advantages.dim() < log_probs.dim():
+                advantages = advantages.unsqueeze(-1)
+            advantages = advantages.expand_as(log_probs)
         return returns, advantages, log_probs
 
     def train(self, batch: Batch, time_step: int) -> dict[str, float]:
@@ -126,14 +138,13 @@ class PPO(Trainer):
         for _ in range(self.n_epochs):
             indices = np.random.choice(self.batch_size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
-            mini_log_probs = log_probs[indices]
-            mini_returns = returns[indices]
-            mini_advantages = advantages[indices]
+            mini_log_probs, mini_returns, mini_advantages = log_probs[indices], returns[indices], advantages[indices]
 
-            mini_policy, mini_values = self.actor_critic.forward(minibatch.obs, minibatch.extras, minibatch.available_actions)
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
-            mini_values = self.value_mixer.forward(mini_values, minibatch.states)
+            mini_policy, mini_values = self.actor_critic.forward(minibatch.obs, minibatch.extras, minibatch.available_actions)
+            if self.value_mixer is not None:
+                mini_values = self.value_mixer.forward(mini_values, minibatch.states)
             critic_loss = torch.nn.functional.mse_loss(mini_values, mini_returns)
 
             # Actor loss (ratio between the new and old policy):
@@ -154,7 +165,7 @@ class PPO(Trainer):
             loss = actor_loss + self.c1 * critic_loss - self.c2 * entropy_loss
             loss.backward()
             if self.grad_norm_clipping is not None:
-                total_norm += torch.nn.utils.clip_grad_norm_(self.parameters, self.grad_norm_clipping)
+                total_norm += torch.nn.utils.clip_grad_norm_(self._parameters, self.grad_norm_clipping)
             self.optimizer.step()
 
             # Bookkeeping
@@ -184,12 +195,15 @@ class PPO(Trainer):
         return logs
 
     @property
-    def parameters(self):
-        return list(self.actor_critic.parameters()) + list(self.value_mixer.parameters())
-
-    @property
     def device(self):
         return self._device
+
+    @property
+    def value_parameters(self):
+        params = self.actor_critic.value_parameters
+        if self.value_mixer is not None:
+            params += self.value_mixer.parameters()
+        return params
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         self._memory.append(transition)
@@ -201,9 +215,3 @@ class PPO(Trainer):
 
     def make_agent(self):
         return SimpleAgent(self.actor_critic)
-
-    def next_values(self, batch: Batch) -> torch.Tensor:
-        next_values = self.actor_critic.value(batch.next_obs, batch.next_extras)
-        next_values = self.value_mixer.forward(next_values, batch.next_states)
-        next_values = next_values * (1 - batch.dones)
-        return next_values

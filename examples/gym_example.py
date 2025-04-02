@@ -12,7 +12,7 @@ def ppo[A](env: marlenv.MARLEnv[A, DiscreteActionSpace]) -> tuple[marl.Agent, ma
         train_policy=train_policy,
     )
     trainer = marl.training.PPO(
-        network=nn,
+        actor_critic=nn,
         memory=marl.models.TransitionMemory(20),
     )
     return algo, trainer

@@ -203,6 +203,8 @@ class IndependentCNN(QNetwork):
     The CNN part of the network is shared but the linear layers are separated.
     """
 
+    duelling: bool
+
     def __init__(
         self,
         n_agents: int,
@@ -213,19 +215,24 @@ class IndependentCNN(QNetwork):
         kernel_sizes: tuple[int, ...] = (3, 3, 3),
         strides: tuple[int, ...] = (1, 1, 1),
         filters: tuple[int, ...] = (32, 64, 64),
+        duelling: bool = True,
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
         self.n_agents = n_agents
         assert len(strides) == len(filters) == len(kernel_sizes)
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.duelling = duelling
+        n_outputs = math.prod(output_shape)
+        if duelling:
+            n_outputs += 1
         linears = []
         for _ in range(n_agents):
             layers = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
             for i in range(len(mlp_sizes) - 1):
                 layers.append(torch.nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))
                 layers.append(torch.nn.ReLU())
-            layers.append(torch.nn.Linear(mlp_sizes[-1], math.prod(output_shape)))
+            layers.append(torch.nn.Linear(mlp_sizes[-1], n_outputs))
             linears.append(torch.nn.Sequential(*layers))
         self.linears = torch.nn.ModuleList(linears)
 
@@ -236,12 +243,19 @@ class IndependentCNN(QNetwork):
         return self
 
     @classmethod
-    def from_env(cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env(cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        return cls(env.n_agents, env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)
+        return IndependentCNN(
+            env.n_agents,
+            env.observation_shape,
+            env.extras_shape[0],
+            output_shape,
+            mlp_sizes,
+            duelling=duelling,
+        )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -258,7 +272,12 @@ class IndependentCNN(QNetwork):
         features = torch.concatenate((features, extras), dim=-1)
         res = []
         for agent_feature, linear in zip(features, self.linears):
-            res.append(linear.forward(agent_feature))
+            output = linear.forward(agent_feature)
+            if self.duelling:
+                value = output[:, -1]
+                advantage = output[:, :-1]
+                output = value + advantage - advantage.mean(dim=-1, keepdim=True)
+            res.append(output)
         res = torch.stack(res)
         res = res.transpose(0, 1)
         return res.view(batch_size, n_agents, *self.output_shape)

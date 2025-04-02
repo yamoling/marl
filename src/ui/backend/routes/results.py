@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from flask import Response
 from . import app, state
 from marl.utils import stats
@@ -9,7 +10,7 @@ def get_experiment_results(logdir: str):
     try:
         exp = state.get_light_experiment(logdir)
     except (ModuleNotFoundError, FileNotFoundError) as e:
-        return Response(str(e), status=404)
+        return Response(str(e), status=HTTPStatus.NOT_FOUND)
     try:
         results = exp.get_experiment_results(replace_inf=True)
         return Response(orjson.dumps(results), mimetype="application/json")

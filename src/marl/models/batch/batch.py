@@ -22,7 +22,7 @@ class Batch(ABC):
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones such that each agent has its own (identical) signal."""
         self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
-        self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
+        self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # type: ignore
         self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
@@ -37,68 +37,126 @@ class Batch(ABC):
         """Normalize the rewards of the batch such that they have a mean of 0 and a std of 1."""
         self.rewards = (self.rewards - self.rewards.mean()) / (self.rewards.std() + 1e-8)
 
-    def compute_advantages2(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, gae_lambda: float):
-        advantage = torch.zeros(self.size, dtype=torch.float32)
-        for t in range(self.size - 1):
-            discount = 1
-            a_t = 0
-            for k in range(t, self.size - 1):
-                a_t += discount * (self.rewards[k] + gamma * values[k + 1] * (1 - int(self.dones[k])) - values[k])
-                discount *= gamma * gae_lambda
-            advantage[t] = a_t
-        advantage = torch.tensor(advantage).to(self.device)
-        return advantage
+    def _normalize(self, tensor: torch.Tensor):
+        """Normalize the tensor such that it has a mean of 0 and a std of 1."""
+        return (tensor - tensor.mean()) / (tensor.std() + 1e-8)
 
-    def compute_returns(self, gamma: float, next_value: torch.Tensor, normalize: bool = True):
-        returns = []
-        for reward, done in zip(reversed(self.rewards), reversed(self.dones)):
-            if done:
-                next_value = next_value.zero_()
-            next_value = reward + next_value * gamma
-            returns.insert(0, next_value)
-        returns = torch.tensor(returns, dtype=torch.float32).to(self.device)
+    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor, normalize: bool = True):
+        """
+        Compute the advantages using the Monte Carlo method, i.e. the discounted sum of rewards until the end of the episode.
+        """
+        returns = torch.empty_like(self.rewards, dtype=torch.float32)
+        for t in range(self.size - 1, -1, -1):
+            next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
+            returns[t] = next_value
         if normalize:
-            returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+            returns = self._normalize(returns)
         return returns
 
-    def calculate_advantages(self, values, discount_factor, trace_decay, normalize=True):
-        advantages = []
-        advantage = 0
-        next_value = 0
-        for r, v in zip(reversed(self.rewards), reversed(values)):
-            td_error = r + next_value * discount_factor - v
-            advantage = td_error + advantage * discount_factor * trace_decay
-            next_value = v
-            advantages.insert(0, advantage)
-        advantages = torch.tensor(advantages)
+    def compute_td1_returns(self, gamma: float, next_values: torch.Tensor, normalize: bool = False):
+        """
+        Compute the returns using the 1-step TD error.
+
+        Args:
+            next_values: Value estimate of the next states.
+        """
+        returns = self.rewards + gamma * next_values * self.not_dones
         if normalize:
-            advantages = (advantages - advantages.mean()) / advantages.std()
+            returns = self._normalize(returns)
+        return returns
+
+    def compute_mc_advantages(self, gamma: float, all_values: torch.Tensor, normalize: bool = False):
+        """
+        Compute the advantages using the Monte Carlo method, i.e. the discounted sum of advantages until the end of the episode.
+
+        Args:
+            gamma: Discount factor.
+            all_values: Value estimate of the states from s_t to s_{t_max + 1}. Tensor of shape (batch_size + 1, )
+            normalize: Whether to normalize the advantages.
+        """
+        values = all_values[:-1]
+        returns = self.compute_mc_returns(gamma, all_values[-1], normalize=False)
+        advantages = returns - values
+        if normalize:
+            advantages = self._normalize(advantages)
         return advantages
 
-    def compute_advantage(self, values: torch.Tensor, next_values: torch.Tensor, gamma: float, trace_decay: float = 1.0, normalize=True):
+    def compute_td1_advantages(self, gamma: float, all_values: torch.Tensor, normalize: bool = False):
         """
-        Compute the advantages (GAE if `trace_decay` is provided).
-        GAE Paper: https://arxiv.org/pdf/1506.02438
+        Compute the advantages as the 1-step TD error.
+
+        1-step TD-errors can be considered as advantages (cf: https://arxiv.org/pdf/1506.02438 second paragraph of Section 3.).
+
+        Args:
+            gamma: Discount factor.
+            all_values: Estimated state values from s_t to s_{tmax+1}. Tensor of shape (batch_size + 1,).
+            normalize: Whether to normalize the advantages.
         """
-        advantages = torch.empty(self.size, dtype=torch.float32)
-        td_errors = self.rewards + gamma * next_values - values
-        gae = 0.0
+        next_values = all_values[1:]
+        values = all_values[:-1]
+        advantages = self.compute_td1_returns(gamma, next_values, normalize=False) - values
+        if normalize:
+            advantages = self._normalize(advantages)
+        return advantages
+
+    def compute_gae(
+        self,
+        gamma: float,
+        all_values: torch.Tensor,
+        trace_decay: float = 0.95,
+        normalize: bool = False,
+    ):
+        """
+        Compute Generalized Advantage Estimation (GAE).
+        Paper: https://arxiv.org/pdf/1506.02438
+
+        Notes:
+            This method assumes that the items are adjacent in time.
+            With `trace_decay=1.0`, this method is equivalent to the Monte Carlo estimate of advantages `self.compute_mc_advantages(...)`.
+            With `trace_decay=0.0`, this method is equivalent to the 1-step TD error `self.compute_td1_advantages(...)`.
+
+        Args:
+            gamma: Discount factor.
+            trace_decay: Smoothing factor for GAE (lambda).
+            all_values: Estimated state values from s_t to s_{tmax+1}. Tensor of shape (batch_size + 1,).
+            normalize: Whether to normalize the advantages at the end of the computation.
+
+        Returns:
+            Advantage estimates (batch_size,).
+        """
+        values = all_values[:-1]
+        next_values = all_values[1:]
+        deltas = self.rewards + gamma * next_values * self.not_dones - values
+        # --- Problème de shape ici ---
+        gae = torch.zeros(self.reward_size, dtype=torch.float32)
+        advantages = torch.empty_like(self.rewards, dtype=torch.float32)
         for t in range(self.size - 1, -1, -1):
-            gae = td_errors[t] + gae * gamma * trace_decay
+            gae = deltas[t] + gamma * trace_decay * gae
             advantages[t] = gae
         if normalize:
-            advantages = (advantages - advantages.mean()) / advantages.std()
+            advantages = self._normalize(advantages)
         return advantages
 
     @overload
-    def get_minibatch(self, minibatch_size: int) -> "Batch": ...
+    def get_minibatch(self, minibatch_size: int, /) -> "Batch":
+        """
+        Return a minibatch of the given size where the indices are randomly sampled within the range [0, self.size) without replacement.
+
+        Args:
+            minibatch_size: Size of the minibatch. Must be less than or equal to the `self.size`.
+        """
 
     @overload
-    def get_minibatch(self, indices: Iterable[int]) -> "Batch": ...
+    def get_minibatch(self, indices: Iterable[int], /) -> "Batch":
+        """
+        Return a minibatch of the given indices.
+
+        Args:
+            indices: Indices of the minibatch. Each index must be within the range [0, self.size)
+        """
 
     @abstractmethod
-    def get_minibatch(self, arg) -> "Batch":  # type: ignore
-        ...
+    def get_minibatch(self, arg, /) -> "Batch": ...
 
     @cached_property
     def n_actions(self) -> int:
@@ -140,6 +198,12 @@ class Batch(ABC):
         """All extra information from t=0 (reset) up to the end."""
         first_extras = self.extras[0].unsqueeze(0)
         return torch.cat([first_extras, self.next_extras])
+
+    @cached_property
+    def all_available_actions(self) -> torch.Tensor:
+        """All available actions from t=0 (reset) up to the end."""
+        first_available_actions = self.available_actions[0].unsqueeze(0)
+        return torch.cat([first_available_actions, self.next_available_actions])
 
     @cached_property
     def all_states(self) -> torch.Tensor:
@@ -209,8 +273,18 @@ class Batch(ABC):
 
     @abstractmethod  # type: ignore
     @cached_property
-    def dones(self) -> torch.Tensor:
-        """Dones"""
+    def done_masks(self) -> torch.BoolTensor:
+        """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
+
+    @cached_property
+    def dones(self):
+        """Done flags. 1.0 if the corresponding transition lead to a terminal state, 0.0 otherwise."""
+        return self.done_masks.float()
+
+    @cached_property
+    def not_dones(self) -> torch.BoolTensor:
+        """Whether the corresponding transition lead to a non-terminal state. 1 for "continued" states, 0 for terminal states."""
+        return ~self.done_masks  # type: ignore
 
     @abstractmethod  # type: ignore
     @cached_property

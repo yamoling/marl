@@ -33,6 +33,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+torch = ["torch>=2.6.0"]
 torch-cpu = ["torch>=2.6.0"]
 torch-cu118 = ["torch>=2.6.0"]
 torch-cu124 = ["torch>=2.6.0"]
@@ -61,7 +62,7 @@ conflicts = [
         { extra = "torch-cu118" },
     ],
 ]
-dev-dependencies = ["pytest>=8.3.2", "pytest-xdist>=3.6.1"]
+dev-dependencies = ["pytest>=8.3.2"]
 
 
 [tool.uv.sources]

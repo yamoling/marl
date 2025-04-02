@@ -128,6 +128,8 @@ class Run:
     @property
     def train_metrics(self):
         df = self._reader.train_metrics
+        if df.is_empty():
+            return df
         # Round the time step to match the closest test interval
         df = stats.round_col(df, TIME_STEP_COL, self.test_interval)
         # Compute the mean of the metrics for each time step

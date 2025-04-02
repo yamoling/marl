@@ -177,14 +177,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def make_dqn(
-    env: MARLEnv[Any, DiscreteActionSpace],
-    test_env: Optional[MARLEnv[Any, DiscreteActionSpace]] = None,
-    mixing: Literal["vdn", "qmix", "qplex"] = "vdn",
-    gamma=0.95,
-    n_steps=1_000_000,
-    test_interval=5000,
-):
+def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Literal["vdn", "qmix", "qplex"] = "vdn", gamma=0.95):
     match mixing:
         case "vdn":
             mixer = VDN.from_env(env)
@@ -219,9 +212,9 @@ def make_ppo(env: MARLEnv[Any, DiscreteActionSpace]):
     actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
     return PPO(
         actor_critic=actor_critic,
-        train_interval=2400,
+        train_interval=400,
         n_epochs=8,
-        minibatch_size=1200,
+        minibatch_size=400,
         value_mixer=VDN.from_env(env),
         gamma=0.99,
         gae_lambda=0.98,
@@ -310,10 +303,10 @@ def make_overcooked(shape_tests: bool):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        # env, test_env = make_lle(args)
-        env, test_env = make_overcooked(False)
-        # trainer = make_dqn(env, test_env)
-        trainer = make_ppo(env)
+        env, test_env = make_lle()
+        # env, test_env = make_overcooked(False)
+        trainer = make_dqn(env)
+        # trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)

@@ -9,16 +9,16 @@ if __name__ == "__main__":
     ac = model_bank.SimpleActorCritic.from_env(env)
     trainer = PPO(
         ac,
-        value_mixer=mixers.VDN(1),
+        # value_mixer=mixers.VDN(1),
         gamma=0.99,
         gae_lambda=1.0,
         critic_c1=0.5,
         exploration_c2=0.01,
-        n_epochs=80,
-        minibatch_size=4000,
-        train_interval=4000,
+        n_epochs=4,
+        minibatch_size=5,
+        train_interval=20,
         lr_actor=3e-4,
-        lr_critic=1e-3,
+        lr_critic=3e-4,
     )
 
     exp = Experiment.create(env, 100_000, trainer=trainer)
