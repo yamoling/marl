@@ -89,6 +89,11 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
     dfs = [d for d in dfs if not d.is_empty()]
     if len(dfs) == 0:
         return []
+    columns = dfs[0].columns
+    # Re-order the columns to have the same order in all dataframes
+    for i, df in enumerate(dfs):
+        if df.columns != columns:
+            dfs[i] = df.select(columns)
     df = pl.concat(dfs)
     df = df.drop("timestamp_sec")
     to_drop = list[str]()
