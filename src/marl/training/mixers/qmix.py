@@ -71,7 +71,7 @@ class QMix(Mixer):
         y = torch.bmm(hidden, weight_2) + value
         # Reshape and return
         q_tot = y.view(batch_size, -1)
-        return q_tot
+        return q_tot.squeeze()
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], embed_size: int = 64, hypernet_embed_size: int = 64):

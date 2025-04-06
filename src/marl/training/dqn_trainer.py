@@ -118,7 +118,8 @@ class DQNTrainer[B: Batch](Trainer):
 
 
         next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
-        next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
+        if self.target_mixer is not None:
+            next_values = self.target_mixer.forward(next_values, batch.next_states, batch.one_hot_actions, next_qvalues)
 
         return next_values
 
@@ -134,7 +135,8 @@ class DQNTrainer[B: Batch](Trainer):
         qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions)
         
         qvalues = qvalues.squeeze(self.action_dim)
-        qvalues = self.mixer.forward(qvalues, batch.states, batch.one_hot_actions, qvalues)
+        if self.mixer is not None:
+            qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
         
         # Qtargets computation
         next_values = self.next_values(batch)
