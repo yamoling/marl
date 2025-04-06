@@ -22,8 +22,8 @@ def create_multiobj_lle(args: Arguments):
     n_steps = 1_000_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(5).obs_type("layered").state_type("state").multi_objective().build()
-    #env = LLE.level(5).obs_type("layered").state_type("state").build()
+    env = LLE.level(6).obs_type("layered").state_type("state").build()
+    #env = LLE.level(6).obs_type("layered").multi_objective().state_type("state").build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     #env = marlenv.Builder(env).time_limit(78, add_extra=True).build()
     test_env = None
@@ -35,8 +35,8 @@ def create_multiobj_lle(args: Arguments):
         0.05,
         n_steps=500_000,
     )
-    mixer = marl.training.mixers.VDN.from_env(env)
-    #mixer=marl.training.mixers.QMix.from_env(env)
+    #mixer = marl.training.mixers.VDN.from_env(env)
+    mixer=marl.training.mixers.QMix.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
