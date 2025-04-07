@@ -6,10 +6,8 @@ from copy import deepcopy
 
 from marl.models.batch import Batch
 from marl.models import TransitionMemory
-from marl.models.nn import Critic
+from marl.models.nn import Critic, IRModule
 from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
-
-from .ir_module import IRModule
 
 
 @dataclass

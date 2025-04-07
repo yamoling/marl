@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
+from marlenv import MARLEnv
 
 import torch
 
@@ -83,3 +84,13 @@ class ToMIR(IRModule):
         one_hot[agent_id] = 1.0
         extras[:, self.agent_id_indices] = one_hot
         return extras
+
+    @staticmethod
+    def from_env(env: MARLEnv, qnetwork: QNetwork):
+        try:
+            start_index = env.extras_meanings.index("Agent ID-0")
+            agent_id_indices = list(range(start_index, start_index + env.n_agents))
+            return ToMIR(qnetwork, agent_id_indices=agent_id_indices)
+        except ValueError:
+            # There is no agent id in the extras
+            return ToMIR(qnetwork, n_agents=env.n_agents)

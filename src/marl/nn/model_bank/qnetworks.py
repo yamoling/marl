@@ -5,7 +5,7 @@ from functools import reduce
 from typing import Any, Optional, Sequence
 
 import torch
-import torch.distributions as D
+from torch import distributions
 import torch.nn as nn
 import torch.nn.functional as F
 from marlenv import ActionSpace, Observation, DiscreteActionSpace
@@ -396,7 +396,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         if self.test_mode:
             latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
-            gaussian_embed = D.Normal(
+            gaussian_embed = distributions.Normal(
                 latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
             )
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
@@ -517,7 +517,7 @@ class MAICNetworkCNN(MAICNN):
         if self.test_mode:
             latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
-            gaussian_embed = D.Normal(
+            gaussian_embed = distributions.Normal(
                 latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
             )
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)
@@ -632,7 +632,7 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         if self.test_mode:
             latent = latent_embed[:, : self.n_agents * self.latent_dim]
         else:
-            gaussian_embed = D.Normal(
+            gaussian_embed = distributions.Normal(
                 latent_embed[:, : self.n_agents * self.latent_dim], (latent_embed[:, self.n_agents * self.latent_dim :]) ** (1 / 2)
             )
             latent = gaussian_embed.rsample()  # shape: (bs * self.n_agents, self.n_agents * self.latent_dim)

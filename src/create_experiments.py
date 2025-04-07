@@ -124,8 +124,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 target_updater=SoftUpdate(0.01),
                 lr=5e-4,
                 train_interval=(1, "step"),
-                use_ir=False,
-                train_ir=True,
                 ir_module=ir_module,
                 gamma=gamma,
                 mixer=VDN.from_env(meta_env),
@@ -151,8 +149,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         mixer=VDN.from_env(env),
         grad_norm_clipping=10.0,
         ir_module=ir_module,
-        train_ir=False,
-        use_ir=True,
     )
 
     meta_trainer = HavenTrainer(
@@ -187,9 +183,12 @@ def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Literal["vdn", "qmi
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
-    ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
+    # ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+    ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork)
+    # ir = None
     return DQN(
-        qnetwork=marl.nn.model_bank.IndependentCNN.from_env(env),
+        qnetwork=qnetwork,
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
             0.05,
@@ -273,13 +272,9 @@ def make_lle():
         # LLE.from_file("maps/lvl6-start-above.toml")
         .obs_type("layered")
         .state_type("state")
-        # .pbrs(
-        #    gamma=gamma,
-        #    reward_value=1,
-        #    lasers_to_reward=[(4, 0), (6, 12)],
-        # )
+        # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
         .builder()
-        .agent_id()
+        # .agent_id()
         .time_limit(78, add_extra=True)
         .build()
     )
