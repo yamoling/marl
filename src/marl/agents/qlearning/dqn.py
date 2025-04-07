@@ -44,8 +44,8 @@ class DQN(Agent):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        if self.is_multi_objective: qvalues = np.sum(qvalues,-1)
-        return self.policy.get_action(qvalues, obs.available_actions)
+        og_qvalues = qvalues.copy()
+        return self.policy.get_action(qvalues, obs.available_actions), og_qvalues
 
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()
