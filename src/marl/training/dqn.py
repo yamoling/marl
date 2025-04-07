@@ -118,10 +118,14 @@ class DQN[B: Batch](Trainer):
         return next_values
 
     def train(self, batch: Batch) -> dict[str, Any]:
+        logs = {}
         if self.ir_module is not None:
             ir = self.ir_module.compute(batch)
             # If there is a single objective, then squeeze it
             ir = ir.squeeze()
+            logs["ir_mean"] = float(ir.mean().item())
+            logs["ir_min"] = float(ir.min().item())
+            logs["ir_max"] = float(ir.max().item())
             batch.rewards = batch.rewards + ir
         if self.mixer is None:
             # Call this after the IR module for shape reasons
@@ -146,7 +150,7 @@ class DQN[B: Batch](Trainer):
         loss = squared_error.sum() / batch.masks.sum()
 
         # Optimize
-        logs = {"loss": float(loss.item())}
+        logs["loss"] = float(loss.item())
         self.optimiser.zero_grad()
         loss.backward()
         if self.grad_norm_clipping is not None:
