@@ -46,7 +46,8 @@ class ToMIR(IRModule):
             extras = batch.extras.transpose(0, 1)
             obs = batch.obs.transpose(0, 1)
             qvalues = qvalues.transpose(0, 1)
-            total_ir = torch.zeros(batch.size, dtype=torch.float32, device=batch.device)
+            # total_ir = torch.zeros(batch.size, dtype=torch.float32, device=batch.device)
+            total_ir = []
             for agent, (agent_qvalues, agent_obs, agent_extras) in enumerate(zip(qvalues, obs, extras)):
                 extras_perspective = self.from_perspective(agent_extras, agent)
                 extras_perspective = extras_perspective.unsqueeze(1)
@@ -73,8 +74,9 @@ class ToMIR(IRModule):
                 # With the max operator, it is guarantee that the minimal IR is 0
                 # since the agent itself is alsao in the list of others, hence the diff is 0
                 ir = torch.max(diff, dim=1).values
-                total_ir += ir
-            return total_ir * self.ir_weight
+                total_ir.append(ir)
+            return torch.stack(total_ir, dim=1) * self.ir_weight
+            # return total_ir * self.ir_weight
 
     def from_perspective(self, extras: torch.Tensor, agent_id: int):
         if self.agent_id_indices is None:
@@ -86,11 +88,11 @@ class ToMIR(IRModule):
         return extras
 
     @staticmethod
-    def from_env(env: MARLEnv, qnetwork: QNetwork):
+    def from_env(env: MARLEnv, qnetwork: QNetwork, ir_weight: float | Schedule = 1e-2):
         try:
             start_index = env.extras_meanings.index("Agent ID-0")
             agent_id_indices = list(range(start_index, start_index + env.n_agents))
-            return ToMIR(qnetwork, agent_id_indices=agent_id_indices)
+            return ToMIR(qnetwork, agent_id_indices=agent_id_indices, ir_weight=ir_weight)
         except ValueError:
             # There is no agent id in the extras
-            return ToMIR(qnetwork, n_agents=env.n_agents)
+            return ToMIR(qnetwork, n_agents=env.n_agents, ir_weight=ir_weight)
