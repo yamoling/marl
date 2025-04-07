@@ -184,8 +184,8 @@ def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Literal["vdn", "qmi
         case other:
             raise ValueError(f"Invalid mixer: {other}")
     qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
-    # ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
-    ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork)
+    ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+    # ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork)
     # ir = None
     return DQN(
         qnetwork=qnetwork,

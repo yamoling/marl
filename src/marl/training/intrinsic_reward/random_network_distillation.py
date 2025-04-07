@@ -25,7 +25,7 @@ class RandomNetworkDistillation(IRModule):
         target: NN,
         update_ratio: float = 0.25,
         normalise_rewards=False,
-        ir_weight: Optional[Schedule] = None,
+        ir_weight: Schedule | float = 1.0,
         gamma: Optional[float] = None,
         lr: float = 1e-4,
     ):
@@ -45,8 +45,8 @@ class RandomNetworkDistillation(IRModule):
             torch.nn.Linear(self.output_size, self.output_size),
         )
         self._target.randomize()
-        if ir_weight is None:
-            ir_weight = Schedule.constant(1.0)
+        if isinstance(ir_weight, (float, int)):
+            ir_weight = Schedule.constant(ir_weight)
         self.ir_weight = ir_weight
         self._optimizer = torch.optim.Adam(list(self._predictor_head.parameters()) + list(self._predictor_tail.parameters()), lr=lr)  # type: ignore
 
