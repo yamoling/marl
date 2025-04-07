@@ -173,8 +173,10 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Literal["vdn", "qmix", "qplex"] = "vdn", gamma=0.95):
+def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn", gamma=0.95):
     match mixing:
+        case None:
+            mixer = None
         case "vdn":
             mixer = VDN.from_env(env)
         case "qmix":
@@ -185,7 +187,7 @@ def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Literal["vdn", "qmi
             raise ValueError(f"Invalid mixer: {other}")
     qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
     # ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
-    ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05)
+    ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
     # ir = None
     return DQN(
         qnetwork=qnetwork,
@@ -301,7 +303,7 @@ def main(args: Arguments):
         # exp = create_smac(args)
         env, test_env = make_lle()
         # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env)
+        trainer = make_dqn(env, mixing=None)
         # trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 1_000_000)
         print(f"Experiment created in {exp.logdir}")

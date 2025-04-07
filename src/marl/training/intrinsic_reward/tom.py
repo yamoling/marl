@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from marlenv import MARLEnv
+from marlenv import MARLEnv, Transition
 
 import torch
 
@@ -25,6 +25,7 @@ class ToMIR(IRModule):
         *,
         agent_id_indices: Optional[list[int]] = None,
         n_agents: Optional[int] = None,
+        is_individual: bool = False,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -32,6 +33,7 @@ class ToMIR(IRModule):
         if isinstance(ir_weight, (float, int)):
             ir_weight = Schedule.constant(ir_weight)
         self.ir_weight = ir_weight
+        self.is_individual = is_individual
         if agent_id_indices is None:
             assert n_agents is not None
             self.n_agents = n_agents
@@ -46,8 +48,7 @@ class ToMIR(IRModule):
             extras = batch.extras.transpose(0, 1)
             obs = batch.obs.transpose(0, 1)
             qvalues = qvalues.transpose(0, 1)
-            # total_ir = torch.zeros(batch.size, dtype=torch.float32, device=batch.device)
-            total_ir = []
+            differences = []
             for agent, (agent_qvalues, agent_obs, agent_extras) in enumerate(zip(qvalues, obs, extras)):
                 extras_perspective = self.from_perspective(agent_extras, agent)
                 extras_perspective = extras_perspective.unsqueeze(1)
@@ -73,10 +74,12 @@ class ToMIR(IRModule):
                 diff = others_qvalue - agent_qvalue
                 # With the max operator, it is guarantee that the minimal IR is 0
                 # since the agent itself is alsao in the list of others, hence the diff is 0
-                ir = torch.max(diff, dim=1).values
-                total_ir.append(ir)
-            return torch.stack(total_ir, dim=1) * self.ir_weight
-            # return total_ir * self.ir_weight
+                diff = torch.max(diff, dim=1).values
+                differences.append(diff)
+            ir = torch.stack(differences, dim=1)
+            if not self.is_individual:
+                ir = ir.sum(dim=1)
+            return ir * self.ir_weight
 
     def from_perspective(self, extras: torch.Tensor, agent_id: int):
         if self.agent_id_indices is None:
@@ -87,12 +90,16 @@ class ToMIR(IRModule):
         extras[:, self.agent_id_indices] = one_hot
         return extras
 
+    def update(self, _, time_step: int) -> dict[str, float]:
+        self.ir_weight.update(time_step)
+        return {"ir_weight": self.ir_weight.value}
+
     @staticmethod
-    def from_env(env: MARLEnv, qnetwork: QNetwork, ir_weight: float | Schedule = 1e-2):
+    def from_env(env: MARLEnv, qnetwork: QNetwork, ir_weight: float | Schedule = 1e-2, is_individual: bool = False):
         try:
             start_index = env.extras_meanings.index("Agent ID-0")
             agent_id_indices = list(range(start_index, start_index + env.n_agents))
-            return ToMIR(qnetwork, agent_id_indices=agent_id_indices, ir_weight=ir_weight)
+            return ToMIR(qnetwork, agent_id_indices=agent_id_indices, ir_weight=ir_weight, is_individual=is_individual)
         except ValueError:
             # There is no agent id in the extras
-            return ToMIR(qnetwork, n_agents=env.n_agents, ir_weight=ir_weight)
+            return ToMIR(qnetwork, n_agents=env.n_agents, ir_weight=ir_weight, is_individual=is_individual)

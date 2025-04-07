@@ -119,17 +119,16 @@ class DQN[B: Batch](Trainer):
 
     def train(self, batch: Batch) -> dict[str, Any]:
         logs = {}
+        if self.mixer is None:
+            batch = batch.for_individual_learners()
         if self.ir_module is not None:
             ir = self.ir_module.compute(batch)
             # If there is a single objective, then squeeze it
-            ir = ir.squeeze()
+            ir = ir.squeeze(-1)
             logs["ir_mean"] = float(ir.mean().item())
             logs["ir_min"] = float(ir.min().item())
             logs["ir_max"] = float(ir.max().item())
             batch.rewards = batch.rewards + ir
-        if self.mixer is None:
-            # Call this after the IR module for shape reasons
-            batch = batch.for_individual_learners()
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
         qvalues = torch.gather(qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
