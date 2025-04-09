@@ -21,6 +21,8 @@ class DQN(Agent):
     qnetwork: QNetwork
     train_policy: Policy
     test_policy: Policy
+    last_qvalues = None
+    last_replaced_qvalues = None
 
     def __init__(
         self,
@@ -28,7 +30,7 @@ class DQN(Agent):
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
         mixer: Optional[Mixer] = None,
-        is_multi_objective: Optional[bool] = False,
+        log_qvalues: Optional[bool] = False,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -38,14 +40,26 @@ class DQN(Agent):
         self.test_policy = test_policy
         self.policy = self.train_policy
         self.mixer = mixer
-        self.is_multi_objective = is_multi_objective
+        if log_qvalues: 
+            self.last_qvalues = np.ndarray(0)
+            self.last_replaced_qvalues = np.ndarray(0)
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        og_qvalues = qvalues.copy()
-        return self.policy.get_action(qvalues, obs.available_actions), og_qvalues
+        if self.last_qvalues is not None: 
+            self.last_qvalues = qvalues
+            if self.policy.name == "EpsilonGreedy":        
+                self.last_replaced_qvalues = qvalues.copy()
+                action = self.policy.get_action(self.last_qvalues, obs.available_actions, self.last_replaced_qvalues)
+                self.last_replaced_qvalues = self.last_replaced_qvalues[:,0]
+            else: 
+                self.last_replaced_qvalues = None
+                action = self.policy.get_action(self.last_qvalues, obs.available_actions)
+            self.last_qvalues = self.last_qvalues[:,0]
+            return action
+        else: return self.policy.get_action(qvalues, obs.available_actions)
 
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()

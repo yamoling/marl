@@ -37,6 +37,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
     n_steps: int
     creation_timestamp: int
     test_env: MARLEnv[A, AS]
+    log_qvalues: Optional[bool] = False
 
     def __init__(
         self,
@@ -48,12 +49,14 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         n_steps: int,
         creation_timestamp: int,
         test_env: MARLEnv[A, AS],
+        log_qvalues: Optional[bool],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
         self.test_env = test_env
+        self.log_qvalues = log_qvalues
 
     @staticmethod
     def create(
@@ -64,6 +67,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         agent: Optional[Agent] = None,
         test_interval: int = 0,
         test_env: Optional[MARLEnv[A, AS]] = None,
+        log_qvalues: Optional[bool] = False,
     ):
         """Create a new experiment."""
         if test_env is not None:
@@ -96,6 +100,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
                 test_interval=test_interval,
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
+                log_qvalues=log_qvalues,
             )
             experiment.save()
             return experiment
@@ -181,6 +186,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             agent=self.agent,
             trainer=self.trainer,
             test_env=self.test_env,
+            log_qvalues=self.log_qvalues,
         )
 
     def replay_episode(self, episode_folder: str):

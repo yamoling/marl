@@ -51,13 +51,15 @@ class EpsilonGreedy(Policy):
     def constant(cls, eps: float):
         return cls(schedule.ConstantSchedule(eps))
 
-    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
+    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray, qvalues_cp: np.ndarray = None) -> np.ndarray:
         qvalues[available_actions == 0.0] = -np.inf
         chosen_actions = qvalues.argmax(axis=-1)
         r = np.random.random(len(qvalues))
+        if qvalues_cp is not None: qvalues[...] = np.take_along_axis(qvalues,chosen_actions[:,None],-1) # Need to scale when MO?
         replacements = np.array([random.choice(np.nonzero(available)[0]) for available in available_actions])
         mask = r < self.epsilon
         chosen_actions[mask] = replacements[mask]
+        if qvalues_cp is not None: qvalues_cp[...] = np.take_along_axis(qvalues_cp,chosen_actions[:,None],-1) # Need to scale when MO?
         return chosen_actions
 
     def update(self, step_num: int):
@@ -75,6 +77,7 @@ class ArgMax(Policy):
     def get_action(self, qvalues: np.ndarray, available_actions: npt.NDArray[np.float32]) -> np.ndarray:
         qvalues[available_actions == 0.0] = -np.inf
         actions = qvalues.argmax(-1)
+        qvalues[...] = np.take_along_axis(qvalues,actions[:,None],-1) # Need to scale when MO?
         return actions
 
     def update(self, step_num: int):

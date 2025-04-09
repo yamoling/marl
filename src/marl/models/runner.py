@@ -23,6 +23,7 @@ class Runner[A, AS: ActionSpace]:
     _agent: Agent
     _trainer: Trainer
     _test_env: MARLEnv[A, AS]
+    _log_qvalues: bool
 
     def __init__(
         self,
@@ -30,6 +31,7 @@ class Runner[A, AS: ActionSpace]:
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
         test_env: Optional[MARLEnv[A, AS]] = None,
+        log_qvalues: Optional[bool] = False,
     ):
         self._trainer = trainer or NoTrain(env)
         self._env = env
@@ -39,6 +41,7 @@ class Runner[A, AS: ActionSpace]:
         if test_env is None:
             test_env = deepcopy(env)
         self._test_env = test_env
+        self._log_qvalues = log_qvalues
 
     def _train_episode(
         self,
@@ -58,14 +61,15 @@ class Runner[A, AS: ActionSpace]:
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
                 self._test_and_log(n_tests, step_num, quiet, run_handle, render_tests)
             match self._agent.choose_action(obs):
-                case (action, qvalues, dict(kwargs)):
+                case (action, dict(kwargs)):
                     step = self._env.step(action)
-                case (action, qvalues):
+                case (action):
                     step = self._env.step(action)
                     kwargs = {}
             if step_num == max_step:
                 step.truncated = True
-            transition = Transition.from_step(obs, state, action, qvalues, step, **kwargs)
+            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, self._agent.last_replaced_qvalues, **kwargs)
+            else: transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
@@ -153,11 +157,12 @@ class Runner[A, AS: ActionSpace]:
             if render:
                 self._test_env.render()
             match self._agent.choose_action(obs):
-                case (action, qvalues, _):
+                case (action, _):
                     step = self._test_env.step(action)
-                case (action, qvalues):
+                case (action):
                     step = self._test_env.step(action)
-            transition = Transition.from_step(obs, state, action, qvalues, step)
+            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, self._agent.last_replaced_qvalues)
+            else: transition = Transition.from_step(obs, state, action, step)
             episode.add(transition)
             obs = step.obs
             state = step.state
