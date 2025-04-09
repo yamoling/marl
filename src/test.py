@@ -36,8 +36,8 @@ def main_dqn():
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
     qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env)
     # start_index = env.extras_meanings.index("Agent ID-0")
-    ir = ToMIR(qnetwork, n_agents=env.n_agents, is_individual=True)
-    # ir = RandomNetworkDistillation.from_env(env)
+    # ir = ToMIR(qnetwork, n_agents=env.n_agents, is_individual=True)
+    ir = RandomNetworkDistillation.from_env(env)
     trainer = DQN(
         qnetwork,
         # mixer=marl.nn.mixers.VDN.from_env(env),

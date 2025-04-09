@@ -19,6 +19,8 @@ class RandomNetworkDistillation(IRModule):
     update_ratio: float
     normalise_rewards: bool
     ir_weight: Schedule
+    n_warmup_steps: int
+    gamma: float
 
     def __init__(
         self,
@@ -28,6 +30,7 @@ class RandomNetworkDistillation(IRModule):
         ir_weight: Schedule | float = 1.0,
         gamma: Optional[float] = None,
         lr: float = 1e-4,
+        n_warmup_steps: int = 5_000,
     ):
         """
         Gamma is required if normalise_rewards is True since we have to compute the episode returns.
@@ -35,8 +38,6 @@ class RandomNetworkDistillation(IRModule):
         """
         super().__init__()
         # RND should output one intrinsic reward per objective
-        if len(target.output_shape) != 2:
-            raise ValueError("RND target should output a tensor of shape (reward_size, embedding)")
         self._target = target
         self._predictor_head = deepcopy(target)
         self.output_size = math.prod(target.output_shape)
@@ -49,7 +50,8 @@ class RandomNetworkDistillation(IRModule):
             ir_weight = Schedule.constant(ir_weight)
         self.ir_weight = ir_weight
         self._optimizer = torch.optim.Adam(list(self._predictor_head.parameters()) + list(self._predictor_tail.parameters()), lr=lr)  # type: ignore
-
+        self.n_warmup_steps = n_warmup_steps
+        self._warmup_done = False
         self.update_ratio = update_ratio
         self.normalise_rewards = normalise_rewards
         if self.normalise_rewards:
@@ -60,29 +62,31 @@ class RandomNetworkDistillation(IRModule):
 
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_returns = RunningMeanStd((1,))
-        self._running_obs = RunningMeanStd(target.input_shape)
+        self._running_states = RunningMeanStd(target.input_shape)
         self._running_extras = RunningMeanStd(target.extras_shape)
 
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
-        next_obs = self._running_obs.normalise(batch.next_obs)
-        next_extras = self._running_extras.normalise(batch.next_extras)
-
+        next_states = self._running_states.normalise(batch.next_states)
+        next_states_extras = self._running_extras.normalise(batch.next_states_extras)
+        if not self._warmup_done:
+            return torch.zeros_like(batch.rewards)
         # Compute the embedding and the squared error
         with torch.no_grad():
-            target_features = self._target.forward(next_obs, next_extras)
-            predicted_features = self._predictor_head.forward(next_obs, next_extras)
-            shape = predicted_features.shape
-            new_shape = shape[:-2] + (self.output_size,)
-            predicted_features = predicted_features.view(*new_shape)
-            predicted_features = self._predictor_tail.forward(predicted_features)
-            predicted_features = predicted_features.view(*shape)
-            squared_error = torch.pow(target_features - predicted_features, 2)
-            # squared error has shape (batch_size, n_agents, reward_size, embedding)
-            # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
-            squared_error = torch.sum(squared_error, dim=-1)
+            squared_error = self.forward(next_states, next_states_extras)
+            # target_features = self._target.forward(next_states, next_states_extras)
+            # predicted_features = self._predictor_head.forward(next_states, next_states_extras)
+            # shape = predicted_features.shape
+            # new_shape = shape[:-2] + (self.output_size,)
+            # predicted_features = predicted_features.view(*new_shape)
+            # predicted_features = self._predictor_tail.forward(predicted_features)
+            # predicted_features = predicted_features.view(*shape)
+            # squared_error = torch.pow(target_features - predicted_features, 2)
+            # # squared error has shape (batch_size, n_agents, reward_size, embedding)
+            # # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
+            # squared_error = torch.sum(squared_error, dim=-1)
             # squared_error has shape (batch_size, n_agents, reward_size) and we want to sum over the agents to have one common intrinsic reward
-            intrinsic_reward = torch.sum(squared_error, dim=1).detach()
+            intrinsic_reward = torch.sum(squared_error, dim=-1)
             if self.normalise_rewards:
                 if not isinstance(batch, EpisodeBatch):
                     raise RuntimeError(
@@ -95,55 +99,22 @@ class RandomNetworkDistillation(IRModule):
             intrinsic_reward = intrinsic_reward * self.ir_weight
             return intrinsic_reward
 
-    @staticmethod
-    def from_env(env: MARLEnv, n_outputs: int = 256):
-        match (env.observation_shape, env.extras_shape):
-            case ((size,), (n_extras,)):  # Linear
-                nn = model_bank.MLP(
-                    size,
-                    n_extras,
-                    (128, 256, 128),
-                    (env.n_objectives, n_outputs),
-                )
-            case ((_, _, _) as dimensions, (n_extras,)):  # CNN
-                nn = model_bank.CNN(
-                    dimensions,
-                    n_extras,
-                    (env.n_objectives, n_outputs),
-                )
-            case other:
-                raise ValueError(f"Unsupported (obs, extras) shape: {other}")
-        return RandomNetworkDistillation(target=nn)
-
-    def to(self, device: torch.device):
-        self._target.to(device)
-        self._predictor_head.to(device)
-        self._predictor_tail.to(device, non_blocking=True)
-        self._running_obs.to(device)
-        self._running_returns.to(device)
-        self._running_extras.to(device)
+    def forward(self, next_states: torch.Tensor, next_states_extras: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            target_features = self._target.forward(next_states, next_states_extras)
+        predicted_features = self._predictor_head.forward(next_states, next_states_extras)
+        predicted_features = self._predictor_tail.forward(predicted_features)
+        error = target_features - predicted_features
+        squared_error = torch.pow(error, 2)
+        return squared_error
 
     def update(self, batch: Batch, time_step: int):
-        obs_ = self._running_obs.normalise(batch.next_obs, update=False)
-        extras_ = self._running_extras.normalise(batch.extras, update=False)
-        with torch.no_grad():
-            target_features = self._target.forward(obs_, extras_)
-        predicted_features = self._predictor_head.forward(batch.next_obs, extras_)
-        shape = predicted_features.shape
-        new_shape = shape[:-2] + (self.output_size,)
-        predicted_features = predicted_features.view(*new_shape)
-        predicted_features = self._predictor_tail.forward(predicted_features)
-        predicted_features = predicted_features.view(*shape)
-        squared_error = torch.pow(target_features - predicted_features, 2)
-        # squared error has shape (batch_size, n_agents, reward_size, embedding)
-        # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
-        squared_error = torch.sum(squared_error, dim=-1)
-        # squared_error has shape (batch_size, n_agents, reward_size) and we want to sum over the agents to have one common intrinsic reward
-        squared_error = torch.pow(target_features - predicted_features, 2)
-        # squared error has shape (batch_size, n_agents, reward_size, embedding)
-        # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
-        squared_error = torch.sum(squared_error, dim=-1)
-
+        if time_step >= self.n_warmup_steps:
+            self._warmup_done = True
+        # Normalize the observations and extras
+        next_states = self._running_states.normalise(batch.next_states, update=False)
+        next_states_extras = self._running_extras.normalise(batch.next_states_extras, update=False)
+        squared_error = self.forward(next_states, next_states_extras)
         # Randomly mask some of the features and perform the optimization
         masks = torch.rand_like(squared_error) < self.update_ratio
         loss = torch.sum(squared_error * masks) / torch.sum(masks)
@@ -152,6 +123,30 @@ class RandomNetworkDistillation(IRModule):
         self._optimizer.step()
         self.ir_weight.update(time_step)
         return {"ir-loss": loss.item(), "ir-weight": self.ir_weight.value}
+
+    @staticmethod
+    def from_env(env: MARLEnv, n_outputs: int = 256, n_warmup_steps: int = 5_000):
+        if env.reward_space.size == 1:
+            output_shape = (n_outputs,)
+        else:
+            output_shape = (*env.reward_space.shape, n_outputs)
+        match (env.state_shape, env.state_extra_shape):
+            case ((size,), (n_extras,)):  # Linear
+                nn = model_bank.MLP(
+                    size,
+                    n_extras,
+                    (128, 256, 128),
+                    output_shape,
+                )
+            case ((_, _, _) as dimensions, (n_extras,)):  # CNN
+                nn = model_bank.CNN(
+                    dimensions,
+                    n_extras,
+                    output_shape,
+                )
+            case other:
+                raise ValueError(f"Unsupported (obs, extras) shape: {other}")
+        return RandomNetworkDistillation(target=nn, n_warmup_steps=n_warmup_steps)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         nn_randomize(torch.nn.init.xavier_uniform_, self._predictor_tail)
@@ -173,3 +168,11 @@ class RandomNetworkDistillation(IRModule):
         self._predictor_head.load_state_dict(torch.load(predictor_head_path, weights_only=True))
         predictor_tail_path = os.path.join(from_directory, "predictor_tail.weights")
         self._predictor_tail.load_state_dict(torch.load(predictor_tail_path, weights_only=True))
+
+    def to(self, device: torch.device):
+        self._target.to(device)
+        self._predictor_head.to(device)
+        self._predictor_tail.to(device, non_blocking=True)
+        self._running_states.to(device)
+        self._running_returns.to(device)
+        self._running_extras.to(device)

@@ -123,11 +123,11 @@ class DQN[B: Batch](Trainer):
             batch = batch.for_individual_learners()
         if self.ir_module is not None:
             ir = self.ir_module.compute(batch)
-            # If there is a single objective, then squeeze it
-            ir = ir.squeeze(-1)
             logs["ir_mean"] = float(ir.mean().item())
             logs["ir_min"] = float(ir.min().item())
             logs["ir_max"] = float(ir.max().item())
+            while ir.dim() < batch.rewards.dim():  # Adjust the dimensions
+                ir = ir.unsqueeze(-1)
             batch.rewards = batch.rewards + ir
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
