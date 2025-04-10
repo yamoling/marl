@@ -13,8 +13,20 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
-    device: Literal["auto", "cpu"] | int = tap.arg(default="auto")
+    _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
+
+    @property
+    def device(self) -> Literal["auto", "cpu"] | int:
+        if self._device in ("auto", "cpu"):
+            return self._device
+        try:
+            return int(self._device)
+        except ValueError:
+            pass
+        if self._device.startswith("cuda:"):
+            return int(self._device.split(":")[1])
+        raise ValueError(f"Invalid device: {self._device}. It should be 'auto', 'cpu' or 'cuda:<gpu_id>'")
 
     @property
     def n_processes(self):
