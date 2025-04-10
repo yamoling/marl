@@ -74,18 +74,6 @@ class RandomNetworkDistillation(IRModule):
         # Compute the embedding and the squared error
         with torch.no_grad():
             squared_error = self.forward(next_states, next_states_extras)
-            # target_features = self._target.forward(next_states, next_states_extras)
-            # predicted_features = self._predictor_head.forward(next_states, next_states_extras)
-            # shape = predicted_features.shape
-            # new_shape = shape[:-2] + (self.output_size,)
-            # predicted_features = predicted_features.view(*new_shape)
-            # predicted_features = self._predictor_tail.forward(predicted_features)
-            # predicted_features = predicted_features.view(*shape)
-            # squared_error = torch.pow(target_features - predicted_features, 2)
-            # # squared error has shape (batch_size, n_agents, reward_size, embedding)
-            # # We want the intrinsic reward for each reward_size, so we sum over the embedding dimension
-            # squared_error = torch.sum(squared_error, dim=-1)
-            # squared_error has shape (batch_size, n_agents, reward_size) and we want to sum over the agents to have one common intrinsic reward
             intrinsic_reward = torch.sum(squared_error, dim=-1)
             if self.normalise_rewards:
                 if not isinstance(batch, EpisodeBatch):

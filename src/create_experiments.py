@@ -1,21 +1,22 @@
 import shutil
-import marl
+from typing import Any, Literal, Optional
+
 import marlenv
-from marlenv import MARLEnv, DiscreteActionSpace
-from marlenv.utils import Schedule
-from typing import Any, Optional, Literal
 import typed_argparse as tap
-
-
 from lle import LLE
-from run import Arguments as RunArguments, main as run_experiment
-from marl.nn.mixers import VDN
-from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from marl.training.haven_trainer import HavenTrainer
-from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv.utils import Schedule
+
+import marl
 from marl import Trainer
-from marl.training import DQN, PPO, SoftUpdate, HardUpdate
 from marl.exceptions import ExperimentAlreadyExistsException
+from marl.nn.mixers import VDN
+from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.training import DQN, PPO, HardUpdate, SoftUpdate
+from marl.training.haven_trainer import HavenTrainer
+from marl.training.intrinsic_reward import AdvantageIntrinsicReward
+from run import Arguments as RunArguments
+from run import main as run_experiment
 
 
 class Arguments(RunArguments):
@@ -173,7 +174,12 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn", gamma=0.95):
+def make_dqn(
+    env: MARLEnv[Any, DiscreteActionSpace],
+    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
+    ir_method: Optional[Literal["rnd", "tomir"]] = None,
+    gamma=0.95,
+):
     match mixing:
         case None:
             mixer = None
@@ -186,9 +192,13 @@ def make_dqn(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal["v
         case other:
             raise ValueError(f"Invalid mixer: {other}")
     qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env)
-    # ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
-    ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
-    # ir = None
+    match ir_method:
+        case "rnd":
+            ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+        case "tomir":
+            ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
+        case None:
+            ir = None
     return DQN(
         qnetwork=qnetwork,
         train_policy=marl.policy.EpsilonGreedy.linear(
@@ -247,7 +257,7 @@ def make_experiment(
                 if trainer.mixer is not None:
                     args.logdir += f"-{trainer.mixer.name}"
                 else:
-                    args.logdir += "-iql"
+                    args.logdir += "-IQL"
                 if trainer.ir_module is not None:
                     args.logdir += f"-{trainer.ir_module.name}"
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
@@ -303,9 +313,9 @@ def main(args: Arguments):
         # exp = create_smac(args)
         env, test_env = make_lle()
         # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env, mixing=None)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None)
         # trainer = make_ppo(env)
-        exp = make_experiment(args, trainer, env, test_env, 1_000_000)
+        exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
