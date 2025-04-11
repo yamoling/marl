@@ -179,6 +179,7 @@ def make_dqn(
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
     ir_method: Optional[Literal["rnd", "tomir"]] = None,
     gamma=0.95,
+    noisy: bool = False,
 ):
     match mixing:
         case None:
@@ -191,7 +192,7 @@ def make_dqn(
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
-    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=True)
+    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=noisy)
     match ir_method:
         case "rnd":
             ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
@@ -199,10 +200,13 @@ def make_dqn(
             ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
         case None:
             ir = None
-    # policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+    if noisy:
+        policy = marl.policy.ArgMax()
+    else:
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
     return DQN(
         qnetwork=qnetwork,
-        train_policy=marl.policy.ArgMax(),
+        train_policy=policy,
         memory=marl.models.TransitionMemory(50_000),
         optimiser="adam",
         double_qlearning=True,
@@ -310,7 +314,7 @@ def main(args: Arguments):
         # exp = create_smac(args)
         env, test_env = make_lle()
         # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env, mixing="vdn", ir_method=None)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=True)
         # trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")
