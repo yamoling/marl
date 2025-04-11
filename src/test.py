@@ -45,6 +45,7 @@ def main_dqn():
         train_policy=marl.policy.ArgMax(),
         memory=TransitionMemory(10_000),
         gamma=0.95,
+        double_qlearning=True,
         ir_module=ir,
     )
 

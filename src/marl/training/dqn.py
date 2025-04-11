@@ -98,24 +98,31 @@ class DQN[B: Batch](Trainer):
         return logs
 
     def next_values(self, batch: Batch):
-        # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
-        # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
-        if self.double_qlearning:
-            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
-        else:
-            qvalues_for_index = next_qvalues
-        qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
-        indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
-        if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(
-                next_values,
-                batch.next_states,
-                one_hot_actions=batch.one_hot_actions,
-                next_qvalues=next_qvalues,
-            )
-        return next_values
+        with torch.no_grad():
+            # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
+            next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras)[1:]
+            # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
+            if self.double_qlearning:
+                # It is necessary to switch to eval mode for some layers such as NoisyLayers.
+                # Not switching to eval mode will cause the predicted Q-values to be off and
+                # will cause torch to crash with a RuntimeError because of version mismatch.
+                self.qnetwork.eval()
+                qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
+                self.qnetwork.train()
+            else:
+                qvalues_for_index = next_qvalues
+            qvalues_for_index[~batch.next_available_actions] = -torch.inf
+            # qvalues_for_index = qvalues_for_index.clone()
+            indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
+            next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+            if self.target_mixer is not None:
+                next_values = self.target_mixer.forward(
+                    next_values,
+                    batch.next_states,
+                    one_hot_actions=batch.one_hot_actions,
+                    next_qvalues=next_qvalues,
+                )
+            return next_values
 
     def train(self, batch: Batch) -> dict[str, Any]:
         logs = {}
