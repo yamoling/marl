@@ -312,9 +312,15 @@ def make_overcooked(shape_tests: bool):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
+        from marl.env.reward_mask import NoReward
+        from copy import deepcopy
+
         env, test_env = make_lle()
+        test_env = deepcopy(env)
+        env = NoReward(env)
+
         # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=True)
+        trainer = make_dqn(env, mixing="vdn", ir_method="rnd", noisy=False)
         # trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")
