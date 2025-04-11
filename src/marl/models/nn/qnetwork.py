@@ -57,10 +57,6 @@ class QNetwork(NN):
         """Compute the Q-values for a batch of observations during training"""
         return self.forward(obs, extras)
 
-    def set_testing(self, test_mode: bool = True):
-        """Set the network in testing mode"""
-        self.test_mode = test_mode
-
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
         if env.reward_space.size == 1:
@@ -95,7 +91,6 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
 
         In this case, the RNN considers hidden states=None.
         """
-        self.test_mode = False
         saved_hidden_states = self.hidden_states
         self.reset_hidden_states()
         qvalues = self.forward(obs, extras)

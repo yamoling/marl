@@ -13,6 +13,7 @@ from marlenv.models import MARLEnv
 
 from marl.agents.qlearning.maic import MAICParameters
 from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork, MAICNN
+from ..layers import NoisyLinear
 from ..utils import make_cnn
 
 
@@ -30,6 +31,7 @@ class MLP(QNetwork):
         extras_size: int,
         hidden_sizes: Sequence[int],
         output_shape: tuple[int, ...],
+        last_layer_noisy: bool = False,
     ):
         super().__init__((input_size,), (extras_size,), output_shape)
         self.layer_sizes = (input_size + extras_size, *hidden_sizes, math.prod(output_shape))
@@ -37,22 +39,31 @@ class MLP(QNetwork):
         for i in range(len(hidden_sizes) - 1):
             layers.append(torch.nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
             layers.append(torch.nn.ReLU())
-        layers.append(torch.nn.Linear(hidden_sizes[-1], math.prod(output_shape)))
+        if last_layer_noisy:
+            layers.append(NoisyLinear(hidden_sizes[-1], math.prod(output_shape)))
+        else:
+            layers.append(torch.nn.Linear(hidden_sizes[-1], math.prod(output_shape)))
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS], hidden_sizes: Optional[Sequence[int]] = None):
+    def from_env[A, AS: ActionSpace](
+        cls,
+        env: MARLEnv[A, AS],
+        hidden_sizes: Optional[Sequence[int]] = None,
+        last_layer_noisy: bool = False,
+    ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
         if hidden_sizes is None:
             hidden_sizes = (64,)
-        return cls(
+        return MLP(
             env.observation_shape[0],
             env.extras_shape[0],
             tuple(hidden_sizes),
             output_shape,
+            last_layer_noisy,
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -163,6 +174,7 @@ class CNN(QNetwork):
         extras_size: int,
         output_shape: tuple[int, ...],
         mlp_sizes: tuple[int, ...] = (64, 64),
+        mlp_noisy: bool = False,
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
@@ -171,7 +183,7 @@ class CNN(QNetwork):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
+        self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape, last_layer_noisy=mlp_noisy)
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
@@ -216,6 +228,7 @@ class IndependentCNN(QNetwork):
         strides: tuple[int, ...] = (1, 1, 1),
         filters: tuple[int, ...] = (32, 64, 64),
         duelling: bool = True,
+        mlp_noisy: bool = False,
     ):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
@@ -232,7 +245,10 @@ class IndependentCNN(QNetwork):
             for i in range(len(mlp_sizes) - 1):
                 layers.append(torch.nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))
                 layers.append(torch.nn.ReLU())
-            layers.append(torch.nn.Linear(mlp_sizes[-1], n_outputs))
+            if mlp_noisy:
+                layers.append(NoisyLinear(mlp_sizes[-1], n_outputs))
+            else:
+                layers.append(torch.nn.Linear(mlp_sizes[-1], n_outputs))
             linears.append(torch.nn.Sequential(*layers))
         self.linears = torch.nn.ModuleList(linears)
 
@@ -243,7 +259,9 @@ class IndependentCNN(QNetwork):
         return self
 
     @classmethod
-    def from_env(cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True):
+    def from_env(
+        cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True, mlp_noisy: bool = False
+    ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
@@ -255,6 +273,7 @@ class IndependentCNN(QNetwork):
             output_shape,
             mlp_sizes,
             duelling=duelling,
+            mlp_noisy=mlp_noisy,
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -353,8 +372,6 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         self.latent_dim = args.latent_dim
         self.n_actions = output_size
 
-        self.test_mode = False
-
         if self.args.com:
             NN_HIDDEN_SIZE = args.nn_hidden_size
             activation_func = nn.LeakyReLU()
@@ -384,6 +401,10 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         self.fc1 = nn.Linear(n_inputs, args.rnn_hidden_dim)
         self.rnn = nn.GRU(args.rnn_hidden_dim, args.rnn_hidden_dim, batch_first=False)
         self.fc2 = nn.Linear(args.rnn_hidden_dim, self.n_actions)
+
+    @property
+    def test_mode(self):
+        return not self.training
 
     def _compute_messages(self, x, bs):
         latent_parameters = self.embed_net(x)

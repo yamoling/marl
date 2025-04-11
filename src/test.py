@@ -34,7 +34,7 @@ def main_dqn():
     env = LLE.level(6).builder().time_limit(78).build()
     # env = marlenv.make("CartPole-v1")
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
-    qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env)
+    qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env, mlp_noisy=True)
     # start_index = env.extras_meanings.index("Agent ID-0")
     # ir = ToMIR(qnetwork, n_agents=env.n_agents, is_individual=True)
     ir = RandomNetworkDistillation.from_env(env)
@@ -48,7 +48,7 @@ def main_dqn():
     )
 
     exp = Experiment.create(env, 2_000_000, trainer=trainer, test_interval=1000)
-    exp.run(render_tests=True, n_tests=0)
+    exp.run(render_tests=True, n_tests=1)
 
 
 if __name__ == "__main__":
