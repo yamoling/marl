@@ -30,6 +30,7 @@ class Episode(Generic[A]):
     all_states: list[npt.NDArray[np.float32]]
     all_states_extras: list[npt.NDArray[np.float32]]
     metrics: dict[str, float]
+    qvalues_met: dict[str, float]
     episode_len: int
     other: dict[str, list[Any]]
     is_done: bool = False
@@ -50,6 +51,7 @@ class Episode(Generic[A]):
             qvalues=[],
             rewards=[],
             metrics=metrics,
+            qvalues_met={},
             episode_len=0,
             is_done=False,
             is_truncated=False,
@@ -90,6 +92,7 @@ class Episode(Generic[A]):
             qvalues=qvalues,
             rewards=rewards,
             metrics=self.metrics,
+            qvalues_met=self.qvalues_met,
             episode_len=self.episode_len,
             is_done=self.is_done,
             is_truncated=self.is_truncated,
@@ -381,8 +384,8 @@ class Episode(Generic[A]):
                 for ag_n, ag in enumerate(avg_qvalues):
                     if reward.size > 1:
                         for qv_n, qv in enumerate(ag.squeeze()):
-                            self.metrics[f"agent{ag_n}-qvalue{qv_n}"] = float(qv)
-                    else: self.metrics[f"agent{ag_n}-qvalue"] = float(ag)
+                            self.qvalues_met[f"agent{ag_n}-qvalue{qv_n}"] = float(qv)
+                    else: self.qvalues_met[f"agent{ag_n}-qvalue"] = float(ag)
 
     # def add_data(
     #     self,

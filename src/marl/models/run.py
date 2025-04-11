@@ -21,11 +21,13 @@ from marl import logging
 from .replay_episode import LightEpisodeSummary
 
 
+QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
 TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"
 ENV_PICKLE = "env.pkl"
 ACTIONS = "actions.json"
+OBSERVATIONS = "observations.json"
 PID = "pid"
 
 # Dataframe columns
@@ -119,6 +121,18 @@ class Run:
             return df
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
+        
+    def qvalues_metrics(self, delta_x: int):
+        try:
+            df = pl.read_csv(self.qvalues_filename)
+            # Make sure we are working with numerical values
+            df = stats.ensure_numerical(df, drop_non_numeric=True)
+            if delta_x != 0:
+                df = stats.round_col(df, TIME_STEP_COL, delta_x)
+                df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
+            return df
+        except (pl.exceptions.NoDataError, FileNotFoundError):
+            return pl.DataFrame()
 
     @property
     def is_running(self) -> bool:
@@ -140,6 +154,10 @@ class Run:
                 raise RunProcessNotFound(self.rundir, pid)
         raise NotRunningExcception(self.rundir)
 
+    @property
+    def qvalues_filename(self):
+        return os.path.join(self.rundir, QVALUES) 
+    
     @property
     def test_filename(self):
         return os.path.join(self.rundir, TEST)
@@ -215,6 +233,7 @@ class Run:
         with open(self.pid_filename, "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(
+            qvalues_logger=logging.CSVLogger(self.qvalues_filename),
             train_logger=logging.CSVLogger(self.train_filename),
             test_logger=logging.CSVLogger(self.test_filename),
             training_data_logger=logging.CSVLogger(self.training_data_filename),
@@ -231,11 +250,13 @@ class Run:
 class RunHandle:
     def __init__(
         self,
+        qvalues_logger: logging.CSVLogger,
         train_logger: logging.CSVLogger,
         test_logger: logging.CSVLogger,
         training_data_logger: logging.CSVLogger,
         run: Run,
     ):
+        self.qvalues_logger = qvalues_logger
         self.train_logger = train_logger
         self.test_logger = test_logger
         self.training_data_logger = training_data_logger
@@ -252,11 +273,15 @@ class RunHandle:
             with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
                 bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
                 f.write(bytes_data)
+            with open(os.path.join(episode_directory, OBSERVATIONS), "wb") as f:
+                bytes_data = orjson.dumps(episode.all_observations, option=orjson.OPT_SERIALIZE_NUMPY)
+                f.write(bytes_data)
 
     def save_agent(self, agent: Agent, time_step: int):
         agent.save(self.run.get_saved_algo_dir(time_step))
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
+        self.qvalues_logger.log(episode.qvalues_met, time_step)
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
         # train_dir = self.run.train_dir(time_step - len(episode))
