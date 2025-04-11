@@ -158,7 +158,6 @@ class Runner[A, AS: ActionSpace](Run):
         self._agent.save(self.get_saved_algo_dir(time_step))
         episodes = self.tests(time_step, render)
         self.logger.log_tests(episodes, time_step)
-        self._agent.set_training()
 
     def perform_one_test(self, time_step: int, test_num: int, render: bool = False):
         """
@@ -207,6 +206,7 @@ class Runner[A, AS: ActionSpace](Run):
                 except TypeError:
                     pass
             pprint(avg_metrics)
+        self._agent.set_training()
         return episodes
 
     def to(self, device: Literal["auto", "cpu"] | int | torch.device):

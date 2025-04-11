@@ -65,7 +65,6 @@ class NoisyLinear(torch.nn.Module):
             self.reset_noise()
             weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)  # type: ignore
             bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)  # type: ignore
-
         else:
             weight = self.weight_mu
             bias = self.bias_mu
