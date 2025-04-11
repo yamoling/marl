@@ -22,7 +22,6 @@ class DQN(Agent):
     train_policy: Policy
     test_policy: Policy
     last_qvalues = None
-    last_replaced_qvalues = None
 
     def __init__(
         self,
@@ -42,24 +41,27 @@ class DQN(Agent):
         self.mixer = mixer
         if log_qvalues: 
             self.last_qvalues = np.ndarray(0)
-            self.last_replaced_qvalues = np.ndarray(0)
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        if self.last_qvalues is not None: 
-            self.last_qvalues = qvalues
-            if self.policy.name == "EpsilonGreedy":        
-                self.last_replaced_qvalues = qvalues.copy()
-                action = self.policy.get_action(self.last_qvalues, obs.available_actions, self.last_replaced_qvalues)
-                self.last_replaced_qvalues = self.last_replaced_qvalues[:,0]
+        if self.last_qvalues is not None:
+            self.last_qvalues = qvalues.copy()
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        action = self.policy.get_action(qvalues, obs.available_actions)
+
+        if self.last_qvalues is not None:
+            if self.policy.name == "EpsilonGreedy":
+                sel_action = self.test_policy.get_action(qvalues, obs.available_actions)
             else: 
-                self.last_replaced_qvalues = None
-                action = self.policy.get_action(self.last_qvalues, obs.available_actions)
-            self.last_qvalues = self.last_qvalues[:,0]
-            return action
-        else: return self.policy.get_action(qvalues, obs.available_actions)
+                sel_action = action.copy()
+            if self.qnetwork.is_multi_objective: sel_action = sel_action[:,None,None]
+            else: sel_action = sel_action[:,None]
+            self.last_qvalues = np.take_along_axis(self.last_qvalues,sel_action,self.qnetwork.action_dim)
+
+        return action
 
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()

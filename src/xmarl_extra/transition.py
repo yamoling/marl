@@ -27,7 +27,6 @@ class Transition(Generic[A]):
     next_state: State
     truncated: bool
     qvalues: npt.NDArray[np.float32]
-    replaced_qvalues: npt.NDArray[np.float32]
     other: dict[str, Any]
 
     def __init__(
@@ -42,7 +41,6 @@ class Transition(Generic[A]):
         next_state: State,
         truncated: bool,
         qvalues: Optional[npt.NDArray[np.float32]] = None,
-        replaced_qvalues: Optional[npt.NDArray[np.float32]] = None,
         **kwargs,
     ):
         self.obs = obs
@@ -64,7 +62,6 @@ class Transition(Generic[A]):
         self.state = state
         self.next_state = next_state
         self.qvalues = qvalues
-        self.replaced_qvalues = replaced_qvalues
         self.other = kwargs
 
     @staticmethod
@@ -74,7 +71,6 @@ class Transition(Generic[A]):
         actions: A,
         step: Step,
         qvalues: Optional[npt.NDArray[np.float32]] = None,
-        replaced_qvalues: Optional[npt.NDArray[np.float32]] = None,
         **kwargs,
     ):
         if qvalues is None:
@@ -102,7 +98,6 @@ class Transition(Generic[A]):
                 next_state=step.state,
                 truncated=step.truncated,
                 qvalues=qvalues,
-                replaced_qvalues=replaced_qvalues,
                 **kwargs,
             )
 

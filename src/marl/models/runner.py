@@ -68,7 +68,7 @@ class Runner[A, AS: ActionSpace]:
                     kwargs = {}
             if step_num == max_step:
                 step.truncated = True
-            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, self._agent.last_replaced_qvalues, **kwargs)
+            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, **kwargs)
             else: transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
@@ -161,7 +161,7 @@ class Runner[A, AS: ActionSpace]:
                     step = self._test_env.step(action)
                 case (action):
                     step = self._test_env.step(action)
-            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, self._agent.last_replaced_qvalues)
+            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues)
             else: transition = Transition.from_step(obs, state, action, step)
             episode.add(transition)
             obs = step.obs

@@ -25,7 +25,6 @@ class Episode(Generic[A]):
     all_extras: list[npt.NDArray[np.float32]]
     actions: list[npt.NDArray]
     qvalues: list[npt.NDArray]
-    replaced_qvalues: list[npt.NDArray]
     rewards: list[npt.NDArray[np.float32]]
     all_available_actions: list[npt.NDArray[np.bool_]]
     all_states: list[npt.NDArray[np.float32]]
@@ -49,7 +48,6 @@ class Episode(Generic[A]):
             all_available_actions=[obs.available_actions],
             actions=[],
             qvalues=[],
-            replaced_qvalues=[],
             rewards=[],
             metrics=metrics,
             episode_len=0,
@@ -77,7 +75,6 @@ class Episode(Generic[A]):
         extras = self.all_extras + [self.all_extras[0]] * padding_size
         actions = self.actions + [self.actions[0]] * padding_size
         qvalues = self.qvalues + [self.qvalues[0]] * padding_size
-        replaced_qvalues = self.replaced_qvalues + [self.replaced_qvalues[0]] * padding_size
         rewards = self.rewards + [self.rewards[0]] * padding_size
         availables = self.all_available_actions + [self.all_available_actions[0]] * padding_size
         states = self.all_states + [self.all_states[0]] * padding_size
@@ -91,7 +88,6 @@ class Episode(Generic[A]):
             all_available_actions=availables,
             actions=actions,
             qvalues=qvalues,
-            replaced_qvalues=replaced_qvalues,
             rewards=rewards,
             metrics=self.metrics,
             episode_len=self.episode_len,
@@ -310,20 +306,18 @@ class Episode(Generic[A]):
                     transition.next_state,
                     transition.action,
                     transition.qvalues,
-                    transition.replaced_qvalues,
                     transition.reward,
                     transition.other,
                     transition.done,
                     transition.truncated,
                     transition.info,
                 )
-            case (Step() as step, action, qvalues, replaced_qvalues):
+            case (Step() as step, action, qvalues):
                 self.add_data(
                     step.obs,
                     step.state,
                     action,
                     qvalues,
-                    replaced_qvalues,
                     step.reward,
                     {},
                     step.done,
@@ -339,7 +333,6 @@ class Episode(Generic[A]):
         next_state,
         action: A,
         qvalues: np.ndarray,
-        replaced_qvalues: np.ndarray,
         reward: np.ndarray,
         others: dict[str, Any],
         done: bool,
@@ -360,7 +353,6 @@ class Episode(Generic[A]):
             case other:
                 self.actions.append(np.array(other))
         if qvalues is not None: self.qvalues.append(qvalues)
-        if replaced_qvalues is not None: self.replaced_qvalues.append(replaced_qvalues)
         self.rewards.append(reward)
         for key, value in others.items():
             current = self.other.get(key, [])
@@ -386,16 +378,11 @@ class Episode(Generic[A]):
             if qvalues is not None:
                 qvalues = np.array(self.qvalues)
                 avg_qvalues = np.average(qvalues, axis=0)
-                if len(self.replaced_qvalues) != 0:
-                    r_qvalues = np.array(self.replaced_qvalues)
-                    avg_r_qvalues = np.average(r_qvalues, axis=0)
-                    for ag_n, qv in enumerate(avg_qvalues):
-                        # Another loop for MO?
-                        self.metrics[f"qvalue-{ag_n}"] = float(qv)
-                        self.metrics[f"qvalue-{ag_n}"] = float(avg_r_qvalues[ag_n])
-                else: 
-                    for ag_n, qv in enumerate(avg_qvalues):
-                        self.metrics[f"qvalue-{ag_n}"] = float(qv)
+                for ag_n, ag in enumerate(avg_qvalues):
+                    if reward.size > 1:
+                        for qv_n, qv in enumerate(ag.squeeze()):
+                            self.metrics[f"agent{ag_n}-qvalue{qv_n}"] = float(qv)
+                    else: self.metrics[f"agent{ag_n}-qvalue"] = float(ag)
 
     # def add_data(
     #     self,
