@@ -7,6 +7,7 @@ from dataclasses import dataclass
 class NoReward(RLEnvWrapper[Any, Any]):
     def __init__(self, env: MARLEnv[Any, Any]):
         super().__init__(env)
+        self.name = f"{env.name}-NoReward"
 
     def step(self, actions):
         step = super().step(actions)
