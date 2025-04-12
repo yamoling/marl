@@ -2,7 +2,7 @@ from marl.training import PPO, DQN
 from marl.nn import model_bank
 from marl import Experiment
 from lle import LLE
-from marl.training.intrinsic_reward import ToMIR, RandomNetworkDistillation
+from marl.training import intrinsic_reward
 from marl.policy import EpsilonGreedy
 from marl.models import TransitionMemory
 import marl
@@ -39,6 +39,7 @@ def main_dqn():
     ir = None
     # ir = ToMIR(qnetwork, n_agents=env.n_agents, is_individual=True)
     # ir = RandomNetworkDistillation.from_env(env)
+    ir = intrinsic_reward.ICM.from_env(env)
     trainer = DQN(
         qnetwork,
         mixer=marl.nn.mixers.VDN.from_env(env),

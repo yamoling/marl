@@ -177,7 +177,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 def make_dqn(
     env: MARLEnv[Any, DiscreteActionSpace],
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
-    ir_method: Optional[Literal["rnd", "tomir"]] = None,
+    ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
     gamma=0.95,
     noisy: bool = False,
 ):
@@ -198,6 +198,8 @@ def make_dqn(
             ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
         case "tomir":
             ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
+        case "icm":
+            ir = marl.training.intrinsic_reward.ICM.from_env(env)
         case None:
             ir = None
     if noisy:
@@ -284,7 +286,7 @@ def make_lle():
         LLE.level(6)
         # LLE.from_file("maps/lvl6-start-above.toml")
         .obs_type("layered")
-        .state_type("state")
+        .state_type("layered")
         # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
         .builder()
         # .agent_id()
@@ -312,15 +314,10 @@ def make_overcooked(shape_tests: bool):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        from marl.env.reward_mask import NoReward
-        from copy import deepcopy
-
         env, test_env = make_lle()
-        test_env = deepcopy(env)
-        env = NoReward(env)
 
         # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env, mixing="vdn", ir_method="rnd", noisy=False)
+        trainer = make_dqn(env, mixing="vdn", ir_method="icm", noisy=False)
         # trainer = make_ppo(env)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")

@@ -1,187 +1,135 @@
-"""
-Intrinsic Curiosity Module (ICM).
-"""
-
-import torch.nn.functional as F
-import torch.nn as nn
+from dataclasses import dataclass
 import torch
-import torch.optim as optim
-
-from marl.models import IRModule, Batch
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class Swish(nn.Module):
-    def forward(self, x):
-        return x * F.sigmoid(x)
+from marlenv.utils import Schedule
+from marlenv import MARLEnv
+from marl.models import IRModule, Batch, NN
+from marl.nn import model_bank
 
 
-def swish(x):
-    return x * F.sigmoid(x)
+@dataclass
+class ICM(IRModule, NN):
+    """
+    Intrinsic Curiosity Module (ICM) for multi-agent reinforcement learning and discrete action spaces.
 
+    Paper: https://arxiv.org/pdf/1705.05363
+    """
 
-class Flatten(nn.Module):
-    def forward(self, input):
-        return input.view(input.size(0), -1)
+    weight: Schedule
+    n_agents: int
+    n_actions: int
+    n_features: int
 
+    def __init__(self, feature_encoder: NN, n_agents: int, n_actions: int, weight: float | Schedule = 0.01, n_features: int = 256):
+        IRModule.__init__(self)
+        NN.__init__(self, feature_encoder.input_shape, feature_encoder.extras_shape, (n_features,))
 
-class ICMModel(nn.Module):
-    """ICM model for non-vision based tasks"""
+        features_shape = feature_encoder.output_shape
+        assert len(features_shape) == 1, "Feature encoder must output a single feature vector"
+        self.n_features = features_shape[0]
+        self.n_agents = n_agents
+        self.n_actions = n_actions
+        if isinstance(weight, (float, int)):
+            weight = Schedule.constant(weight)
+        self.weight = weight
 
-    def __init__(self, input_size: int, output_size: int):
-        super().__init__()
+        # Feature encoder s → φ(s)
+        self._feature = feature_encoder
 
-        self.input_size = input_size
-        self.output_size = output_size
-        self.resnet_time = 4
-
-        self.feature = nn.Sequential(
-            nn.Linear(self.input_size, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
+        # Inverse model: φ(s), φ(s') → a (one-hot encoded action for each agent)
+        self._inverse_model = torch.nn.Sequential(
+            torch.nn.Linear(self.n_features * 2, n_features),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(n_features, n_features),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(n_features, n_agents * n_actions),
         )
 
-        self.inverse_net = nn.Sequential(
-            nn.Linear(256 * 2, 256),
-            nn.BatchNorm1d(256),
-            Swish(),
-            nn.Linear(256, 256),
-            nn.BatchNorm1d(256),
-            Swish(),
-            nn.Linear(256, self.output_size),
+        # Forward model: φ(s), a → φ(s')
+        self._forward_model = torch.nn.Sequential(
+            torch.nn.Linear(self.n_actions * self.n_agents + self.n_features, n_features),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(n_features, n_features),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(n_features, self.n_features),
         )
 
-        self.residual = nn.ModuleList(
-            [
-                nn.Sequential(
-                    nn.Linear(self.output_size + 256, 256),
-                    Swish(),
-                    nn.Linear(256, 256),
-                )
-            ]
-            * 2
-            * self.resnet_time
-        )
+        self._optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        self._cross_entropy = torch.nn.CrossEntropyLoss()
+        self._mse_loss = torch.nn.MSELoss()
 
-        self.forward_net_1 = nn.Sequential(
-            nn.Linear(self.output_size + 256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-        )
-        self.forward_net_2 = nn.Sequential(
-            nn.Linear(self.output_size + 256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-            Swish(),
-            nn.Linear(256, 256),
-        )
-
-    def forward(self, state, next_state, action):
-        encode_state = self.feature(state)
-        encode_next_state = self.feature(next_state)
-        # get pred action
-        pred_action = torch.cat((encode_state, encode_next_state), 1)
-        pred_action = self.inverse_net(pred_action)
-        # ---------------------
-
-        # get pred next state
-        pred_next_state_feature_orig = torch.cat((encode_state, action), 1)
-        pred_next_state_feature_orig = self.forward_net_1(pred_next_state_feature_orig)
-
-        # residual
-        for i in range(self.resnet_time):
-            pred_next_state_feature = self.residual[i * 2](torch.cat((pred_next_state_feature_orig, action), 1))
-            pred_next_state_feature_orig = (
-                self.residual[i * 2 + 1](torch.cat((pred_next_state_feature, action), 1)) + pred_next_state_feature_orig
-            )
-
-        pred_next_state_feature = self.forward_net_2(torch.cat((pred_next_state_feature_orig, action), 1))
-
-        real_next_state_feature = encode_next_state
-        return real_next_state_feature, pred_next_state_feature, pred_action
-
-
-class ICM(IRModule):
-    """Intrinsic Curisity Module"""
-
-    def __init__(self, state_size, action_size, learning_rate=1e-4, eta=0.01):
-        self.model = ICMModel(state_size, action_size).to(device)
-        self.optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
-
-        self.input_size = state_size
-        self.output_size = action_size
-        self.ce = nn.CrossEntropyLoss()
-        self.mse = nn.MSELoss()
-        self.eta = eta
-
-    def compute(self, batch: Batch) -> torch.Tensor:
-        """
-        Compute intrinsic rewards for parallel transitions
-        :param: (ndarray) states eg. [[state], [state], ... , [state]]
-        :param: (ndarray) actions eg. [[action], [action], ... , [action]]
-        :param: (ndarray) next_states eg. [[state], [state], ... , [state]]
-        """
-        action_onehot = torch.zeros(batch.size, self.output_size, dtype=torch.float32).to(self.device)
-        action_onehot.scatter_(1, batch.actions.view(batch.size, -1), 1)
-
-        real_next_state_feature, pred_next_state_feature, pred_action = self.model(batch.obs, batch.next_obs, action_onehot)
-        intrinsic_reward = self.eta * (real_next_state_feature - pred_next_state_feature).pow(2).sum(1) / 2
-
+    def forward(self, batch: Batch) -> torch.Tensor:
+        with torch.no_grad():
+            features = self._feature.forward(batch.states, batch.states_extras)
+            next_features = self._feature.forward(batch.next_states, batch.next_states_extras)
+            one_hot_actions = batch.one_hot_actions.view(batch.size, -1)
+            forward_inputs = torch.cat((features, one_hot_actions), 1)
+            next_features_pred = self._forward_model(forward_inputs)
+            # Equation (6) in the paper: $r_i = \frac{\eta}{2} \times ||\hat{φ}(s') - φ(s')||^2_2$
+            intrinsic_reward = self.weight / 2 * torch.norm(next_features_pred - next_features, dim=1).pow(2)
         return intrinsic_reward
 
-    def compute_intrinsic_reward(self, state, next_state, action):
-        """
-        Compute intrinsic rewards for parallel transitions
-        :param: (ndarray) states eg. [[state], [state], ... , [state]]
-        :param: (ndarray) actions eg. [[action], [action], ... , [action]]
-        :param: (ndarray) next_states eg. [[state], [state], ... , [state]]
-        """
-        state = torch.FloatTensor(state).to(self.device)
-        next_state = torch.FloatTensor(next_state).to(self.device)
-        action = torch.LongTensor(action).to(self.device)
+    def compute(self, batch: Batch):
+        return self.forward(batch)
 
-        action_onehot = torch.FloatTensor(len(action), self.output_size).to(self.device)
-        action_onehot.zero_()
-        action_onehot.scatter_(1, action.view(len(action), -1), 1)
+    def update(self, batch: Batch, time_step: int) -> dict[str, float]:
+        self.weight.update(time_step)
 
-        real_next_state_feature, pred_next_state_feature, _pred_action = self.model(state, next_state, action_onehot)
-        intrinsic_reward = self.eta * (real_next_state_feature - pred_next_state_feature).pow(2).sum(1) / 2
+        # Feature computation
+        features = self._feature.forward(batch.states, batch.states_extras)
+        next_features = self._feature.forward(batch.next_states, batch.next_states_extras)
 
-        return intrinsic_reward
+        # Inverse model loss
+        inverse_inputs = torch.cat((features, next_features), 1)
+        predicted_actions = self._inverse_model.forward(inverse_inputs)
+        predicted_actions = torch.reshape(predicted_actions, (batch.size, self.n_agents, self.n_actions))
+        predicted_action_probs = torch.nn.functional.softmax(predicted_actions, dim=-1)
+        predicted_action_probs = predicted_action_probs.view(batch.size * self.n_agents, self.n_actions)
+        ground_truth = batch.actions.flatten()
+        inverse_loss = self._cross_entropy.forward(predicted_action_probs, ground_truth)
 
-    def train(self, states, next_states, actions):
-        """
-        Train the ICM model
-        :param: (float tensors) states eg. [[state], [state], ... , [state]]
-        :param: (long tensors) actions eg. [action, action, ... , action]
-        :param: (float tensors) next_states eg. [[state], [state], ... , [state]]
-        """
-        action_onehot = torch.FloatTensor(len(actions), self.output_size).to(self.device)
-        action_onehot.zero_()
-        action_onehot.scatter_(1, actions.view(-1, 1), 1)
-        real_next_state_feature, pred_next_state_feature, pred_action = self.model(states, next_states, action_onehot)
+        # Forward model loss
+        one_hot_actions = batch.one_hot_actions.view(batch.size, -1)
+        forward_inputs = torch.cat((features, one_hot_actions), 1)
+        next_features_pred = self._forward_model(forward_inputs)
+        forward_loss = self._mse_loss.forward(next_features_pred, next_features)
 
-        inverse_loss = self.ce(pred_action, actions)
-
-        forward_loss = self.mse(pred_next_state_feature, real_next_state_feature.detach())
-
-        """compute joint loss??? """
-        # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 0.5)
-
+        # Total loss
         loss = inverse_loss + forward_loss
-        self.optimizer.zero_grad()
+        self._optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
+        self._optimizer.step()
+
+        return {
+            "ir-weight": self.weight.value,
+            "icm-inverse-loss": inverse_loss.item(),
+            "icm-forward-loss": forward_loss.item(),
+            "ir-loss": loss.item(),
+        }
+
+    @staticmethod
+    def from_env(env: MARLEnv, n_features: int = 256):
+        if env.reward_space.size == 1:
+            output_shape = (n_features,)
+        else:
+            output_shape = (*env.reward_space.shape, n_features)
+        match (env.state_shape, env.state_extra_shape):
+            case ((size,), (n_extras,)):  # Linear
+                nn = model_bank.MLP(
+                    size,
+                    n_extras,
+                    (128, 256, 128),
+                    output_shape,
+                )
+            case ((_, _, _) as dimensions, (n_extras,)):  # CNN
+                nn = model_bank.CNN(
+                    dimensions,
+                    n_extras,
+                    output_shape,
+                )
+            case other:
+                raise ValueError(f"Unsupported (obs, extras) shape: {other}")
+        return ICM(nn, env.n_agents, env.n_actions, n_features=n_features)
+
+    def __hash__(self) -> int:
+        # Required for deserialization (in torch.nn.module)
+        return hash(self.name)
