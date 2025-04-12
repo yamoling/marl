@@ -147,6 +147,9 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
         return []
     df = pl.concat(dfs)
     df = df.drop("timestamp_sec")
+    score_cols = [col for col in df.columns if col.startswith("score")]
+    if len(score_cols) != 0:
+        df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
     df_stats = stats_by("time_step", df, replace_inf)
     res = list[Dataset]()
     ticks = df_stats["time_step"].to_list()
