@@ -91,12 +91,15 @@ class Run:
 
     @property
     def test_metrics(self):
+        """Returns dataframe of test metrics if available, else returns empty dataframe."""
         try:
             return pl.read_csv(self.test_filename, ignore_errors=True)
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
     def train_metrics(self, delta_x: int):
+        """Returns dataframe of training metrics if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
         try:
             # With SMAC, there are sometimes episodes that are not finished and that produce
             # None values for some metrics. We ignore these episodes.
@@ -111,6 +114,8 @@ class Run:
             return pl.DataFrame()
 
     def training_data(self, delta_x: int):
+        """Returns dataframe of training data if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
         try:
             df = pl.read_csv(self.training_data_filename)
             # Make sure we are working with numerical values
@@ -122,7 +127,9 @@ class Run:
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
         
-    def qvalues_metrics(self, delta_x: int):
+    def qvalues_data(self, delta_x: int):
+        """Returns dataframe of qvalues metrics if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
         try:
             df = pl.read_csv(self.qvalues_filename)
             # Make sure we are working with numerical values

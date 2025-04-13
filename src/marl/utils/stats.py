@@ -23,6 +23,7 @@ class Dataset:
 class ExperimentResults:
     logdir: str
     datasets: list[Dataset]
+    qvalue_ds: list[Dataset]
 
 
 @dataclass
@@ -172,6 +173,11 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
             )
         )
     return res
+
+def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suffix: Optional[str] = None) -> list[Dataset]:
+    """
+    Aggregates qvalues"""
+    pass
 
 
 def agregate_metrics(

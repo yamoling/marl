@@ -113,6 +113,8 @@
                 <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
                     :showLegend="false" />
+                <QvaluesPanel :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
+                <Qvalues v-if="qvaluesSelected"/>
             </template>
 
         </div>
@@ -123,8 +125,10 @@
 import { ref, computed } from 'vue';
 import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
+import Qvalues from '../charts/Qvalues.vue';
 import { downloadStringAsFile } from "../../utils";
 import SettingsPanel from './SettingsPanel.vue';
+import QvaluesPanel from './QvaluesPanel.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useRunStore } from '../../stores/RunStore';
@@ -147,10 +151,19 @@ const contextMenu = ref({} as typeof ContextMenu);
 const runHover = ref({} as typeof RunHover)
 
 const selectedMetrics = ref(["score [train]"]);
+const selectedQvalues = ref(["agent0-qvalue0"]);
 
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
+    res.add("qvalues")
+    return res;
+});
+
+const qvalues = computed(() => {
+    const res = new Set<string>();
+    //resultsStore.results.forEach((r) => r.qvalue_ds.forEach(rds => res.add(rds.label)));
+    resultsStore.results.forEach((r) => r.qvalues_ds.forEach(q_ds => res.add(q_ds.label)));
     return res;
 });
 
@@ -166,6 +179,24 @@ const experimentProgresses = computed(() => {
     return res;
 });
 
+const qvaluesSelected = computed(() => {
+    return selectedQvalues.value.includes("qvalues")
+})
+
+const qvaluesDataSet = computed(() => {
+    // Later use in the Qvalues component
+    const res = new Map<string, Dataset[]>();
+    resultsStore.results.forEach((r, _k) => {
+        r.qvalues_ds.forEach(q_ds => {
+            if (!selectedQvalues.value.includes(q_ds.label)) return
+            if (!res.has(q_ds.label)) {
+                res.set(q_ds.label, []);
+            }
+            res.get(q_ds.label)?.push(q_ds);
+        })
+    });
+    return res
+});
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
@@ -193,8 +224,12 @@ function downloadDatasets(logdir: string) {
         alert("No such logdir to download");
         return;
     }
-    const csv = toCSV(results.datasets, results.datasets[0].ticks);
-    downloadStringAsFile(csv, `${logdir}.csv`);
+    const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
+    downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
+    if (!(results.qvalues_ds.length == 0)){
+        const csv_q = toCSV(results.qvalues_ds, results.qvalues_ds[0].ticks);
+        downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
+    }
 }
 
 
