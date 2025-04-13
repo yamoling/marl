@@ -11,8 +11,8 @@ def get_experiment_results(logdir: str):
     except (ModuleNotFoundError, FileNotFoundError) as e:
         return Response(str(e), status=404)
     try:
-        results, qvalues = exp.get_experiment_results(replace_inf=True)
-        response_data = {"results":results, "qvalues":qvalues}
+        metrics, qvalues = exp.get_experiment_results(replace_inf=True)
+        response_data = {"metrics":metrics, "qvalues":qvalues}
         return Response(orjson.dumps(response_data), mimetype="application/json")
     except Exception as e:
         return Response(str(e), status=500)

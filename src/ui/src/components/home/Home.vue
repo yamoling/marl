@@ -156,7 +156,7 @@ const selectedQvalues = ref(["agent0-qvalue0"]);
 const metrics = computed(() => {
     const res = new Set<string>();
     resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
-    res.add("qvalues")
+    res.add("qvalues");
     return res;
 });
 
