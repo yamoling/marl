@@ -72,7 +72,8 @@ class TransitionBatch(Batch):
 
     @cached_property
     def dones(self):
-        dones = np.array([t.done * self.reward_size for t in self.transitions], dtype=np.float32)
+        #dones = np.array([t.done * self.reward_size for t in self.transitions], dtype=np.float32)
+        dones = np.array([t.done for t in self.transitions], dtype=np.float32)
         dones = torch.from_numpy(dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)

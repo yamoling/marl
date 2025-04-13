@@ -69,8 +69,8 @@ class DQNTrainer[B: Batch](Trainer):
             target_updater = SoftUpdate(1e-2)
         self.target_updater = target_updater
         self.double_qlearning = double_qlearning
-        self.mixer = mixer
-        self.target_mixer = deepcopy(mixer)
+        self.mixer = mixer if mixer.n_agents > 1 else None
+        self.target_mixer = deepcopy(self.mixer)
         self.ir_module = ir_module
         if test_policy is None:
             test_policy = train_policy
