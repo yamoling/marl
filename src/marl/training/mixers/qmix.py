@@ -52,9 +52,9 @@ class QMix(Mixer):
         # V(s) instead of a bias for the last layers
         self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *_args, **_kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, device: torch.device, *_args, **_kwargs) -> torch.Tensor:
         batch_size = qvalues.size(0)
-        q_totals = torch.zeros(batch_size,self.n_objectives)
+        q_totals = torch.zeros(batch_size,self.n_objectives,device=device)
 
         for i in range(self.n_objectives):
 
