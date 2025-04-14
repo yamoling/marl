@@ -113,8 +113,8 @@
                 <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
                     :showLegend="false" />
-                <QvaluesPanel :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-if="qvaluesSelected"/>
+                <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
+                <Qvalues v-if="qvaluesSelected" :datasets="qvaluesDatasets" :title="'Qvalues'" :showLegend="true"/>
             </template>
 
         </div>
@@ -183,19 +183,17 @@ const qvaluesSelected = computed(() => {
     return selectedQvalues.value.includes("qvalues")
 })
 
-const qvaluesDataSet = computed(() => {
+const qvaluesDatasets = computed(() => {
     // Later use in the Qvalues component
-    const res = new Map<string, Dataset[]>();
+    const res = new Set<Dataset>();
     resultsStore.results.forEach((r, _k) => {
         r.qvalues_ds.forEach(q_ds => {
             if (!selectedQvalues.value.includes(q_ds.label)) return
-            if (!res.has(q_ds.label)) {
-                res.set(q_ds.label, []);
-            }
-            res.get(q_ds.label)?.push(q_ds);
+            q_ds.label = r.logdir+"-"+q_ds.label;
+            res.add(q_ds);
         })
     });
-    return res
+    return Array.from(res.values());
 });
 
 const datasetPerLabel = computed(() => {
