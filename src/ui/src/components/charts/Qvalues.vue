@@ -38,7 +38,7 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import { clip } from "../../utils";
+import { clip, normalizeDatasetsByField } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
 
 const SCALES = ["Linear", "Normalized"] as const;
@@ -57,7 +57,7 @@ const showOptions = ref(false);
 
 const colourStore = useColourStore();
 const props = defineProps<{
-    datasets: readonly Dataset[]
+    datasets: Dataset[]
     title: string
     showLegend: boolean
 }>();
@@ -74,7 +74,11 @@ function updateChartData() {
     }
     const allTicks = [] as number[];
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach(ds => {
+
+    let plotDatasets = props.datasets;
+
+    if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsByField(plotDatasets);
+    plotDatasets.forEach(ds => {
         allTicks.push(...ds.ticks);
         const colour = colourStore.getQColour(ds.label);
         if (enablePlusMinus.value) {
@@ -147,7 +151,7 @@ function initialiseChart(): Chart {
             animation: false,
             onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
-                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
+                    // Since we use {interaction.mode = "nearest"}, we receive the point that we clicked on
                     // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
                     let datasetIndex = datasetElement[0].datasetIndex;
                     if (enablePlusMinus.value) {

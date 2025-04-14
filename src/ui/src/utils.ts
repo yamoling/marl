@@ -1,4 +1,4 @@
-import { ExperimentResults } from "./models/Experiment";
+import { ExperimentResults, Dataset } from "./models/Experiment";
 
 /**
  * Compute the shape of a multi-dimensional array.
@@ -122,6 +122,40 @@ export function clip(values: number[], min: number[], max: number[]) {
         result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
     }
     return result;
+}
+
+export function normalizeDatasetsByField(datasets: Dataset[]): Dataset[] {
+    if (datasets.length === 0) return [];
+
+    // Helper to normalize all values from a specific field
+    function getGlobalMinMax(field: keyof Dataset): [number, number] {
+        const allValues = datasets.flatMap(ds => ds[field] as number[]);
+        const min = Math.min(...allValues);
+        const max = Math.max(...allValues);
+        return [min, max];
+    }
+
+    function normalizeArray(arr: number[], min: number, max: number): number[] {
+        const range = max - min || 1;
+        return arr.map(v => (v - min) / range);
+    }
+
+    // Get global min/max per field
+    const [meanMin, meanMax] = getGlobalMinMax("mean");
+    const [stdMin, stdMax] = getGlobalMinMax("std");
+    const [minMin, minMax] = getGlobalMinMax("min");
+    const [maxMin, maxMax] = getGlobalMinMax("max");
+    const [ciMin, ciMax] = getGlobalMinMax("ci95");
+
+    // Normalize each dataset
+    return datasets.map(ds => ({
+        ...ds,
+        mean: normalizeArray(ds.mean, meanMin, meanMax),
+        std: normalizeArray(ds.std, stdMin, stdMax),
+        min: normalizeArray(ds.min, minMin, minMax),
+        max: normalizeArray(ds.max, maxMin, maxMax),
+        ci95: normalizeArray(ds.ci95, ciMin, ciMax),
+    }));
 }
 
 
