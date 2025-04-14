@@ -24,12 +24,12 @@ export interface Run {
 export class ExperimentResults {
     public logdir: string
     public datasets: Dataset[]
-    public qvalues_ds: Dataset[]
+    public qvaluesDs: Dataset[]
 
-    constructor(logdir: string, datasets: Dataset[], qvalues_ds: Dataset[]) {
+    constructor(logdir: string, datasets: Dataset[], qvaluesDs: Dataset[]) {
         this.logdir = logdir;
         this.datasets = datasets;
-        this.qvalues_ds = qvalues_ds;
+        this.qvaluesDs = qvaluesDs;
     }
 }
 

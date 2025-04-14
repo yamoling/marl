@@ -164,7 +164,7 @@ const metrics = computed(() => {
 const qvalues = computed(() => {
     const res = new Set<string>();
     //resultsStore.results.forEach((r) => r.qvalue_ds.forEach(rds => res.add(rds.label)));
-    resultsStore.results.forEach((r) => r.qvalues_ds.forEach(q_ds => res.add(q_ds.logdir.replace("logs/", "")+"-"+q_ds.label)));
+    resultsStore.results.forEach((r) => r.qvaluesDs.forEach(qDs => res.add(qDs.label)));
     return res;
 });
 
@@ -188,7 +188,7 @@ const qvaluesDatasets = computed(() => {
     // Later use in the Qvalues component
     const res = new Map<string, Dataset[]>();
     resultsStore.results.forEach((r, _k) => {
-        r.qvalues_ds.forEach(qDs => {
+        r.qvaluesDs.forEach(qDs => {
             if (!selectedQvalues.value.includes(qDs.label)) return
             if (!res.has(qDs.logdir)) {
                 res.set(qDs.logdir, []);
@@ -227,8 +227,8 @@ function downloadDatasets(logdir: string) {
     }
     const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
     downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
-    if (!(results.qvalues_ds.length == 0)){
-        const csv_q = toCSV(results.qvalues_ds, results.qvalues_ds[0].ticks);
+    if (!(results.qvaluesDs.length == 0)){
+        const csv_q = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
         downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
     }
 }
