@@ -124,39 +124,36 @@ export function clip(values: number[], min: number[], max: number[]) {
     return result;
 }
 
-export function normalizeDatasetsByField(datasets: Dataset[]): Dataset[] {
-    if (datasets.length === 0) return [];
+export function normalizeDatasetsRowWise(datasets: Dataset[]): Dataset[] {
+    return datasets.map(ds => {
+        const length = ds.mean.length;
 
-    // Helper to normalize all values from a specific field
-    function getGlobalMinMax(field: keyof Dataset): [number, number] {
-        const allValues = datasets.flatMap(ds => ds[field] as number[]);
-        const min = Math.min(...allValues);
-        const max = Math.max(...allValues);
-        return [min, max];
-    }
+        // Normalize each row across the 5 fields
+        const normalized = Array.from({ length }, (_, i) => {
+            const row = [ds.mean[i], ds.std[i], ds.min[i], ds.max[i], ds.ci95[i]];
+            const rowMin = Math.min(...row);
+            const rowMax = Math.max(...row);
+            const range = rowMax - rowMin || 1;
 
-    function normalizeArray(arr: number[], min: number, max: number): number[] {
-        const range = max - min || 1;
-        return arr.map(v => (v - min) / range);
-    }
+            return row.map(v => (v - rowMin) / range);
+        });
 
-    // Get global min/max per field
-    const [meanMin, meanMax] = getGlobalMinMax("mean");
-    const [stdMin, stdMax] = getGlobalMinMax("std");
-    const [minMin, minMax] = getGlobalMinMax("min");
-    const [maxMin, maxMax] = getGlobalMinMax("max");
-    const [ciMin, ciMax] = getGlobalMinMax("ci95");
+        // Transpose the normalized matrix back to separate arrays
+        const [mean, std, min, max, ci95] = [0, 1, 2, 3, 4].map(j =>
+            normalized.map(row => row[j])
+        );
 
-    // Normalize each dataset
-    return datasets.map(ds => ({
-        ...ds,
-        mean: normalizeArray(ds.mean, meanMin, meanMax),
-        std: normalizeArray(ds.std, stdMin, stdMax),
-        min: normalizeArray(ds.min, minMin, minMax),
-        max: normalizeArray(ds.max, maxMin, maxMax),
-        ci95: normalizeArray(ds.ci95, ciMin, ciMax),
-    }));
+        return {
+            ...ds,
+            mean,
+            std,
+            min,
+            max,
+            ci95,
+        };
+    });
 }
+
 
 
 
