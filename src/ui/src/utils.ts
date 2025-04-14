@@ -73,6 +73,17 @@ export function stringToRGB(s: string) {
 }
 
 
+export function qvalueLabelToHSL(label: string): string {
+    const match = label.match(/^agent(\d+)-qvalue(\d+)$/);
+    if (!match) throw new Error("Invalid label format");
+    const [agent, qvalue] = [parseInt(match[1]), parseInt(match[2])];
+    const hue = (qvalue * 60) % 360;
+    const saturation = Math.min(100, 50 + agent * 10);
+    const lightness = 50;
+
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
 export function downloadStringAsFile(textToSave: string, fileName: string) {
     const hiddenElement = document.createElement('a');
     hiddenElement.href = 'data:attachment/text,' + encodeURI(textToSave);

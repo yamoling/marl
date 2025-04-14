@@ -76,7 +76,7 @@ function updateChartData() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        const colour = colourStore.get(ds.label);
+        const colour = colourStore.getQColour(ds.label);
         if (enablePlusMinus.value) {
             let lower;
             lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
