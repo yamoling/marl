@@ -19,12 +19,6 @@
                 </button>
             </div>
             <div v-show="showOptions">
-                <b class="me-1">Y-scale:</b>
-                <label v-for="scale in SCALES" class="me-2">
-                    {{ scale }}
-                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
-                </label>
-                <br>
                 <label>
                     <input type="checkbox" v-model="enablePlusMinus">
                     <b class="me-1">Show std. deviation</b>
@@ -38,10 +32,8 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import { clip } from "../../utils";
+import { clip, updateHSL, alphaToHSL } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
-
-const SCALES = ["Linear", "Normalized"] as const;
 
 let chart: Chart;
 const emits = defineEmits<{
@@ -50,7 +42,7 @@ const emits = defineEmits<{
 const canvas = ref({} as HTMLCanvasElement);
 
 
-const yScaleType = ref("Linear" as typeof SCALES[number]);
+const fixedYAxis = ref(true);
 const enablePlusMinus = ref(false);
 const showOptions = ref(false);
 
@@ -84,7 +76,7 @@ function updateChartData() {
         if (enablePlusMinus.value) {
             let lower;
             lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
-            const lowerColour = rgbToAlpha(colour, 0.3);
+            const lowerColour = alphaToHSL(colour, 50);
             datasets.push({
                 data: tickedDataset(ds.ticks, lower),
                 backgroundColor: lowerColour,
@@ -102,7 +94,7 @@ function updateChartData() {
         if (enablePlusMinus.value) {
             let upper;
             upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
-            const upperColour = rgbToAlpha(colour, 0.3);
+            const upperColour = alphaToHSL(colour, 50);
             datasets.push({
                 data: tickedDataset(ds.ticks, upper),
                 backgroundColor: upperColour,
@@ -118,7 +110,6 @@ function updateChartData() {
 
 watch(props, updateChartData);
 watch(enablePlusMinus, updateChartData);
-//watch(yScaleType, updateChartData);
 // Instead of scales values to change, get updated dataset from QvaluesStore
 //watch(yScaleType, () => {
 //    if (yScaleType.value == "Linear") {
@@ -198,22 +189,15 @@ function initialiseChart(): Chart {
                 }
             },
             scales: {
-                y: {
-                    display: true,
-                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
-                }
-            },
+                y: fixedYAxis.value
+                    ? { min: -1, max: 1}
+                    : {}
+            }
         },
         // plugins: [htmlLegendPlugin]
     });
 }
 
-function rgbToAlpha(rgb: string, alpha: number) {
-    let R = parseInt(rgb.substring(1, 3), 16);
-    let G = parseInt(rgb.substring(3, 5), 16);
-    let B = parseInt(rgb.substring(5, 7), 16);
-    return `rgba(${R}, ${G}, ${B}, ${alpha})`
-}
 </script>
 
 <style>
