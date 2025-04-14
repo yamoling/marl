@@ -78,7 +78,7 @@ export function qvalueLabelToHSL(label: string): string {
     if (!match) throw new Error("Invalid label format");
     const [agent, qvalue] = [parseInt(match[1]), parseInt(match[2])];
     const hue = (qvalue * 60) % 360;
-    const saturation = Math.min(100, 50 + agent * 10);
+    const saturation = Math.min(100, 15 + agent * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
     const lightness = 50;
 
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
