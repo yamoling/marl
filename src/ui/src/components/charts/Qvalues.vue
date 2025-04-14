@@ -27,7 +27,7 @@
                 <br>
                 <label>
                     <input type="checkbox" v-model="enablePlusMinus">
-                    <b class="me-1">Show</b>
+                    <b class="me-1">Show std. deviation</b>
                 </label>
             </div>
         </div>
@@ -51,7 +51,7 @@ const canvas = ref({} as HTMLCanvasElement);
 
 
 const yScaleType = ref("Linear" as typeof SCALES[number]);
-const enablePlusMinus = ref(true);
+const enablePlusMinus = ref(false);
 const showOptions = ref(false);
 
 
@@ -89,7 +89,7 @@ function updateChartData() {
         }
 
         datasets.push({
-            label: ds.logdir.replace("logs/", ""),
+            label: ds.label,
             data: tickedDataset(ds.ticks, ds.mean),
             borderColor: colour,
             backgroundColor: colour,
@@ -102,7 +102,7 @@ function updateChartData() {
             datasets.push({
                 data: tickedDataset(ds.ticks, upper),
                 backgroundColor: upperColour,
-                fill: "-1"
+                fill: "-1",
             });
         }
     });
@@ -113,6 +113,7 @@ function updateChartData() {
 }
 
 watch(props, updateChartData);
+watch(enablePlusMinus, updateChartData);
 // Instead of scales values to change, get updated dataset from QvaluesStore
 //watch(yScaleType, () => {
 //    if (yScaleType.value == "Linear") {
@@ -158,6 +159,13 @@ function initialiseChart(): Chart {
             plugins: {
                 legend: {
                     display: props.showLegend,
+                    labels: {
+                        generateLabels(chart) {
+                            if (!props.showLegend) return[];
+                            const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                            return defaultLabels.filter(label => !!label.text)
+                        }
+                    }
                 },
                 tooltip: {
                     filter: (tooltipItem) => {
