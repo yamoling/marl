@@ -112,7 +112,7 @@
             <template v-else>
                 <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
-                    :showLegend="false" />
+                    :showLegend="true" />
                 <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
                 <Qvalues v-for=" [expName, qDs] in  qvaluesDatasets " :datasets="qDs" :title="expName.replace('logs/logs/', ' ')"
                 :showLegend="true" />

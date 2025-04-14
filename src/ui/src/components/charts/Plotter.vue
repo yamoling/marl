@@ -173,6 +173,13 @@ function initialiseChart(): Chart {
             plugins: {
                 legend: {
                     display: props.showLegend,
+                    labels: {
+                        generateLabels(chart) {
+                            if (!props.showLegend) return[];
+                            const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                            return defaultLabels.filter(label => !!label.text)
+                        }
+                    }
                 },
                 tooltip: {
                     filter: (tooltipItem) => {

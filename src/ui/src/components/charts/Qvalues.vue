@@ -38,7 +38,7 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import { clip, normalizeDatasetsRowWise } from "../../utils";
+import { clip } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
 
 const SCALES = ["Linear", "Normalized"] as const;
@@ -77,7 +77,7 @@ function updateChartData() {
 
     let plotDatasets = props.datasets;
 
-    if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsRowWise(plotDatasets);
+    // if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsRowWise(plotDatasets);
     plotDatasets.forEach(ds => {
         allTicks.push(...ds.ticks);
         const colour = colourStore.getQColour(ds.label);
@@ -118,7 +118,7 @@ function updateChartData() {
 
 watch(props, updateChartData);
 watch(enablePlusMinus, updateChartData);
-watch(yScaleType, updateChartData);
+//watch(yScaleType, updateChartData);
 // Instead of scales values to change, get updated dataset from QvaluesStore
 //watch(yScaleType, () => {
 //    if (yScaleType.value == "Linear") {
