@@ -114,7 +114,8 @@
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
                     :showLegend="false" />
                 <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-if="qvaluesSelected" :datasets="qvaluesDatasets" :title="'Qvalues'" :showLegend="true"/>
+                <Qvalues v-for=" [expName, qDs] in  qvaluesDatasets " :datasets="qDs" :title="expName.replace('logs/logs/', ' ')"
+                :showLegend="true" />
             </template>
 
         </div>
@@ -163,7 +164,7 @@ const metrics = computed(() => {
 const qvalues = computed(() => {
     const res = new Set<string>();
     //resultsStore.results.forEach((r) => r.qvalue_ds.forEach(rds => res.add(rds.label)));
-    resultsStore.results.forEach((r) => r.qvalues_ds.forEach(q_ds => res.add(q_ds.label)));
+    resultsStore.results.forEach((r) => r.qvalues_ds.forEach(q_ds => res.add(q_ds.logdir.replace("logs/", "")+"-"+q_ds.label)));
     return res;
 });
 
@@ -180,20 +181,22 @@ const experimentProgresses = computed(() => {
 });
 
 const qvaluesSelected = computed(() => {
-    return selectedQvalues.value.includes("qvalues")
+    return selectedMetrics.value.includes("qvalues")
 })
 
 const qvaluesDatasets = computed(() => {
     // Later use in the Qvalues component
-    const res = new Set<Dataset>();
+    const res = new Map<string, Dataset[]>();
     resultsStore.results.forEach((r, _k) => {
-        r.qvalues_ds.forEach(q_ds => {
-            if (!selectedQvalues.value.includes(q_ds.label)) return
-            q_ds.label = r.logdir+"-"+q_ds.label;
-            res.add(q_ds);
+        r.qvalues_ds.forEach(qDs => {
+            if (!selectedQvalues.value.includes(qDs.label)) return
+            if (!res.has(qDs.logdir)) {
+                res.set(qDs.logdir, []);
+            }
+            res.get(qDs.logdir)?.push(qDs);
         })
     });
-    return Array.from(res.values());
+    return res;
 });
 
 const datasetPerLabel = computed(() => {

@@ -25,6 +25,10 @@
                     <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
                 </label>
                 <br>
+                <label>
+                    <input type="checkbox" v-model="enablePlusMinus">
+                    <b class="me-1">Show</b>
+                </label>
             </div>
         </div>
     </div>
@@ -72,13 +76,35 @@ function updateChartData() {
     const datasets = [] as ChartDataset[];
     props.datasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        const colour = colourStore.get(ds.logdir);
+        const colour = colourStore.get(ds.label);
+        if (enablePlusMinus.value) {
+            let lower;
+            lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+            const lowerColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: tickedDataset(ds.ticks, lower),
+                backgroundColor: lowerColour,
+                fill: "+1"
+            });
+        }
+
         datasets.push({
             label: ds.logdir.replace("logs/", ""),
             data: tickedDataset(ds.ticks, ds.mean),
             borderColor: colour,
             backgroundColor: colour,
         });
+
+        if (enablePlusMinus.value) {
+            let upper;
+            upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+            const upperColour = rgbToAlpha(colour, 0.3);
+            datasets.push({
+                data: tickedDataset(ds.ticks, upper),
+                backgroundColor: upperColour,
+                fill: "-1"
+            });
+        }
     });
     // Remove duplicates and sort by value
     const ticks = Array.from(new Set(allTicks)).sort((a, b) => a - b);
