@@ -19,6 +19,8 @@ class PPO(Trainer):
     it is IPPO (Independent PPO).
     PPO paper: https://arxiv.org/abs/1707.06347
     MAPPO/IPPO paper: https://arxiv.org/abs/2103.01955
+
+    Note: This implementation has not been tested with recurrent policies.
     """
 
     actor_critic: ActorCritic
@@ -195,11 +197,6 @@ class PPO(Trainer):
             "min_loss": min_loss,
             "max_loss": max_loss,
         }
-        # for i, layer in enumerate(self.actor_critic.value_parameters):
-        #     logs[f"critic-layer-{i} mean"] = layer.data.mean().item()
-        # for i, layer in enumerate(self.actor_critic.policy_parameters):
-        #     logs[f"actor-layer-{i} mean"] = layer.data.mean().item()
-
         if self.grad_norm_clipping is not None:
             logs["total_grad_norm"] = total_norm.item()
         return logs

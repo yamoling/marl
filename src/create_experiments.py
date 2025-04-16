@@ -26,9 +26,16 @@ class Arguments(RunArguments):
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
 
 
+def make_smac(map_name: str):
+    env = marlenv.adapters.SMAC(map_name)
+    env = marlenv.Builder(env).agent_id().last_action().build()
+    return env, None
+
+
 def create_smac(args: Arguments):
     n_steps = 2_000_000
-    env = marlenv.adapters.SMAC("3s_vs_5z")
+    # env = marlenv.adapters.SMAC("3s_vs_5z")
+    env = marlenv.adapters.SMAC("3m")
     env = marlenv.Builder(env).agent_id().last_action().build()
     qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
     memory = marl.models.EpisodeMemory(5_000)
@@ -174,13 +181,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def make_dqn(
-    env: MARLEnv[Any, DiscreteActionSpace],
-    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
-    ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
-    gamma=0.95,
-    noisy: bool = False,
-):
+def make_mixer(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn"):
     match mixing:
         case None:
             mixer = None
@@ -192,6 +193,17 @@ def make_dqn(
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer: {other}")
+    return mixer
+
+
+def make_dqn(
+    env: MARLEnv[Any, DiscreteActionSpace],
+    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
+    ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
+    gamma=0.95,
+    noisy: bool = False,
+):
+    mixer = make_mixer(env, mixing)
     qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=noisy)
     match ir_method:
         case "rnd":
@@ -223,21 +235,41 @@ def make_dqn(
     )
 
 
-def make_ppo(env: MARLEnv[Any, DiscreteActionSpace]):
-    actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
+def make_ppo(
+    env: MARLEnv[Any, DiscreteActionSpace],
+    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = None,
+    eps_clip: float = 0.2,
+    train_interval: int = 400,
+    k: int = 20,
+    minibatch_size: int = 400,
+    lr_actor: float = 1e-3,
+    lr_critic: float = 1e-3,
+    c1: float = 0.5,
+    c2: float = 0.1,
+    grad_norm_clipping: float = 0.1,
+):
+    match env.observation_shape:
+        case (_, _, _):
+            actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
+        case (_,):
+            actor_critic = marl.nn.model_bank.actor_critics.SimpleActorCritic.from_env(env)
+        case other:
+            raise ValueError(f"Invalid observation shape: {other}")
+    mixer = make_mixer(env, mixing)
     return PPO(
         actor_critic=actor_critic,
-        train_interval=400,
-        n_epochs=8,
-        minibatch_size=400,
-        value_mixer=VDN.from_env(env),
+        train_interval=train_interval,
+        n_epochs=k,
+        minibatch_size=minibatch_size,
+        value_mixer=mixer,
         gamma=0.99,
+        eps_clip=eps_clip,
         gae_lambda=0.98,
-        lr_actor=1e-3,
-        lr_critic=1e-3,
-        critic_c1=0.5,
-        exploration_c2=0.1,
-        grad_norm_clipping=0.1,
+        lr_actor=lr_actor,
+        lr_critic=lr_critic,
+        critic_c1=c1,
+        exploration_c2=c2,
+        grad_norm_clipping=grad_norm_clipping,
     )
 
 
@@ -314,11 +346,12 @@ def make_overcooked(shape_tests: bool):
 def main(args: Arguments):
     try:
         # exp = create_smac(args)
-        env, test_env = make_lle()
+        # env, test_env = make_smac("3m")
+        # env, test_env = make_lle()
+        env, test_env = make_overcooked(True)
 
-        # env, test_env = make_overcooked(False)
-        trainer = make_dqn(env, mixing="vdn", ir_method="icm", noisy=False)
-        # trainer = make_ppo(env)
+        # trainer = make_dqn(env, mixing="vdn", ir_method="icm", noisy=False)
+        trainer = make_ppo(env, mixing=None, minibatch_size=128)
         exp = make_experiment(args, trainer, env, test_env, 4_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
