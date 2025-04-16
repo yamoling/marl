@@ -57,6 +57,12 @@ class ICM(IRModule, NN):
         self._cross_entropy = torch.nn.CrossEntropyLoss()
         self._mse_loss = torch.nn.MSELoss()
 
+    def to(self, device: torch.device):
+        self._feature.to(device)
+        self._inverse_model.to(device)
+        self._forward_model.to(device)
+        return self
+
     def forward(self, batch: Batch) -> torch.Tensor:
         with torch.no_grad():
             features = self._feature.forward(batch.states, batch.states_extras)
