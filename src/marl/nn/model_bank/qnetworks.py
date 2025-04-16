@@ -2,13 +2,13 @@ import math
 import operator
 from dataclasses import dataclass
 from functools import reduce
-from typing import Any, Optional, Sequence
+from typing import Optional, Sequence
 
 import torch
 from torch import distributions
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import ActionSpace, Observation, DiscreteActionSpace
+from marlenv import Space, Observation, MultiDiscreteSpace
 from marlenv.models import MARLEnv
 
 from marl.agents.qlearning.maic import MAICParameters
@@ -46,9 +46,9 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env[A, AS: ActionSpace](
+    def from_env[A: Space](
         cls,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         hidden_sizes: Optional[Sequence[int]] = None,
         last_layer_noisy: bool = False,
     ):
@@ -186,7 +186,7 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape, last_layer_noisy=mlp_noisy)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
         if env.reward_space.size == 1:
             output_shape = (env.n_actions,)
         else:
@@ -260,7 +260,7 @@ class IndependentCNN(QNetwork):
 
     @classmethod
     def from_env(
-        cls, env: MARLEnv[Any, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True, mlp_noisy: bool = False
+        cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True, mlp_noisy: bool = False
     ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
@@ -473,7 +473,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -587,7 +587,7 @@ class MAICNetworkCNN(MAICNN):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -713,5 +713,5 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)

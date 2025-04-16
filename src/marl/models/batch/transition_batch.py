@@ -2,7 +2,6 @@ from functools import cached_property
 from typing import Optional
 
 import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv import Transition
 
@@ -10,7 +9,7 @@ from .batch import Batch
 
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition[npt.NDArray]], device: Optional[torch.device] = None):
+    def __init__(self, transitions: list[Transition], device: Optional[torch.device] = None):
         self.transitions = transitions
         self.is_continuous = transitions[0].action.dtype in (np.float32, np.float64)
         self.is_discrete = not self.is_continuous

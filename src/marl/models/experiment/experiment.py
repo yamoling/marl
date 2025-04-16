@@ -9,7 +9,7 @@ import pathlib
 
 import numpy as np
 import torch
-from marlenv.models import ActionSpace, MARLEnv
+from marlenv.models import Space, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
@@ -26,22 +26,22 @@ from .light_experiment import LightExperiment
 
 
 @dataclass
-class Experiment[A, AS: ActionSpace](LightExperiment):
+class Experiment[A: Space](LightExperiment):
     agent: Agent
     trainer: Trainer
-    env: MARLEnv[A, AS]
-    test_env: MARLEnv[A, AS]
+    env: MARLEnv[A]
+    test_env: MARLEnv[A]
 
     def __init__(
         self,
         logdir: str,
         agent: Agent,
         trainer: Trainer,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv[A, AS],
+        test_env: MARLEnv[A],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
@@ -51,13 +51,13 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
 
     @staticmethod
     def create(
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         n_steps: int,
         logdir: str = "logs/tests",
         trainer: Optional[Trainer] = None,
         agent: Optional[Agent] = None,
         test_interval: int = 5_000,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_env: Optional[MARLEnv[A]] = None,
     ):
         """
         Create a new experiment in the specified directory.
@@ -140,7 +140,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
 
     def test_on_other_env(
         self,
-        other_env: MARLEnv[A, AS],
+        other_env: MARLEnv[A],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,

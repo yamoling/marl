@@ -1,4 +1,4 @@
-from marlenv import MARLEnv, DiscreteActionSpace
+from marlenv import MARLEnv, MultiDiscreteSpace
 import torch
 
 from torch import nn
@@ -132,6 +132,6 @@ class QPlex(Mixer):
         return q_tot.view(*dims)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], adv_hypernet_embed: int = 64, transformation=True):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], adv_hypernet_embed: int = 64, transformation=True):
         assert len(env.state_shape) == 1
         return QPlex(env.n_agents, env.n_actions, env.state_shape[0], adv_hypernet_embed, transformation)

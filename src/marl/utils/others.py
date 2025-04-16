@@ -3,12 +3,12 @@ import cv2
 import numpy as np
 from typing import Callable, Optional, TypeVar
 import re
-from marlenv import MARLEnv, ActionSpace
+from marlenv import MARLEnv
 import torch
 from lle import World
 
 
-def seed[A, AS: ActionSpace](seed_value: int, env: Optional[MARLEnv[A, AS]] = None):
+def seed(seed_value: int, env: Optional[MARLEnv] = None):
     import torch
     import random
     import numpy as np

@@ -1,10 +1,10 @@
 import shutil
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 import marlenv
 import typed_argparse as tap
 from lle import LLE
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import DiscreteSpace, MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
 import marl
@@ -181,7 +181,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     # exp.run()
 
 
-def make_mixer(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn"):
+def make_mixer(env: MARLEnv[MultiDiscreteSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn"):
     match mixing:
         case None:
             mixer = None
@@ -197,7 +197,7 @@ def make_mixer(env: MARLEnv[Any, DiscreteActionSpace], mixing: Optional[Literal[
 
 
 def make_dqn(
-    env: MARLEnv[Any, DiscreteActionSpace],
+    env: MARLEnv[MultiDiscreteSpace],
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
     ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
     gamma=0.95,
@@ -236,7 +236,7 @@ def make_dqn(
 
 
 def make_ppo(
-    env: MARLEnv[Any, DiscreteActionSpace],
+    env: MARLEnv[MultiDiscreteSpace],
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = None,
     eps_clip: float = 0.2,
     train_interval: int = 400,
@@ -276,8 +276,8 @@ def make_ppo(
 def make_experiment(
     args: Arguments,
     trainer: Trainer,
-    env: MARLEnv[Any, Any],
-    test_env: Optional[MARLEnv[Any, Any]],
+    env: MARLEnv,
+    test_env: Optional[MARLEnv],
     n_steps: int,
 ):
     if args.logdir is not None:

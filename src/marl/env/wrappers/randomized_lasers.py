@@ -1,12 +1,11 @@
-from typing import Optional, Sequence
+from typing import Optional
 from lle import LLE, Position
-import numpy.typing as npt
-from marlenv import DiscreteActionSpace
+from marlenv import MultiDiscreteSpace
 from marlenv.wrappers import RLEnvWrapper
 import random
 
 
-class RandomizedLasers(RLEnvWrapper[Sequence[int] | npt.NDArray, DiscreteActionSpace]):
+class RandomizedLasers(RLEnvWrapper[MultiDiscreteSpace]):
     def __init__(self, env: LLE, sources: Optional[list[Position]] = None):
         super().__init__(env)
         self.name = f"RandomizedLasers-{self.name}"

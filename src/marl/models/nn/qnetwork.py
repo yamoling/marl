@@ -3,7 +3,7 @@ from marlenv import Observation
 from abc import abstractmethod
 import torch
 
-from marlenv.models import MARLEnv, DiscreteActionSpace
+from marlenv.models import MARLEnv, MultiDiscreteSpace
 
 from .nn import NN, RecurrentNN
 
@@ -58,7 +58,7 @@ class QNetwork(NN):
         return self.forward(obs, extras)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
             output_shape = (env.n_actions,)
         else:

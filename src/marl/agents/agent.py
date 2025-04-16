@@ -4,14 +4,15 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Literal
 
+import numpy as np
 import torch
-from marlenv.models import Observation, ActionSpace, State
+from marlenv.models import Observation
 
-from marl.models.nn import NN, RecurrentNN, ActorCritic, Mixer
+from marl.models.nn import NN, ActorCritic, RecurrentNN
 
 
 @dataclass
-class Agent[A](ABC):
+class Agent(ABC):
     name: str
 
     def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
@@ -19,10 +20,6 @@ class Agent[A](ABC):
         if isinstance(device, str):
             device = torch.device(device)
         self._device = torch.device("cpu")
-
-    @property
-    def action_space(self) -> ActionSpace:
-        raise NotImplementedError("Action space not implemented")
 
     @cached_property
     def networks(self):
@@ -41,6 +38,7 @@ class Agent[A](ABC):
         Seed `ranom`, `numpy`, and `torch` libraries by default.
         """
         import random
+
         import numpy as np
 
         random.seed(seed)
@@ -53,7 +51,7 @@ class Agent[A](ABC):
             nn.randomize(method)
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> A:
+    def choose_action(self, observation: Observation) -> np.ndarray:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):

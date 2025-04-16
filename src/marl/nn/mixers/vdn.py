@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import MultiDiscreteSpace, MARLEnv
 
 from marl.models.nn import Mixer
 
@@ -22,5 +22,5 @@ class VDN(Mixer):
         return
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace]):
         return VDN(env.n_agents)

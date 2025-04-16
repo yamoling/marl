@@ -1,4 +1,4 @@
-from marlenv import State, MARLEnv, DiscreteActionSpace
+from marlenv import State, MARLEnv, MultiDiscreteSpace
 import torch
 import numpy as np
 import math
@@ -85,7 +85,7 @@ class AlphaNode:
         """
         exponent = 1 / tau
         visit_counts = np.array([child.visit_count for child in self.children])
-        numerator = visit_counts**exponent
+        numerator = np.pow(visit_counts, exponent)
         denominator = self.visit_count**exponent
         return numerator / denominator
 
@@ -105,7 +105,7 @@ class AlphaNode:
         assert self.parent is not None
         return self.q_value + c * self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
 
-    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCritic, gamma: float):
+    def expand(self, env: MARLEnv[MultiDiscreteSpace], nn: DiscreteActorCritic, gamma: float):
         if self.is_terminal:
             return
         env.set_state(self.state)

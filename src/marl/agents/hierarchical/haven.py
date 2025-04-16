@@ -10,23 +10,23 @@ from ..agent import Agent
 
 
 @dataclass
-class Haven(Agent[tuple[np.ndarray, dict[str, np.ndarray]]]):
+class Haven(Agent):
     """
     Hierarchical agent where a meta-agent gives orders (i.e. actions, subgoals, communication) to workers (multi-agent).
 
     The subgoals are concatenated to the worker's observations as "extras".
     """
 
-    meta: Agent[np.ndarray]
-    workers: Agent[np.ndarray]
+    meta: Agent
+    workers: Agent
     n_subgoals: int
     k: int
     """The number of steps that meta-actions lasts."""
 
     def __init__(
         self,
-        meta_agent: Agent[np.ndarray],
-        workers: Agent[np.ndarray],
+        meta_agent: Agent,
+        workers: Agent,
         n_subgoals: int,
         n_workers: int,
         k: int,

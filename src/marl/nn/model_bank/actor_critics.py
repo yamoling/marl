@@ -1,9 +1,8 @@
 import math
 from dataclasses import dataclass
-from typing import Any
 
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import MultiDiscreteSpace, MARLEnv
 from torch.distributions.distribution import Distribution
 
 from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic
@@ -179,7 +178,7 @@ class CNN_ActorCritic(DiscreteActorCritic):
         return list(self.actor.parameters()) + list(self.cnn_actor.parameters())
 
     @staticmethod
-    def from_env(env: MARLEnv[Any, DiscreteActionSpace]):
+    def from_env(env: MARLEnv[MultiDiscreteSpace]):
         assert len(env.observation_shape) == 3
         assert len(env.extras_shape) == 1
         return CNN_ActorCritic(
@@ -230,7 +229,7 @@ class SimpleActorCritic(ActorCritic):
         return list(self.policy_network.parameters())
 
     @classmethod
-    def from_env(cls, env: MARLEnv[Any, Any]):
+    def from_env(cls, env: MARLEnv):
         assert len(env.observation_shape) == 1
         assert len(env.extras_shape) == 1
         return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)

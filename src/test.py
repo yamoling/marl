@@ -6,10 +6,12 @@ from marl.training import intrinsic_reward
 from marl.policy import EpsilonGreedy
 from marl.models import TransitionMemory
 import marl
+import marlenv
 
 
 def main_ppo():
-    env = LLE.level(6).obs_type("flattened").pbrs().builder().agent_id().time_limit(78).build()
+    env = marlenv.make("HalfCheetah-v2")
+    # env = LLE.level(6).obs_type("flattened").pbrs().builder().agent_id().time_limit(78).build()
     # env = marlenv.make("CartPole-v1")
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
     ac = model_bank.SimpleActorCritic.from_env(env)
@@ -26,7 +28,7 @@ def main_ppo():
         lr_critic=3e-4,
     )
 
-    exp = Experiment.create(env, 2_000_000, trainer=trainer, logdir="logs/test2")
+    exp = Experiment.create(env, 2_000_000, trainer=trainer, logdir="debug")
     exp.run(render_tests=True, n_tests=10)
 
 
@@ -55,4 +57,4 @@ def main_dqn():
 
 
 if __name__ == "__main__":
-    main_dqn()
+    main_ppo()

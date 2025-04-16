@@ -5,9 +5,8 @@ from typing import Literal, Optional
 import logging
 
 import torch
-from marlenv import ActionSpace, Episode, MARLEnv, Transition
+from marlenv import Space, Episode, MARLEnv, Transition
 from tqdm import tqdm
-from typing_extensions import TypeVar
 
 from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
@@ -17,27 +16,25 @@ from marl.utils import get_device
 
 from .run import Run
 
-A = TypeVar("A", bound=ActionSpace)
 
-
-class Runner[A, AS: ActionSpace](Run):
-    _env: MARLEnv[A, AS]
+class Runner[A: Space](Run):
+    _env: MARLEnv[A]
     _agent: Agent
     _trainer: Trainer
-    _test_env: MARLEnv[A, AS]
+    _test_env: MARLEnv[A]
 
     def __init__(
         self,
         rundir: str,
         n_steps: int,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         n_tests: int = 1,
         test_interval: int = 5000,
         quiet: bool = False,
         seed: int = 0,
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_env: Optional[MARLEnv[A]] = None,
     ):
         self.logger = CSVLogger(rundir)
         super().__init__(rundir, seed, n_tests, test_interval, n_steps, self.logger.reader(rundir))
@@ -78,11 +75,11 @@ class Runner[A, AS: ActionSpace](Run):
     @staticmethod
     def from_run(
         dead_run: Run,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         agent: Agent,
         trainer: Trainer,
         quiet: bool = False,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_env: Optional[MARLEnv[A]] = None,
     ):
         return Runner(
             rundir=dead_run.rundir,
@@ -194,7 +191,7 @@ class Runner[A, AS: ActionSpace](Run):
 
     def tests(self, time_step: int, render: bool = False):
         """Test the agent"""
-        episodes = list[Episode[A]]()
+        episodes = list[Episode]()
         for test_num in tqdm(range(self.n_tests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
             episodes.append(self.perform_one_test(time_step, test_num, render))
         if not self._quiet:

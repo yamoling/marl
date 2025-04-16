@@ -3,7 +3,7 @@
 from .random_network_distillation import RandomNetworkDistillation
 from .local_graph import IndividualLocalGraphTrainer
 from .advantage_ir import AdvantageIntrinsicReward
-from .tom import ToMIR
+from .tomir import ToMIR
 from .icm import ICM
 
 __all__ = [

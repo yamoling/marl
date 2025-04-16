@@ -1,5 +1,5 @@
 import numpy as np
-from marlenv import MARLEnv, DiscreteActionSpace, Observation
+from marlenv import MARLEnv, MultiDiscreteSpace, Observation, DiscreteSpace
 
 
 class MatrixGame(MARLEnv):
@@ -19,7 +19,8 @@ class MatrixGame(MARLEnv):
     def __init__(self, payoff_matrix: list[list[float]]):
         action_names = [chr(ord("A") + i) for i in range(len(payoff_matrix[0]))]
         super().__init__(
-            action_space=DiscreteActionSpace(2, len(payoff_matrix[0]), action_names),
+            2,
+            action_space=DiscreteSpace(len(payoff_matrix[0]), action_names).repeat(2),
             observation_shape=MatrixGame.OBS_SHAPE,
             state_shape=(MatrixGame.STATE_SIZE,),
         )
