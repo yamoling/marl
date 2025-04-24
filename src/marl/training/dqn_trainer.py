@@ -75,7 +75,6 @@ class DQNTrainer[B: Batch](Trainer):
         if test_policy is None:
             test_policy = train_policy
         self.test_policy = test_policy
-        self.multi_objective = qnetwork.is_multi_objective
 
         # Parameters and optimiser
         self.grad_norm_clipping = grad_norm_clipping

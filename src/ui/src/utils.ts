@@ -138,38 +138,6 @@ export function clip(values: number[], min: number[], max: number[]) {
     return result;
 }
 
-export function normalizeDatasetsRowWise(datasets: Dataset[]): Dataset[] {
-    return datasets.map(ds => {
-        const length = ds.mean.length;
-
-        // Normalize each row across the 5 fields
-        const normalized = Array.from({ length }, (_, i) => {
-            const row = [ds.mean[i], ds.std[i], ds.min[i], ds.max[i], ds.ci95[i]];
-            const rowMin = Math.min(...row);
-            const rowMax = Math.max(...row);
-            const range = rowMax - rowMin || 1;
-
-            return row.map(v => (v - rowMin) / range);
-        });
-
-        // Transpose the normalized matrix back to separate arrays
-        const [mean, std, min, max, ci95] = [0, 1, 2, 3, 4].map(j =>
-            normalized.map(row => row[j])
-        );
-
-        return {
-            ...ds,
-            mean,
-            std,
-            min,
-            max,
-            ci95,
-        };
-    });
-}
-
-
-
 
 export function unionXTicks(allXTicks: number[][]) {
     const resTicks = new Set<number>();

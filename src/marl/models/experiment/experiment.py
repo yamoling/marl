@@ -76,11 +76,11 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         else:
             test_env = deepcopy(env)
 
-        if not logdir.startswith("logs\\"):
+        if not logdir.startswith(os.path.join("logs", "")):
             logdir = os.path.join("logs", logdir)
 
             # Remove the test and debug logs
-        if logdir in ["logs\\test", "logs\\debug", "logs\\tests"]:
+        if logdir in [os.path.join("logs", "test"), os.path.join("logs", "debug"), os.path.join("logs", "tests")]:
             try:
                 shutil.rmtree(logdir)
             except FileNotFoundError:

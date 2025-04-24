@@ -7,7 +7,7 @@ from typing import Optional
 import torch
 from marlenv import Observation
 
-from marl.models import Policy, QNetwork, RecurrentQNetwork, Mixer
+from marl.models import Policy, QNetwork, RecurrentQNetwork
 
 from ..agent import Agent
 
@@ -28,7 +28,6 @@ class DQN(Agent):
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
-        mixer: Optional[Mixer] = None,
         log_qvalues: Optional[bool] = False,
     ):
         super().__init__()
@@ -38,7 +37,6 @@ class DQN(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
-        self.mixer = mixer
         if log_qvalues: 
             self.last_qvalues = np.ndarray(0)
 

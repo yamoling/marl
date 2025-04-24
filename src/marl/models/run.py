@@ -280,9 +280,6 @@ class RunHandle:
             with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
                 bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
                 f.write(bytes_data)
-            # with open(os.path.join(episode_directory, OBSERVATIONS), "wb") as f:
-            #     bytes_data = orjson.dumps(episode.all_observations, option=orjson.OPT_SERIALIZE_NUMPY)
-            #     f.write(bytes_data)
 
     def save_agent(self, agent: Agent, time_step: int):
         agent.save(self.run.get_saved_algo_dir(time_step))

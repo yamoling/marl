@@ -114,7 +114,7 @@
                 <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
                     :showLegend="true" />
                 <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-for=" [expName, qDs] in  qvaluesDatasets " :datasets="qDs" :title="expName.replace('logs/logs/', ' ')"
+                <Qvalues v-for=" [expName, qDs] in  qvaluesDatasets " :datasets="qDs" :title="expName.replace('logs/', ' ')"
                 :showLegend="true" />
             </template>
 
