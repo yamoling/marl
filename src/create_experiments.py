@@ -300,8 +300,6 @@ def make_experiment(
             case PPO():
                 if trainer.value_mixer is not None:
                     args.logdir += f"-{trainer.value_mixer.name}"
-                else:
-                    args.logdir += "-iql"
     return marl.Experiment.create(
         logdir=args.logdir,
         trainer=trainer,

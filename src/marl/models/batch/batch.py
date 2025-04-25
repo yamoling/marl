@@ -128,7 +128,7 @@ class Batch(ABC):
         next_values = all_values[1:]
         deltas = self.rewards + gamma * next_values * self.not_dones - values
         # --- Problème de shape ici ---
-        gae = torch.zeros(self.reward_size, dtype=torch.float32)
+        gae = torch.zeros(self.reward_size, dtype=torch.float32, device=self.device)
         advantages = torch.empty_like(self.rewards, dtype=torch.float32)
         for t in range(self.size - 1, -1, -1):
             gae = deltas[t] + gamma * trace_decay * gae

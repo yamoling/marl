@@ -72,6 +72,10 @@ class PPO(Trainer):
         - `ir_module`: The intrinsic reward module to generate an intrinsic reward signal.
         """
         super().__init__()
+        if value_mixer is None:
+            self.name = "IPPO"
+        else:
+            self.name = "MAPPO"
         self.batch_size = train_interval
         if minibatch_size is None:
             minibatch_size = train_interval
