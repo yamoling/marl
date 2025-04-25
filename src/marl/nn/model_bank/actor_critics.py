@@ -257,11 +257,11 @@ class CNNCritic(Critic):
     ):
         *dims, channels, height, width = data.shape
         leading_dims_size = math.prod(dims)
-        data = data.view(leading_dims_size, channels, height, width)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
+        data = data.reshape(leading_dims_size, channels, height, width)
+        extras = extras.reshape(leading_dims_size, *self.extras_shape)
         features = self.cnn.forward(data)
         value = self.mlp.forward(features, extras)
-        value = value.view(*dims)
+        value = value.reshape(*dims)
         return value
 
 

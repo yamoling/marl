@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
-from marlenv import Episode, Transition
+from marlenv import Episode, Transition, Observation, State
 
 from marl.agents import Agent
 from marl.utils import HasDevice
@@ -39,3 +39,9 @@ class Trainer(HasDevice, ABC):
             dict[str, Any]: A dictionary of training metrics to log.
         """
         return {}
+
+    def value(self, obs: Observation, state: State) -> float:
+        """
+        Compute the value of the current state or observation.
+        """
+        return 0.0

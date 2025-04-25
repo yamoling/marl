@@ -50,11 +50,6 @@ class NN(torch.nn.Module, ABC):
             case _:
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
-    @classmethod
-    def from_env[A: Space](cls, env: MARLEnv[A]):
-        """Construct a NN from environment specifications"""
-        return cls(input_shape=env.observation_shape, extras_shape=env.extras_shape, output_shape=(env.n_actions,))
-
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
         return hash(self.name)

@@ -55,6 +55,7 @@ class Runner[A: Space](Run):
             test_env = deepcopy(env)
         self._test_env = test_env
         self._quiet = quiet
+        self.envs = set[str]()
 
     @staticmethod
     def from_experiment(experiment, seed: int, quiet: bool = False, n_tests: int = 1):
@@ -94,27 +95,18 @@ class Runner[A: Space](Run):
             test_env=test_env,
         )
 
-    def _train_episode(
-        self,
-        step_num: int,
-        episode_num: int,
-        render_tests: bool,
-    ):
+    def _train_episode(self, step_num: int, episode_num: int, render_tests: bool):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state)})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
                 self._test_and_log(step_num, render_tests)
-            match self._agent.choose_action(obs):
-                case (action, dict(kwargs)):
-                    step = self._env.step(action)
-                case action:
-                    step = self._env.step(action)
-                    kwargs = {}
+            action = self._agent.choose_action(obs)
+            step = self._env.step(action)
             if step_num == self.n_steps:
                 step.truncated = True
-            transition = Transition.from_step(obs, state, action, step, **kwargs)
+            transition = Transition.from_step(obs, state, action, step)
             training_metrics = self._trainer.update_step(transition, step_num)
             self.logger.training_data.log(training_metrics, step_num)
             episode.add(transition)
@@ -141,6 +133,8 @@ class Runner[A: Space](Run):
         step = 0
         pbar = tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet)
         while step < self.n_steps:
+            if step == 530:
+                print()
             episode = self._train_episode(step, episode_num, render_tests)
             episode_num += 1
             step += len(episode)
@@ -170,7 +164,7 @@ class Runner[A: Space](Run):
         self._agent.new_episode()
         obs, state = self._test_env.reset()
         episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._agent.value(obs)})
+        episode.add_metrics({"initial_value": self._trainer.value(obs, state)})
         i = 0
         while not episode.is_finished:
             i += 1

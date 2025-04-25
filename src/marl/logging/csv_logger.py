@@ -2,6 +2,7 @@ import os
 import time
 import csv
 import polars as pl
+from typing import Any
 from .logger_interface import Logger, LogReader, LogWriter
 
 
@@ -29,7 +30,7 @@ class CSVWriter(LogWriter):
             TIMESTAMP_COL: "float",
         }
 
-    def log(self, data: dict[str, float], time_step: int):
+    def log(self, data: dict[str, Any], time_step: int):
         if len(data) == 0:
             return
         now = time.time()

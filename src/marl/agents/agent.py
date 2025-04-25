@@ -63,10 +63,6 @@ class Agent(ABC):
         for nn in self.recurrent_networks:
             nn.reset_hidden_states()
 
-    def value(self, obs: Observation) -> float:
-        """Get the value of the input observation"""
-        return 0.0
-
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
         self._device = device

@@ -1,12 +1,16 @@
+import marlenv.env_pool
 from marl.training import PPO, DQN
 from marl.nn import model_bank
 from marl import Experiment
 from lle import LLE
-from marl.training import intrinsic_reward
-from marl.policy import EpsilonGreedy
 from marl.models import TransitionMemory
 import marl
+from marl.models.batch import EpisodeBatch
 import marlenv
+import torch
+from marl.env.agent_distance_shaping import AgentDistanceShaping
+from marl.training.multi_trainer import MultiTrainer
+from dataclasses import dataclass
 
 
 def main_ppo():
@@ -34,6 +38,7 @@ def main_ppo():
 
 def main_dqn():
     env = LLE.level(6).builder().time_limit(78).build()
+    env = AgentDistanceShaping(env)
     # env = marlenv.make("CartPole-v1")
     # env = LLE.level(3).obs_type("flattened").builder().agent_id().time_limit(78).build()
     qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env, mlp_noisy=True)
@@ -41,7 +46,7 @@ def main_dqn():
     ir = None
     # ir = ToMIR(qnetwork, n_agents=env.n_agents, is_individual=True)
     # ir = RandomNetworkDistillation.from_env(env)
-    ir = intrinsic_reward.ICM.from_env(env)
+    # ir = intrinsic_reward.ICM.from_env(env)
     trainer = DQN(
         qnetwork,
         mixer=marl.nn.mixers.VDN.from_env(env),
@@ -56,5 +61,68 @@ def main_dqn():
     exp.run(render_tests=True, n_tests=1)
 
 
+@dataclass
+class ValueTrainer(marl.Trainer):
+    def __init__(self, critic: marl.models.nn.Critic, memory: marl.models.EpisodeMemory, gamma: float = 0.99, batch_size: int = 64):
+        super().__init__()
+        self.critic = critic
+        self.gamma = gamma
+        self.memory = memory
+        self.batch_size = batch_size
+        self.optimizer = torch.optim.Adam(self.critic.parameters(), lr=1e-4)
+
+    def _train(self, batch: EpisodeBatch):
+        values = self.critic.forward(batch.states, batch.states_extras)
+        returns = batch.compute_returns(self.gamma)
+        loss = torch.nn.functional.mse_loss(values, returns)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return loss.item()
+
+    def update_episode(self, episode: marlenv.Episode, episode_num: int, time_step: int):
+        self.memory.add(episode)
+        logs = dict[str, float]()
+        if self.memory.can_sample(self.batch_size):
+            logs["critic-loss"] = self._train(self.memory.sample(self.batch_size))
+        return logs
+
+    def value(self, _: marlenv.Observation, state: marlenv.State) -> float:
+        v = self.critic.forward(state.data).item()
+        return float(v)
+
+
+def main_curriculum():
+    envs = []
+    for i in range(100):
+        filename = f"maps/pool/world-{i}"
+        env = LLE.from_file(filename).obs_type("layered").state_type("layered").builder().time_limit(78).build()
+        envs.append(env)
+    pool = marlenv.env_pool.EnvPool(envs)
+    qnetwork = model_bank.qnetworks.IndependentCNN.from_env(env)
+    dqn_trainer = marl.training.DQN(
+        qnetwork,
+        marl.policy.EpsilonGreedy.linear(1, 0.05, 500_000),
+        marl.models.TransitionMemory(50_000),
+        mixer=marl.nn.mixers.VDN.from_env(pool),
+        double_qlearning=True,
+        grad_norm_clipping=10,
+        gamma=0.95,
+    )
+    critic_trainer = ValueTrainer(
+        critic=model_bank.CNNCritic(env.state_shape, env.state_extra_shape[0]),
+        memory=marl.models.EpisodeMemory(5_000),
+        gamma=0.95,
+        batch_size=16,
+    )
+    exp = marl.Experiment.create(
+        pool,
+        n_steps=10_000_000,
+        trainer=MultiTrainer(critic_trainer, dqn_trainer),
+        agent=dqn_trainer.make_agent(marl.policy.ArgMax()),
+    )
+    exp.run()
+
+
 if __name__ == "__main__":
-    main_ppo()
+    main_curriculum()

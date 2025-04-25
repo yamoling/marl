@@ -20,11 +20,12 @@ class EpisodeBatch(Batch):
         return super().for_individual_learners()
 
     def compute_returns(self, gamma: float) -> torch.Tensor:
-        result = torch.zeros_like(self.rewards, dtype=torch.float32)
+        result = torch.empty_like(self.rewards, dtype=torch.float32)
         next_step_returns = self.rewards[-1]
         result[-1] = next_step_returns
         for step in range(self._max_episode_len - 2, -1, -1):
-            next_step_returns = self.rewards[step] + gamma * next_step_returns
+            reward = self.rewards[step]
+            next_step_returns = reward + gamma * next_step_returns
             result[step] = next_step_returns
         return result
 
@@ -121,7 +122,8 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def rewards(self):
-        return torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        rewards = torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        return rewards.squeeze(-1)
 
     @cached_property
     def dones(self):
