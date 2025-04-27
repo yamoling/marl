@@ -20,10 +20,18 @@
             <tbody>
                 <tr v-if="currentQvalues.length > 0"
                     v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
-                    <th scope="row" class="text-capitalize"> {{ objective }} </th>
+                    <th scope="row" class="text-capitalize"> 
+                        {{ experiment.env.reward_space.size > 1 
+                            ? "Qvalues"
+                            : objective }} 
+                    </th>
                     <td v-for="action in currentQvalues.length"
-                        :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
-                        {{ currentQvalues[action - 1][objectiveNum].toFixed(4) }}
+                        :style='{ "background-color": "#" + (experiment.env.reward_space.size > 1 
+                            ? backgroundColours[action - 1][objectiveNum] 
+                            : backgroundColours[action - 1]) }'>
+                        {{ experiment.env.reward_space.size > 1 
+                            ? currentQvalues[action - 1][objectiveNum].toFixed(4) 
+                            : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
                     </td>
                 </tr>
                 <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
@@ -110,7 +118,7 @@ const obsShape = computed(() => {
     return computeShape(props.episode.episode.all_observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
-const episodeLength = computed(() => props.episode?.metrics.episode_length || 0);
+const episodeLength = computed(() => props.episode?.metrics.episode_len || 0);
 
 const obs = computed(() => {
     if (props.episode == null) return [];
@@ -149,12 +157,16 @@ const totalQValues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    const colours = currentQvalues.value.map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    const colours = (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
     return colours;
 });
 
 const totalQValuesColours = computed(() => {
+    console.log("totalQValuesColours-0")
+    console.log(currentQvalues)
+    console.log(currentQvalues.value)
     const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
+    console.log("totalQValuesColours-0")
     return colours;
 });
 
