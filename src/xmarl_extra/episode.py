@@ -182,6 +182,11 @@ class Episode(Generic[A]):
     def next_available_actions(self):
         """The next available actions"""
         return self.all_available_actions[1:]
+    
+    @cached_property
+    def is_multi_objective(self):
+        """Is multi objective"""
+        return self.rewards[0].shape[0] > 1
 
     @cached_property
     def dones(self):
@@ -208,7 +213,7 @@ class Episode(Generic[A]):
                 state=State(data=self.all_states[i], extras=self.all_states_extras[i]),
                 action=self.actions[i],
                 reward=self.rewards[i],
-                done=bool(self.dones[i]),
+                done=bool(self.dones[i][0] if self.is_multi_objective else self.dones[i]),
                 info={},
                 next_obs=Observation(
                     data=self.all_observations[i + 1],
@@ -314,6 +319,18 @@ class Episode(Generic[A]):
                     transition.done,
                     transition.truncated,
                     transition.info,
+                )
+            case (Step() as step, action):
+                self.add_data(
+                    step.obs,
+                    step.state,
+                    action,
+                    None,
+                    step.reward,
+                    {},
+                    step.done,
+                    step.truncated,
+                    step.info,
                 )
             case (Step() as step, action, qvalues):
                 self.add_data(
