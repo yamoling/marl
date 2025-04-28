@@ -90,6 +90,10 @@ class DQNTrainer[B: Batch](Trainer):
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
+    @cached_property
+    def action_dim(self):
+        return self.qnetwork.action_dim
+
     def _update(self, time_step: int):
         if not self.memory.can_sample(self.batch_size):
             return {}
@@ -127,6 +131,8 @@ class DQNTrainer[B: Batch](Trainer):
     def train(self, batch: Batch) -> dict[str, Any]:
         if self.mixer is None:
             batch = batch.for_individual_learners()
+        if self.qnetwork.is_multi_objective:
+             batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
