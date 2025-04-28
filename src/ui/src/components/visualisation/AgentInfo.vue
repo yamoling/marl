@@ -11,9 +11,12 @@
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
-                    <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5 }"
+                    <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5,
+                        backgroundColor: (action == takenAction) ? 'yellow' : 'transparent'
+                     }"
                         v-for="(meaning, action) in experiment.env.action_space.action_names">
                         {{ meaning }}
+                        
                     </th>
                 </tr>
             </thead>
@@ -21,7 +24,7 @@
                 <tr v-if="currentQvalues.length > 0"
                     v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                     <th scope="row" class="text-capitalize"> 
-                        {{ experiment.env.reward_space.size > 1 
+                        {{ experiment.env.reward_space.size == 1 
                             ? "Qvalues"
                             : objective }} 
                     </th>
@@ -135,6 +138,11 @@ const extrasMeanings = computed(() => props.experiment.env.extras_meanings)
 const availableActions = computed(() => {
     if (props.episode == null) return [];
     return props.episode.episode.all_available_actions[props.currentStep][props.agentNum];
+});
+
+const takenAction = computed(() => {
+    if (props.episode == null) return [];
+    return props.episode.episode.actions[props.currentStep][props.agentNum];
 });
 
 const currentQvalues = computed(() => {
