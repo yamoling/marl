@@ -29,10 +29,10 @@
                             : objective }} 
                     </th>
                     <td v-for="action in currentQvalues.length"
-                        :style='{ "background-color": "#" + (experiment.env.reward_space.size > 1 
+                        :style='{ "background-color": "#" + (isMultiObj
                             ? backgroundColours[action - 1][objectiveNum] 
                             : backgroundColours[action - 1]) }'>
-                        {{ experiment.env.reward_space.size > 1 
+                        {{ isMultiObj
                             ? currentQvalues[action - 1][objectiveNum].toFixed(4) 
                             : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
                     </td>
@@ -116,6 +116,10 @@ const props = defineProps<{
     experiment: Experiment
 }>();
 
+const isMultiObj = computed(() => {
+    return props.experiment.env.reward_space.size > 1 
+});
+
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
     return computeShape(props.episode.episode.all_observations[0][0])
@@ -165,16 +169,12 @@ const totalQValues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    const colours = (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
-    return colours;
+    if (isMultiObj.value) return (currentQvalues.value).map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    else return (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
 });
 
 const totalQValuesColours = computed(() => {
-    console.log("totalQValuesColours-0")
-    console.log(currentQvalues)
-    console.log(currentQvalues.value)
     const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
-    console.log("totalQValuesColours-0")
     return colours;
 });
 
