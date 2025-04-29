@@ -16,13 +16,14 @@ class Arguments(RunArguments):
     overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
-
+    log_qv: bool = tap.arg(default=False, help="Log qvalues of the experiment")
 
 def create_multiobj_lle(args: Arguments):
-    n_steps = 1_000_000
+    n_steps = 400_000
     test_interval = 5000
     gamma = 0.95
-    env = LLE.level(6).obs_type("layered").state_type("state").build()
+    #env = LLE.level(6).obs_type("layered").state_type("state").build()
+    env = LLE.from_file("src/xmarl_extra/lvl6b").obs_type("layered").multi_objective().state_type("state").pbrs().build()
     #env = LLE.level(6).obs_type("layered").multi_objective().state_type("state").build()
     env = marlenv.Builder(env).agent_id().time_limit(78, add_extra=True).build()
     #env = marlenv.Builder(env).time_limit(78, add_extra=True).build()
@@ -35,8 +36,8 @@ def create_multiobj_lle(args: Arguments):
         0.05,
         n_steps=500_000,
     )
-    #mixer = marl.training.mixers.VDN.from_env(env)
-    mixer=marl.training.mixers.QMix.from_env(env)
+    mixer = marl.training.mixers.VDN.from_env(env)
+    #mixer=marl.training.mixers.QMix.from_env(env)
     trainer = DQNTrainer(
         qnetwork,
         train_policy=train_policy,
@@ -53,20 +54,30 @@ def create_multiobj_lle(args: Arguments):
         # ir_module=rnd,
     )
 
+    distiler = marl.distilers.SoftDecisionTree(
+        bs=64,
+        input_shape=qnetwork.input_shape,
+        output_shape=qnetwork.output_shape,
+        max_depth=3,
+        epochs=1,
+        seed=args.seed,
+        log_interval=5000,
+    )
+
     agent = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
-        is_multi_objective=qnetwork.is_multi_objective,
+        log_qvalues=args.log_qv,
     )
 
     if args.logdir is not None:
-        if not args.logdir.startswith("logs\\"):
-            args.logdir = "logs\\" + args.logdir
+        if not args.logdir.startswith("logs/"):
+            args.logdir = "logs/" + args.logdir
     elif args.debug:
-        args.logdir = "logs\\debug"
+        args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs\\{env.name}"
+        args.logdir = f"logs/{env.name}"
         if trainer.mixer is not None:
             args.logdir += f"-{trainer.mixer.name}"
         else:
@@ -83,87 +94,8 @@ def create_multiobj_lle(args: Arguments):
         test_interval=test_interval,
         n_steps=n_steps,
         test_env=test_env,
+        log_qvalues=args.log_qv,
     )
-
-def create_lle(args: Arguments):
-    from marl.env.wrappers.randomized_lasers import RandomizedLasers
-
-    n_steps = 1_000_000
-    test_interval = 5000
-    gamma = 0.95
-    lle = RandomizedLasers(
-        LLE.level(6)
-        # LLE.from_file("maps/lvl6-start-above.toml")
-        .obs_type("layered")
-        .state_type("state")
-        # .pbrs(
-        #     1.0,
-        #     reward_value=1,
-        #     lasers_to_reward=[(4, 0), (6, 12)],
-        # )
-        .build()
-    )
-    env = marlenv.Builder(lle).agent_id().time_limit(78, add_extra=True).build()
-
-    test_env = None
-
-    qnetwork = marl.nn.model_bank.CNN.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
-    # memory = marl.models.PrioritizedMemory(memory, env.is_multi_objective, alpha=0.6, beta=Schedule.linear(0.4, 1.0, n_steps))
-    train_policy = marl.policy.EpsilonGreedy.linear(
-        1.0,
-        0.05,
-        n_steps=200_000,
-    )
-    mixer = marl.training.VDN.from_env(env)
-    trainer = DQNTrainer(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        optimiser="adam",
-        double_qlearning=True,
-        target_updater=SoftUpdate(0.01),
-        lr=5e-4,
-        batch_size=64,
-        train_interval=(5, "step"),
-        gamma=gamma,
-        mixer=mixer,
-        grad_norm_clipping=10,
-        ir_module=None,
-    )
-
-    algo = marl.agents.DQN(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=marl.policy.ArgMax(),
-    )
-
-    if args.logdir is not None:
-        if not args.logdir.startswith("logs\\"):
-            args.logdir = "logs\\" + args.logdir
-    elif args.debug:
-        args.logdir = "logs\\debug"
-    else:
-        args.logdir = f"logs\\{env.name}"
-        if trainer.mixer is not None:
-            args.logdir += f"-{trainer.mixer.name}"
-        else:
-            args.logdir += "-iql"
-        if trainer.ir_module is not None:
-            args.logdir += f"-{trainer.ir_module.name}"
-        if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-            args.logdir += "-PER"
-    print(type(env))
-    return marl.Experiment.create(
-        logdir=args.logdir,
-        agent=algo,
-        trainer=trainer,
-        env=env,
-        test_interval=test_interval,
-        n_steps=n_steps,
-        test_env=test_env,
-    )
-
 
 def main(args: Arguments):
     try:
