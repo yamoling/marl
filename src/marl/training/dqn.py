@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 import torch
-from marlenv import Episode, Transition
+from marlenv import Episode, Observation, State, Transition
 
 from marl.agents import DQNAgent, RDQNAgent, Agent
 from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule
@@ -199,6 +199,17 @@ class DQN[B: Batch](Trainer):
             train_policy=self.policy,
             test_policy=test_policy,
         )
+
+    def value(self, obs: Observation, state: State) -> float:
+        data, extras = obs.as_tensor()
+        state_data, _ = state.as_tensor()
+        with torch.no_grad():
+            qvalues = self.qnetwork.forward(data, extras)
+            max_qvalues = qvalues.max(dim=-1).values
+            if self.mixer is None:
+                return float(max_qvalues.mean().item())
+            value = self.mixer.forward(max_qvalues, state_data)
+            return float(value.item())
 
     def to(self, device: torch.device):
         if self.ir_module is not None:

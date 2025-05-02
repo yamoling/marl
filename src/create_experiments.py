@@ -4,7 +4,7 @@ from typing import Literal, Optional
 import marlenv
 import typed_argparse as tap
 from lle import LLE
-from marlenv import DiscreteSpace, MARLEnv, MultiDiscreteSpace
+from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
 import marl
@@ -313,8 +313,8 @@ def make_experiment(
 def make_lle():
     # lle = RandomizedLasers(
     env = (
-        LLE.level(6)
-        # LLE.from_file("maps/lvl6-start-above.toml")
+        # LLE.level(6)
+        LLE.from_file("maps/lvl6-no-lasers.toml")
         .obs_type("layered")
         .state_type("layered")
         # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
@@ -327,17 +327,11 @@ def make_lle():
     return env, test_env
 
 
-def make_overcooked(shape_tests: bool):
-    env = marlenv.adapters.Overcooked.from_layout(
-        "cramped_room",
-        reward_shaping_factor=Schedule.linear(1.0, 0, 2_500_000),
-    )
+def make_overcooked():
+    env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0.0)
     env = marlenv.Builder(env).agent_id().build()
-    if shape_tests:
-        test_env = None
-    else:
-        test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
-        test_env = marlenv.Builder(test_env).agent_id().build()
+    test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+    test_env = marlenv.Builder(test_env).agent_id().build()
     return env, test_env
 
 
@@ -346,15 +340,14 @@ def main(args: Arguments):
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
         # env, test_env = make_lle()
-        env, test_env = make_overcooked(True)
+        env, test_env = make_overcooked()
 
-        # trainer = make_dqn(env, mixing="vdn", ir_method="icm", noisy=False)
-        trainer = make_ppo(env, mixing=None, minibatch_size=128)
-        exp = make_experiment(args, trainer, env, test_env, 4_000_000)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.99)
+        # trainer = make_ppo(env, mixing=None, minibatch_size=128)
+        exp = make_experiment(args, trainer, env, test_env, 1_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
-        shutil.copyfile(__file__, exp.logdir + "/tmp.py")
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
