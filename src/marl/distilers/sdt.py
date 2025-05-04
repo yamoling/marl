@@ -106,7 +106,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     input_dim: int
     output_dim: int
     max_depth: int
-    epochs: int
+    #epochs: int
     lr: float
     lmbda: float
     momentum: float
@@ -115,13 +115,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
     log_interval: int # not sure I need, enforced/done by DQN?
 
     def __init__(self, 
-                 bs: int, # determined by agent?
                  input_shape: tuple[int, ...], # determined by agent?
                  output_shape: tuple[int, ...], # determined by agent?
-                 max_depth: int, 
-                 epochs: int, # determined by agent?
-                 seed: int, # determined by agent?
-                 log_interval: int, # not sure I need
+                 max_depth: int = 4, 
+                 #epochs: int, # determined by agent?
+                 seed: int = 0, # determined by agent?
+                 log_interval: int = 0, # not sure I need
+                 bs: int = 1, # determined by agent?
                  lr: Optional[float] = 0.01,
                  lmbda: Optional[float] = 0.01,
                  momentum: Optional[float] = 0.01,

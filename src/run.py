@@ -15,6 +15,7 @@ class Arguments(tap.TypedArgs):
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     device: Literal["auto", "cpu"] | str = tap.arg(default="auto")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
+    distil: bool = tap.arg(help="Rather than run the experiment, will run a distillation of a trained model. 'n-runs' is ignored")
 
     @property
     def n_processes(self):
@@ -58,6 +59,14 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
         n_tests=args.n_tests,
     )
 
+def start_distillation(args: Arguments):
+    import marl
+
+    # Load the experiment from disk and start a child process for each run.
+    # The run with seed=0 is spawned in the main process.
+    distiler = marl.distilers.DistilHandler.create(args.logdir)
+    distiler.run()
+
 
 def main(args: Arguments):
     if args.debug:
@@ -70,19 +79,22 @@ def main(args: Arguments):
     initial_pids = get_gpu_processes()
     estimated_gpu_memory = 0
     print(f"Running on {args.n_processes} processes")
-    with Pool(args.n_processes) as pool:
-        handles = list[AsyncResult]()
-        for run_num in range(args.n_runs):
-            h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))
-            handles.append(h)
-            # If it is not the last process, wait a bit to let the time to allocate the GPUs correctly.
-            if run_num != args.n_runs - 1:
-                time.sleep(args.delay)
-                new_pids = get_gpu_processes() - initial_pids
-                estimated_gpu_memory = get_max_gpu_usage(new_pids)
+    if not args.distil:
+        with Pool(args.n_processes) as pool:
+            handles = list[AsyncResult]()
+            for run_num in range(args.n_runs):
+                h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))
+                handles.append(h)
+                # If it is not the last process, wait a bit to let the time to allocate the GPUs correctly.
+                if run_num != args.n_runs - 1:
+                    time.sleep(args.delay)
+                    new_pids = get_gpu_processes() - initial_pids
+                    estimated_gpu_memory = get_max_gpu_usage(new_pids)
 
-        for h in handles:
-            h.get()
+            for h in handles:
+                h.get()
+    else:
+        start_distillation(args)
 
 
 if __name__ == "__main__":
