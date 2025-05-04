@@ -147,6 +147,7 @@ class Runner[A: Space](Run):
 
     def _test_and_log(self, time_step: int, render: bool):
         self._agent.save(self.get_saved_algo_dir(time_step))
+        self._trainer.save(self.get_saved_algo_dir(time_step))
         episodes = self.tests(time_step, render)
         self.logger.log_tests(episodes, time_step)
 

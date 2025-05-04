@@ -12,7 +12,7 @@ from marl import Trainer
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
-from marl.training import DQN, PPO, HardUpdate, SoftUpdate
+from marl.training import DQN, PPO, SoftUpdate
 from marl.training.haven_trainer import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from run import Arguments as RunArguments
@@ -28,7 +28,7 @@ class Arguments(RunArguments):
 
 def make_smac(map_name: str):
     env = marlenv.adapters.SMAC(map_name)
-    env = marlenv.Builder(env).agent_id().last_action().build()
+    env = marlenv.Builder(env).agent_id().build()
     return env, None
 
 
@@ -38,36 +38,23 @@ def create_smac(args: Arguments):
     env = marlenv.adapters.SMAC("3m")
     env = marlenv.Builder(env).agent_id().last_action().build()
     qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
-    memory = marl.models.EpisodeMemory(5_000)
+    memory = marl.models.TransitionMemory(50_000)
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
-    test_policy = train_policy
     trainer = DQN(
         qnetwork,
         train_policy=train_policy,
         memory=memory,
         double_qlearning=True,
-        target_updater=HardUpdate(200),
+        target_updater=SoftUpdate(),
         lr=5e-4,
         optimiser="adam",
         batch_size=32,
-        train_interval=(1, "episode"),
+        train_interval=(1, "step"),
         gamma=0.99,
-        mixer=marl.nn.mixers.QPlex(
-            n_agents=env.n_agents,
-            n_actions=env.n_actions,
-            state_size=env.state_shape[0],
-            adv_hypernet_embed=64,
-            n_heads=10,
-            weighted_head=True,
-        ),
+        mixer=VDN.from_env(env),
         grad_norm_clipping=10,
     )
 
-    algo = marl.agents.RDQNAgent(
-        qnetwork=qnetwork,
-        train_policy=train_policy,
-        test_policy=test_policy,
-    )
     if args.debug:
         logdir = "logs/debug"
     else:
@@ -80,7 +67,7 @@ def create_smac(args: Arguments):
             logdir += f"-{trainer.ir_module.name}"
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
-    return marl.Experiment.create(logdir=logdir, agent=algo, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+    return marl.Experiment.create(logdir=logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
@@ -313,22 +300,22 @@ def make_experiment(
 def make_lle():
     # lle = RandomizedLasers(
     env = (
-        # LLE.level(6)
-        LLE.from_file("maps/lvl6-no-lasers.toml")
+        LLE.level(6)
+        # LLE.from_file("maps/lvl6-no-lasers.toml")
         .obs_type("layered")
-        .state_type("layered")
+        .state_type("state")
         # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
-        .builder()
-        # .agent_id()
-        .time_limit(78, add_extra=True)
         .build()
     )
+    for source in env.world.laser_sources:
+        source.disable()
+    env = marlenv.Builder(env).time_limit(78).build()
     test_env = None
     return env, test_env
 
 
 def make_overcooked():
-    env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0.0)
+    env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
     env = marlenv.Builder(env).agent_id().build()
     test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
     test_env = marlenv.Builder(test_env).agent_id().build()
@@ -339,10 +326,10 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
-        # env, test_env = make_lle()
-        env, test_env = make_overcooked()
+        env, test_env = make_lle()
+        # env, test_env = make_overcooked()
 
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.99)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128)
         exp = make_experiment(args, trainer, env, test_env, 1_000_000)
         print(f"Experiment created in {exp.logdir}")

@@ -71,7 +71,7 @@ torch = [
     { index = "torch-cu118", extra = "torch-cu118" },
     { index = "torch-cu124", extra = "torch-cu124" },
 ]
-# multi-agent-rlenv = { git = "https://github.com/yamoling/multi-agent-rlenv", branch = "main" }
+multi-agent-rlenv = { git = "https://github.com/yamoling/multi-agent-rlenv", branch = "dev" }
 # laser-learning-environment = { git = "https://github.com/yamoling/lle", branch = "dev" }
 
 [build-system]

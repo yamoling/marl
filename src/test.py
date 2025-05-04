@@ -72,6 +72,7 @@ class ValueTrainer(marl.Trainer):
         self.optimizer = torch.optim.Adam(self.critic.parameters(), lr=1e-4)
 
     def _train(self, batch: EpisodeBatch):
+        batch.to(self.device)
         values = self.critic.forward(batch.states, batch.states_extras)
         returns = batch.compute_returns(self.gamma)
         loss = torch.nn.functional.mse_loss(values, returns)
@@ -88,7 +89,9 @@ class ValueTrainer(marl.Trainer):
         return logs
 
     def value(self, _: marlenv.Observation, state: marlenv.State) -> float:
-        v = self.critic.forward(state.data).item()
+        data = torch.tensor(state.data, dtype=torch.float32).unsqueeze(0).to(self.device)
+        extras = torch.tensor(state.extras, dtype=torch.float32).unsqueeze(0).to(self.device)
+        v = self.critic.forward(data, extras).item()
         return float(v)
 
 
@@ -113,16 +116,19 @@ def main_curriculum():
         critic=model_bank.CNNCritic(env.state_shape, env.state_extra_shape[0]),
         memory=marl.models.EpisodeMemory(5_000),
         gamma=0.95,
-        batch_size=16,
+        batch_size=64,
     )
     exp = marl.Experiment.create(
         pool,
         n_steps=10_000_000,
         trainer=MultiTrainer(critic_trainer, dqn_trainer),
         agent=dqn_trainer.make_agent(marl.policy.ArgMax()),
+        logdir="vdn-value-trainer",
+        test_interval=10_000,
     )
-    exp.run()
+    exp.run(n_tests=10)
 
 
 if __name__ == "__main__":
     main_curriculum()
+    # marl.Experiment.load("vdn-value-trainer").run(render_tests=True, n_tests=1)

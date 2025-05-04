@@ -1,5 +1,6 @@
 from abc import ABC
 from dataclasses import dataclass
+import os
 from typing import Any, Optional
 
 import torch
@@ -45,3 +46,15 @@ class Trainer(HasDevice, ABC):
         Compute the value of the current state or observation.
         """
         return 0.0
+
+    def save(self, directory_path: str):
+        if not os.path.exists(directory_path):
+            os.makedirs(directory_path)
+        for i, nn in enumerate(self.networks):
+            os.path.join(directory_path, f"{nn.name}_{i}.pt")
+            torch.save(nn.state_dict(), f"{directory_path}_{i}.pt")
+
+    def load(self, directory_path: str):
+        for i, nn in enumerate(self.networks):
+            path = os.path.join(directory_path, f"{nn.name}_{i}.pt")
+            nn.load_state_dict(torch.load(path))

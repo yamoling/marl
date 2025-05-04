@@ -201,8 +201,8 @@ class DQN[B: Batch](Trainer):
         )
 
     def value(self, obs: Observation, state: State) -> float:
-        data, extras = obs.as_tensor()
-        state_data, _ = state.as_tensor()
+        data, extras = obs.as_tensor(self.device)
+        state_data, _ = state.as_tensor(self.device)
         with torch.no_grad():
             qvalues = self.qnetwork.forward(data, extras)
             max_qvalues = qvalues.max(dim=-1).values

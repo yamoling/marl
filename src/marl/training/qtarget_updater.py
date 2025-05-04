@@ -49,7 +49,7 @@ class HardUpdate(TargetParametersUpdater):
 class SoftUpdate(TargetParametersUpdater):
     tau: float
 
-    def __init__(self, tau: float):
+    def __init__(self, tau: float = 0.01):
         super().__init__()
         assert 0 < tau < 1, "Soft update ratio must be between 0 and 1"
         self.tau = tau

@@ -39,3 +39,7 @@ class MultiTrainer(Trainer):
 
     def value(self, obs: Observation, state: State):
         return [t.value(obs, state) for t in self.trainers]
+
+    def save(self, directory_path: str):
+        for i, trainer in enumerate(self.trainers):
+            trainer.save(f"{directory_path}/{trainer.name}-{i}")
