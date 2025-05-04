@@ -306,6 +306,7 @@ def make_lle():
         # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
         .builder()
         .time_limit(78)
+        .agent_id()
         .build()
     )
     test_env = None
@@ -327,8 +328,8 @@ def main(args: Arguments):
         env, test_env = make_lle()
         # env, test_env = make_overcooked()
 
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
-        # trainer = make_ppo(env, mixing=None, minibatch_size=128)
+        # trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
+        trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
         exp = make_experiment(args, trainer, env, test_env, 1_000_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
