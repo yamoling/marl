@@ -300,16 +300,14 @@ def make_experiment(
 def make_lle():
     # lle = RandomizedLasers(
     env = (
-        LLE.level(6)
-        # LLE.from_file("maps/lvl6-no-lasers.toml")
+        LLE.from_file("maps/lvl6-no-lasers")
         .obs_type("layered")
         .state_type("state")
         # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
+        .builder()
+        .time_limit(78)
         .build()
     )
-    for source in env.world.laser_sources:
-        source.disable()
-    env = marlenv.Builder(env).time_limit(78).build()
     test_env = None
     return env, test_env
 

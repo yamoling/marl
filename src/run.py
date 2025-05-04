@@ -15,6 +15,7 @@ class Arguments(tap.TypedArgs):
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
+    render: bool = tap.arg(default=False, help="Render the tests")
 
     @property
     def device(self) -> Literal["auto", "cpu"] | int:
@@ -68,6 +69,7 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
         quiet=run_num > 0,
         device=args.device,
         n_tests=args.n_tests,
+        render_tests=args.render,
     )
 
 
