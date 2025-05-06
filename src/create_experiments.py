@@ -10,6 +10,8 @@ from marl.exceptions import ExperimentAlreadyExistsException
 from lle import LLE
 from run import Arguments as RunArguments, main as run_experiment
 
+from os import path
+
 
 class Arguments(RunArguments):
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
@@ -54,30 +56,20 @@ def create_multiobj_lle(args: Arguments):
         # ir_module=rnd,
     )
 
-    distiler = marl.distilers.SoftDecisionTree(
-        bs=64,
-        input_shape=qnetwork.input_shape,
-        output_shape=qnetwork.output_shape,
-        max_depth=3,
-        epochs=1,
-        seed=args.seed,
-        log_interval=5000,
-    )
-
     agent = marl.agents.DQN(
         qnetwork=qnetwork,
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
         log_qvalues=args.log_qv,
     )
-
+    logs_path = path.join("logs","")
     if args.logdir is not None:
-        if not args.logdir.startswith("logs/"):
-            args.logdir = "logs/" + args.logdir
+        if not args.logdir.startswith(logs_path):
+            args.logdir = logs_path + args.logdir
     elif args.debug:
-        args.logdir = "logs/debug"
+        args.logdir = logs_path+"debug"
     else:
-        args.logdir = f"logs/{env.name}"
+        args.logdir = logs_path+env.name
         if trainer.mixer is not None:
             args.logdir += f"-{trainer.mixer.name}"
         else:

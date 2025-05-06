@@ -40,6 +40,18 @@ class DQN(Agent):
         if log_qvalues: 
             self.last_qvalues = np.ndarray(0)
 
+    def get_action_distribution(self, obs: Observation):
+        """Get an action distribution given the input observation."""
+        with torch.no_grad():
+            qvalues = self.qnetwork.qvalues(obs)
+        qvalues = qvalues.numpy(force=True)
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        qvalues[obs.available_actions == 0.0] = -np.inf
+        qv_distr = np.zeros_like(qvalues)
+        qv_distr[np.arange(qvalues.shape[0]),np.argmax(qvalues,axis=1)] = 1
+        return qv_distr
+
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)

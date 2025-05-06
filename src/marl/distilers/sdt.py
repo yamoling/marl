@@ -103,8 +103,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
     """SoftDecisionTree: a class representing a Soft Decision Tree model distilled from a dnn
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     batch_size: int
-    input_dim: int
-    output_dim: int
+    input_shape: tuple[int, ...] # determined by agent?
+    output_shape: tuple[int, ...] # determined by agent?
     max_depth: int
     #epochs: int
     lr: float
@@ -128,6 +128,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
                  ):
         super(SoftDecisionTree, self).__init__()
 
+        self.input_shape = input_shape
+        self.output_shape = output_shape
         #self.root = InnerNode(1, self.args)
         #self.collect_parameters() ##collect parameters and modules under root node
         #self.optimizer = optim.SGD(self.parameters(), lr=self.args.lr, momentum=self.args.momentum)

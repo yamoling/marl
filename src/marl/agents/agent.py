@@ -51,6 +51,11 @@ class Agent[A](ABC):
             nn.randomize(method)
 
     @abstractmethod
+    def get_action_distribution(self, observation: Observation):
+        """Get an action distribution given the input observation."""
+        raise NotImplementedError("Getting action distribution not implemented")
+
+    @abstractmethod
     def choose_action(self, observation: Observation) -> A:
         """Get the action to perform given the input observation"""
 
