@@ -117,7 +117,8 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def actions(self):
-        actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=np.int64)).to(self.device)
+        dtype = self.episodes[0].actions[0].dtype
+        actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=dtype)).to(self.device)
         return actions.unsqueeze(-1).transpose(1, 0)
 
     @cached_property

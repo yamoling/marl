@@ -119,7 +119,6 @@ class PPO(Trainer):
         all_values = self.actor_critic.value(batch.all_obs, batch.all_extras)
         if self.value_mixer is not None:
             all_values = self.value_mixer.forward(all_values, batch.states)
-
         advantages = batch.compute_gae(self.gamma, all_values, self.gae_lambda)
         returns = advantages + all_values[:-1]
 
