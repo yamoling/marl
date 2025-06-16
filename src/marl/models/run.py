@@ -240,7 +240,6 @@ class Run:
         with open(self.pid_filename, "w") as f:
             f.write(str(os.getpid()))
         return RunHandle(
-            qvalues_logger=logging.CSVLogger(self.qvalues_filename),
             train_logger=logging.CSVLogger(self.train_filename),
             test_logger=logging.CSVLogger(self.test_filename),
             training_data_logger=logging.CSVLogger(self.training_data_filename),
@@ -257,13 +256,11 @@ class Run:
 class RunHandle:
     def __init__(
         self,
-        qvalues_logger: logging.CSVLogger,
         train_logger: logging.CSVLogger,
         test_logger: logging.CSVLogger,
         training_data_logger: logging.CSVLogger,
         run: Run,
     ):
-        self.qvalues_logger = qvalues_logger
         self.train_logger = train_logger
         self.test_logger = test_logger
         self.training_data_logger = training_data_logger
@@ -285,7 +282,6 @@ class RunHandle:
         agent.save(self.run.get_saved_algo_dir(time_step))
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
-        self.qvalues_logger.log(episode.qvalues_met, time_step)
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
         # train_dir = self.run.train_dir(time_step - len(episode))

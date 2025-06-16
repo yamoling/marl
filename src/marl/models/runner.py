@@ -68,14 +68,26 @@ class Runner[A, AS: ActionSpace]:
                     kwargs = {}
             if step_num == max_step:
                 step.truncated = True
-            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues, **kwargs)
-            else: transition = Transition.from_step(obs, state, action, step, **kwargs)
+            if self._log_qvalues: kwargs["qvalues"] = self._agent.last_qvalues # Optional[npt.NDArray[np.float32]]
+            transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
             episode.add(transition)
             obs = step.obs
             state = step.state
             step_num += 1
+
+        if self._log_qvalues: 
+            qvalues = np.array(episode.other["qvalues"]) # Added through transition here-above
+            avg_qvalues = np.average(qvalues, axis=0)
+            qvalues_met = dict()
+            for ag_n, ag in enumerate(avg_qvalues):
+                if self._env.reward_space.size > 1:
+                    for qv_n, qv in enumerate(ag.squeeze()):
+                        qvalues_met[f"agent{ag_n}-qvalue{qv_n}"] = float(qv)
+                else: qvalues_met[f"agent{ag_n}-qvalue"] = float(ag)
+            episode.add_metrics(qvalues_met) # should "simply" be added to dict
+
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         run_handle.log_train_episode(episode, step_num, training_logs)
         return episode
@@ -160,9 +172,10 @@ class Runner[A, AS: ActionSpace]:
                 case (action, _):
                     step = self._test_env.step(action)
                 case (action):
-                    step = self._test_env.step(action)
-            if self._log_qvalues: transition = Transition.from_step(obs, state, action, step, self._agent.last_qvalues)
-            else: transition = Transition.from_step(obs, state, action, step)
+                    step = self._test_env.step(action)            
+            if self._log_qvalues: kwargs = {"qvalues":self._agent.last_qvalues} # Optional[npt.NDArray[np.float32]]
+            else: kwargs = {}
+            transition = Transition.from_step(obs, state, action, step, **kwargs)
             episode.add(transition)
             obs = step.obs
             state = step.state
