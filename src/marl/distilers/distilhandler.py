@@ -10,13 +10,13 @@ from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
 
 class DistilHandler:
-    _distiler: SoftDecisionTree
+    _distiler: SoftDecisionTree # or sklearn DT/Randomforest?
     _experiment: Experiment
     _agent: DQN
 
     def __init__(self,
                  experiment: Experiment,
-                 distiler: SoftDecisionTree            
+                 distiler: SoftDecisionTree # or sklearn DT/Randomforest?           
     ):
         self._experiment = experiment
         self._distiler = distiler
@@ -26,17 +26,21 @@ class DistilHandler:
 
 
     @staticmethod
-    def create(logdir: str):
+    def create(logdir: str, exp_dataset: bool, dataset: str):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
-        if experiment.agent.name == "DQN":
+        if experiment.agent.name == "DQN": # Note: Other similar agents should work, but for our use case we'll limit to DQN and to specific transformations to the output
             #if experiment.env.reward_space.size == 1:
-            output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see
+            if dataset == "action":
+                raise NotImplementedError(f"Distilation not implemented for single action output yet.")
+            else:
+                output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see, might have to do one distilled model per agent
             #else:
             #    output_shape = (experiment.env.n_actions, experiment.env.reward_space.size)
             # Force to not be MO?
-            distiler = SoftDecisionTree(
+            # Distiler may also be other models, consider simple DT and RandomForest later
+            distiler = SoftDecisionTree( # or sklearn DT/Randomforest?
                 input_shape = experiment.env.observation_shape, # Can't consider extras, because we focus on the observation
                 output_shape = output_shape,
             )
@@ -55,6 +59,7 @@ class DistilHandler:
             device: Literal["cpu", "auto"] | int = "auto",
             #n_episodes: int,
             ):
+        # Move to prepare_datset, observation "flattening" on tower BX?
         # Select run, for now last run
         runs = os.listdir(self._experiment.logdir)
         runs = [run for run in runs if "run" in run]
@@ -71,11 +76,19 @@ class DistilHandler:
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         self._agent.to(selected_device)
 
-        distributions, observations = self.perform_one_test()
+        outputs, inputs = self.perform_one_test()
 
-        assert observations[0][0].shape == self._distiler.input_shape and distributions[0].shape == self._distiler.output_shape 
+        assert inputs[0][0].shape == self._distiler.input_shape and outputs[0].shape == self._distiler.output_shape 
+        # Once dataset is ready we train the model, save it too
+        # Later find a way to simply use the model given an observation or experiment
+            # In those cases run both models and note the faithfulness of the distilled model.
+            # For experimentation: possibility to compare multiple distillations
         
-
+    def prepare_dataset():
+        """
+        Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
+        """
+        pass
 
     def perform_one_test(self, seed: Optional[int] = None):
             """
