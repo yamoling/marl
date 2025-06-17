@@ -1,6 +1,7 @@
 import os
 
 from typing import Literal, Optional
+from random import sample
 
 import numpy as np
 
@@ -14,6 +15,8 @@ class DistilHandler:
     _experiment: Experiment
     _agent: DQN
 
+    n_agents: int
+
     def __init__(self,
                  experiment: Experiment,
                  distiler: SoftDecisionTree # or sklearn DT/Randomforest?           
@@ -23,6 +26,8 @@ class DistilHandler:
         self._agent = experiment.agent
         if self._agent.last_qvalues == None:
             self._agent.last_qvalues = np.ndarray(0)
+
+        self.n_agents = self._experiment.env.n_agents
 
 
     @staticmethod
@@ -36,13 +41,15 @@ class DistilHandler:
                 raise NotImplementedError(f"Distilation not implemented for single action output yet.")
             else:
                 output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see, might have to do one distilled model per agent
+            #   output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see
             #else:
             #    output_shape = (experiment.env.n_actions, experiment.env.reward_space.size)
             # Force to not be MO?
             # Distiler may also be other models, consider simple DT and RandomForest later
-            distiler = SoftDecisionTree( # or sklearn DT/Randomforest?
-                input_shape = experiment.env.observation_shape, # Can't consider extras, because we focus on the observation
-                output_shape = output_shape,
+            distiler = SoftDecisionTree(
+                input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2], # Can't consider extras, because we focus on the observation - ALSO SPECIFIC FOR LAYERED OBS
+                output_shape = experiment.env.n_actions,
+                max_depth=5
             )
             distil_handler = DistilHandler(experiment, distiler)
             return distil_handler
@@ -76,13 +83,23 @@ class DistilHandler:
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         self._agent.to(selected_device)
 
-        outputs, inputs = self.perform_one_test()
+        outputs, inputs = self.simulate_one_episode()
 
-        assert inputs[0][0].shape == self._distiler.input_shape and outputs[0].shape == self._distiler.output_shape 
-        # Once dataset is ready we train the model, save it too
-        # Later find a way to simply use the model given an observation or experiment
-            # In those cases run both models and note the faithfulness of the distilled model.
-            # For experimentation: possibility to compare multiple distillations
+        assert inputs.shape[-1] == self._distiler.input_shape and outputs.shape[-1] == self._distiler.output_shape 
+
+        #episode_len = len(distributions)//self.n_agents
+        #for i in range (self.n_agents):
+        #    sl = slice(i*episode_len,(i+1)*episode_len)
+        observations = np.transpose(inputs,(1,0,2))
+        distributions = np.transpose(outputs,(1,0,2))
+        for i in range(10):
+            self._distiler.train_(inputs,outputs, i)
+        
+        self._distiler.test_(inputs,outputs, i)
+       
+        #self._distiler.test_(
+        #    np.random.choice(observations.reshape(-1,self._distiler.input_shape),self._distiler.batch_size),
+        #    np.random.choice(distributions.reshape(-1,self._distiler.output_shape),self._distiler.batch_size))
         
     def prepare_dataset():
         """
@@ -90,11 +107,9 @@ class DistilHandler:
         """
         pass
 
-    def perform_one_test(self, seed: Optional[int] = None):
+    def simulate_one_episode(self, seed: Optional[int] = None):
             """
-            Perform a single test episode.
-
-            The test can be seeded for reproducibility purposes, for instance when the policy or the environment is stochastic.
+            Runs an episode to gather action distributions and observations.
             """
             self._agent.set_testing()
             if seed is not None:
@@ -108,12 +123,45 @@ class DistilHandler:
             is_finished = False
             while not is_finished:
                 if i == 0: obs, state = self._experiment.env.reset()
-                else:
-                    obs = step.obs
+                else: obs = step.obs
                 i += 1
-                distr = self._agent.get_action_distribution(obs)
-                step = self._experiment.env.step(self._agent.policy.get_action(distr, obs.available_actions))
+                distr, act = self._agent.get_action_distribution(obs)
+                step = self._experiment.env.step(act)
+                
+                # This part is very specific to my current use case: to adapt and make more generic!!
+                temp = obs.data
+                #distributions.extend(distr)
+                #observations.extend(self.flatten_observation(temp, axis=1).reshape(self.n_agents,-1)) # axis one because axis 0 is agent
+                
                 distributions.append(distr)
-                observations.append(obs.data)
+                observations.append(self.flatten_observation(temp, axis=1).reshape(self.n_agents,-1)) # axis one because axis 0 is agent
+                
                 is_finished = step.done | step.truncated
             return np.array(distributions), np.array(observations)
+    
+    def flatten_observation(self, observation, axis=0):
+        observation = np.array(observation)
+        flattened_obs = np.full((self.n_agents, observation.shape[axis+1], observation.shape[axis+2]), -1, dtype=int)
+
+        # Find the first n (axis 0) where O[n, i, j] == 1
+        # This gives a mask of the same shape as O
+        mask = observation == 1
+
+        # Get the first 'n' where the condition is met along axis 0
+        first_n = np.argmax(mask, axis=axis)+1
+
+        # Check if *any* 1 was found along axis 0 for each (i, j)
+        any_valid = mask.any(axis=axis)
+
+        # Only update F where a 1 was found
+        flattened_obs[any_valid] = first_n[any_valid]
+
+        # Identify agent self-layer: when layer == agent index
+        # Extract self-layer per agent: O[a, a] for all a → shape (4, 12, 13)
+        agent_indices = np.arange(self.n_agents)
+        agent_self_mask = observation[agent_indices, agent_indices] == 1
+
+        # Set agent's own positions to 0
+        flattened_obs[agent_self_mask] = 0
+
+        return flattened_obs

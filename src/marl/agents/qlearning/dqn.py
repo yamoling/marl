@@ -49,8 +49,9 @@ class DQN(Agent):
             qvalues = qvalues.sum(axis=-1)
         qvalues[obs.available_actions == 0.0] = -np.inf
         qv_distr = np.zeros_like(qvalues)
-        qv_distr[np.arange(qvalues.shape[0]),np.argmax(qvalues,axis=1)] = 1
-        return qv_distr
+        action = self.policy.get_action(qvalues, obs.available_actions)
+        qv_distr[np.arange(qvalues.shape[0]),action] = 1
+        return qv_distr, action
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():

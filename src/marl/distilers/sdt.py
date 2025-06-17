@@ -15,18 +15,28 @@ from marl.models.batch import Batch
 class InnerNode():
     """SoftDecisionTree: a class representing an Inner Node in a SDT
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
-    def __init__(self, depth, args):
-        self.args = args
-        self.fc = nn.Linear(self.args.input_dim, 1)
+    def __init__(self,
+                 depth: int,
+                 input_shape: tuple[int, ...],
+                 output_shape: tuple[int, ...],
+                 max_depth: int,
+                 lmbda: float,
+                 device: Optional[torch.device],
+                 ):
+        self.input_shape = input_shape
+        self.output_shape = output_shape
+        self.max_depth = max_depth
+        self.lmbda = lmbda
+        self.device = device
+        self.fc = nn.Linear(self.input_shape, 1)
         beta = torch.randn(1)
         #beta = beta.expand((self.args.batch_size, 1))
-        if self.args.cuda:
-            beta = beta.cuda()
+
         self.beta = nn.Parameter(beta)
         self.leaf = False
         self.prob = None
         self.leaf_accumulator = []
-        self.lmbda = self.args.lmbda * 2 ** (-depth)
+        self.lmbda = self.lmbda * 2 ** (-depth)
         self.build_child(depth)
         self.penalties = []
 
@@ -37,12 +47,12 @@ class InnerNode():
         self.right.reset()
 
     def build_child(self, depth):
-        if depth < self.args.max_depth:
-            self.left = InnerNode(depth+1, self.args)
-            self.right = InnerNode(depth+1, self.args)
+        if depth < self.max_depth:
+            self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
+            self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
         else :
-            self.left = LeafNode(self.args)
-            self.right = LeafNode(self.args)
+            self.left = LeafNode(self.output_shape, self.device)
+            self.right = LeafNode(self.output_shape, self.device)
 
     def forward(self, x):
         return(F.sigmoid(self.beta*self.fc(x)))
@@ -77,11 +87,14 @@ class InnerNode():
 class LeafNode():
     """SoftDecisionTree: a class representing a Leaf Node in a SDT
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
-    def __init__(self, args):
-        self.args = args
-        self.param = torch.randn(self.args.output_dim)
-        if self.args.cuda:
-            self.param = self.param.cuda()
+    def __init__(self,
+                 output_shape: tuple[int, ...],
+                 device: Optional[torch.device] = None
+                 ):
+        self.output_shape = output_shape
+        self.device = device
+        self.param = torch.randn(self.output_shape)
+
         self.param = nn.Parameter(self.param)
         self.leaf = True
         self.softmax = nn.Softmax()
@@ -95,7 +108,7 @@ class LeafNode():
     def cal_prob(self, x, path_prob):
         Q = self.forward()
         #Q = Q.expand((self.args.batch_size, self.args.output_dim))
-        Q = Q.expand((path_prob.size()[0], self.args.output_dim))
+        Q = Q.expand((path_prob.size()[0], self.output_shape))
         return([[path_prob, Q]])
 
 
@@ -103,50 +116,54 @@ class SoftDecisionTree[B: Batch](nn.Module):
     """SoftDecisionTree: a class representing a Soft Decision Tree model distilled from a dnn
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     batch_size: int
-    input_shape: tuple[int, ...] # determined by agent?
-    output_shape: tuple[int, ...] # determined by agent?
+    input_shape: int
+    output_shape: int
     max_depth: int
-    #epochs: int
     lr: float
     lmbda: float
     momentum: float
-    device: int
+    device: Optional[torch.device]
     seed: int
     log_interval: int # not sure I need, enforced/done by DQN?
 
     def __init__(self, 
-                 input_shape: tuple[int, ...], # determined by agent?
-                 output_shape: tuple[int, ...], # determined by agent?
+                 input_shape: int,
+                 output_shape: int,
                  max_depth: int = 4, 
-                 #epochs: int, # determined by agent?
-                 seed: int = 0, # determined by agent?
-                 log_interval: int = 0, # not sure I need
-                 bs: int = 1, # determined by agent?
+                 seed: int = 0,
+                 log_interval: int = 1, # not sure I need
+                 bs: int = 64,
                  lr: Optional[float] = 0.01,
                  lmbda: Optional[float] = 0.01,
                  momentum: Optional[float] = 0.01,
+                 device: Optional[torch.device] = torch.device('cpu'),
                  ):
         super(SoftDecisionTree, self).__init__()
 
         self.input_shape = input_shape
         self.output_shape = output_shape
-        #self.root = InnerNode(1, self.args)
-        #self.collect_parameters() ##collect parameters and modules under root node
-        #self.optimizer = optim.SGD(self.parameters(), lr=self.args.lr, momentum=self.args.momentum)
-        #self.test_acc = []
-        #self.define_extras(self.args.batch_size)
-        #self.best_accuracy = 0.0
+
+        self.max_depth = max_depth
+        self.seed = seed
+        self.log_interval = log_interval
+
+        self.batch_size = bs
+        self.lr = lr
+        self.lmbda = lmbda
+        self.momentum = momentum
+        self.device = device
+
+        self.root = InnerNode(1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
+        self.collect_parameters() ##collect parameters and modules under root node
+        self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+        self.test_acc = []
+        self.define_extras(self.batch_size)
+        self.best_accuracy = 0.0
     def check(self):
         pass
 
     def define_extras(self, batch_size):
-        ##define target_onehot and path_prob_init batch size, because these need to be defined according to batch size, which can be differ
-        self.target_onehot = torch.FloatTensor(batch_size, self.args.output_dim)
-        self.target_onehot = Variable(self.target_onehot)
-        self.path_prob_init = Variable(torch.ones(batch_size, 1))
-        if self.args.cuda:
-            self.target_onehot = self.target_onehot.cuda()
-            self.path_prob_init = self.path_prob_init.cuda()
+        self.path_prob_init = torch.ones(batch_size, 1, device=self.device)
     '''
     def forward(self, x):
         node = self.root
@@ -157,13 +174,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
         return node()
     '''        
     def cal_loss(self, x, y):
-        batch_size = y.size()[0]
+        batch_size = y.shape[0]
         leaf_accumulator = self.root.cal_prob(x, self.path_prob_init)
         loss = 0.
         max_prob = [-1. for _ in range(batch_size)]
-        max_Q = [torch.zeros(self.args.output_dim) for _ in range(batch_size)]
+        max_Q = [torch.zeros(self.output_shape) for _ in range(batch_size)]
         for (path_prob, Q) in leaf_accumulator:
-            TQ = torch.bmm(y.view(batch_size, 1, self.args.output_dim), torch.log(Q).view(batch_size, self.args.output_dim, 1)).view(-1,1)
+            TQ = torch.bmm(y.view(batch_size, 1, self.output_shape), torch.log(Q).view(batch_size, self.output_shape, 1)).view(-1,1)
             loss += path_prob * TQ
             path_prob_numpy = path_prob.cpu().data.numpy().reshape(-1)
             for i in range(batch_size):
@@ -196,67 +213,59 @@ class SoftDecisionTree[B: Batch](nn.Module):
                 self.param_list.append(beta)
                 self.module_list.append(fc)
 
-    def train_(self, train_loader, epoch):
+    def train_(self, train_data, train_targets, epoch=0):
         """
         Uses raw batch loops over, adapt for Batch class, I think it uses efficient things"""
         self.train()
-        self.define_extras(self.args.batch_size)
-        for batch_idx, (data, target) in enumerate(train_loader):
+        self.define_extras(self.batch_size)
+        for batch_idx  in range (len(train_data)):
             correct = 0
-            if self.args.cuda:
-                data, target = data.cuda(), target.cuda()
-            #data = data.view(self.args.batch_size,-1)
-            target = Variable(target)
-            target_ = target.view(-1,1)
-            batch_size = target_.size()[0]
-            data = data.view(batch_size,-1)
-            ##convert int target to one-hot vector
-            data = Variable(data)
-            if not batch_size == self.args.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
+            target = torch.Tensor(train_targets[batch_idx], device=self.device)
+            data = torch.Tensor(train_data[batch_idx], device=self.device)
+
+            batch_size = target.shape[0]
+
+            if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
                 self.define_extras(batch_size)
-            self.target_onehot.data.zero_()            
-            self.target_onehot.scatter_(1, target_, 1.)
+
             self.optimizer.zero_grad()
 
-            loss, output = self.cal_loss(data, self.target_onehot)
+            loss, output = self.cal_loss(data, target)
             #loss.backward(retain_variables=True)
             loss.backward()
             self.optimizer.step()
             pred = output.data.max(1)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data).cpu().sum()
+            correct += pred.eq(target.data.max(1)[1]).cpu().sum()
             accuracy = 100. * correct / len(data)
 
-            if batch_idx % self.args.log_interval == 0:
+            if batch_idx % self.log_interval == 0:
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, Accuracy: {}/{} ({:.4f}%)'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), loss.data[0],
+                    epoch, batch_idx, len(train_data),
+                    100. * batch_idx / len(train_data), loss.item(),
                     correct, len(data),
                     accuracy))
 
-    def test_(self, test_loader, epoch):
+    def test_(self, train_data, train_targets, epoch=0):
         self.eval()
-        self.define_extras(self.args.batch_size)
+        self.define_extras(self.batch_size)
         test_loss = 0
         correct = 0
-        for data, target in test_loader:
-            if self.args.cuda:
-                data, target = data.cuda(), target.cuda()
-            target = Variable(target)
-            target_ = target.view(-1,1)
-            batch_size = target_.size()[0]
-            data = data.view(batch_size,-1)
-            ##convert int target to one-hot vector
-            data = Variable(data)
-            if not batch_size == self.args.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
+        for batch_idx  in range (len(train_data)):
+
+            target = torch.Tensor(train_targets[batch_idx], device=self.device)
+            data = torch.Tensor(train_data[batch_idx], device=self.device)
+
+            batch_size = target.shape[0]
+
+            if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
                 self.define_extras(batch_size)
-            self.target_onehot.data.zero_()            
-            self.target_onehot.scatter_(1, target_, 1.)
-            _, output = self.cal_loss(data, self.target_onehot)
+
+            _, output = self.cal_loss(data, target)
             pred = output.data.max(1)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data).cpu().sum()
-        accuracy = 100. * correct / len(test_loader.dataset)
+            correct += pred.eq(target.data.max(1)[1]).cpu().sum()
+        accuracy = 100.*correct/(len(train_data)*len(train_data[0]))
         print('\nTest set: Accuracy: {}/{} ({:.4f}%)\n'.format(
-            correct, len(test_loader.dataset),
+            correct, len(train_data)*len(train_data[0]),
             accuracy))
         self.test_acc.append(accuracy)
 
@@ -266,9 +275,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def save_best(self, path):
         try:
-            os.makedirs('./result')
+            os.makedirs(path)
         except:
-            print('directory ./result already exists')
+            print(f"directory {path} already exists")
 
         with open(os.path.join(path, 'best_model.pkl'), 'wb') as output_file:
             pickle.dump(self, output_file)
