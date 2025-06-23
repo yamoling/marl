@@ -117,6 +117,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     batch_size: int
     input_shape: int
+    logdir: str
     output_shape: int
     max_depth: int
     lr: float
@@ -129,6 +130,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     def __init__(self, 
                  input_shape: int,
                  output_shape: int,
+                 logdir: str,
                  max_depth: int = 4, 
                  seed: int = 0,
                  log_interval: int = 1, # not sure I need
@@ -142,6 +144,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         self.input_shape = input_shape
         self.output_shape = output_shape
+        self.logdir = logdir
 
         self.max_depth = max_depth
         self.seed = seed
@@ -270,14 +273,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.test_acc.append(accuracy)
 
         if accuracy > self.best_accuracy:
-            self.save_best('./result')
+            self.save_best()
             self.best_accuracy = accuracy
 
-    def save_best(self, path):
-        try:
-            os.makedirs(path)
-        except:
-            print(f"directory {path} already exists")
-
-        with open(os.path.join(path, 'best_model.pkl'), 'wb') as output_file:
+    def save_best(self):
+        with open(os.path.join(self.logdir, 'sdt_distil.pkl'), 'wb') as output_file:
             pickle.dump(self, output_file)

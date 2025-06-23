@@ -11,6 +11,10 @@ from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
 
 class DistilHandler:
+    """
+    Class handling a distillation process for various distiller types and varying in-/outputs.
+    Based on parameters prepares the dataset, loads the original model and creates the distilled model. Trains, tests and saves the final distilled model.
+    """
     _distiler: SoftDecisionTree # or sklearn DT/Randomforest?
     _experiment: Experiment
     _agent: DQN
@@ -31,13 +35,17 @@ class DistilHandler:
 
 
     @staticmethod
-    def create(logdir: str, exp_dataset: bool, dataset: str):
+    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
         if experiment.agent.name == "DQN": # Note: Other similar agents should work, but for our use case we'll limit to DQN and to specific transformations to the output
             #if experiment.env.reward_space.size == 1:
-            if dataset == "action":
+            if distiler != "sdt":
+                raise NotImplementedError(f"Distilation to other model than SDT not implemented yet.")
+            elif input_type == "abstracted_obs":
+                raise NotImplementedError(f"Distilation not implemented for abstracted observation yet.")
+            elif output_type == "action":
                 raise NotImplementedError(f"Distilation not implemented for single action output yet.")
             else:
                 output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see, might have to do one distilled model per agent
@@ -46,17 +54,19 @@ class DistilHandler:
             #    output_shape = (experiment.env.n_actions, experiment.env.reward_space.size)
             # Force to not be MO?
             # Distiler may also be other models, consider simple DT and RandomForest later
-            distiler = SoftDecisionTree(
+            distil_model = SoftDecisionTree(
                 input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2], # Can't consider extras, because we focus on the observation - ALSO SPECIFIC FOR LAYERED OBS
                 output_shape = experiment.env.n_actions,
-                max_depth=5
+                logdir = experiment.logdir,
+                max_depth=5,
             )
-            distil_handler = DistilHandler(experiment, distiler)
+            distil_handler = DistilHandler(experiment, distil_model)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
         else:
             raise NotImplementedError(f"Distilation not implemented for agent {experiment.agent.name}")
+            # Modify to check if qvalues of experiment is true or not, if true we can access them if not no, also only do it if getting qvalues, else distribution/action should always be accessible, albeit by bypassing something
     
     def run(self, 
             #seed: int =0,
@@ -66,7 +76,7 @@ class DistilHandler:
             device: Literal["cpu", "auto"] | int = "auto",
             #n_episodes: int,
             ):
-        # Move to prepare_datset, observation "flattening" on tower BX?
+        # Move to prepare_dataset, observation "flattening" on tower BX?
         # Select run, for now last run
         runs = os.listdir(self._experiment.logdir)
         runs = [run for run in runs if "run" in run]
@@ -125,7 +135,7 @@ class DistilHandler:
                 if i == 0: obs, state = self._experiment.env.reset()
                 else: obs = step.obs
                 i += 1
-                distr, act = self._agent.get_action_distribution(obs)
+                distr, act = self._agent.get_action_distribution(obs)   # TODO: Adapt with argument
                 step = self._experiment.env.step(act)
                 
                 # This part is very specific to my current use case: to adapt and make more generic!!
