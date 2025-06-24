@@ -19,20 +19,9 @@
                 </button>
             </div>
             <div v-show="showOptions">
-                <b class="me-1">Y-scale:</b>
-                <label v-for="scale in SCALES" class="me-2">
-                    {{ scale }}
-                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
-                </label>
-                <br>
-
                 <label>
                     <input type="checkbox" v-model="enablePlusMinus">
-                    <b class="me-1">Show</b>
-                </label>
-                <label v-for="pm in PLUS_MINUS" class="me-2">
-                    {{ pm }}
-                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" checked>
+                    <b class="me-1">Show std. deviation</b>
                 </label>
             </div>
         </div>
@@ -43,11 +32,8 @@
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import { clip } from "../../utils";
+import { clip, updateHSL, alphaToHSL } from "../../utils";
 import { useColourStore } from '../../stores/ColourStore';
-
-const SCALES = ["Linear", "Logarithmic"] as const;
-const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 
 let chart: Chart;
 const emits = defineEmits<{
@@ -55,14 +41,15 @@ const emits = defineEmits<{
 }>();
 const canvas = ref({} as HTMLCanvasElement);
 
-const yScaleType = ref("Linear" as typeof SCALES[number]);
-const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
-const enablePlusMinus = ref(true);
+
+const fixedYAxis = ref(true);
+const enablePlusMinus = ref(false);
 const showOptions = ref(false);
+
 
 const colourStore = useColourStore();
 const props = defineProps<{
-    datasets: readonly Dataset[]
+    datasets: Dataset[]
     title: string
     showLegend: boolean
 }>();
@@ -79,41 +66,35 @@ function updateChartData() {
     }
     const allTicks = [] as number[];
     const datasets = [] as ChartDataset[];
-    props.datasets.forEach(ds => {
+
+    let plotDatasets = props.datasets;
+
+    // if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsRowWise(plotDatasets);
+    plotDatasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        const colour = colourStore.get(ds.logdir);
+        const colour = colourStore.getQColour(ds.label);
         if (enablePlusMinus.value) {
             let lower;
-            if (plusMinus.value == "Standard deviation") {
-                lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
-            } else if (plusMinus.value == "95% C.I.") {
-                lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
-            } else {
-                throw new Error("Unknown plusMinus value: " + plusMinus.value);
-            }
-            const lowerColour = rgbToAlpha(colour, 0.3);
+            lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+            const lowerColour = alphaToHSL(colour, 50);
             datasets.push({
                 data: tickedDataset(ds.ticks, lower),
                 backgroundColor: lowerColour,
                 fill: "+1"
             });
         }
+
         datasets.push({
-            label: ds.logdir.replace("logs/", ""),
+            label: ds.label,
             data: tickedDataset(ds.ticks, ds.mean),
             borderColor: colour,
             backgroundColor: colour,
         });
+
         if (enablePlusMinus.value) {
             let upper;
-            if (plusMinus.value == "Standard deviation") {
-                upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
-            } else if (plusMinus.value == "95% C.I.") {
-                upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
-            } else {
-                throw new Error("Unknown plusMinus value: " + plusMinus.value);
-            }
-            const upperColour = rgbToAlpha(colour, 0.3);
+            upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+            const upperColour = alphaToHSL(colour, 50);
             datasets.push({
                 data: tickedDataset(ds.ticks, upper),
                 backgroundColor: upperColour,
@@ -128,23 +109,24 @@ function updateChartData() {
 }
 
 watch(props, updateChartData);
-watch(yScaleType, () => {
-    if (yScaleType.value == "Linear") {
-        chart.options!.scales!.y!.type = "linear";
-    } else if (yScaleType.value == "Logarithmic") {
-        chart.options!.scales!.y!.type = "logarithmic";
-    } else {
-        alert("Unknown scale type: " + yScaleType.value)
-    }
-    chart.update()
-});
-watch(enablePlusMinus, updateChartData)
-watch(plusMinus, updateChartData);
+watch(enablePlusMinus, updateChartData);
+// Instead of scales values to change, get updated dataset from QvaluesStore
+//watch(yScaleType, () => {
+//    if (yScaleType.value == "Linear") {
+//        chart.options!.scales!.y!.type = "linear";
+//    } else if (yScaleType.value == "Normalized") {
+//        chart.options!.scales!.y!.type = "normalized";
+//    } else {
+//        alert("Unknown scale type: " + yScaleType.value)
+//    }
+//    chart.update()
+//});
 
 onMounted(() => {
     chart = initialiseChart();
     updateChartData();
 })
+
 
 function initialiseChart(): Chart {
     return new Chart(canvas.value, {
@@ -161,7 +143,7 @@ function initialiseChart(): Chart {
             animation: false,
             onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
-                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
+                    // Since we use {interaction.mode = "nearest"}, we receive the point that we clicked on
                     // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
                     let datasetIndex = datasetElement[0].datasetIndex;
                     if (enablePlusMinus.value) {
@@ -207,22 +189,15 @@ function initialiseChart(): Chart {
                 }
             },
             scales: {
-                y: {
-                    display: true,
-                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
-                }
-            },
+                y: fixedYAxis.value
+                    ? { min: -1, max: 1}
+                    : {}
+            }
         },
         // plugins: [htmlLegendPlugin]
     });
 }
 
-function rgbToAlpha(rgb: string, alpha: number) {
-    let R = parseInt(rgb.substring(1, 3), 16);
-    let G = parseInt(rgb.substring(3, 5), 16);
-    let B = parseInt(rgb.substring(5, 7), 16);
-    return `rgba(${R}, ${G}, ${B}, ${alpha})`
-}
 </script>
 
 <style>

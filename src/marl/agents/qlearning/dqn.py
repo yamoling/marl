@@ -1,5 +1,6 @@
 import os
 import pickle
+import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 
@@ -20,12 +21,14 @@ class DQN(Agent):
     qnetwork: QNetwork
     train_policy: Policy
     test_policy: Policy
+    last_qvalues = None
 
     def __init__(
         self,
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
+        log_qvalues: Optional[bool] = False,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -34,12 +37,29 @@ class DQN(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
+        if log_qvalues: 
+            self.last_qvalues = np.ndarray(0)
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        return self.policy.get_action(qvalues, obs.available_actions)
+        if self.last_qvalues is not None:
+            self.last_qvalues = qvalues.copy()
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        action = self.policy.get_action(qvalues, obs.available_actions)
+
+        if self.last_qvalues is not None:
+            if self.policy.name == "EpsilonGreedy":
+                sel_action = self.test_policy.get_action(qvalues, obs.available_actions)
+            else: 
+                sel_action = action.copy()
+            if self.qnetwork.is_multi_objective: sel_action = sel_action[:,None,None]
+            else: sel_action = sel_action[:,None]
+            self.last_qvalues = np.take_along_axis(self.last_qvalues,sel_action,self.qnetwork.action_dim)
+
+        return action
 
     def value(self, obs: Observation) -> float:
         return self.qnetwork.value(obs).item()

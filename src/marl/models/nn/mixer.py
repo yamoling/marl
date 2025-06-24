@@ -10,9 +10,11 @@ from .nn import NN
 class Mixer(NN):
     n_agents: int
 
-    def __init__(self, n_agents: int):
+    def __init__(self, n_agents: int, n_objectives = 1):
         super().__init__((n_agents,), (0,), (1,))
         self.n_agents = n_agents
+        if n_objectives == 1: self.agent_dim = -1
+        else: self.agent_dim = -2
 
     @abstractmethod
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor, **kwargs) -> torch.Tensor:

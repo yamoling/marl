@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 import torch
+from functools import cached_property
 from marlenv import Episode, Transition
 
 from marl.agents import DQN, Agent
@@ -68,8 +69,8 @@ class DQNTrainer[B: Batch](Trainer):
             target_updater = SoftUpdate(1e-2)
         self.target_updater = target_updater
         self.double_qlearning = double_qlearning
-        self.mixer = mixer
-        self.target_mixer = deepcopy(mixer)
+        self.mixer = mixer if mixer.n_agents > 1 else None
+        self.target_mixer = deepcopy(self.mixer)
         self.ir_module = ir_module
         if test_policy is None:
             test_policy = train_policy
@@ -89,6 +90,10 @@ class DQNTrainer[B: Batch](Trainer):
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
+    @cached_property
+    def action_dim(self):
+        return self.qnetwork.action_dim
+
     def _update(self, time_step: int):
         if not self.memory.can_sample(self.batch_size):
             return {}
@@ -106,28 +111,38 @@ class DQNTrainer[B: Batch](Trainer):
             qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras)[1:]
         else:
             qvalues_for_index = next_qvalues
+
+        if self.qnetwork.is_multi_objective:
+            # Sum over the objectives
+            qvalues_for_index = torch.sum(qvalues_for_index, -1)
         qvalues_for_index[batch.next_available_actions == 0.0] = -torch.inf
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+        if self.qnetwork.is_multi_objective:
+            indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
+
+
+        next_values = torch.gather(next_qvalues, self.action_dim, indices).squeeze(self.action_dim)
         if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(
-                next_values,
-                batch.next_states,
-                one_hot_actions=batch.one_hot_actions,
-                next_qvalues=next_qvalues,
-            )
+            next_values = self.target_mixer.forward(next_values, batch.next_states, one_hot_actions=batch.one_hot_actions, next_qvalues=next_qvalues, device=self.device)
+            next_values = next_values.squeeze()
+
         return next_values
 
     def train(self, batch: Batch) -> dict[str, Any]:
         if self.mixer is None:
             batch = batch.for_individual_learners()
+        if self.qnetwork.is_multi_objective:
+             batch.multi_objective()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         # Qvalues and qvalues with target network computation
         qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions).squeeze(-1)
+        qvalues = torch.gather(qvalues, dim=self.action_dim, index=batch.actions)
+        
+        qvalues = qvalues.squeeze(self.action_dim)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
+            qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues, device=self.device)
+            qvalues = qvalues.squeeze()
 
         # Qtargets computation
         next_values = self.next_values(batch)

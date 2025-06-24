@@ -1,4 +1,4 @@
-import { ExperimentResults } from "./models/Experiment";
+import { ExperimentResults, Dataset } from "./models/Experiment";
 
 /**
  * Compute the shape of a multi-dimensional array.
@@ -73,6 +73,31 @@ export function stringToRGB(s: string) {
 }
 
 
+export function qvalueLabelToHSL(label: string): string {
+    const match = label.match(/^agent(\d+)-qvalue(\d+)$/);
+    if (!match) throw new Error("Invalid label format");
+    const [agent, qvalue] = [parseInt(match[1]), parseInt(match[2])];
+    const hue = (qvalue * 60) % 360;
+    const saturation = Math.min(100, 15 + agent * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
+    const luminance = 50;
+
+    return `hsl(${hue}, ${saturation}%, ${luminance}%)`;
+}
+
+export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=0,): string {
+    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+    if (!match) throw new Error("Invalid HSL format");
+    const s = parseInt(match[2], 10)+sat_factor;
+    const l = parseInt(match[3], 10)+lum_factor;
+    return `hsl(${match[2]}, ${s}%, ${l}%)`;
+}
+
+export function alphaToHSL(hsl: string, alpha: number=0): string {
+    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+    if (!match) throw new Error("Invalid HSL format");
+    return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;
+}
+
 export function downloadStringAsFile(textToSave: string, fileName: string) {
     const hiddenElement = document.createElement('a');
     hiddenElement.href = 'data:attachment/text,' + encodeURI(textToSave);
@@ -112,7 +137,6 @@ export function clip(values: number[], min: number[], max: number[]) {
     }
     return result;
 }
-
 
 
 export function unionXTicks(allXTicks: number[][]) {

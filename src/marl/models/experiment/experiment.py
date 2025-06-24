@@ -37,6 +37,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
     n_steps: int
     creation_timestamp: int
     test_env: MARLEnv[A, AS]
+    log_qvalues: Optional[bool] = False
 
     def __init__(
         self,
@@ -48,12 +49,14 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         n_steps: int,
         creation_timestamp: int,
         test_env: MARLEnv[A, AS],
+        log_qvalues: Optional[bool],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
         self.test_env = test_env
+        self.log_qvalues = log_qvalues
 
     @staticmethod
     def create(
@@ -64,6 +67,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         agent: Optional[Agent] = None,
         test_interval: int = 0,
         test_env: Optional[MARLEnv[A, AS]] = None,
+        log_qvalues: Optional[bool] = False,
     ):
         """Create a new experiment."""
         if test_env is not None:
@@ -72,11 +76,11 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         else:
             test_env = deepcopy(env)
 
-        if not logdir.startswith("logs/"):
+        if not logdir.startswith(os.path.join("logs", "")):
             logdir = os.path.join("logs", logdir)
 
             # Remove the test and debug logs
-        if logdir in ["logs/test", "logs/debug", "logs/tests"]:
+        if logdir in [os.path.join("logs", "test"), os.path.join("logs", "debug"), os.path.join("logs", "tests")]:
             try:
                 shutil.rmtree(logdir)
             except FileNotFoundError:
@@ -96,6 +100,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
                 test_interval=test_interval,
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
+                log_qvalues=log_qvalues,
             )
             experiment.save()
             return experiment
@@ -130,6 +135,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
+        if device != "cpu" and device != "auto": device = int(device)
         runner = self.create_runner()
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         runner = runner.to(selected_device)
@@ -180,6 +186,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             agent=self.agent,
             trainer=self.trainer,
             test_env=self.test_env,
+            log_qvalues=self.log_qvalues,
         )
 
     def replay_episode(self, episode_folder: str):

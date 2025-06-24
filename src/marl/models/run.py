@@ -21,11 +21,13 @@ from marl import logging
 from .replay_episode import LightEpisodeSummary
 
 
+QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
 TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"
 ENV_PICKLE = "env.pkl"
 ACTIONS = "actions.json"
+OBSERVATIONS = "observations.json"
 PID = "pid"
 
 # Dataframe columns
@@ -45,7 +47,7 @@ class Run:
 
     @staticmethod
     def create(logdir: str, seed: int):
-        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.%f")
         rundir = os.path.join(logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
         return Run(rundir)
@@ -89,12 +91,15 @@ class Run:
 
     @property
     def test_metrics(self):
+        """Returns dataframe of test metrics if available, else returns empty dataframe."""
         try:
             return pl.read_csv(self.test_filename, ignore_errors=True)
         except (pl.exceptions.NoDataError, FileNotFoundError):
             return pl.DataFrame()
 
     def train_metrics(self, delta_x: int):
+        """Returns dataframe of training metrics if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
         try:
             # With SMAC, there are sometimes episodes that are not finished and that produce
             # None values for some metrics. We ignore these episodes.
@@ -109,8 +114,24 @@ class Run:
             return pl.DataFrame()
 
     def training_data(self, delta_x: int):
+        """Returns dataframe of training data if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
         try:
             df = pl.read_csv(self.training_data_filename)
+            # Make sure we are working with numerical values
+            df = stats.ensure_numerical(df, drop_non_numeric=True)
+            if delta_x != 0:
+                df = stats.round_col(df, TIME_STEP_COL, delta_x)
+                df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
+            return df
+        except (pl.exceptions.NoDataError, FileNotFoundError):
+            return pl.DataFrame()
+        
+    def qvalues_data(self, delta_x: int):
+        """Returns dataframe of qvalues metrics if available, else returns empty dataframe.
+        delta_x may be used to bin data over time"""
+        try:
+            df = pl.read_csv(self.qvalues_filename)
             # Make sure we are working with numerical values
             df = stats.ensure_numerical(df, drop_non_numeric=True)
             if delta_x != 0:
@@ -140,6 +161,10 @@ class Run:
                 raise RunProcessNotFound(self.rundir, pid)
         raise NotRunningExcception(self.rundir)
 
+    @property
+    def qvalues_filename(self):
+        return os.path.join(self.rundir, QVALUES) 
+    
     @property
     def test_filename(self):
         return os.path.join(self.rundir, TEST)

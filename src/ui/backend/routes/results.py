@@ -11,8 +11,9 @@ def get_experiment_results(logdir: str):
     except (ModuleNotFoundError, FileNotFoundError) as e:
         return Response(str(e), status=404)
     try:
-        results = exp.get_experiment_results(replace_inf=True)
-        return Response(orjson.dumps(results), mimetype="application/json")
+        metrics, qvalues = exp.get_experiment_results(replace_inf=True)
+        response_data = {"metrics":metrics, "qvalues":qvalues}
+        return Response(orjson.dumps(response_data), mimetype="application/json")
     except Exception as e:
         return Response(str(e), status=500)
 
@@ -33,5 +34,6 @@ def get_experiment_results_by_run(logdir: str):
         datasets = stats.compute_datasets([run.test_metrics], logdir, True, suffix=" [test]")
         datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, suffix=" [train]")
         datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True)
-        runs_results.append(stats.ExperimentResults(run.rundir, datasets))
+        qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True)
+        runs_results.append(stats.ExperimentResults(run.rundir, datasets, qvalues))
     return Response(orjson.dumps(runs_results), mimetype="application/json")

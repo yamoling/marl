@@ -19,8 +19,9 @@ class TransitionBatch(Batch):
 
     def multi_objective(self):
         self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
-        self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
-        self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
+        # This transformation is done already in the cached_prodperty of done and masks
+        #self.dones = self.dones.unsqueeze(-1).repeat(*(1 for _ in self.dones.shape), self.reward_size)
+        #self.masks = self.masks.unsqueeze(-1).repeat(*(1 for _ in self.masks.shape), self.reward_size)
         if self.importance_sampling_weights is not None:
             self.importance_sampling_weights = self.importance_sampling_weights.unsqueeze(-1).repeat(
                 *(1 for _ in self.importance_sampling_weights.shape), self.reward_size
@@ -71,7 +72,8 @@ class TransitionBatch(Batch):
 
     @cached_property
     def dones(self):
-        dones = np.array([t.done * self.reward_size for t in self.transitions], dtype=np.float32)
+        #dones = np.array([t.done * self.reward_size for t in self.transitions], dtype=np.float32)
+        dones = np.array([t.done for t in self.transitions], dtype=np.float32)
         dones = torch.from_numpy(dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)
