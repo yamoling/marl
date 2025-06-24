@@ -38,10 +38,10 @@ class Arguments(tap.TypedArgs):
         if self._n_processes is not None:
             return min(self._n_processes, self.n_runs)
 
+        import subprocess
+
         try:
             # If we have GPUs, then start as many runs as there are GPUs
-            import subprocess
-
             cmd = "nvidia-smi --list-gpus"
             output = subprocess.check_output(cmd, shell=True).decode()
             # The driver exists but no GPU is available (for instance, the eGPU is disconnected)

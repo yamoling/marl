@@ -165,7 +165,6 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
         test_env=None,
         logdir="logs/haven",
     )
-    # exp.run()
 
 
 def make_mixer(env: MARLEnv[MultiDiscreteSpace], mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn"):
