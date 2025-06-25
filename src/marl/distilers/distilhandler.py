@@ -28,7 +28,7 @@ class DistilHandler:
         self._experiment = experiment
         self._distiler = distiler
         self._agent = experiment.agent
-        if self._agent.last_qvalues == None:
+        if self._agent.last_qvalues is None:
             self._agent.last_qvalues = np.ndarray(0)
 
         self.n_agents = self._experiment.env.n_agents
@@ -39,6 +39,9 @@ class DistilHandler:
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
+        # Some weird things with how logdir is handeled by experiment
+        if experiment.logdir != logdir:
+            experiment.logdir = logdir
         if experiment.agent.name == "DQN": # Note: Other similar agents should work, but for our use case we'll limit to DQN and to specific transformations to the output
             #if experiment.env.reward_space.size == 1:
             if distiler != "sdt":
