@@ -9,7 +9,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from marlenv.models import ActionSpace, MARLEnv
+from marlenv.models import MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
@@ -28,15 +28,15 @@ from .light_experiment import LightExperiment
 
 
 @dataclass
-class Experiment[A, AS: ActionSpace](LightExperiment):
+class Experiment[A](LightExperiment):
     logdir: str
     agent: Agent
     trainer: Trainer
-    env: MARLEnv[A, AS]
+    env: MARLEnv[A]
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: MARLEnv[A, AS]
+    test_env: MARLEnv[A]
     log_qvalues: Optional[bool] = False
 
     def __init__(
@@ -44,11 +44,11 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         logdir: str,
         agent: Agent,
         trainer: Trainer,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv[A, AS],
+        test_env: MARLEnv[A],
         log_qvalues: Optional[bool],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
@@ -60,13 +60,13 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
 
     @staticmethod
     def create(
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         n_steps: int,
         logdir: str = "logs/tests",
         trainer: Optional[Trainer] = None,
         agent: Optional[Agent] = None,
         test_interval: int = 0,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
     ):
         """Create a new experiment."""
@@ -151,7 +151,7 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
 
     def test_on_other_env(
         self,
-        other_env: MARLEnv[A, AS],
+        other_env: MARLEnv[A],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,

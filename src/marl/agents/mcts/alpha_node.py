@@ -1,4 +1,4 @@
-from marlenv import State, MARLEnv, DiscreteActionSpace
+from marlenv import State, MARLEnv
 import torch
 import numpy as np
 import math
@@ -105,7 +105,7 @@ class AlphaNode:
         assert self.parent is not None
         return self.q_value + c * self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
 
-    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCriticNN, gamma: float):
+    def expand(self, env: MARLEnv[list[int]], nn: DiscreteActorCriticNN, gamma: float):
         if self.is_terminal:
             return
         env.set_state(self.state)

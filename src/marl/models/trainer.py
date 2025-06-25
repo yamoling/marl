@@ -28,7 +28,7 @@ class Trainer[A](ABC):
     def make_agent(self, *, ir_module: Optional[IRModule] = None) -> Agent:
         raise NotImplementedError("Trainer must implement make_agent method")
 
-    def update_step(self, transition: Transition[A], time_step: int) -> dict[str, Any]:
+    def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         """
         Update to call after each step. Should be run when update_after_each == "step".
 
@@ -37,7 +37,7 @@ class Trainer[A](ABC):
         """
         return {}
 
-    def update_episode(self, episode: Episode[A], episode_num: int, time_step: int) -> dict[str, Any]:
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
         """
         Update to call after each episode. Should be run when update_after_each == "episode".
 

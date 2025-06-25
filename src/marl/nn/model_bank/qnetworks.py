@@ -8,7 +8,7 @@ import torch
 import torch.distributions as D
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import ActionSpace, Observation, DiscreteActionSpace
+from marlenv import Observation
 from marlenv.models import MARLEnv
 
 from marl.agents.qlearning.maic import MAICParameters
@@ -41,7 +41,7 @@ class MLP(QNetwork):
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
-    def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS], hidden_sizes: Optional[Sequence[int]] = None):
+    def from_env[A](cls, env: MARLEnv[A], hidden_sizes: Optional[Sequence[int]] = None):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
@@ -174,7 +174,7 @@ class CNN(QNetwork):
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
+    def from_env[A](cls, env: MARLEnv[A], mlp_sizes: tuple[int, ...] = (64, 64)):
         if env.reward_space.size == 1:
             output_shape = (env.n_actions,)
         else:
@@ -428,7 +428,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[A], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -542,7 +542,7 @@ class MAICNetworkCNN(MAICNN):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[A], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -668,5 +668,5 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], args: MAICParameters):
+    def from_env[A](cls, env: MARLEnv[A], args: MAICParameters):
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)

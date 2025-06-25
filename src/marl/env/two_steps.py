@@ -3,7 +3,7 @@ from typing import Literal
 import marlenv
 import numpy as np
 import numpy.typing as npt
-from marlenv import Observation, State, DiscreteActionSpace
+from marlenv import Observation, State, DiscreteSpace
 
 PAYOFF_INITIAL = [[0, 0], [0, 0]]
 
@@ -34,7 +34,8 @@ class TwoSteps(marlenv.MARLEnv):
         self.state = TwoStepsState.INITIAL
         self._identity = np.identity(2, dtype=np.float32)
         super().__init__(
-            DiscreteActionSpace(2, 2),
+            2, 
+            DiscreteSpace(2),
             observation_shape=(self.state.one_hot().shape[0] + 2,),
             state_shape=self.state.one_hot().shape,
         )

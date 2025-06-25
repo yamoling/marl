@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from marlenv import MARLEnv, State, DiscreteActionSpace
+from marlenv import MARLEnv, State
 from marl.nn.model_bank import CNN_ActorCritic
 from collections import deque
 from marl.logging import CSVLogger
@@ -12,7 +12,7 @@ from copy import deepcopy
 class AlphaZero:
     def __init__(
         self,
-        env: MARLEnv[list[int], DiscreteActionSpace],
+        env: MARLEnv[list[int]],
         n_search_iterations: int = 100,
         lr: float = 0.001,
         exploration_constant: float = 2**0.5,

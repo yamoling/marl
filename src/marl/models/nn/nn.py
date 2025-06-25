@@ -1,7 +1,6 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from marlenv import ActionSpace
 from abc import ABC, abstractmethod
 import torch
 
@@ -47,7 +46,7 @@ class NN(torch.nn.Module, ABC):
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
     @classmethod
-    def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS]):
+    def from_env[A](cls, env: MARLEnv[A]):
         """Construct a NN from environment specifications"""
         return cls(input_shape=env.observation_shape, extras_shape=env.extras_shape, output_shape=(env.n_actions,))
 

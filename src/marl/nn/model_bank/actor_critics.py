@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 
 import torch
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import MARLEnv
 
 from marl.models.nn import ContinuousActorCriticNN, DiscreteActorCriticNN, CriticNN, ContinuousActorNN
 from .qnetworks import MLP
@@ -198,7 +198,7 @@ class SimpleActorCritic(DiscreteActorCriticNN):
         return list(self.policy_network.parameters())
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
+    def from_env[A](cls, env: MARLEnv[A]):
         assert len(env.observation_shape) == 1
         assert len(env.extras_shape) == 1
         return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)

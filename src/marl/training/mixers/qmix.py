@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import DiscreteActionSpace, MARLEnv
+from marlenv import MARLEnv
 
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
@@ -80,7 +80,7 @@ class QMix(Mixer):
         return q_totals
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
+    def from_env[A](cls, env: MARLEnv[A], embed_size: int = 64, hypernet_embed_size: int = 64):
         return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size, env.reward_space.size)
 
     def save(self, to_directory: str):

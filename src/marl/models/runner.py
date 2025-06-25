@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from marlenv import ActionSpace, Episode, MARLEnv, Transition
+from marlenv import Space, Episode, MARLEnv, Transition
 from tqdm import tqdm
 from typing_extensions import TypeVar
 
@@ -15,22 +15,22 @@ from marl.models.trainer import Trainer
 from marl.training import NoTrain
 from marl.utils import get_device
 
-A = TypeVar("A", bound=ActionSpace)
+A = TypeVar("A", bound=Space)
 
 
-class Runner[A, AS: ActionSpace]:
-    _env: MARLEnv[A, AS]
+class Runner[A]:
+    _env: MARLEnv[A]
     _agent: Agent
     _trainer: Trainer
-    _test_env: MARLEnv[A, AS]
+    _test_env: MARLEnv[A]
     _log_qvalues: bool
 
     def __init__(
         self,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
     ):
         self._trainer = trainer or NoTrain(env)
@@ -185,7 +185,7 @@ class Runner[A, AS: ActionSpace]:
 
     def tests(self, n_tests: int, time_step: int, quiet: bool = True, render: bool = False):
         """Test the agent"""
-        episodes = list[Episode[A]]()
+        episodes = list[Episode]()
         for test_num in tqdm(range(n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
             seed = self.get_test_seed(time_step, test_num)
             episodes.append(self.perform_one_test(seed, render))

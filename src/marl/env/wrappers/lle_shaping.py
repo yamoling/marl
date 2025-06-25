@@ -1,13 +1,13 @@
 from typing import Sequence
 import numpy as np
 from marlenv.wrappers import RLEnvWrapper
-from marlenv import Observation, DiscreteSpace, DiscreteActionSpace
+from marlenv import Observation, DiscreteSpace
 from dataclasses import dataclass
 from lle import LLE, Action
 
 
 @dataclass
-class LLEShaping(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
+class LLEShaping(RLEnvWrapper[Sequence[int] | np.ndarray]):
     reward_for_blocking: float
 
     def __init__(self, env: LLE, reward_for_blocking: float):
@@ -40,7 +40,7 @@ class LLEShaping(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
 
 
 @dataclass
-class LLEShapeEachLaser(RLEnvWrapper[Sequence[int] | np.ndarray, DiscreteActionSpace]):
+class LLEShapeEachLaser(RLEnvWrapper[Sequence[int] | np.ndarray]):
     extra_reward: float
 
     def __init__(self, env_lvl6: LLE, extra_reward: float, enable_reward: bool, multi_objective: bool = False):

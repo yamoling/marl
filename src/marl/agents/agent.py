@@ -5,7 +5,7 @@ from functools import cached_property
 from typing import Literal
 
 import torch
-from marlenv.models import Observation, ActionSpace
+from marlenv.models import Observation, Space
 
 from marl.models.nn import NN, RecurrentNN
 
@@ -19,7 +19,7 @@ class Agent[A](ABC):
         self.device = torch.device("cpu")
 
     @property
-    def action_space(self) -> ActionSpace:
+    def action_space(self) -> Space:
         raise NotImplementedError("Action space not implemented")
 
     @cached_property

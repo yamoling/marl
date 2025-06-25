@@ -5,13 +5,13 @@ import numpy as np
 from lle import World, Position, LLE
 from lle.tiles import Direction, LaserSource
 from marlenv.wrappers import RLEnvWrapper, MARLEnv
-from marlenv import Observation, ActionSpace
+from marlenv import Observation
 
 HORIZONTAL = [Direction.EAST, Direction.WEST]
 VERTICAL = [Direction.NORTH, Direction.SOUTH]
 
 
-class PotentialShaping[A, AS: ActionSpace](RLEnvWrapper[A, AS]):
+class PotentialShaping[A](RLEnvWrapper[A]):
     """
     Potential shaping for the Laser Learning Environment (LLE).
 
@@ -20,7 +20,7 @@ class PotentialShaping[A, AS: ActionSpace](RLEnvWrapper[A, AS]):
 
     gamma: float
 
-    def __init__(self, env: MARLEnv[A, AS], gamma: float, extra_shape: Optional[tuple[int]]):
+    def __init__(self, env: MARLEnv[A], gamma: float, extra_shape: Optional[tuple[int]]):
         if extra_shape is None:
             extras_meanings = None
         else:

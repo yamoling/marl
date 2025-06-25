@@ -1,9 +1,9 @@
-from marlenv import MARLEnv, Observation, ActionSpace
+from marlenv import MARLEnv, Observation
 from .agent import Agent
 
 
-class RandomAgent[A, AS: ActionSpace](Agent[A]):
-    def __init__(self, env: MARLEnv[A, AS]):
+class RandomAgent[A](Agent[A]):
+    def __init__(self, env: MARLEnv[A]):
         super().__init__()
         self.env = env
 
