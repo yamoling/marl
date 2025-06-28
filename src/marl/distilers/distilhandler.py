@@ -50,11 +50,6 @@ class DistilHandler:
                 raise NotImplementedError(f"Distilation not implemented for abstracted observation yet.")
             elif output_type == "action":
                 raise NotImplementedError(f"Distilation not implemented for single action output yet.")
-            else:
-                output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see, might have to do one distilled model per agent
-            #   output_shape = (experiment.env.n_agents, experiment.env.n_actions,) # for now consider output for all agents and see
-            #else:
-            #    output_shape = (experiment.env.n_actions, experiment.env.reward_space.size)
             # Force to not be MO?
             # Distiler may also be other models, consider simple DT and RandomForest later
             distil_model = SoftDecisionTree(
@@ -62,6 +57,7 @@ class DistilHandler:
                 output_shape = experiment.env.n_actions,
                 logdir = experiment.logdir,
                 max_depth=5,
+                bs=experiment.env.n_agents,
             )
             distil_handler = DistilHandler(experiment, distil_model)
             return distil_handler
@@ -103,17 +99,13 @@ class DistilHandler:
         #episode_len = len(distributions)//self.n_agents
         #for i in range (self.n_agents):
         #    sl = slice(i*episode_len,(i+1)*episode_len)
-        observations = np.transpose(inputs,(1,0,2))
-        distributions = np.transpose(outputs,(1,0,2))
+        inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
+        outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
         for i in range(10):
             self._distiler.train_(inputs,outputs, i)
         
         self._distiler.test_(inputs,outputs, i)
        
-        #self._distiler.test_(
-        #    np.random.choice(observations.reshape(-1,self._distiler.input_shape),self._distiler.batch_size),
-        #    np.random.choice(distributions.reshape(-1,self._distiler.output_shape),self._distiler.batch_size))
-        
     def prepare_dataset():
         """
         Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
@@ -153,28 +145,30 @@ class DistilHandler:
             return np.array(distributions), np.array(observations)
     
     def flatten_observation(self, observation, axis=0):
+        """Flattens the observation as per the structure of a layered observation from LLE.
+        axis is the axis starting which the field is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
+        """
         observation = np.array(observation)
         flattened_obs = np.full((self.n_agents, observation.shape[axis+1], observation.shape[axis+2]), -1, dtype=int)
+        # Clone to avoid modifying the original observation
+        obs_a = np.copy(observation)
+        laser_0 = self.n_agents + 1
+
+        for a_idx in range(1,self.n_agents): # Change perspective of agents 1 to 3
+            # Swap agent layer of agent a_idx
+            obs_a[a_idx, [0, a_idx]] = observation[a_idx, [a_idx, 0]]
+            # Swap laser layer of agent a_idx, where laser_i = n_agents+1+i
+            laser_a_idx = laser_0 + a_idx
+            obs_a[a_idx, [laser_0, laser_a_idx]] = observation[a_idx, [laser_a_idx, laser_0]]
 
         # Find the first n (axis 0) where O[n, i, j] == 1
         # This gives a mask of the same shape as O
-        mask = observation == 1
-
-        # Get the first 'n' where the condition is met along axis 0
-        first_n = np.argmax(mask, axis=axis)+1
-
+        mask = obs_a == 1
+        # Get the first 'n' where the condition is met along axis 
+        first_n = np.argmax(mask, axis=axis, )
         # Check if *any* 1 was found along axis 0 for each (i, j)
         any_valid = mask.any(axis=axis)
-
         # Only update F where a 1 was found
         flattened_obs[any_valid] = first_n[any_valid]
-
-        # Identify agent self-layer: when layer == agent index
-        # Extract self-layer per agent: O[a, a] for all a → shape (4, 12, 13)
-        agent_indices = np.arange(self.n_agents)
-        agent_self_mask = observation[agent_indices, agent_indices] == 1
-
-        # Set agent's own positions to 0
-        flattened_obs[agent_self_mask] = 0
 
         return flattened_obs

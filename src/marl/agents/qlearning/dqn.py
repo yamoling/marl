@@ -47,10 +47,12 @@ class DQN(Agent):
         qvalues = qvalues.numpy(force=True)
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
+        qv_distr = qvalues.copy()
         qvalues[obs.available_actions == 0.0] = -np.inf
-        qv_distr = np.zeros_like(qvalues)
+        qv_distr[obs.available_actions == 0.0] = 0
+
         action = self.policy.get_action(qvalues, obs.available_actions)
-        qv_distr[np.arange(qvalues.shape[0]),action] = 1
+        qv_distr = qv_distr/np.sum(qv_distr, axis=1, keepdims=True)
         return qv_distr, action
 
     def choose_action(self, obs: Observation):

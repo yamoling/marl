@@ -8,12 +8,15 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
+import numpy as np
+
 from typing import Optional, Any
 
 from marl.models.batch import Batch
 
-class InnerNode():
-    """SoftDecisionTree: a class representing an Inner Node in a SDT
+class InnerNode(nn.Module):
+    """SoftDecisionTree: a class representing an Inner Node in a SDT.
+    Will recursively build the tree, by building its children.
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     def __init__(self,
                  depth: int,
@@ -23,30 +26,25 @@ class InnerNode():
                  lmbda: float,
                  device: Optional[torch.device],
                  ):
+        super(InnerNode, self).__init__()
+        # Fix arguments
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.max_depth = max_depth
-        self.lmbda = lmbda
+        self.lmbda = lmbda * 2 ** (-depth) # Lambda decays with depth
         self.device = device
+        # Modules
         self.fc = nn.Linear(self.input_shape, 1)
-        beta = torch.randn(1)
-        #beta = beta.expand((self.args.batch_size, 1))
-
-        self.beta = nn.Parameter(beta)
+        self.beta = nn.Parameter(torch.randn(1))
+        # Tree specific
         self.leaf = False
         self.prob = None
         self.leaf_accumulator = []
-        self.lmbda = self.lmbda * 2 ** (-depth)
+        self.penalties = []
         self.build_child(depth)
-        self.penalties = []
-
-    def reset(self):
-        self.leaf_accumulator = []
-        self.penalties = []
-        self.left.reset()
-        self.right.reset()
 
     def build_child(self, depth):
+        """Builds the current node's children w.r.t depth, if depth = max_depth, builds nodes."""
         if depth < self.max_depth:
             self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
             self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
@@ -54,10 +52,19 @@ class InnerNode():
             self.left = LeafNode(self.output_shape, self.device)
             self.right = LeafNode(self.output_shape, self.device)
 
+    def reset(self):
+        """Resets the penalties and leaf accumulator and calls reset for children"""
+        self.leaf_accumulator = []
+        self.penalties = []
+        self.left.reset()
+        self.right.reset()
+
     def forward(self, x):
-        return(F.sigmoid(self.beta*self.fc(x)))
+        """Applies the sigmoid function on the product of beta and the linear transformation"""
+        return(torch.sigmoid(self.beta*self.fc(x)))
     
     def select_next(self, x):
+        """Select the next node to take based on the probability"""
         prob = self.forward(x)
         if prob < 0.5:
             return(self.left, prob)
@@ -84,20 +91,21 @@ class InnerNode():
         return(self.penalties)
 
 
-class LeafNode():
+class LeafNode(nn.Module):
     """SoftDecisionTree: a class representing a Leaf Node in a SDT
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     def __init__(self,
                  output_shape: tuple[int, ...],
                  device: Optional[torch.device] = None
                  ):
+        super(LeafNode, self).__init__()
         self.output_shape = output_shape
         self.device = device
-        self.param = torch.randn(self.output_shape)
 
-        self.param = nn.Parameter(self.param)
+        self.param = nn.Parameter(torch.randn(self.output_shape))
+        self.softmax = nn.Softmax(dim=1)
+
         self.leaf = True
-        self.softmax = nn.Softmax()
 
     def forward(self):
         return(self.softmax(self.param.view(1,-1)))
@@ -107,8 +115,7 @@ class LeafNode():
 
     def cal_prob(self, x, path_prob):
         Q = self.forward()
-        #Q = Q.expand((self.args.batch_size, self.args.output_dim))
-        Q = Q.expand((path_prob.size()[0], self.output_shape))
+        Q = Q.expand((path_prob.size(0), self.output_shape))
         return([[path_prob, Q]])
 
 
@@ -157,31 +164,25 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.device = device
 
         self.root = InnerNode(1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
-        self.collect_parameters() ##collect parameters and modules under root node
+
         self.optimizer = optim.SGD(self.parameters(), lr=self.lr, momentum=self.momentum)
+
         self.test_acc = []
         self.define_extras(self.batch_size)
         self.best_accuracy = 0.0
+    
     def check(self):
         pass
 
     def define_extras(self, batch_size):
         self.path_prob_init = torch.ones(batch_size, 1, device=self.device)
-    '''
-    def forward(self, x):
-        node = self.root
-        path_prob = Variable(torch.ones(self.args.batch_size, 1))
-        while not node.leaf:
-            node, prob = node.select_next(x)
-            path_prob *= prob
-        return node()
-    '''        
+     
     def cal_loss(self, x, y):
         batch_size = y.shape[0]
         leaf_accumulator = self.root.cal_prob(x, self.path_prob_init)
         loss = 0.
         max_prob = [-1. for _ in range(batch_size)]
-        max_Q = [torch.zeros(self.output_shape) for _ in range(batch_size)]
+        max_Q = torch.zeros((batch_size,self.output_shape))
         for (path_prob, Q) in leaf_accumulator:
             TQ = torch.bmm(y.view(batch_size, 1, self.output_shape), torch.log(Q).view(batch_size, self.output_shape, 1)).view(-1,1)
             loss += path_prob * TQ
@@ -195,32 +196,17 @@ class SoftDecisionTree[B: Batch](nn.Module):
         C = 0.
         for (penalty, lmbda) in penalties:
             C -= lmbda * 0.5 *(torch.log(penalty) + torch.log(1-penalty))
-        output = torch.stack(max_Q)
+        #output = torch.stack(max_Q)
         self.root.reset() ##reset all stacked calculation
-        return(-loss + C, output) ## -log(loss) will always output non, because loss is always below zero. I suspect this is the mistake of the paper?
+        return(-loss + C, max_Q) ## -log(loss) will always output non, because loss is always below zero. I suspect this is the mistake of the paper?
 
-    def collect_parameters(self):
-        nodes = [self.root]
-        self.module_list = nn.ModuleList()
-        self.param_list = nn.ParameterList()
-        while nodes:
-            node = nodes.pop(0)
-            if node.leaf:
-                param = node.param
-                self.param_list.append(param)
-            else:
-                fc = node.fc
-                beta = node.beta
-                nodes.append(node.right)
-                nodes.append(node.left)
-                self.param_list.append(beta)
-                self.module_list.append(fc)
 
     def train_(self, train_data, train_targets, epoch=0):
         """
-        Uses raw batch loops over, adapt for Batch class, I think it uses efficient things"""
+        While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
         self.train()
         self.define_extras(self.batch_size)
+        train_acc = []
         for batch_idx  in range (len(train_data)):
             correct = 0
             target = torch.Tensor(train_targets[batch_idx], device=self.device)
@@ -247,6 +233,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
                     100. * batch_idx / len(train_data), loss.item(),
                     correct, len(data),
                     accuracy))
+                train_acc.append(accuracy)
+        print(f"Train accuracy for epoch {epoch}: {np.mean(train_acc)}\n ")
 
     def test_(self, train_data, train_targets, epoch=0):
         self.eval()
