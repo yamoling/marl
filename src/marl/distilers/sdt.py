@@ -140,9 +140,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
                  logdir: str,
                  max_depth: int = 4, 
                  seed: int = 0,
-                 log_interval: int = 1, # not sure I need
+                 log_interval: int = 50, # not sure I need
                  bs: int = 64,
-                 lr: Optional[float] = 0.01,
+                 lr: Optional[float] = 0.001,
                  lmbda: Optional[float] = 0.01,
                  momentum: Optional[float] = 0.01,
                  device: Optional[torch.device] = torch.device('cpu'),
@@ -205,6 +205,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         """
         While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
         self.train()
+        torch.manual_seed(self.seed+epoch)
         self.define_extras(self.batch_size)
         train_acc = []
         for batch_idx  in range (len(train_data)):
@@ -238,6 +239,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def test_(self, train_data, train_targets, epoch=0):
         self.eval()
+        
         self.define_extras(self.batch_size)
         test_loss = 0
         correct = 0

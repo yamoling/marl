@@ -20,10 +20,12 @@ class DistilHandler:
     _agent: DQN
 
     n_agents: int
+    extras: bool
 
     def __init__(self,
                  experiment: Experiment,
-                 distiler: SoftDecisionTree # or sklearn DT/Randomforest?           
+                 distiler: SoftDecisionTree, # or sklearn DT/Randomforest?  
+                 extras: bool        
     ):
         self._experiment = experiment
         self._distiler = distiler
@@ -32,10 +34,11 @@ class DistilHandler:
             self._agent.last_qvalues = np.ndarray(0)
 
         self.n_agents = self._experiment.env.n_agents
+        self.extras = extras
 
 
     @staticmethod
-    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str):
+    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str, extras: bool):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
@@ -51,15 +54,17 @@ class DistilHandler:
             elif output_type == "action":
                 raise NotImplementedError(f"Distilation not implemented for single action output yet.")
             # Force to not be MO?
+            if extras: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]+experiment.env.extras_shape[0]+2
+            else: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]
             # Distiler may also be other models, consider simple DT and RandomForest later
             distil_model = SoftDecisionTree(
-                input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2], # Can't consider extras, because we focus on the observation - ALSO SPECIFIC FOR LAYERED OBS
+                input_shape = input_shape,
                 output_shape = experiment.env.n_actions,
                 logdir = experiment.logdir,
-                max_depth=5,
+                max_depth=4,
                 bs=experiment.env.n_agents,
             )
-            distil_handler = DistilHandler(experiment, distil_model)
+            distil_handler = DistilHandler(experiment, distil_model, extras)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
@@ -75,24 +80,10 @@ class DistilHandler:
             device: Literal["cpu", "auto"] | int = "auto",
             #n_episodes: int,
             ):
-        # Move to prepare_dataset, observation "flattening" on tower BX?
-        # Select run, for now last run
-        runs = os.listdir(self._experiment.logdir)
-        runs = [run for run in runs if "run" in run]
-        run = runs[-1]
-        run_path = os.path.join(self._experiment.logdir,run)
-        tests_path = os.path.join(run_path,"test")
-        tests = os.listdir(tests_path)
-        tests.sort(key=int)
-        test = tests[-1]
-        load_test_path = os.path.join(tests_path,test)
-        self._agent.load(load_test_path)
-        
         
         selected_device = get_device(device, fill_strategy, required_memory_MB)
-        self._agent.to(selected_device)
 
-        outputs, inputs = self.simulate_one_episode()
+        outputs, inputs = self.prepare_dataset(selected_device)
 
         assert inputs.shape[-1] == self._distiler.input_shape and outputs.shape[-1] == self._distiler.output_shape 
 
@@ -101,17 +92,39 @@ class DistilHandler:
         #    sl = slice(i*episode_len,(i+1)*episode_len)
         inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
         outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
-        for i in range(10):
+        for i in range(5):
             self._distiler.train_(inputs,outputs, i)
-        
-        self._distiler.test_(inputs,outputs, i)
+
+        self._distiler.test_(inputs,outputs)
        
-    def prepare_dataset():
+    def prepare_dataset(self, device):
         """
         Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
         """
-        pass
+        n_sets = 10
+        targets = []
+        observations = []
 
+        # Select run, for now last run
+        runs = os.listdir(self._experiment.logdir)
+        runs = [run for run in runs if "run" in run]
+        run = runs[-1]
+        run_path = os.path.join(self._experiment.logdir,run)
+        tests_path = os.path.join(run_path,"test")
+        tests = os.listdir(tests_path)
+        assert len(tests)>=n_sets
+        tests.sort(key=int)
+        for test in tests[len(tests)-(n_sets+1):-1]:
+            # Load test & agent
+            load_test_path = os.path.join(tests_path,test)
+            self._agent.load(load_test_path)
+            self._agent.to(device)
+            target, obs = self.simulate_one_episode()
+            targets += target
+            observations += obs
+        return np.array(targets), np.array(observations)
+        
+    # Seed can at some point be replaced to a number of epochs we want to train to note change of seed for the SDT epochs?
     def simulate_one_episode(self, seed: Optional[int] = None):
             """
             Runs an episode to gather action distributions and observations.
@@ -135,28 +148,33 @@ class DistilHandler:
                 
                 # This part is very specific to my current use case: to adapt and make more generic!!
                 temp = obs.data
-                #distributions.extend(distr)
-                #observations.extend(self.flatten_observation(temp, axis=1).reshape(self.n_agents,-1)) # axis one because axis 0 is agent
                 
                 distributions.append(distr)
-                observations.append(self.flatten_observation(temp, axis=1).reshape(self.n_agents,-1)) # axis one because axis 0 is agent
+                f_obs, ag_pos = self.flatten_observation(temp, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), obs.extras, ag_pos], axis=1)
+                else: f_obs = f_obs.reshape(self.n_agents,-1)
+                observations.append(f_obs) # axis one because axis 0 is agent
                 
                 is_finished = step.done | step.truncated
-            return np.array(distributions), np.array(observations)
+            return distributions, observations
     
     def flatten_observation(self, observation, axis=0):
         """Flattens the observation as per the structure of a layered observation from LLE.
         axis is the axis starting which the field is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
         """
+        agent_pos = np.zeros((self.n_agents,2))
         observation = np.array(observation)
         flattened_obs = np.full((self.n_agents, observation.shape[axis+1], observation.shape[axis+2]), -1, dtype=int)
         # Clone to avoid modifying the original observation
         obs_a = np.copy(observation)
         laser_0 = self.n_agents + 1
+        agent_pos[0] = np.argwhere(obs_a[0,0]==1) # Store agent position for agent 0
 
         for a_idx in range(1,self.n_agents): # Change perspective of agents 1 to 3
             # Swap agent layer of agent a_idx
             obs_a[a_idx, [0, a_idx]] = observation[a_idx, [a_idx, 0]]
+            # Store agent position for subsequent agents
+            agent_pos[a_idx] = np.argwhere(obs_a[a_idx,0]==1)
             # Swap laser layer of agent a_idx, where laser_i = n_agents+1+i
             laser_a_idx = laser_0 + a_idx
             obs_a[a_idx, [laser_0, laser_a_idx]] = observation[a_idx, [laser_a_idx, laser_0]]
@@ -171,4 +189,8 @@ class DistilHandler:
         # Only update F where a 1 was found
         flattened_obs[any_valid] = first_n[any_valid]
 
-        return flattened_obs
+        return flattened_obs+1, agent_pos # +1 to have 0 as empty cells and no overlap with agent 0 identifier
+    
+    def abstract_observation(self, observation, extras):
+        """Abstracts a given observation to high-level components"""
+    pass

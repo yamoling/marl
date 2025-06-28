@@ -15,11 +15,12 @@ class Arguments(tap.TypedArgs):
     device: Literal["auto", "cpu"] | str = tap.arg(default="auto")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
     exp_dataset: bool = tap.arg(default=False, help="Will expand the dataset with modified observations changing an agent's position")
+    extras: bool = tap.arg(default=False, help="Will add the extras from env to the input AND! the agent's position on the grid (get when flattening)")
     #dataset: Literal["qvalues", "distribution", "action", "all"] = tap.arg(default="distribution", help="Defines what type of output the distilled model should be trained on: qvalues, distribution of actions, action - the single selected action or all - there 3 models with each wil be distilled")
     output: Literal["qvalues", "distribution", "action"] = tap.arg(default="distribution", help="Defines what type of output the distilled model should be trained on: qvalues, distribution of actions or action - the single selected action.")
     input: Literal["full_obs", "abstracted_obs"] = tap.arg(default="full_obs", help="Defines what type of input the distilled model should be trained on: full-obs is the standard full observation (automatically flattened to be 2D), abstracted-obs is an abstracted version of the observation containing heuristical elements of the observation (i.e.: distance from agent-0 to agent-1).")
     distiller: Literal["sdt", "dt", "rf", "shap"]  = tap.arg(default="sdt", help="Defines what type of model we want to distil to: dt, rf and shap, need to be implemented, but are noted as a note.")
-    # If time or future work: Use same structure as experiments, with distil being equivalent to run and a create_distillation file to create the dataset, model etc... allowing more parametrisation of distillers
+    # If time or future work: Use same structure as experiments, with distil being equivalent to run and a create_distillation file to create the dataset, model etc... allowing more parametrisation of distillers    
 
 
     @property
@@ -53,7 +54,7 @@ def start_distillation(args: Arguments):
 
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    distiler = marl.distilers.DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output)
+    distiler = marl.distilers.DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output, args.extras)
     distiler.run()
 
 
