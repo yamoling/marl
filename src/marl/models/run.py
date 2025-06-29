@@ -19,6 +19,7 @@ from marl.exceptions import (
 from marl.utils import stats
 from marl import logging
 from .replay_episode import LightEpisodeSummary
+import pathlib
 
 
 QVALUES = "qvalues.csv"
@@ -67,7 +68,7 @@ class Run:
 
     def get_test_actions(self, time_step: int, test_num: int) -> list:
         test_directory = self.test_dir(time_step, test_num)
-        actions_file = os.path.join(test_directory, ACTIONS)
+        actions_file = pathlib.Path(test_directory, ACTIONS)
         with open(actions_file, "r") as f:
             return orjson.loads(f.read())
 
