@@ -8,6 +8,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 
+import pathlib
 import numpy as np
 
 from typing import Optional, Any
@@ -124,7 +125,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     batch_size: int
     input_shape: int
-    logdir: str
+    logdir: pathlib.Path
     output_shape: int
     max_depth: int
     lr: float
@@ -151,7 +152,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         self.input_shape = input_shape
         self.output_shape = output_shape
-        self.logdir = logdir
+        self.logdir = pathlib.Path(logdir, "distil")
 
         self.max_depth = max_depth
         self.seed = seed
@@ -239,7 +240,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def test_(self, train_data, train_targets, epoch=0):
         self.eval()
-        
+
         self.define_extras(self.batch_size)
         test_loss = 0
         correct = 0
@@ -266,6 +267,16 @@ class SoftDecisionTree[B: Batch](nn.Module):
             self.save_best()
             self.best_accuracy = accuracy
 
+    @staticmethod
+    def load(filedir: str) -> "SoftDecisionTree":
+        """Load an experiment from disk."""
+        with open(filedir, "rb") as f:
+            sdt: SoftDecisionTree = pickle.load(f)
+        sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,"sdt.params"))))
+        return sdt
+
     def save_best(self):
-        with open(os.path.join(self.logdir, 'sdt_distil.pkl'), 'wb') as output_file:
+        os.makedirs(self.logdir, exist_ok=True)
+        torch.save(self.state_dict(), str(pathlib.Path(self.logdir,"sdt.params")))
+        with open(self.logdir/'sdt_distil.pkl', 'wb') as output_file:
             pickle.dump(self, output_file)
