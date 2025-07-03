@@ -47,8 +47,8 @@ class InnerNode(nn.Module):
     def build_child(self, depth):
         """Builds the current node's children w.r.t depth, if depth = max_depth, builds nodes."""
         if depth < self.max_depth:
-            self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device, parent_child_dict)
-            self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device, parent_child_dict)
+            self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
+            self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
         else :
             self.left = LeafNode(depth+1, self.output_shape, self.device)
             self.right = LeafNode(depth+1, self.output_shape, self.device)
@@ -138,7 +138,6 @@ class SoftDecisionTree[B: Batch](nn.Module):
     device: Optional[torch.device]
     seed: int
     log_interval: int # not sure I need, enforced/done by DQN?
-    parent_child: Dict[InnerNode|LeafNode,InnerNode]
 
     def __init__(self, 
                  input_shape: int,
@@ -287,8 +286,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
             outputs[lf_c] = node.forward().data.numpy().squeeze() # Is output in form (1,n_act), squeeze to (n_act,)
             lf_c += 1
         else:
-            parent_child[node.left] = self
-            parent_child[node.right] = self
+            parent_child[node.left] = node
+            parent_child[node.right] = node
             lf_c = self.collect_leaves(node.left, leaves, outputs, parent_child, lf_c)
             lf_c = self.collect_leaves(node.right, leaves, outputs, parent_child, lf_c)
         return lf_c
@@ -302,13 +301,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
             best_leaves.append(leaves[best_leaf_idx])
         return best_leaves
     
-    def backtrack_leaf(self, leaf: LeafNode):
+    def backtrack_leaf(self, leaf: LeafNode, parent_child: dict[Union[LeafNode|InnerNode],InnerNode]):
         """Given a leaf node, traces back to the root and returns each filter.
         The filters order is reversed to be in top to bottom order."""
         path = []
         node = leaf
-        while node in self.parent_child:
-            node = self.parent_child[node]
+        while node in parent_child:
+            node = parent_child[node]
             path.append(node.getfilters())
         return np.array(path)[::-1]
 
@@ -351,7 +350,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             self.collect_leaves(self.root, leaves, outputs, parent_child)
             for act in ep_acts:
                 best_leaves = self.associate_action_leaf(act, leaves, outputs) # Get best leaf per agent
-                paths_taken.append([self.backtrack_leaf(leaf) for leaf in best_leaves]) # Right now stores filters of path not actual path
+                paths_taken.append([self.backtrack_leaf(leaf, parent_child) for leaf in best_leaves]) # Right now stores filters of path not actual path
             actions_comp = np.zeros((episode.episode_len, episode.n_agents, episode.n_actions), dtype=int)
             np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=2)
 

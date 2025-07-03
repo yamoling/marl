@@ -102,7 +102,7 @@ class DistilHandler:
         """
         Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
         """
-        n_sets = 5
+        n_sets = 10
         targets = []
         observations = []
 
