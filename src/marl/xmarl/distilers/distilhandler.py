@@ -5,7 +5,8 @@ from random import sample
 
 import numpy as np
 
-from marl.distilers.sdt import SoftDecisionTree
+from marl.xmarl.distilers.sdt import SoftDecisionTree
+from marl.xmarl.distilers.utils import flatten_observation
 from marl.models import Experiment
 from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
@@ -92,7 +93,7 @@ class DistilHandler:
         #    sl = slice(i*episode_len,(i+1)*episode_len)
         inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
         outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
-        for i in range(5):
+        for i in range(1):
             self._distiler.train_(inputs,outputs, i)
 
         self._distiler.test_(inputs,outputs)
@@ -101,7 +102,7 @@ class DistilHandler:
         """
         Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
         """
-        n_sets = 10
+        n_sets = 5
         targets = []
         observations = []
 
@@ -150,47 +151,10 @@ class DistilHandler:
                 temp = obs.data
                 
                 distributions.append(distr)
-                f_obs, ag_pos = self.flatten_observation(temp, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
                 if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), obs.extras, ag_pos], axis=1)
                 else: f_obs = f_obs.reshape(self.n_agents,-1)
                 observations.append(f_obs) # axis one because axis 0 is agent
                 
                 is_finished = step.done | step.truncated
             return distributions, observations
-    
-    def flatten_observation(self, observation, axis=0):
-        """Flattens the observation as per the structure of a layered observation from LLE.
-        axis is the axis starting which the field is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
-        """
-        agent_pos = np.zeros((self.n_agents,2))
-        observation = np.array(observation)
-        flattened_obs = np.full((self.n_agents, observation.shape[axis+1], observation.shape[axis+2]), -1, dtype=int)
-        # Clone to avoid modifying the original observation
-        obs_a = np.copy(observation)
-        laser_0 = self.n_agents + 1
-        agent_pos[0] = np.argwhere(obs_a[0,0]==1) # Store agent position for agent 0
-
-        for a_idx in range(1,self.n_agents): # Change perspective of agents 1 to 3
-            # Swap agent layer of agent a_idx
-            obs_a[a_idx, [0, a_idx]] = observation[a_idx, [a_idx, 0]]
-            # Store agent position for subsequent agents
-            agent_pos[a_idx] = np.argwhere(obs_a[a_idx,0]==1)
-            # Swap laser layer of agent a_idx, where laser_i = n_agents+1+i
-            laser_a_idx = laser_0 + a_idx
-            obs_a[a_idx, [laser_0, laser_a_idx]] = observation[a_idx, [laser_a_idx, laser_0]]
-
-        # Find the first n (axis 0) where O[n, i, j] == 1
-        # This gives a mask of the same shape as O
-        mask = obs_a == 1
-        # Get the first 'n' where the condition is met along axis 
-        first_n = np.argmax(mask, axis=axis, )
-        # Check if *any* 1 was found along axis 0 for each (i, j)
-        any_valid = mask.any(axis=axis)
-        # Only update F where a 1 was found
-        flattened_obs[any_valid] = first_n[any_valid]
-
-        return flattened_obs+1, agent_pos # +1 to have 0 as empty cells and no overlap with agent 0 identifier
-    
-    def abstract_observation(self, observation, extras):
-        """Abstracts a given observation to high-level components"""
-    pass

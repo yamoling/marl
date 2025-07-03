@@ -1,19 +1,19 @@
 import os
-import time
 
 import pickle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.autograd import Variable
 
 import pathlib
 import numpy as np
 
-from typing import Optional, Any
+from typing import Optional, Dict, Union
 
 from marl.models.batch import Batch
+from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos
+from marlenv.models import Episode
 
 class InnerNode(nn.Module):
     """SoftDecisionTree: a class representing an Inner Node in a SDT.
@@ -47,11 +47,11 @@ class InnerNode(nn.Module):
     def build_child(self, depth):
         """Builds the current node's children w.r.t depth, if depth = max_depth, builds nodes."""
         if depth < self.max_depth:
-            self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
-            self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device)
+            self.left = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device, parent_child_dict)
+            self.right = InnerNode(depth+1, self.input_shape, self.output_shape, self.max_depth, self.lmbda, self.device, parent_child_dict)
         else :
-            self.left = LeafNode(self.output_shape, self.device)
-            self.right = LeafNode(self.output_shape, self.device)
+            self.left = LeafNode(depth+1, self.output_shape, self.device)
+            self.right = LeafNode(depth+1, self.output_shape, self.device)
 
     def reset(self):
         """Resets the penalties and leaf accumulator and calls reset for children"""
@@ -90,16 +90,21 @@ class InnerNode(nn.Module):
             self.penalties.extend(left_penalty)
             self.penalties.extend(right_penalty)
         return(self.penalties)
-
+    
+    def getfilters(self):
+        """Returns the learned filter of the node, The added bias is ignored, supposed to be negligible"""
+        return next(iter(self.fc.parameters())).data[0].cpu().numpy()*self.beta.data.cpu().numpy()
 
 class LeafNode(nn.Module):
     """SoftDecisionTree: a class representing a Leaf Node in a SDT
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
     def __init__(self,
+                 depth: int,
                  output_shape: tuple[int, ...],
                  device: Optional[torch.device] = None
                  ):
         super(LeafNode, self).__init__()
+        self.depth = depth
         self.output_shape = output_shape
         self.device = device
 
@@ -119,7 +124,6 @@ class LeafNode(nn.Module):
         Q = Q.expand((path_prob.size(0), self.output_shape))
         return([[path_prob, Q]])
 
-
 class SoftDecisionTree[B: Batch](nn.Module):
     """SoftDecisionTree: a class representing a Soft Decision Tree model distilled from a dnn
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
@@ -134,6 +138,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     device: Optional[torch.device]
     seed: int
     log_interval: int # not sure I need, enforced/done by DQN?
+    parent_child: Dict[InnerNode|LeafNode,InnerNode]
 
     def __init__(self, 
                  input_shape: int,
@@ -203,8 +208,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
 
     def train_(self, train_data, train_targets, epoch=0):
-        """
-        While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
+        """While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
         self.train()
         torch.manual_seed(self.seed+epoch)
         self.define_extras(self.batch_size)
@@ -267,6 +271,101 @@ class SoftDecisionTree[B: Batch](nn.Module):
             self.save_best()
             self.best_accuracy = accuracy
 
+    def greedy_trace(self, obs) -> tuple[LeafNode, list[InnerNode]]:
+        """Greedy deterministic path through the SDT based on sigmoid threshold 0.5 and returns each filter."""
+        path = []
+        node = self.root
+        while not node.leaf:
+            prob = node.forward(torch.Tensor(obs, device=self.device)).item()
+            path.append(node.getfilters())
+            node = node.right if prob >= 0.5 else node.left
+        return node, path  # node is leaf, use to get output
+    
+    def collect_leaves(self, node, leaves, outputs, parent_child, lf_c = 0):
+        if node.leaf:
+            leaves.append(node)
+            outputs[lf_c] = node.forward().data.numpy().squeeze() # Is output in form (1,n_act), squeeze to (n_act,)
+            lf_c += 1
+        else:
+            parent_child[node.left] = self
+            parent_child[node.right] = self
+            lf_c = self.collect_leaves(node.left, leaves, outputs, parent_child, lf_c)
+            lf_c = self.collect_leaves(node.right, leaves, outputs, parent_child, lf_c)
+        return lf_c
+
+    def associate_action_leaf(self, action_idx: np.ndarray[int], leaves: list[LeafNode], outputs: np.ndarray[np.ndarray[float]]):
+        """Traverse all leaves in the tree to find the one closest associating to a specific action."""
+        best_leaves = []
+        for i in range(len(action_idx)):
+            a_idx = action_idx[i]
+            best_leaf_idx = np.argmax(outputs[:, a_idx]).item()
+            best_leaves.append(leaves[best_leaf_idx])
+        return best_leaves
+    
+    def backtrack_leaf(self, leaf: LeafNode):
+        """Given a leaf node, traces back to the root and returns each filter.
+        The filters order is reversed to be in top to bottom order."""
+        path = []
+        node = leaf
+        while node in self.parent_child:
+            node = self.parent_child[node]
+            path.append(node.getfilters())
+        return np.array(path)[::-1]
+
+    def distil_episode(self, episode: Episode, backwards: bool = False):
+        obs_w = episode.observation_shape[-1]
+        obs_h = episode.observation_shape[-2]
+        extras = obs_w*obs_h < self.input_shape
+
+        paths_taken = [] # Will be filled with paths
+
+        ep_acts = np.array(episode.actions)
+
+        if not backwards:
+            pred_actions = np.zeros((episode.episode_len,episode.n_agents,episode.n_actions),dtype=float)
+            agent_pos = np.zeros((episode.episode_len,episode.n_agents,2))
+            for i in range(episode.episode_len):
+                f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1)
+                agent_pos[i] = ag_pos
+                paths = []
+                leaves = []
+                for ag in range(episode.n_agents):
+                    if extras: 
+                        leaf, path = self.greedy_trace(np.concat([f_obs[ag].reshape(-1), episode.all_extras[i][ag], ag_pos[ag]]))
+                        leaves.append(leaf)
+                        paths.append(path)
+                    else: 
+                        leaf, path = self.greedy_trace(f_obs[ag].reshape(-1))
+                        leaves.append(leaf)
+                        paths.append(path)
+                    pred_actions[i,ag] = leaf.forward().data.numpy().flatten()
+                paths_taken.append(paths)
+            og_acts = np.zeros_like(pred_actions, dtype=int)
+            np.put_along_axis(og_acts, ep_acts[..., np.newaxis], 1, axis=-1)
+            actions_comp = np.stack([pred_actions, og_acts], axis=-2)
+        else:
+            leaves = []
+            parent_child = {}
+            agent_pos = get_agent_pos(np.array(episode.all_observations))
+            outputs = np.zeros((self.max_depth**2,episode.n_actions), dtype=float)
+            self.collect_leaves(self.root, leaves, outputs, parent_child)
+            for act in ep_acts:
+                best_leaves = self.associate_action_leaf(act, leaves, outputs) # Get best leaf per agent
+                paths_taken.append([self.backtrack_leaf(leaf) for leaf in best_leaves]) # Right now stores filters of path not actual path
+            actions_comp = np.zeros((episode.episode_len, episode.n_agents, episode.n_actions), dtype=int)
+            np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=2)
+
+        paths_taken = np.array(paths_taken)
+        # If applicable separate extras from board
+        if extras:
+            obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
+            extras_f = paths_taken[: ,:, :, obs_w*obs_h:]
+        else: 
+            obs_f = paths_taken.reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
+            extras_f = None
+
+        return obs_f, extras_f, actions_comp, agent_pos
+    
     @staticmethod
     def load(filedir: str) -> "SoftDecisionTree":
         """Load an experiment from disk."""

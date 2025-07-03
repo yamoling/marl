@@ -4,6 +4,8 @@ import typed_argparse as tap
 from typing import Literal, Optional
 from multiprocessing.pool import Pool, AsyncResult
 
+from marl.xmarl.distilers import DistilHandler  
+
 
 class Arguments(tap.TypedArgs):
     #debug: bool = tap.arg(help="Enable debug mode")
@@ -50,11 +52,9 @@ class Arguments(tap.TypedArgs):
         return 1
 
 def start_distillation(args: Arguments):
-    import marl
-
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    distiler = marl.distilers.DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output, args.extras)
+    distiler = DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output, args.extras)
     distiler.run()
 
 
