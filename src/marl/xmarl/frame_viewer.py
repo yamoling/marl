@@ -204,24 +204,25 @@ class HeatmapXFrameViewer(XFrameViewer):
     heatmap_prev: Button = None
 
     color_bar: Colorbar
-    norm: Normalize
+    norm_layers: list[Normalize]
     cmap: Colormap
 
     def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str]):
         self.heatmap_dat = heatmap_dat
         self.extras_dat = extras_dat
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
-        super(HeatmapXFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names)
-        self.extras = self.extras_dat is not None
-        if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
-        else: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents)
-
         if len(heatmap_dat.shape[2:]) == 3: # Extra layer to traverse heatmaps, i.e. hierarchical filters of sdt
             self.heatmap_layer = heatmap_dat.shape[2]
             self.heatmap_layered = True
         elif len(heatmap_dat.shape[2:]) == 2: # Simple heatmap
             pass
         else: raise Exception(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
+
+        super(HeatmapXFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names)
+
+        self.extras = self.extras_dat is not None
+        if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
+        else: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents)
 
     def init_plots(self):
         # Main Plot Figure
@@ -233,16 +234,33 @@ class HeatmapXFrameViewer(XFrameViewer):
 
         # Shared colorbar
         # Normalize based on combined data range
-        if self.extras:
-            vmin = min(np.min(self.heatmap_dat), np.min(self.extras_dat))
-            vmax = max(np.max(self.heatmap_dat), np.max(self.extras_dat))
+        self.norm_layers = []
+
+        if self.heatmap_layered:
+            if self.extras:
+                for i in range(self.heatmap_layer):
+                    hm_layer_data = self.heatmap_dat[:, :, i]
+                    ex_layer_data = self.extras_dat[:, :, i]
+                    vmin = min(np.min(hm_layer_data), np.min(ex_layer_data))
+                    vmax = max(np.max(hm_layer_data), np.max(ex_layer_data))
+                    self.norm_layers.append(Normalize(vmin=vmin, vmax=vmax))
+            else:
+                for i in range(self.heatmap_layer):
+                    layer_data = self.heatmap_dat[:, :, i]
+                    vmin = np.min(layer_data)
+                    vmax = np.max(layer_data)
+                    self.norm_layers.append(Normalize(vmin=vmin, vmax=vmax))
         else:
-            vmin = np.min(self.heatmap_dat)
-            vmax = np.max(self.heatmap_dat)
-        self.norm = Normalize(vmin=vmin, vmax=vmax)
+            if self.extras:
+                vmin = min(np.min(self.heatmap_dat), np.min(self.extras_dat))
+                vmax = max(np.max(self.heatmap_dat), np.max(self.extras_dat))
+            else:
+                vmin = np.min(self.heatmap_dat)
+                vmax = np.max(self.heatmap_dat)
+            self.norm_layers.append(Normalize(vmin=vmin, vmax=vmax))  # single norm
 
         self.cmap = get_cmap('cividis')
-        sm = ScalarMappable(norm=self.norm, cmap=self.cmap)
+        sm = ScalarMappable(norm=self.norm_layers[0], cmap=self.cmap)
         sm.set_array([])  # required by colorbar API
         self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img, self.ax_bar],
                                         orientation='vertical', shrink=0.85,
@@ -270,8 +288,9 @@ class HeatmapXFrameViewer(XFrameViewer):
             # = Overlay heatmap
             heatmap = self.get_heatmap_data()
             if self.show_heatmap:
-                self.ax_img.imshow(self.cmap(self.norm(heatmap))[:, :, :3],
-                            alpha=0.5,
+                norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
+                self.ax_img.imshow(self.cmap(norm(heatmap))[:, :, :3],
+                            alpha=0.8,
                             extent=(0, W_img, H_img, 0),  # match pixel grid
                             interpolation='nearest')
                 
@@ -297,6 +316,7 @@ class HeatmapXFrameViewer(XFrameViewer):
 
             # = Plot barplot (extras)
             if self.extras:
+                norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
                 bar_vals = self.get_barplot_data()
                 colors = self.cmap(self.norm(bar_vals))
                 self.ax_bar.barh(np.arange(len(bar_vals)), bar_vals, color=colors, height=0.6)
