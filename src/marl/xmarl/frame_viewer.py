@@ -318,7 +318,7 @@ class HeatmapXFrameViewer(XFrameViewer):
             if self.extras:
                 norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
                 bar_vals = self.get_barplot_data()
-                colors = self.cmap(self.norm(bar_vals))
+                colors = self.cmap(norm(bar_vals))
                 self.ax_bar.barh(np.arange(len(bar_vals)), bar_vals, color=colors, height=0.6)
                 self.ax_bar.set_yticks(np.arange(len(self.extras_meaning)))
                 self.ax_bar.set_yticklabels(self.extras_meaning)

@@ -56,10 +56,28 @@ def handle_selection() -> tuple[Experiment, pathlib.Path, pathlib.Path]:
 
 def handle_distillation(episode: Episode, distil_path: pathlib.Path):
     if "sdt" in str(distil_path):
-        distiller = SoftDecisionTree.load(distil_path)
         print("SDT has two types of explanations to provide, choose by inputting the index: \n0: Forward (Traverse greediest path to action) - 1: Backward (Filters of path to original action)")
         e_type = input() == "1"
-        distilled_filters, distilled_extras, distilled_actions, agent_pos = distiller.distil_episode(episode, e_type) # Give shape for obs and extras to be computed there, or reshape after, need to separate extras that's annoying
+        if "individual" in str(distil_path):
+            distilled_filters = []
+            distilled_extras = []
+            distilled_actions = []
+            agent_pos = []
+            for ag in range(episode.n_agents):
+                distiller = SoftDecisionTree.load(distil_path/f"ag{ag}_sdt_distil.pkl")
+                df, de, da, ap = distiller.distil_episode(episode, e_type)
+                distilled_filters.append(df)
+                distilled_extras.append(de)
+                distilled_actions.append(da)
+                agent_pos.append(ap)
+            distilled_filters= np.transpose(np.array(distilled_filters), (1,0,2,3,4))
+            distilled_extras = np.transpose(np.array(distilled_extras).squeeze(), (1,0,2,3))
+            if e_type: distilled_actions = np.transpose(np.array(distilled_actions), (1,0,2))
+            else: distilled_actions = np.transpose(np.array(distilled_actions), (1,0,2,3))
+            agent_pos = np.transpose(np.array(agent_pos), (1,0,2))
+        else: 
+            distiller = SoftDecisionTree.load(distil_path)
+            distilled_filters, distilled_extras, distilled_actions, agent_pos = distiller.distil_episode(episode, e_type) # Give shape for obs and extras to be computed there, or reshape after, need to separate extras that's annoying
     else: raise Exception(f"Distiller {distil_path} not implemented in visualization yet.")
     return distilled_filters, distilled_actions, distilled_extras, agent_pos #distilled_extras is None if not applicable, filters already reformed to gameboard size
 
@@ -77,22 +95,22 @@ def main():
 
     if distil_path is not None: 
         distilled_filters, distilled_actions, distilled_extras, agent_pos = handle_distillation(episode, distil_path)
+        # Insert 7x7 obs in original frame
         if experiment.env.observation_shape[1:] == (7,7): # TODO: Hardcoded, no way to get original world size without assuming env specific type
             agent_pos = np.array(episode.other["ag_pos"])
             n_obs = np.zeros(distilled_filters.shape[0:-2]+(12,13)) # hard coded world size for LLE L6)
             for t in range(episode.episode_len):
                 for a in range(episode.n_agents):
-                    filt = distilled_filters[t, a]      # shape (11, 7, 7)
-                    x, y = agent_pos[t, a]              # position (x, y)
+                    filt = distilled_filters[t, a] # shape (11, 7, 7)
+                    x, y = agent_pos[t, a]
                     
-                    # Center the 7x7 around (x, y) in a 12x13 map
                     # Compute insertion indices
                     x_start = x - 3
                     y_start = y - 3
                     x_end = x_start + 7
                     y_end = y_start + 7
 
-                    # Compute overlap between 7x7 and bounds of 12x13 grid
+                    # Clip off overlap between 7x7 and bounds gameboard
                     x_s, x_e = max(x_start, 0), min(x_end, 12)
                     y_s, y_e = max(y_start, 0), min(y_end, 13)
 

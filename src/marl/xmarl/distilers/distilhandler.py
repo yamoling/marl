@@ -16,30 +16,33 @@ class DistilHandler:
     Class handling a distillation process for various distiller types and varying in-/outputs.
     Based on parameters prepares the dataset, loads the original model and creates the distilled model. Trains, tests and saves the final distilled model.
     """
-    _distiler: SoftDecisionTree # or sklearn DT/Randomforest?
+    _distilers: list[SoftDecisionTree] # or sklearn DT/Randomforest?
     _experiment: Experiment
     _agent: DQN
 
     n_agents: int
     extras: bool
+    individual_agents: bool
 
     def __init__(self,
                  experiment: Experiment,
-                 distiler: SoftDecisionTree, # or sklearn DT/Randomforest?  
-                 extras: bool        
+                 distilers: list[SoftDecisionTree], # or sklearn DT/Randomforest?  
+                 extras: bool,
+                 individual_agents: bool = False, 
     ):
         self._experiment = experiment
-        self._distiler = distiler
+        self._distilers = distilers
         self._agent = experiment.agent
         if self._agent.last_qvalues is None:
             self._agent.last_qvalues = np.ndarray(0)
 
         self.n_agents = self._experiment.env.n_agents
+        self.individual_agents = individual_agents
         self.extras = extras
 
 
     @staticmethod
-    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str, extras: bool):
+    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str, extras: bool, individual_agents: bool):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
@@ -58,14 +61,30 @@ class DistilHandler:
             if extras: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]+experiment.env.extras_shape[0]+2
             else: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]
             # Distiler may also be other models, consider simple DT and RandomForest later
-            distil_model = SoftDecisionTree(
-                input_shape = input_shape,
-                output_shape = experiment.env.n_actions,
-                logdir = experiment.logdir,
-                max_depth=4,
-                bs=experiment.env.n_agents,
-            )
-            distil_handler = DistilHandler(experiment, distil_model, extras)
+            distilers = []
+            if individual_agents:
+                for i in range (experiment.env.n_agents):
+                    distil_model = SoftDecisionTree(
+                        input_shape = input_shape,
+                        output_shape = experiment.env.n_actions,
+                        logdir = experiment.logdir,
+                        max_depth=4,
+                        bs=1,
+                        n_agent=experiment.env.n_agents,
+                        agent_id=i
+                    )
+                    distilers.append(distil_model)
+            else:
+                distil_model = SoftDecisionTree(
+                    input_shape = input_shape,
+                    output_shape = experiment.env.n_actions,
+                    logdir = experiment.logdir,
+                    max_depth=4,
+                    bs=experiment.env.n_agents,
+                    n_agent=experiment.env.n_agents,
+                )
+                distilers.append(distil_model)
+            distil_handler = DistilHandler(experiment, distilers, extras, individual_agents)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
@@ -86,17 +105,24 @@ class DistilHandler:
 
         outputs, inputs = self.prepare_dataset(selected_device)
 
-        assert inputs.shape[-1] == self._distiler.input_shape and outputs.shape[-1] == self._distiler.output_shape 
-
+        assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
         #episode_len = len(distributions)//self.n_agents
         #for i in range (self.n_agents):
         #    sl = slice(i*episode_len,(i+1)*episode_len)
-        inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
-        outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
-        for i in range(1):
-            self._distiler.train_(inputs,outputs, i)
+        if self.individual_agents:
+            for ag in range(len(self._distilers)):
+                dist = self._distilers[ag]
+                for i in range(1):
+                    dist.train_(inputs[:,ag],outputs[:,ag],i)
+                dist.test_(inputs[:,ag],outputs[:,ag])
+        else:
+            inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
+            outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
+            dist = self._distilers[0]
+            for i in range(1):
+                dist.train_(inputs,outputs, i)
 
-        self._distiler.test_(inputs,outputs)
+            dist.test_(inputs,outputs)
        
     def prepare_dataset(self, device):
         """

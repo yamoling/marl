@@ -139,10 +139,14 @@ class SoftDecisionTree[B: Batch](nn.Module):
     seed: int
     log_interval: int # not sure I need, enforced/done by DQN?
 
+    n_agent: int
+    agent_id: int
+
     def __init__(self, 
                  input_shape: int,
                  output_shape: int,
                  logdir: str,
+                 n_agent: int = 1,
                  max_depth: int = 4, 
                  seed: int = 0,
                  log_interval: int = 50, # not sure I need
@@ -151,12 +155,16 @@ class SoftDecisionTree[B: Batch](nn.Module):
                  lmbda: Optional[float] = 0.01,
                  momentum: Optional[float] = 0.01,
                  device: Optional[torch.device] = torch.device('cpu'),
+                 agent_id: Optional[int] = None
                  ):
         super(SoftDecisionTree, self).__init__()
 
         self.input_shape = input_shape
         self.output_shape = output_shape
-        self.logdir = pathlib.Path(logdir, "distil")
+        self.n_agent = n_agent
+        self.agent_id = agent_id
+        if self.agent_id is None: self.logdir = pathlib.Path(logdir, "distil")
+        else:self.logdir = pathlib.Path(logdir, "distil", "individual_sdt_distil")
 
         self.max_depth = max_depth
         self.seed = seed
@@ -183,7 +191,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.path_prob_init = torch.ones(batch_size, 1, device=self.device)
      
     def cal_loss(self, x, y):
-        batch_size = y.shape[0]
+        if self.agent_id is None: batch_size = y.shape[0]
+        else: batch_size = 1   # Ugly solution for individual
         leaf_accumulator = self.root.cal_prob(x, self.path_prob_init)
         loss = 0.
         max_prob = [-1. for _ in range(batch_size)]
@@ -208,6 +217,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def train_(self, train_data, train_targets, epoch=0):
         """While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
+        if self.agent_id is not None: print(f"Training for agent {self.agent_id}")
         self.train()
         torch.manual_seed(self.seed+epoch)
         self.define_extras(self.batch_size)
@@ -217,10 +227,10 @@ class SoftDecisionTree[B: Batch](nn.Module):
             target = torch.Tensor(train_targets[batch_idx], device=self.device)
             data = torch.Tensor(train_data[batch_idx], device=self.device)
 
-            batch_size = target.shape[0]
-
-            if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
-                self.define_extras(batch_size)
+            if self.agent_id is None:   # Ugly solution for individual distil
+                batch_size = target.shape[0]
+                if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
+                    self.define_extras(batch_size)
 
             self.optimizer.zero_grad()
 
@@ -228,8 +238,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
             #loss.backward(retain_variables=True)
             loss.backward()
             self.optimizer.step()
-            pred = output.data.max(1)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data.max(1)[1]).cpu().sum()
+            pred = output.data.max(-1)[1] # get the index of the max log-probability
+            correct += pred.eq(target.data.max(-1)[1]).cpu().sum() # -1 because action on last dim
             accuracy = 100. * correct / len(data)
 
             if batch_idx % self.log_interval == 0:
@@ -242,6 +252,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         print(f"Train accuracy for epoch {epoch}: {np.mean(train_acc)}\n ")
 
     def test_(self, train_data, train_targets, epoch=0):
+        if self.agent_id is not None: print(f"\nTesting for agent {self.agent_id}")
         self.eval()
 
         self.define_extras(self.batch_size)
@@ -252,17 +263,19 @@ class SoftDecisionTree[B: Batch](nn.Module):
             target = torch.Tensor(train_targets[batch_idx], device=self.device)
             data = torch.Tensor(train_data[batch_idx], device=self.device)
 
-            batch_size = target.shape[0]
-
-            if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
-                self.define_extras(batch_size)
+            if self.agent_id is None:   # Ugly solution for individual distil
+                batch_size = target.shape[0]
+                if not batch_size == self.batch_size: #because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
+                    self.define_extras(batch_size)
 
             _, output = self.cal_loss(data, target)
-            pred = output.data.max(1)[1] # get the index of the max log-probability
-            correct += pred.eq(target.data.max(1)[1]).cpu().sum()
-        accuracy = 100.*correct/(len(train_data)*len(train_data[0]))
-        print('\nTest set: Accuracy: {}/{} ({:.4f}%)\n'.format(
-            correct, len(train_data)*len(train_data[0]),
+            pred = output.data.max(-1)[1] # get the index of the max log-probability
+            correct += pred.eq(target.data.max(-1)[1]).cpu().sum()
+        if self.agent_id is None: total_data = len(train_data)*len(train_data[0])
+        else: total_data = len(train_data)
+        accuracy = 100.*correct/total_data
+        print('Test set: Accuracy: {}/{} ({:.4f}%)\n'.format(
+            correct, total_data,
             accuracy))
         self.test_acc.append(accuracy)
 
@@ -312,6 +325,65 @@ class SoftDecisionTree[B: Batch](nn.Module):
         return np.array(path)[::-1]
 
     def distil_episode(self, episode: Episode, backwards: bool = False):
+        if self.agent_id is None:
+            return self.distil_episode_comp(episode, backwards)
+        else:
+            return self.distil_episode_ind(episode, backwards)
+
+    def distil_episode_ind(self, episode: Episode, backwards: bool = False):
+        obs_w = episode.observation_shape[-1]
+        obs_h = episode.observation_shape[-2]
+        extras = obs_w*obs_h < self.input_shape
+
+        paths_taken = [] # Will be filled with paths
+
+        ep_acts = np.array(episode.actions)[:,self.agent_id]
+
+        if not backwards:
+            pred_actions = np.zeros((episode.episode_len,episode.n_actions),dtype=float)
+            agent_pos = np.zeros((episode.episode_len,2))
+            for i in range(episode.episode_len):
+                f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
+                agent_pos[i] = ag_pos[self.agent_id]
+                paths = []
+                leaves = []
+                if extras: 
+                    leaf, path = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
+                    leaves.append(leaf)
+                    paths.append(path)
+                else: 
+                    leaf, path = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
+                    leaves.append(leaf)
+                    paths.append(path)
+                pred_actions[i] = leaf.forward().data.numpy().flatten()
+                paths_taken.append(paths)
+            og_acts = np.zeros_like(pred_actions, dtype=int)
+            np.put_along_axis(og_acts, ep_acts[..., np.newaxis], 1, axis=-1)
+            actions_comp = np.stack([pred_actions, og_acts], axis=-2)
+        else:
+            leaves = []
+            parent_child = {}
+            agent_pos = get_agent_pos(np.array(episode.all_observations))[:,self.agent_id]
+            outputs = np.zeros((self.max_depth**2,episode.n_actions), dtype=float)
+            self.collect_leaves(self.root, leaves, outputs, parent_child)
+            for act_idx in ep_acts:
+                best_leaves = self.associate_action_leaf([act_idx], leaves, outputs) # Get best leaf per agent
+                paths_taken.append([self.backtrack_leaf(leaf, parent_child) for leaf in best_leaves]) # Right now stores filters of path not actual path
+            actions_comp = np.zeros((episode.episode_len, episode.n_actions), dtype=int)
+            np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=1)
+
+        paths_taken = np.array(paths_taken)
+        # If applicable separate extras from board
+        if extras:
+            obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+            extras_f = paths_taken[:, : , :, obs_w*obs_h:]
+        else: 
+            obs_f = paths_taken.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+            extras_f = None
+
+        return obs_f, extras_f, actions_comp, agent_pos
+
+    def distil_episode_comp(self, episode: Episode, backwards: bool = False):
         obs_w = episode.observation_shape[-1]
         obs_h = episode.observation_shape[-2]
         extras = obs_w*obs_h < self.input_shape
@@ -370,11 +442,17 @@ class SoftDecisionTree[B: Batch](nn.Module):
         """Load an experiment from disk."""
         with open(filedir, "rb") as f:
             sdt: SoftDecisionTree = pickle.load(f)
-        sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,"sdt.params"))))
+        if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,"comp_sdt.params"))))
+        else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt.params"))))
         return sdt
 
     def save_best(self):
         os.makedirs(self.logdir, exist_ok=True)
-        torch.save(self.state_dict(), str(pathlib.Path(self.logdir,"sdt.params")))
-        with open(self.logdir/'sdt_distil.pkl', 'wb') as output_file:
-            pickle.dump(self, output_file)
+        if self.agent_id is None:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,"comp_sdt.params")))
+            with open(self.logdir/'comp_sdt_distil.pkl', 'wb') as output_file:
+                pickle.dump(self, output_file)
+        else:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt.params")))
+            with open(self.logdir/f"ag{self.agent_id}_sdt_distil.pkl", 'wb') as output_file:
+                pickle.dump(self, output_file)

@@ -21,9 +21,9 @@ class Arguments(tap.TypedArgs):
     #dataset: Literal["qvalues", "distribution", "action", "all"] = tap.arg(default="distribution", help="Defines what type of output the distilled model should be trained on: qvalues, distribution of actions, action - the single selected action or all - there 3 models with each wil be distilled")
     output: Literal["qvalues", "distribution", "action"] = tap.arg(default="distribution", help="Defines what type of output the distilled model should be trained on: qvalues, distribution of actions or action - the single selected action.")
     input: Literal["full_obs", "abstracted_obs"] = tap.arg(default="full_obs", help="Defines what type of input the distilled model should be trained on: full-obs is the standard full observation (automatically flattened to be 2D), abstracted-obs is an abstracted version of the observation containing heuristical elements of the observation (i.e.: distance from agent-0 to agent-1).")
-    distiller: Literal["sdt", "dt", "rf", "shap"]  = tap.arg(default="sdt", help="Defines what type of model we want to distil to: dt, rf and shap, need to be implemented, but are noted as a note.")
+    distiller: Literal["sdt", "dt", "rf", "shap"] = tap.arg(default="sdt", help="Defines what type of model we want to distil to: dt, rf and shap, need to be implemented, but are noted as a note.")
     # If time or future work: Use same structure as experiments, with distil being equivalent to run and a create_distillation file to create the dataset, model etc... allowing more parametrisation of distillers    
-
+    individual: bool = tap.arg(default=False, help="Defines whether the distilled model should consider all agents, True: individually (1 distilled model per agent). False: as one (one distilled model, agent povs as batches).")
 
     @property
     def n_processes(self):
@@ -54,7 +54,7 @@ class Arguments(tap.TypedArgs):
 def start_distillation(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    distiler = DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output, args.extras)
+    distiler = DistilHandler.create(args.logdir, args.exp_dataset, args.distiller, args.input, args.output, args.extras, args.individual)
     distiler.run()
 
 
