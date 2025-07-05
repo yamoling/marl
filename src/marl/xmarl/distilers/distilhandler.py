@@ -11,6 +11,8 @@ from marl.models import Experiment
 from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
 
+from sklearn.model_selection import train_test_split
+
 class DistilHandler:
     """
     Class handling a distillation process for various distiller types and varying in-/outputs.
@@ -26,6 +28,7 @@ class DistilHandler:
 
     def __init__(self,
                  experiment: Experiment,
+                 n_runs: int,
                  distilers: list[SoftDecisionTree], # or sklearn DT/Randomforest?  
                  extras: bool,
                  individual_agents: bool = False, 
@@ -36,13 +39,14 @@ class DistilHandler:
         if self._agent.last_qvalues is None:
             self._agent.last_qvalues = np.ndarray(0)
 
+        self.n_runs = n_runs
         self.n_agents = self._experiment.env.n_agents
         self.individual_agents = individual_agents
         self.extras = extras
 
 
     @staticmethod
-    def create(logdir: str, exp_dataset: bool, distiler: str, input_type: str, output_type: str, extras: bool, individual_agents: bool):
+    def create(logdir: str, n_runs: int, distiler: str, input_type: str, extras: bool, individual_agents: bool):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
@@ -55,8 +59,6 @@ class DistilHandler:
                 raise NotImplementedError(f"Distilation to other model than SDT not implemented yet.")
             elif input_type == "abstracted_obs":
                 raise NotImplementedError(f"Distilation not implemented for abstracted observation yet.")
-            elif output_type == "action":
-                raise NotImplementedError(f"Distilation not implemented for single action output yet.")
             # Force to not be MO?
             if extras: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]+experiment.env.extras_shape[0]+2
             else: input_shape = experiment.env.observation_shape[1]*experiment.env.observation_shape[2]
@@ -69,7 +71,7 @@ class DistilHandler:
                         output_shape = experiment.env.n_actions,
                         logdir = experiment.logdir,
                         max_depth=4,
-                        bs=1,
+                        bs=32,
                         n_agent=experiment.env.n_agents,
                         agent_id=i
                     )
@@ -80,11 +82,11 @@ class DistilHandler:
                     output_shape = experiment.env.n_actions,
                     logdir = experiment.logdir,
                     max_depth=4,
-                    bs=experiment.env.n_agents,
+                    bs=32,
                     n_agent=experiment.env.n_agents,
                 )
                 distilers.append(distil_model)
-            distil_handler = DistilHandler(experiment, distilers, extras, individual_agents)
+            distil_handler = DistilHandler(experiment, n_runs, distilers, extras, individual_agents)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
@@ -100,55 +102,60 @@ class DistilHandler:
             device: Literal["cpu", "auto"] | int = "auto",
             #n_episodes: int,
             ):
-        
-        selected_device = get_device(device, fill_strategy, required_memory_MB)
+        batch_size = self._distilers[0].batch_size
 
+        selected_device = get_device(device, fill_strategy, required_memory_MB)
         outputs, inputs = self.prepare_dataset(selected_device)
 
         assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
-        #episode_len = len(distributions)//self.n_agents
-        #for i in range (self.n_agents):
-        #    sl = slice(i*episode_len,(i+1)*episode_len)
+        # Determine and set batch size
+        n_batches = len(inputs)//batch_size
+        if self.individual_agents:
+            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,*inputs.shape[1:])
+            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,*outputs.shape[1:])
+        else:   # Squeeze in agents dim
+            inputs = inputs[:batch_size*n_batches].reshape(n_batches*self.n_agents,batch_size,*inputs.shape[2:])
+            outputs = outputs[:batch_size*n_batches].reshape(n_batches*self.n_agents,batch_size,*outputs.shape[2:])
+
+        inputs_train, inputs_test, outputs_train, outputs_test = train_test_split(
+            inputs, outputs, test_size=0.2, random_state=42, shuffle=True
+        )
+
         if self.individual_agents:
             for ag in range(len(self._distilers)):
                 dist = self._distilers[ag]
-                for i in range(1):
-                    dist.train_(inputs[:,ag],outputs[:,ag],i)
-                dist.test_(inputs[:,ag],outputs[:,ag])
+                dist.train_(inputs_train[:,:,ag],outputs_train[:,:,ag])
+                dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag])
         else:
-            inputs = np.reshape(np.transpose(inputs,(1,0,2)), (-1,self.n_agents,inputs.shape[2]))
-            outputs = np.reshape(np.transpose(outputs,(1,0,2)), (-1,self.n_agents,outputs.shape[2]))
             dist = self._distilers[0]
-            for i in range(1):
-                dist.train_(inputs,outputs, i)
-
-            dist.test_(inputs,outputs)
+            dist.train_(inputs_train,outputs_train)
+            dist.test_(inputs_test,outputs_test)
        
     def prepare_dataset(self, device):
-        """
-        Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not.
-        """
-        n_sets = 10
+        """Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not."""
+        n_sets = 5  # How many test sets used to train (from the monst trained one)
         targets = []
         observations = []
 
         # Select run, for now last run
         runs = os.listdir(self._experiment.logdir)
         runs = [run for run in runs if "run" in run]
-        run = runs[-1]
-        run_path = os.path.join(self._experiment.logdir,run)
-        tests_path = os.path.join(run_path,"test")
-        tests = os.listdir(tests_path)
-        assert len(tests)>=n_sets
-        tests.sort(key=int)
-        for test in tests[len(tests)-(n_sets+1):-1]:
-            # Load test & agent
-            load_test_path = os.path.join(tests_path,test)
-            self._agent.load(load_test_path)
-            self._agent.to(device)
-            target, obs = self.simulate_one_episode()
-            targets += target
-            observations += obs
+        if self.n_runs > len(runs): self.n_runs = len(runs)
+        for i in range(self.n_runs):
+            run = runs[i]
+            run_path = os.path.join(self._experiment.logdir,run)
+            tests_path = os.path.join(run_path,"test")
+            tests = os.listdir(tests_path)
+            assert len(tests)>=n_sets
+            tests.sort(key=int)
+            for test in tests[len(tests)-(n_sets+1):-1]:
+                # Load test & agent
+                load_test_path = os.path.join(tests_path,test)
+                self._agent.load(load_test_path)
+                self._agent.to(device)
+                target, obs = self.simulate_one_episode()
+                targets += target
+                observations += obs
         return np.array(targets), np.array(observations)
         
     # Seed can at some point be replaced to a number of epochs we want to train to note change of seed for the SDT epochs?

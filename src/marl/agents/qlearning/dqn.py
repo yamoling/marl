@@ -47,12 +47,12 @@ class DQN(Agent):
         qvalues = qvalues.numpy(force=True)
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
-        qv_distr = qvalues.copy()
+
         qvalues[obs.available_actions == 0.0] = -np.inf
-        qv_distr[obs.available_actions == 0.0] = 0
 
         action = self.policy.get_action(qvalues, obs.available_actions)
-        qv_distr = qv_distr/np.sum(qv_distr, axis=1, keepdims=True)
+
+        qv_distr = torch.softmax(torch.from_numpy(qvalues), axis=1)
         return qv_distr, action
 
     def choose_action(self, obs: Observation):

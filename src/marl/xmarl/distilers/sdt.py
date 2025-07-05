@@ -15,6 +15,8 @@ from marl.models.batch import Batch
 from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos
 from marlenv.models import Episode
 
+EPS = 1e-8
+
 class InnerNode(nn.Module):
     """SoftDecisionTree: a class representing an Inner Node in a SDT.
     Will recursively build the tree, by building its children.
@@ -36,7 +38,7 @@ class InnerNode(nn.Module):
         self.device = device
         # Modules
         self.fc = nn.Linear(self.input_shape, 1)
-        self.beta = nn.Parameter(torch.randn(1))
+        self.beta = nn.Parameter(torch.tensor(1.0)) # Fixed at one, to keep in check
         # Tree specific
         self.leaf = False
         self.prob = None
@@ -74,6 +76,8 @@ class InnerNode(nn.Module):
 
     def cal_prob(self, x, path_prob):
         self.prob = self.forward(x) #probability of selecting right node
+        if torch.any(torch.isnan(self.prob)) or torch.any(torch.isinf(self.prob)):
+            print("NaN or Inf detected!", self.prob)
         self.path_prob = path_prob
         left_leaf_accumulator = self.left.cal_prob(x, path_prob * (1-self.prob))
         right_leaf_accumulator = self.right.cal_prob(x, path_prob * self.prob)
@@ -82,7 +86,10 @@ class InnerNode(nn.Module):
         return(self.leaf_accumulator)
 
     def get_penalty(self):
-        penalty = (torch.sum(self.prob * self.path_prob) / torch.sum(self.path_prob), self.lmbda)
+        """Recursively computes the penalty of each node"""
+        penalty = (torch.sum(self.prob * self.path_prob) / torch.sum(self.path_prob).clamp(min=EPS), self.lmbda)
+        if torch.any(torch.isnan(penalty[0])) or torch.any(torch.isinf(penalty[0])):
+            print("NaN or Inf detected!", penalty[0])
         if not self.left.leaf:
             left_penalty = self.left.get_penalty()
             right_penalty = self.right.get_penalty()
@@ -109,7 +116,7 @@ class LeafNode(nn.Module):
         self.device = device
 
         self.param = nn.Parameter(torch.randn(self.output_shape))
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.Softmax(dim=-1)
 
         self.leaf = True
 
@@ -149,9 +156,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
                  n_agent: int = 1,
                  max_depth: int = 4, 
                  seed: int = 0,
-                 log_interval: int = 50, # not sure I need
                  bs: int = 64,
-                 lr: Optional[float] = 0.001,
+                 lr: Optional[float] = 0.01,
                  lmbda: Optional[float] = 0.01,
                  momentum: Optional[float] = 0.01,
                  device: Optional[torch.device] = torch.device('cpu'),
@@ -168,9 +174,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         self.max_depth = max_depth
         self.seed = seed
-        self.log_interval = log_interval
 
         self.batch_size = bs
+        self.log_interval = bs/8
         self.lr = lr
         self.lmbda = lmbda
         self.momentum = momentum
@@ -184,34 +190,44 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.define_extras(self.batch_size)
         self.best_accuracy = 0.0
     
-    def check(self):
-        pass
+    def set_batch_size(self, batch_size: int):
+        self.batch_size = batch_size
 
     def define_extras(self, batch_size):
         self.path_prob_init = torch.ones(batch_size, 1, device=self.device)
      
     def cal_loss(self, x, y):
-        if self.agent_id is None: batch_size = y.shape[0]
-        else: batch_size = 1   # Ugly solution for individual
         leaf_accumulator = self.root.cal_prob(x, self.path_prob_init)
         loss = 0.
-        max_prob = [-1. for _ in range(batch_size)]
-        max_Q = torch.zeros((batch_size,self.output_shape))
+        max_prob = [-1. for _ in range(self.batch_size)]
+        max_Q = torch.zeros((self.batch_size,self.output_shape))
         for (path_prob, Q) in leaf_accumulator:
-            TQ = torch.bmm(y.view(batch_size, 1, self.output_shape), torch.log(Q).view(batch_size, self.output_shape, 1)).view(-1,1)
+            if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
+                print("NaN or Inf detected!", Q)
+            TQ = torch.bmm(y.view(self.batch_size, 1, self.output_shape), torch.log(Q).view(self.batch_size, self.output_shape, 1)).view(-1,1)
+            if torch.any(torch.isnan(TQ)) or torch.any(torch.isinf(TQ)):
+                print("NaN or Inf detected!", TQ)
             loss += path_prob * TQ
             path_prob_numpy = path_prob.cpu().data.numpy().reshape(-1)
-            for i in range(batch_size):
+            for i in range(self.batch_size):
                 if max_prob[i] < path_prob_numpy[i]:
                     max_prob[i] = path_prob_numpy[i]
                     max_Q[i] = Q[i]
         loss = loss.mean()
+        # Regalurization penalty
         penalties = self.root.get_penalty()
         C = 0.
         for (penalty, lmbda) in penalties:
+            penalty = penalty.clamp(EPS, 1 - EPS) # Safeguard to not have penalty = 1 or 0
             C -= lmbda * 0.5 *(torch.log(penalty) + torch.log(1-penalty))
+            if torch.any(torch.isnan(C)) or torch.any(torch.isinf(C)):
+                print("NaN or Inf detected!", C)
+            if torch.any(torch.isnan(penalty)) or torch.any(torch.isinf(penalty)):
+                print("NaN or Inf detected!", penalty)
         #output = torch.stack(max_Q)
         self.root.reset() ##reset all stacked calculation
+        if torch.any(torch.isnan(loss)) or torch.any(torch.isinf(loss)):
+            print("NaN or Inf detected!", loss)
         return(-loss + C, max_Q) ## -log(loss) will always output non, because loss is always below zero. I suspect this is the mistake of the paper?
 
 
@@ -271,8 +287,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             _, output = self.cal_loss(data, target)
             pred = output.data.max(-1)[1] # get the index of the max log-probability
             correct += pred.eq(target.data.max(-1)[1]).cpu().sum()
-        if self.agent_id is None: total_data = len(train_data)*len(train_data[0])
-        else: total_data = len(train_data)
+        total_data = len(train_data)*len(train_data[0])
         accuracy = 100.*correct/total_data
         print('Test set: Accuracy: {}/{} ({:.4f}%)\n'.format(
             correct, total_data,
@@ -444,6 +459,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             sdt: SoftDecisionTree = pickle.load(f)
         if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,"comp_sdt.params"))))
         else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt.params"))))
+        state_dict = sdt.state_dict()
         return sdt
 
     def save_best(self):
@@ -453,6 +469,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
             with open(self.logdir/'comp_sdt_distil.pkl', 'wb') as output_file:
                 pickle.dump(self, output_file)
         else:
+            state_dict = self.state_dict()
+            param = self.parameters
             torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt.params")))
             with open(self.logdir/f"ag{self.agent_id}_sdt_distil.pkl", 'wb') as output_file:
                 pickle.dump(self, output_file)
