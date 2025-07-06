@@ -72,18 +72,33 @@ export function stringToRGB(s: string) {
     return colour;
 }
 
+const GOLDEN_ANGLE = 137.508;
+const baseLuminance = 50;
 
-export function qvalueLabelToHSL(label: string): string {
-    const match = label.match(/^agent(\d+)-(.+)$/);
+const labelIndexMap = new Map<string, number>();
+let nextLabelIndex = 0;
+
+function getLabelIndex(label: string): number {
+    if (!labelIndexMap.has(label)) {
+        labelIndexMap.set(label, nextLabelIndex++);
+    }
+    return labelIndexMap.get(label)!;
+}
+
+// agentNum assumed to be zero-based integer (0,1,2...)
+export function qvalueLabelToHSL(fullLabel: string): string {
+    const match = fullLabel.match(/^agent(\d+)-(.+)$/);
     if (!match) throw new Error("Invalid label format");
-    const agent = parseInt(match[1]);
-    const meaning = match[2];
 
-    const hue = Math.abs(hashString(meaning)) % 360;
-    const saturation = Math.min(100, 15 + agent * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
-    const luminance = 50;
+    const agentNum = parseInt(match[1])
+    const label = match[2]
+    
+    const index = getLabelIndex(label);
+    const hue = (index * GOLDEN_ANGLE) % 360;
 
-    return `hsl(${hue}, ${saturation}%, ${luminance}%)`;
+    const saturation = Math.min(100, 15 + agentNum * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
+    const luminance = baseLuminance;
+    return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
 export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=0,): string {

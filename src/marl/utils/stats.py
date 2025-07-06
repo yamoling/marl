@@ -202,7 +202,7 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, lab
             continue
         col_title = col.split('-')
         if 'qvalue' in col_title[1]:
-            label = f"{col_title[0]} {labels[int(re.sub(r"\D","",col_title[1]))]}"
+            label = f"{col_title[0]}-{labels[int(re.sub(r"\D","",col_title[1]))]}"
         res.append(
             Dataset(
                 logdir=logdir,
