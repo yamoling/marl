@@ -74,10 +74,12 @@ export function stringToRGB(s: string) {
 
 
 export function qvalueLabelToHSL(label: string): string {
-    const match = label.match(/^agent(\d+)-qvalue(\d+)$/);
+    const match = label.match(/^agent(\d+)-(.+)$/);
     if (!match) throw new Error("Invalid label format");
-    const [agent, qvalue] = [parseInt(match[1]), parseInt(match[2])];
-    const hue = (qvalue * 60) % 360;
+    const agent = parseInt(match[1]);
+    const meaning = match[2];
+
+    const hue = Math.abs(hashString(meaning)) % 360;
     const saturation = Math.min(100, 15 + agent * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
     const luminance = 50;
 
