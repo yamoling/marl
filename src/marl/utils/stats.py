@@ -1,4 +1,5 @@
 import torch
+import re
 from dataclasses import dataclass
 import numpy as np
 import scipy.stats as sp
@@ -174,7 +175,7 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
         )
     return res
 
-def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suffix: Optional[str] = None) -> list[Dataset]:
+def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, label: Optional[str] = None) -> list[Dataset]:
     """
     Aggregates qvalues"""
     dfs = [d for d in dfs if not d.is_empty()]
@@ -199,9 +200,9 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suf
     for col in df.columns:
         if col == "time_step":
             continue
-        label = col
-        if suffix is not None:
-            label = col + suffix
+        col_title = col.split('-')
+        if 'qvalue' in col_title[1]:
+            label = f"{col_title[0]} {label[int(re.sub(r"\D","",col_title[1]))]}"
         res.append(
             Dataset(
                 logdir=logdir,

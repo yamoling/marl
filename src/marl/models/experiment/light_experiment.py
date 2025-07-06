@@ -98,7 +98,9 @@ class LightExperiment:
             [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, suffix=" [train]"
         )
         datasets += stats.compute_datasets([run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf)
-        qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf)
+        param = LightExperiment.get_parameters(self.logdir)
+        obj_labels = param.env.reward_space.labels
+        qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, obj_labels)
 
         return datasets, qvalues 
 
