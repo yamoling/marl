@@ -148,11 +148,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     n_agent: int
     agent_id: int
+    extras: bool
 
     def __init__(self, 
                  input_shape: int,
                  output_shape: int,
                  logdir: str,
+                 extras: bool,
                  n_agent: int = 1,
                  max_depth: int = 4, 
                  seed: int = 0,
@@ -169,6 +171,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.output_shape = output_shape
         self.n_agent = n_agent
         self.agent_id = agent_id
+        self.extras = extras
         if self.agent_id is None: self.logdir = pathlib.Path(logdir, "distil")
         else:self.logdir = pathlib.Path(logdir, "distil", "individual_sdt_distil")
 
@@ -237,7 +240,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.train()
         torch.manual_seed(self.seed+epoch)
         self.define_extras(self.batch_size)
-        train_acc = []
+        train_log = []
         for batch_idx  in range (len(train_data)):
             correct = 0
             target = torch.Tensor(train_targets[batch_idx], device=self.device)
@@ -264,8 +267,10 @@ class SoftDecisionTree[B: Batch](nn.Module):
                     100. * batch_idx / len(train_data), loss.item(),
                     correct, len(data),
                     accuracy))
-                train_acc.append(accuracy)
-        print(f"Train accuracy for epoch {epoch}: {np.mean(train_acc)}\n ")
+                train_log.append((accuracy, loss.item()))
+        train_log = np.array(train_log)
+        print(f"Train accuracy for epoch {epoch}: {np.mean(train_log[:,0])}\n ")
+        return train_log
 
     def test_(self, train_data, train_targets, epoch=0):
         if self.agent_id is not None: print(f"\nTesting for agent {self.agent_id}")
@@ -297,6 +302,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         if accuracy > self.best_accuracy:
             self.save_best()
             self.best_accuracy = accuracy
+        return accuracy
 
     def greedy_trace(self, obs) -> tuple[LeafNode, list[InnerNode]]:
         """Greedy deterministic path through the SDT based on sigmoid threshold 0.5 and returns each filter."""
@@ -457,20 +463,17 @@ class SoftDecisionTree[B: Batch](nn.Module):
         """Load an experiment from disk."""
         with open(filedir, "rb") as f:
             sdt: SoftDecisionTree = pickle.load(f)
-        if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,"comp_sdt.params"))))
-        else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt.params"))))
-        state_dict = sdt.state_dict()
+        if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"comp_sdt{"_extra" if sdt.extras else ""}.params"))))
+        else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt{"_extra" if sdt.extras else ""}.params"))))
         return sdt
 
     def save_best(self):
         os.makedirs(self.logdir, exist_ok=True)
         if self.agent_id is None:
-            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,"comp_sdt.params")))
-            with open(self.logdir/'comp_sdt_distil.pkl', 'wb') as output_file:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"comp_sdt{"_extra" if self.extras else ""}.params")))
+            with open(self.logdir/f"comp_sdt_distil{"_extra" if self.extras else ""}.pkl", 'wb') as output_file:
                 pickle.dump(self, output_file)
         else:
-            state_dict = self.state_dict()
-            param = self.parameters
-            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt.params")))
-            with open(self.logdir/f"ag{self.agent_id}_sdt_distil.pkl", 'wb') as output_file:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{"_extra" if self.extras else ""}.params")))
+            with open(self.logdir/f"ag{self.agent_id}_sdt_distil{"_extra" if self.extras else ""}.pkl", 'wb') as output_file:
                 pickle.dump(self, output_file)

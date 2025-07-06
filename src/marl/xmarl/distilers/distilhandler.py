@@ -1,4 +1,5 @@
 import os
+import pathlib
 
 from typing import Literal, Optional
 from random import sample
@@ -22,6 +23,7 @@ class DistilHandler:
     _experiment: Experiment
     _agent: DQN
 
+    dist_type: str
     n_agents: int
     extras: bool
     individual_agents: bool
@@ -29,7 +31,8 @@ class DistilHandler:
     def __init__(self,
                  experiment: Experiment,
                  n_runs: int,
-                 distilers: list[SoftDecisionTree], # or sklearn DT/Randomforest?  
+                 distilers: list[SoftDecisionTree], # or sklearn DT/Randomforest?
+                 dist_type: str,
                  extras: bool,
                  individual_agents: bool = False, 
     ):
@@ -39,6 +42,7 @@ class DistilHandler:
         if self._agent.last_qvalues is None:
             self._agent.last_qvalues = np.ndarray(0)
 
+        self.dist_type = dist_type
         self.n_runs = n_runs
         self.n_agents = self._experiment.env.n_agents
         self.individual_agents = individual_agents
@@ -70,6 +74,7 @@ class DistilHandler:
                         input_shape = input_shape,
                         output_shape = experiment.env.n_actions,
                         logdir = experiment.logdir,
+                        extras=extras,
                         max_depth=4,
                         bs=32,
                         n_agent=experiment.env.n_agents,
@@ -81,12 +86,13 @@ class DistilHandler:
                     input_shape = input_shape,
                     output_shape = experiment.env.n_actions,
                     logdir = experiment.logdir,
+                    extras=extras,
                     max_depth=4,
                     bs=32,
                     n_agent=experiment.env.n_agents,
                 )
                 distilers.append(distil_model)
-            distil_handler = DistilHandler(experiment, n_runs, distilers, extras, individual_agents)
+            distil_handler = DistilHandler(experiment, n_runs, distilers, distiler, extras, individual_agents)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
@@ -120,16 +126,30 @@ class DistilHandler:
         inputs_train, inputs_test, outputs_train, outputs_test = train_test_split(
             inputs, outputs, test_size=0.2, random_state=42, shuffle=True
         )
-
+        epochs = 10
         if self.individual_agents:
             for ag in range(len(self._distilers)):
+                train_logs = []
+                test_logs = []
                 dist = self._distilers[ag]
-                dist.train_(inputs_train[:,:,ag],outputs_train[:,:,ag])
-                dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag])
+                for i in range(epochs):
+                    train_logs.append(dist.train_(inputs_train[:,:,ag],outputs_train[:,:,ag],i))
+                    test_logs.append(dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag],i))
+                train_logs = np.array(train_logs)
+                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+
         else:
+            train_logs = []
+            test_logs = []
             dist = self._distilers[0]
-            dist.train_(inputs_train,outputs_train)
-            dist.test_(inputs_test,outputs_test)
+            for i in range(epochs):
+                train_logs.append(dist.train_(inputs_train,outputs_train,i))
+                test_logs.append(dist.test_(inputs_test,outputs_test,i))
+            train_logs = np.array(train_logs)
+            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+
        
     def prepare_dataset(self, device):
         """Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not."""
