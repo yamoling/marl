@@ -87,6 +87,11 @@ class LightExperiment:
     def test_dir(self):
         return os.path.join(self.logdir, "test")
 
+    @property
+    def qvalue_labels(self):
+        param = LightExperiment.get_parameters(self.logdir)
+        return param["env"]["reward_space"]["labels"]
+
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
@@ -98,9 +103,7 @@ class LightExperiment:
             [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, suffix=" [train]"
         )
         datasets += stats.compute_datasets([run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf)
-        param = LightExperiment.get_parameters(self.logdir)
-        obj_labels = param["env"]["reward_space"]["labels"]
-        qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, obj_labels)
+        qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_labels)
 
         return datasets, qvalues 
 
