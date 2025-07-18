@@ -45,16 +45,24 @@ def handle_selection() -> tuple[Experiment, pathlib.Path, pathlib.Path]:
     print()
 
     distil_path = None
+    extra = False
     if "distil" in exp_cont:
         distil_list = [distil for distil in os.listdir(exp_path/"distil") if "distil" in distil]
         if len(distil_list) > 0:
             print("Distillation(s) of the experiment's model found, do you want to visualize it? \n[Y/N]")
             yn = input()
             if str.upper(yn) == "Y": distil_path = get_selection(exp_path/"distil", distil_list)
+            if "individual" in str(distil_path):
+                for d in os.listdir(distil_path):
+                    if "extra" in d: extra = True
+                if extra:
+                    print("For individual agent distillation there is a version with and without extras. Do you want extras (Y) or not (n)?")
+                    yn = input()
+                    if str.upper(yn) != "Y": extra = False
 
-    return experiment, timestep_path, distil_path
+    return experiment, timestep_path, distil_path, extra
 
-def handle_distillation(episode: Episode, distil_path: pathlib.Path):
+def handle_distillation(episode: Episode, distil_path: pathlib.Path, extra: bool):
     if "sdt" in str(distil_path):
         print("SDT has two types of explanations to provide, choose by inputting the index: \n0: Forward (Traverse greediest path to action) - 1: Backward (Filters of path to original action)")
         e_type = input() == "1"
@@ -64,14 +72,14 @@ def handle_distillation(episode: Episode, distil_path: pathlib.Path):
             distilled_actions = []
             agent_pos = []
             for ag in range(episode.n_agents):
-                distiller = SoftDecisionTree.load(distil_path/f"ag{ag}_sdt_distil.pkl")
+                distiller = SoftDecisionTree.load(distil_path/f"ag{ag}_sdt_distil{"_extra" if extra else ""}.pkl")
                 df, de, da, ap = distiller.distil_episode(episode, e_type)
                 distilled_filters.append(df)
                 distilled_extras.append(de)
                 distilled_actions.append(da)
                 agent_pos.append(ap)
             distilled_filters= np.transpose(np.array(distilled_filters), (1,0,2,3,4))
-            distilled_extras = np.transpose(np.array(distilled_extras).squeeze(), (1,0,2,3))
+            if len(distilled_extras) != 0: distilled_extras = np.transpose(np.array(distilled_extras).squeeze(), (1,0,2,3))
             if e_type: distilled_actions = np.transpose(np.array(distilled_actions), (1,0,2))
             else: distilled_actions = np.transpose(np.array(distilled_actions), (1,0,2,3))
             agent_pos = np.transpose(np.array(agent_pos), (1,0,2))
@@ -85,7 +93,7 @@ def handle_distillation(episode: Episode, distil_path: pathlib.Path):
 def main():
     print("Episode runner")
 
-    experiment, timestep_path, distil_path = handle_selection()
+    experiment, timestep_path, distil_path, extra = handle_selection()
 
     episode_str = timestep_path / "0"
     replay = experiment.replay_episode(episode_str)
@@ -94,7 +102,7 @@ def main():
     action_names, extras_meaning = get_env_infos(experiment)
 
     if distil_path is not None: 
-        distilled_filters, distilled_actions, distilled_extras, agent_pos = handle_distillation(episode, distil_path)
+        distilled_filters, distilled_actions, distilled_extras, agent_pos = handle_distillation(episode, distil_path, extra)
         # Insert 7x7 obs in original frame
         if experiment.env.observation_shape[1:] == (7,7): # TODO: Hardcoded, no way to get original world size without assuming env specific type
             agent_pos = np.array(episode.other["ag_pos"])
