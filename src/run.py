@@ -1,8 +1,71 @@
 import time
+from lle import LLE
+from marlenv import MultiDiscreteSpace, RLEnvWrapper
+import marlenv
 import typed_argparse as tap
 
 from typing import Literal, Optional
 from multiprocessing.pool import Pool, AsyncResult
+
+import numpy as np
+from collections import OrderedDict
+from dataclasses import dataclass
+
+
+@dataclass
+class ShapedLabyrinth(RLEnvWrapper[MultiDiscreteSpace]):
+    def __init__(self, delay: int):
+        self.delay = delay
+        self._key_pos = [(7, 1), (0, 3), (7, 5), (0, 7), (7, 9)]
+        self._reward_countdown = OrderedDict.fromkeys(self._key_pos, delay)
+        lle = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
+        self._world = lle.world
+        env = marlenv.Builder(lle).time_limit(90 + delay).build()
+        super().__init__(
+            env,
+            extra_shape=(5 + env.extras_shape[0],),
+            extra_meanings=env.extras_meanings + ["checkpoint 0", "checkpoint 1", "checkpoint 2", "checkpoint 3", "checkpoint 4"],
+        )
+
+    def reset(self):
+        self._reward_countdown = OrderedDict.fromkeys(self._key_pos, self.delay)
+        _, state = super().reset()
+        return self.get_observation(), state
+
+    def get_observation(self):
+        obs = super().get_observation()
+        extra = np.array([[r for r in self._reward_countdown.values()]], dtype=np.float32)
+        if self.delay != 0:
+            extra = (extra / self.delay).astype(np.float32)
+        obs.add_extra(extra)
+        return obs
+
+    def step(self, actions):
+        step = super().step(actions)
+        agent_pos = self._world.agents_positions[0]
+        if agent_pos in self._reward_countdown:
+            countdown = self._reward_countdown[agent_pos]
+            if countdown == 0:
+                step.reward += 1.0
+            self._reward_countdown[agent_pos] = max(-1, countdown - 1)
+        step.obs = self.get_observation()
+        if step.done:
+            # Flush rewards for the final step
+            for countdown in self._reward_countdown.values():
+                if countdown >= 0 and countdown != self.delay:
+                    step.reward += 1.0
+        return step
+
+
+def make_lle(delay: int):
+    # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
+    if delay >= 0:
+        env = ShapedLabyrinth(delay)
+    else:
+        env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").builder().time_limit(90).build()
+    # env = marlenv.Builder(env).time_limit(90).build()
+    test_env = None
+    return env, test_env
 
 
 class Arguments(tap.TypedArgs):

@@ -1,11 +1,8 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from marlenv import Space
 from abc import ABC, abstractmethod
 import torch
-
-from marlenv.models import MARLEnv
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -38,7 +35,7 @@ class NN(torch.nn.Module, ABC):
         return self._device
 
     @abstractmethod
-    def forward(self, *args) -> torch.Tensor:
+    def forward(self, *args, **kwargs) -> torch.Tensor:
         """Forward pass"""
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -54,10 +51,11 @@ class NN(torch.nn.Module, ABC):
         # Required for deserialization (in torch.nn.module)
         return hash(self.name)
 
-    def to(self, device: torch.device | Literal["cpu", "auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):
+    def to(self, device: str | int | torch.device | Literal["cpu", "auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):  # type: ignore
         if isinstance(device, str):
             from marl.utils import get_device
 
+            assert device in ("cpu", "auto"), "Device must be 'cpu' or 'auto'."
             device = get_device(device)
         self._device = device
         return super().to(device, dtype, non_blocking)

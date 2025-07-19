@@ -3,7 +3,7 @@ name = "marl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10,<4"
+requires-python = ">=3.12,<4"
 dependencies = [
     "laser-learning-environment>=2.2.0",
     "python-dotenv>=1.0.1",

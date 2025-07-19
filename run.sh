@@ -1,6 +1,7 @@
 #! /bin/bash
 
-python src/run.py logs/haven-dqn --n-runs=8 &
-python src/run.py logs/haven-ppo --n-runs=8
-python src/run.py logs/haven-dqn-ir --n-runs=8 &
-python src/run.py logs/haven-ppo-ir --n-runs=8
+for i in 0 1 2 3; do
+    echo "python src/create_experiments.py --delay=$i --logdir=LLE-tmp-$i-DQN-VDN --run --n-runs=20 &"
+    python src/create_experiments.py --delay=$i --logdir=LLE-tmp-$i-DQN-VDN --run --n-runs=20 &
+    sleep 10
+done

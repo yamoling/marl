@@ -6,6 +6,7 @@ import typed_argparse as tap
 from lle import LLE
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
+from marl.env.shaped_labyrinth import ShapedLabyrinth
 
 import marl
 from marl import Trainer
@@ -203,7 +204,7 @@ def make_dqn(
     if noisy:
         policy = marl.policy.ArgMax()
     else:
-        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=10_000)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
@@ -296,18 +297,13 @@ def make_experiment(
     )
 
 
-def make_lle():
-    # lle = RandomizedLasers(
-    env = (
-        LLE.from_file("maps/lvl6-no-lasers")
-        .obs_type("layered")
-        .state_type("state")
-        # .pbrs(gamma=0.95, reward_value=1, lasers_to_reward=[(4, 0), (6, 12)])
-        .builder()
-        .time_limit(78)
-        .agent_id()
-        .build()
-    )
+def make_lle(delay: int):
+    # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
+    env = ShapedLabyrinth(delay)
+    if delay < 0:
+        env = env.wrapped
+        # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").builder().time_limit(90).build()
+    # env = marlenv.Builder(env).time_limit(90).build()
     test_env = None
     return env, test_env
 
@@ -324,12 +320,12 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
-        env, test_env = make_lle()
+        env, test_env = make_lle(int(args.delay))
         # env, test_env = make_overcooked()
 
-        # trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
-        trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
-        exp = make_experiment(args, trainer, env, test_env, 1_000_000)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
+        # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
+        exp = make_experiment(args, trainer, env, test_env, 300_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
