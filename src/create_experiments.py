@@ -6,7 +6,7 @@ import typed_argparse as tap
 from lle import LLE
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
-from marl.env.shaped_labyrinth import ShapedLabyrinth
+from marl.env.shaped_doors import ShapedDoors
 
 import marl
 from marl import Trainer
@@ -299,7 +299,7 @@ def make_experiment(
 
 def make_lle(delay: int):
     # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
-    env = ShapedLabyrinth(delay)
+    env = ShapedDoors(delay)
     if delay < 0:
         env = env.wrapped
         # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").builder().time_limit(90).build()
