@@ -244,6 +244,7 @@ class Run:
             train_logger=logging.CSVLogger(self.train_filename),
             test_logger=logging.CSVLogger(self.test_filename),
             training_data_logger=logging.CSVLogger(self.training_data_filename),
+            qvalue_logger=logging.CSVLogger(self.qvalues_filename),
             run=self,
         )
 
@@ -260,11 +261,13 @@ class RunHandle:
         train_logger: logging.CSVLogger,
         test_logger: logging.CSVLogger,
         training_data_logger: logging.CSVLogger,
+        qvalue_logger: logging.CSVLogger,
         run: Run,
     ):
         self.train_logger = train_logger
         self.test_logger = test_logger
         self.training_data_logger = training_data_logger
+        self.qvalue_logger = qvalue_logger
         self.run = run
 
     def log_tests(self, episodes: list[Episode], time_step: int):
@@ -283,8 +286,14 @@ class RunHandle:
         agent.save(self.run.get_saved_algo_dir(time_step))
 
     def log_train_episode(self, episode: Episode, time_step: int, training_logs: dict[str, float]):
+        qvs = {}
+        keys = list(episode.metrics.keys())
+        for key in keys:
+            if "qvalue" in key: 
+                qvs[key] = episode.metrics.pop(key)
         self.train_logger.log(episode.metrics, time_step)
         self.training_data_logger.log(training_logs, time_step)
+        if len(qvs) > 0: self.qvalue_logger.log(qvs, time_step)
         # train_dir = self.run.train_dir(time_step - len(episode))
         # os.makedirs(train_dir)
         # with open(os.path.join(train_dir, ACTIONS), "w") as a:
