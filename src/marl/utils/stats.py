@@ -175,7 +175,7 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
         )
     return res
 
-def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, labels: Optional[list[str]] = None) -> list[Dataset]:
+def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, infos: Optional[list[tuple[str]]] = None) -> list[Dataset]:
     """
     Aggregates qvalues"""
     dfs = [d for d in dfs if not d.is_empty()]
@@ -188,21 +188,22 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, lab
     res = list[Dataset]()
     ticks = df_stats["time_step"].to_list()
 
-    n_agents = int(df.columns[-3].split('-')[0][-1])
+    n_agents = infos[1]
     l_metrics = ['mean-','std-', 'min-', 'max-', 'ci95-']
     for i in range(n_agents):
         prefix = f"agent{i}"
         for metric in l_metrics:
             selected_columns = df_stats.select(pl.selectors.contains(f"{metric}{prefix}").abs())
             row_sum=pl.sum_horizontal(selected_columns)
-            df_stats = df_stats.with_columns([(pl.col(col)/row_sum).alias(col) for col in selected_columns.columns])
-            
+            df_stats = df_stats.with_columns([(pl.col(col)/row_sum).alias(col) for col in selected_columns.columns]) # Normalize over qvalue type
+    labels = infos[0]
     for col in df.columns:
         if col == "time_step":
             continue
         col_title = col.split('-')
-        if 'qvalue' in col_title[1]:
+        if 'qvalue' in col_title[1] and len(labels)>1:
             label = f"{col_title[0]}-{labels[int(re.sub(r"\D","",col_title[1]))]}"
+        else: label = f"{col_title[0]}-{labels[0]}"
         res.append(
             Dataset(
                 logdir=logdir,
