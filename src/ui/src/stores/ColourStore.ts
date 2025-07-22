@@ -20,6 +20,7 @@ export const useColourStore = defineStore("ColourStore", () => {
     }
 
     function get(logdir: string): string {
+        // TODO: store label+flag agent/value-hue
         let colour = colours.value.get(logdir);
         if (colour != null) {
             return colour;
@@ -29,12 +30,12 @@ export const useColourStore = defineStore("ColourStore", () => {
         return colour;
     }
 
-    function getQColour(label: string): string {
+    function getQColour(label: string, qv_or_ag: boolean): string {
         let colour = colours.value.get(label);
         if (colour != null) {
             return colour;
         }
-        colour = qvalueLabelToHSL(label);
+        colour = qvalueLabelToHSL(label, qv_or_ag);
         set(label, colour);
         return colour;
     }

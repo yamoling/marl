@@ -75,6 +75,7 @@ export function stringToRGB(s: string) {
 const COL_OFFSET = 90;
 const baseLuminance = 50;
 
+// labelIndex maps a label (objective) to an index. The first time an index is given, else it's retrieved from the Map
 const labelIndexMap = new Map<string, number>();
 let nextLabelIndex = 0;
 
@@ -86,26 +87,22 @@ function getLabelIndex(label: string): number {
 }
 
 // agentNum assumed to be zero-based integer (0,1,2...)
-export function qvalueLabelToHSL(fullLabel: string): string {
-    const match = fullLabel.match(/^agent(\d+)-(.+)$/);
-    if (!match) throw new Error("Invalid label format");
-
-    const agentNum = parseInt(match[1])
-    
+export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
     // Fixed hue mapping for 4 agents
     const hueMap: Record<number, number> = {
         0: 240, // Blue
         1: 120, // Green
         2: 0,   // Red
-        3: 60   // Yellow
+        3: 60,   // Yellow
+        4: 300,  // Pink
     };
-    const hue = hueMap[agentNum] !== undefined ? hueMap[agentNum] : (agentNum * COL_OFFSET) % 360; // Agents 0-3, fixed hue, others sue fallback
-    
-    const label = match[2]
-    const index = getLabelIndex(label);
+    let hue_idx;
+    if (qv_or_ag) hue_idx = getLabelIndex(label);
+    else hue_idx = parseInt(label);
+    const hue = hueMap[hue_idx] !== undefined ? hueMap[hue_idx] : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
 
-    const saturation = 80 - (index%2)*40;
-    const luminance = 45 + (Math.floor(index/2)%2)*15;
+    const saturation = 50; // qvalue dependent: 80 - (index%2)*40;
+    const luminance = 50; // qvalue dependent: 45 + (Math.floor(index/2)%2)*15;
     return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
