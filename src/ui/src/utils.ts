@@ -72,7 +72,7 @@ export function stringToRGB(s: string) {
     return colour;
 }
 
-const GOLDEN_ANGLE = 137.508;
+const COL_OFFSET = 90;
 const baseLuminance = 50;
 
 const labelIndexMap = new Map<string, number>();
@@ -91,13 +91,21 @@ export function qvalueLabelToHSL(fullLabel: string): string {
     if (!match) throw new Error("Invalid label format");
 
     const agentNum = parseInt(match[1])
-    const label = match[2]
     
+    // Fixed hue mapping for 4 agents
+    const hueMap: Record<number, number> = {
+        0: 240, // Blue
+        1: 120, // Green
+        2: 0,   // Red
+        3: 60   // Yellow
+    };
+    const hue = hueMap[agentNum] !== undefined ? hueMap[agentNum] : (agentNum * COL_OFFSET) % 360; // Agents 0-3, fixed hue, others sue fallback
+    
+    const label = match[2]
     const index = getLabelIndex(label);
-    const hue = (index * GOLDEN_ANGLE) % 360;
 
-    const saturation = Math.min(100, 15 + agentNum * 22); // Assume 4 agents in general, could make more flexible but then difference in sturation not as recognizable
-    const luminance = baseLuminance;
+    const saturation = 80 - (index%2)*40;
+    const luminance = 45 + (Math.floor(index/2)%2)*15;
     return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
@@ -132,9 +140,6 @@ export async function fetchWithJSON(url: string, data: Object, method: string = 
         body: JSON.stringify(data)
     });
 }
-
-
-
 
 export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
     const sqrtN = Math.sqrt(nSamples);
