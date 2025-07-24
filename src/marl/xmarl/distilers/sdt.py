@@ -77,7 +77,7 @@ class InnerNode(nn.Module):
     def cal_prob(self, x, path_prob):
         self.prob = self.forward(x) #probability of selecting right node
         if torch.any(torch.isnan(self.prob)) or torch.any(torch.isinf(self.prob)):
-            print("NaN or Inf detected!", self.prob)
+            print("prob: NaN or Inf detected!")
         self.path_prob = path_prob
         left_leaf_accumulator = self.left.cal_prob(x, path_prob * (1-self.prob))
         right_leaf_accumulator = self.right.cal_prob(x, path_prob * self.prob)
@@ -89,7 +89,7 @@ class InnerNode(nn.Module):
         """Recursively computes the penalty of each node"""
         penalty = (torch.sum(self.prob * self.path_prob) / torch.sum(self.path_prob).clamp(min=EPS), self.lmbda)
         if torch.any(torch.isnan(penalty[0])) or torch.any(torch.isinf(penalty[0])):
-            print("NaN or Inf detected!", penalty[0])
+            print("penalty[0]: NaN or Inf detected!")
         if not self.left.leaf:
             left_penalty = self.left.get_penalty()
             right_penalty = self.right.get_penalty()
@@ -206,10 +206,11 @@ class SoftDecisionTree[B: Batch](nn.Module):
         max_Q = torch.zeros((self.batch_size,self.output_shape))
         for (path_prob, Q) in leaf_accumulator:
             if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
-                print("NaN or Inf detected!", Q)
-            TQ = torch.bmm(y.view(self.batch_size, 1, self.output_shape), torch.log(Q).view(self.batch_size, self.output_shape, 1)).view(-1,1)
+                print("Q: NaN or Inf detected!")
+            log_Q = torch.log(Q.clamp(min=EPS))
+            TQ = torch.bmm(y.view(self.batch_size, 1, self.output_shape), log_Q.view(self.batch_size, self.output_shape, 1)).view(-1,1)
             if torch.any(torch.isnan(TQ)) or torch.any(torch.isinf(TQ)):
-                print("NaN or Inf detected!", TQ)
+                print("TQ: NaN or Inf detected!")
             loss += path_prob * TQ
             path_prob_numpy = path_prob.cpu().data.numpy().reshape(-1)
             for i in range(self.batch_size):
@@ -224,13 +225,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
             penalty = penalty.clamp(EPS, 1 - EPS) # Safeguard to not have penalty = 1 or 0
             C -= lmbda * 0.5 *(torch.log(penalty) + torch.log(1-penalty))
             if torch.any(torch.isnan(C)) or torch.any(torch.isinf(C)):
-                print("NaN or Inf detected!", C)
+                print("C: NaN or Inf detected!")
             if torch.any(torch.isnan(penalty)) or torch.any(torch.isinf(penalty)):
-                print("NaN or Inf detected!", penalty)
+                print("penalty: NaN or Inf detected!")
         #output = torch.stack(max_Q)
         self.root.reset() ##reset all stacked calculation
         if torch.any(torch.isnan(loss)) or torch.any(torch.isinf(loss)):
-            print("NaN or Inf detected!", loss)
+            print("loss: NaN or Inf detected!")
         return(-loss + C, max_Q) ## -log(loss) will always output non, because loss is always below zero. I suspect this is the mistake of the paper?
 
 
@@ -238,7 +239,6 @@ class SoftDecisionTree[B: Batch](nn.Module):
         """While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
         if self.agent_id is not None: print(f"Training for agent {self.agent_id}")
         self.train()
-        torch.manual_seed(self.seed+epoch)
         self.define_extras(self.batch_size)
         train_log = []
         for batch_idx  in range (len(train_data)):
@@ -262,24 +262,26 @@ class SoftDecisionTree[B: Batch](nn.Module):
             accuracy = 100. * correct / len(data)
 
             if batch_idx % self.log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, Accuracy: {}/{} ({:.4f}%)'.format(
-                    epoch, batch_idx, len(train_data),
-                    100. * batch_idx / len(train_data), loss.item(),
-                    correct, len(data),
-                    accuracy))
+                # print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}, Accuracy: {}/{} ({:.4f}%)'.format(
+                #     epoch, batch_idx, len(train_data),
+                #     100. * batch_idx / len(train_data), loss.item(),
+                #     correct, len(data),
+                #     accuracy))
                 train_log.append((accuracy, loss.item()))
         train_log = np.array(train_log)
         print(f"Train accuracy for epoch {epoch}: {np.mean(train_log[:,0])}\n ")
         return train_log
 
-    def test_(self, train_data, train_targets, epoch=0):
+    def test_(self, train_data, train_targets, epoch=0, test=False):
         if self.agent_id is not None: print(f"\nTesting for agent {self.agent_id}")
         self.eval()
 
         self.define_extras(self.batch_size)
         test_loss = 0
         correct = 0
-        for batch_idx  in range (len(train_data)):
+        batch_nb = len(train_data)
+        predictions = []
+        for batch_idx  in range (batch_nb):
 
             target = torch.Tensor(train_targets[batch_idx], device=self.device)
             data = torch.Tensor(train_data[batch_idx], device=self.device)
@@ -291,18 +293,18 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
             _, output = self.cal_loss(data, target)
             pred = output.data.max(-1)[1] # get the index of the max log-probability
+            predictions.append(pred.data.cpu())
             correct += pred.eq(target.data.max(-1)[1]).cpu().sum()
-        total_data = len(train_data)*len(train_data[0])
+
+        total_data = batch_nb*self.batch_size
         accuracy = 100.*correct/total_data
-        print('Test set: Accuracy: {}/{} ({:.4f}%)\n'.format(
-            correct, total_data,
-            accuracy))
+        print(f"{"Validation" if not test else "Test"} set Accuracy: {correct}/{total_data} ({accuracy:.4f}%)\n")
         self.test_acc.append(accuracy)
 
         if accuracy > self.best_accuracy:
             self.save_best()
             self.best_accuracy = accuracy
-        return accuracy
+        return accuracy, np.array(predictions).flatten()
 
     def greedy_trace(self, obs) -> tuple[LeafNode, list[InnerNode]]:
         """Greedy deterministic path through the SDT based on sigmoid threshold 0.5 and returns each filter."""
@@ -466,6 +468,10 @@ class SoftDecisionTree[B: Batch](nn.Module):
         if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"comp_sdt{"_extra" if sdt.extras else ""}.params"))))
         else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt{"_extra" if sdt.extras else ""}.params"))))
         return sdt
+    
+    def load_best(self):
+        if self.agent_id is None: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"comp_sdt{"_extra" if self.extras else ""}.params"))))
+        else: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{"_extra" if self.extras else ""}.params"))))
 
     def save_best(self):
         os.makedirs(self.logdir, exist_ok=True)

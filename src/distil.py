@@ -11,6 +11,8 @@ class Arguments(tap.TypedArgs):
     #debug: bool = tap.arg(help="Enable debug mode")
     logdir: str = tap.arg(positional=True, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to consider")
+    n_sets: int = tap.arg(default=5, help="Number of tests to consider for each run")
+    epochs: int = tap.arg(default=10, help="Number of epochs to run")
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     #delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     #device: Literal["auto", "cpu"] | str = tap.arg(default="auto")
@@ -26,7 +28,7 @@ class Arguments(tap.TypedArgs):
 def start_distillation(args: Arguments):
     # Load the experiment from disk and start a child process for each run.
     # The run with seed=0 is spawned in the main process.
-    distiler = DistilHandler.create(args.logdir, args.n_runs, args.distiller, args.input, args.extras, args.individual)
+    distiler = DistilHandler.create(args.logdir, args.n_runs, args.n_sets, args.epochs, args.distiller, args.input, args.extras, args.individual)
     distiler.run()
 
 

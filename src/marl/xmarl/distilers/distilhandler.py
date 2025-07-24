@@ -2,17 +2,19 @@ import os
 import pathlib
 
 from typing import Literal, Optional
-from random import sample
 
 import numpy as np
+import torch
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import flatten_observation
+from marl.xmarl.distilers.utils import flatten_observation, plot_importance
 from marl.models import Experiment
 from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
 
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
 
 class DistilHandler:
     """
@@ -31,6 +33,8 @@ class DistilHandler:
     def __init__(self,
                  experiment: Experiment,
                  n_runs: int,
+                 n_sets: int,
+                 epochs: int,
                  distilers: list[SoftDecisionTree], # or sklearn DT/Randomforest?
                  dist_type: str,
                  extras: bool,
@@ -44,13 +48,15 @@ class DistilHandler:
 
         self.dist_type = dist_type
         self.n_runs = n_runs
+        self.n_sets = n_sets
+        self.epochs = epochs
         self.n_agents = self._experiment.env.n_agents
         self.individual_agents = individual_agents
         self.extras = extras
 
 
     @staticmethod
-    def create(logdir: str, n_runs: int, distiler: str, input_type: str, extras: bool, individual_agents: bool):
+    def create(logdir: str, n_runs: int, n_sets: int, epochs: int, distiler: str, input_type: str, extras: bool, individual_agents: bool):
         # check if there has been a run
 
         experiment = Experiment.load(logdir)
@@ -75,7 +81,7 @@ class DistilHandler:
                         output_shape = experiment.env.n_actions,
                         logdir = experiment.logdir,
                         extras=extras,
-                        max_depth=4,
+                        max_depth=7,
                         bs=32,
                         n_agent=experiment.env.n_agents,
                         agent_id=i
@@ -87,12 +93,12 @@ class DistilHandler:
                     output_shape = experiment.env.n_actions,
                     logdir = experiment.logdir,
                     extras=extras,
-                    max_depth=4,
+                    max_depth=7,
                     bs=32,
                     n_agent=experiment.env.n_agents,
                 )
                 distilers.append(distil_model)
-            distil_handler = DistilHandler(experiment, n_runs, distilers, distiler, extras, individual_agents)
+            distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, individual_agents)
             return distil_handler
         # Get runner, do perform_one_test
         # makes one episode as test (on trained agent)
@@ -111,51 +117,98 @@ class DistilHandler:
         batch_size = self._distilers[0].batch_size
 
         selected_device = get_device(device, fill_strategy, required_memory_MB)
-        outputs, inputs = self.prepare_dataset(selected_device)
+        outputs, inputs, importance = self.prepare_dataset(selected_device)
 
         assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
+
+        if self.individual_agents:
+            filtered_inputs = []
+            filtered_outputs = []
+            for agent_id in range(self.n_agents):
+                #agent_mask = importance[:, agent_id] >= np.median(importance[:, agent_id])
+                agent_mask = importance[:, agent_id] >= np.percentile(importance[:, agent_id],75)
+                # Select samples for this agent only
+                agent_inputs = inputs[agent_mask, agent_id, :]        # shape (N_i, input_shape)
+                agent_outputs = outputs[agent_mask, agent_id, :]      # shape (N_i, output_shape)
+                
+                filtered_inputs.append(agent_inputs)
+                filtered_outputs.append(agent_outputs)
+            inputs = np.array(filtered_inputs).transpose(1,0,2)
+            outputs = np.array(filtered_outputs).transpose(1,0,2)
+        else: 
+            #median_mask = importance >= np.median(importance)
+            median_mask = importance >= np.percentile(importance,75)
+            inputs = inputs[median_mask] # also flattens batch and agent dims
+            outputs = outputs[median_mask]
         # Determine and set batch size
         n_batches = len(inputs)//batch_size
-        if self.individual_agents:
-            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,*inputs.shape[1:])
-            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,*outputs.shape[1:])
+        if self.individual_agents:  # TODO: Shape OK?
+            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].input_shape) # inputs[:batch_size*n_batches] to fit to batch sizes
+            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].output_shape)
         else:   # Squeeze in agents dim
-            inputs = inputs[:batch_size*n_batches].reshape(n_batches*self.n_agents,batch_size,*inputs.shape[2:])
-            outputs = outputs[:batch_size*n_batches].reshape(n_batches*self.n_agents,batch_size,*outputs.shape[2:])
+            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,self._distilers[0].input_shape)
+            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self._distilers[0].output_shape)
 
-        inputs_train, inputs_test, outputs_train, outputs_test = train_test_split(
-            inputs, outputs, test_size=0.2, random_state=42, shuffle=True
+        inputs_train, inputs_validation, outputs_train, outputs_validation = train_test_split(
+            inputs, outputs, test_size=0.4, random_state=42, shuffle=True
         )
-        epochs = 10
+        inputs_validation, inputs_test, outputs_validation, outputs_test = train_test_split(
+            inputs_validation, outputs_validation, test_size=0.5, random_state=42, shuffle=True
+        )
         if self.individual_agents:
             for ag in range(len(self._distilers)):
                 train_logs = []
-                test_logs = []
+                valid_logs = []
                 dist = self._distilers[ag]
-                for i in range(epochs):
+                best_dist = 0
+                for i in range(self.epochs):
                     train_logs.append(dist.train_(inputs_train[:,:,ag],outputs_train[:,:,ag],i))
-                    test_logs.append(dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag],i))
+                    v_acc, v_preds = dist.test_(inputs_validation[:,:,ag],outputs_validation[:,:,ag],i)
+                    valid_logs.append(v_acc)
+
                 train_logs = np.array(train_logs)
                 np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
+
+                dist.load_best()
+                test_logs, test_preds = dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag],best_dist)
                 np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
+
+                cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test[:,:,ag], axis=2).flatten(), test_preds, labels=None)) # outputs_test one-hot 
+                cm_disp.plot()
+                plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}{"_extra" if self.extras else ""}_cm.png"))
 
         else:
             train_logs = []
-            test_logs = []
+            valid_logs = []
             dist = self._distilers[0]
-            for i in range(epochs):
+            best_dist = 0
+            for i in range(self.epochs):
                 train_logs.append(dist.train_(inputs_train,outputs_train,i))
-                test_logs.append(dist.test_(inputs_test,outputs_test,i))
+                v_acc, v_preds = dist.test_(inputs_validation,outputs_validation,i)
+                valid_logs.append(v_acc)
+
             train_logs = np.array(train_logs)
             np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
+
+            dist.load_best()
+            test_logs, test_preds = dist.test_(inputs_test,outputs_test,best_dist)
             np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
+            
+            cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test, axis=2).flatten(), test_preds, labels=None)) # outputs_test one-hot 
+            cm_disp.plot()
+            plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}{"_extra" if self.extras else ""}_cm.png"))
+
 
        
     def prepare_dataset(self, device):
         """Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not."""
-        n_sets = 5  # How many test sets used to train (from the monst trained one)
         targets = []
         observations = []
+        importances = []
 
         # Select run, for now last run
         runs = os.listdir(self._experiment.logdir)
@@ -165,18 +218,21 @@ class DistilHandler:
             run = runs[i]
             run_path = os.path.join(self._experiment.logdir,run)
             tests_path = os.path.join(run_path,"test")
-            tests = os.listdir(tests_path)
-            assert len(tests)>=n_sets
+            tests = [file for file in os.listdir(tests_path) if not file.startswith(".")]
+            assert len(tests)>=self.n_sets
             tests.sort(key=int)
-            for test in tests[len(tests)-(n_sets+1):-1]:
+            for test in tests[len(tests)-(self.n_sets+1):-1]:
                 # Load test & agent
                 load_test_path = os.path.join(tests_path,test)
                 self._agent.load(load_test_path)
                 self._agent.to(device)
-                target, obs = self.simulate_one_episode()
+                target, obs, imp = self.simulate_one_episode()
                 targets += target
                 observations += obs
-        return np.array(targets), np.array(observations)
+                importances += imp
+        importances = np.array(importances)
+        plot_importance(importances.flatten(),pathlib.Path(self._distilers[0].logdir,"dataset_importance"))
+        return np.array(targets), np.array(observations), importances
         
     # Seed can at some point be replaced to a number of epochs we want to train to note change of seed for the SDT epochs?
     def simulate_one_episode(self, seed: Optional[int] = None):
@@ -191,23 +247,35 @@ class DistilHandler:
 
             distributions = []
             observations = []
+            importances = []
             i = 0
             is_finished = False
             while not is_finished:
                 if i == 0: obs, state = self._experiment.env.reset()
                 else: obs = step.obs
                 i += 1
-                distr, act = self._agent.get_action_distribution(obs)   # TODO: Adapt with argument
-                step = self._experiment.env.step(act)
+                
+                qvalues = self._agent.qnetwork.qvalues(obs).numpy(force=True)
+                if self._agent.qnetwork.is_multi_objective:
+                    qvalues = qvalues.sum(axis=-1)
+                importances.append(qvalues.max(axis=-1) - qvalues.min(axis=-1)) # Based on idea used in MAVIPER, but since out "value" function is not specified or either the mean or sum of best qvalues, this is the same
+
+                action = self._agent.test_policy.get_action(qvalues, obs.available_actions)
+
+                qv_distr = torch.softmax(torch.from_numpy(qvalues), axis=1)
+                
+
+                step = self._experiment.env.step(action)
+                
                 
                 # This part is very specific to my current use case: to adapt and make more generic!!
                 temp = obs.data
                 
-                distributions.append(distr)
+                distributions.append(qv_distr)
                 f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
                 if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), obs.extras, ag_pos], axis=1)
                 else: f_obs = f_obs.reshape(self.n_agents,-1)
                 observations.append(f_obs) # axis one because axis 0 is agent
                 
                 is_finished = step.done | step.truncated
-            return distributions, observations
+            return distributions, observations, importances

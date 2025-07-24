@@ -1,6 +1,37 @@
 import numpy as np
 from marl.models import Experiment
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_importance(importance_scores,path):
+    # Example importance scores (use your real data)
+    # importance_scores = np.array([...])
+
+    # Calculate stats
+    mean_val = np.mean(importance_scores)
+    median_val = np.median(importance_scores)
+    top25_thresh = np.percentile(importance_scores, 75)
+
+    # Plot histogram
+    plt.figure(figsize=(10, 5))
+    plt.hist(importance_scores, bins=50, alpha=0.7, color='skyblue', edgecolor='black')
+
+    # Add lines for mean, median, 75th percentile
+    plt.axvline(mean_val, color='red', linestyle='--', linewidth=2, label=f"Mean = {mean_val:.3f}")
+    plt.axvline(median_val, color='green', linestyle='--', linewidth=2, label=f"Median = {median_val:.3f}")
+    plt.axvline(top25_thresh, color='purple', linestyle='--', linewidth=2, label=f"75th %ile = {top25_thresh:.3f}")
+
+    # Labels
+    plt.title("Distribution of State Importance Scores")
+    plt.xlabel("Importance Score")
+    plt.ylabel("Count")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(path)
+
+
 def get_agent_pos(observations: np.ndarray):
     n_timesteps, n_agents, _, height, width = observations.shape
     agent_positions = np.zeros((n_timesteps, n_agents, 2), dtype=int)
