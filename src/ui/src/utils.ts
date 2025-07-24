@@ -108,7 +108,7 @@ export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
 
 export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=0,): string {
     const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
-    if (!match) throw new Error("Invalid HSL format");
+    if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
     const s = parseInt(match[2], 10)+sat_factor;
     const l = parseInt(match[3], 10)+lum_factor;
     return `hsl(${match[2]}, ${s}%, ${l}%)`;
@@ -116,7 +116,7 @@ export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=
 
 export function alphaToHSL(hsl: string, alpha: number=0): string {
     const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
-    if (!match) throw new Error("Invalid HSL format");
+    if (!match) throw new Error(`Invalid HSL format to add alpha: ${hsl}`);
     return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;
 }
 

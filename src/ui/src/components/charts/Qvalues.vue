@@ -20,12 +20,13 @@
             </div>
             <div v-show="showOptions">
                 <label>
-                    <input type="checkbox" v-model="enablePlusMinus">
-                    <b class="me-1">Show std. deviation</b>
-                </label>
-                <label>
                     <b class="me-1">Colour by Qvalues? </b>
                     <input type="checkbox" v-model="primaryColour">
+                </label>
+                <br>
+                <label>
+                    <input type="checkbox" v-model="enablePlusMinus">
+                    <b class="me-1">Show std. deviation</b>
                 </label>
             </div>
         </div>
