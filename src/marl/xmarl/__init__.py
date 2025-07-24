@@ -1,8 +1,8 @@
-from .frame_viewer import FrameViewer, HeatmapXFrameViewer 
+from .frame_viewer import FrameViewer, HeatmapActFrameViewer 
 from .FilePicker import FilePickerScreen
 
 __all__ = [
     "FrameViewer",
-    "HeatmapXFrameViewer",
+    "HeatmapActFrameViewer",
     "FilePickerScreen",
 ]

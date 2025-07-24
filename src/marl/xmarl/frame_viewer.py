@@ -10,6 +10,8 @@ from matplotlib.patches import Rectangle
 
 import numpy as np
 
+from typing import Optional
+
 def decode_b64_image(base64_str: str) -> np.ndarray:
     if base64_str is None:
         return ""
@@ -103,7 +105,7 @@ class FrameViewer:
         self.frame_idx = (self.frame_idx - 1) % len(self.frames)
         self.render()
 
-class XFrameViewer(FrameViewer):   
+class ActFrameViewer(FrameViewer):   
     radio_ax: plt.Axes
     radio: RadioButtons
     selected_agent: str
@@ -116,11 +118,11 @@ class XFrameViewer(FrameViewer):
     fig_action: plt.Figure
     ax_action: plt.Axes
 
-    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray[np.ndarray,np.ndarray], action_names: list[str]):
+    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray[np.ndarray,np.ndarray], action_names: list[str], qvalues: Optional[np.ndarray]):
         for i in range(n_agents):
             self.agent_ids[f"Agent {i}"] = i
 
-        super(XFrameViewer, self).__init__(frames, n_agents)
+        super(ActFrameViewer, self).__init__(frames, n_agents)
         assert actions.shape[:-1] == (self.episode_len-1,n_agents,2) or actions.shape[:-1] == (self.episode_len-1,n_agents) # episode_len, based on len(frames), but there is 1 more frame at the end state, which has no related step
 
         self.selected_agent = next(iter(self.agent_ids))
@@ -128,8 +130,11 @@ class XFrameViewer(FrameViewer):
         self.actions = actions
         self.action_names = action_names
         self.agent_pos = agent_pos
-
-        self.init_action_plot()
+        if qvalues is None:
+            self.init_action_plot()
+        else:
+            self.qvalues = qvalues
+            self.init_qvalues_plot()
 
     def init_ctrl(self):
         super().init_ctrl()
@@ -143,13 +148,18 @@ class XFrameViewer(FrameViewer):
         """Initializes a separate figure to show the action distribution of the selected agent."""
         self.fig_action, self.ax_action = plt.subplots(figsize=(4, 4))
         self.fig_action.canvas.manager.set_window_title("Action Distribution")
+    
+    def init_qvalues_plot(self):
+        """Initializes a separate figure to show the decomposed qvalues distribution of the selected agent."""
+        self.fig_action, self.ax_action = plt.subplots(figsize=(4, 4))
+        self.fig_action.canvas.manager.set_window_title("Decomposed Qvalues Distribution")
 
     def update_canvas(self):
         H_img, W_img = super().update_canvas()
         if self.frame_idx < self.episode_len:
             # = Plot action distribution
             self.ax_action.clear()
-            dists = self.get_action_distribution()
+            dists = self.get_distribution()
             x = np.arange(len(self.action_names))
 
             if len(dists) == 1:
@@ -167,15 +177,20 @@ class XFrameViewer(FrameViewer):
 
         return H_img, W_img
 
-    def get_action_distribution(self):
+    def get_distribution(self):
         """Returns one or two action distributions depending on the action array shape."""
-        acts = self.actions[self.frame_idx, self.selected_agent_id]
+        if self.qvalues == None:
+            vals = self.actions[self.frame_idx, self.selected_agent_id]
+        else:
+            vals = self.qvalues[self.frame_idx, self.selected_agent_id]
 
-        if acts.ndim == 1:
-            return [acts]
-        elif acts.ndim == 2:
-            return [acts[0], acts[1]]
-
+        if vals.ndim == 1:
+            return [vals]
+        elif vals.ndim == 2:
+            return [vals[0], vals[1]]
+        else:
+            return [val for val in vals]
+        
     def get_agent_pos(self):
         return self.agent_pos[self.frame_idx, self.selected_agent_id]
 
@@ -185,7 +200,7 @@ class XFrameViewer(FrameViewer):
         self.selected_agent_id = self.agent_ids[self.selected_agent]
         self.render()
 
-class HeatmapXFrameViewer(XFrameViewer):
+class HeatmapActFrameViewer(ActFrameViewer):
     ax_bar: plt.Axes
 
     check_ax: plt.Axes
@@ -207,7 +222,7 @@ class HeatmapXFrameViewer(XFrameViewer):
     norm_layers: list[Normalize]
     cmap: Colormap
 
-    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str]):
+    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray]):
         self.heatmap_dat = heatmap_dat
         self.extras_dat = extras_dat
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
@@ -218,7 +233,7 @@ class HeatmapXFrameViewer(XFrameViewer):
             pass
         else: raise Exception(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
 
-        super(HeatmapXFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names)
+        super(HeatmapActFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names,qvalues)
 
         self.extras = self.extras_dat is not None
         if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state

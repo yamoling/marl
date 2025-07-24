@@ -6,7 +6,7 @@ import os
 import numpy as np
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl import FrameViewer, HeatmapXFrameViewer
+from marl.xmarl import FrameViewer, HeatmapActFrameViewer
 from marl.xmarl.distilers.utils import get_env_infos
 from marl.xmarl import FilePickerScreen
 
@@ -15,7 +15,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import (
     Button,
     Label,
-    Input,
+    Checkbox,
     Static,
     Switch,
 )
@@ -82,6 +82,10 @@ class Selector(App):
                 yield Button("Select Test", id="select_test", disabled=True)   
                 yield Label("No test selected", id="test_label")
 
+            with Horizontal(id="qvalues"):
+                yield Checkbox(id="qvals_switch")
+                yield Label("Show decomposed Qvalues?", id="qvals_label")
+
             with Horizontal(id="distil_h"):
                 yield Button("Select Distillation", id="select_distil", disabled=True)
                 yield Label("No Distillation selected", id="distil_label")
@@ -98,6 +102,7 @@ class Selector(App):
 
 
     def on_mount(self):
+        self.query_one("#qvalues", Horizontal).display = False
         self.query_one("#distil_h", Horizontal).display = False
         self.query_one("#distil_way", Horizontal).display = False
     
@@ -114,10 +119,16 @@ class Selector(App):
 
         self.query_one("#select_distil", Button).disabled = True
         self.query_one("#distil_h", Horizontal).display = False
+        self.query_one("#qvalues", Horizontal).display = False
         self.reset_distil()
+
 
     def set_experiment(self, experiment):
         if experiment:
+            # Reset extras: distil, qvalues, etc...
+            self.reset_distil()
+            self.query_one("#qvalues", Horizontal).display = False
+            
             self.experiment_path = LOG_PATH / experiment  # Get the file path when popped
             self.experiment = Experiment.load(self.experiment_path)
             if self.experiment.logdir != self.experiment_path:
@@ -125,9 +136,13 @@ class Selector(App):
             self.query_one("#experiment_label", Label).update(experiment)
             self.query_one("#viz", Button).disabled = False
             self.query_one("#select_run", Button).disabled = False
+
             if "distil" in os.listdir(self.experiment_path):
                 self.query_one("#select_distil", Button).disabled = False
                 self.query_one("#distil_h", Horizontal).display = True
+
+            if self.experiment.log_qvalues:
+                self.query_one("#qvalues", Horizontal).display = True
             self.reset_run()
         else:
             self.reset_experiment()
@@ -196,8 +211,8 @@ class Selector(App):
             if self.spec_sep in distil:
                 prefix, distil = distil.split(self.spec_sep)
                 self.distil_path = self.experiment_path / "distil" / prefix
-            else: self.distil_path = self.experiment_path / "distil"  # Get the file path when popped
-            self.distiler = distil
+            else: self.distil_path = self.experiment_path / "distil" # Get the file path when popped
+            self.distiler_path = self.distil_path/distil
             self.extra = "extra" in distil
             self.query_one("#distil_label", Label).update(str(self.distil_path/distil))
             if "sdt" in distil:
@@ -238,7 +253,7 @@ class Selector(App):
         action_names, extras_meaning = get_env_infos(self.experiment)
 
         if self.distil_path:
-            distilled_filters, distilled_actions, distilled_extras, agent_pos = self.handle_distillation(episode, self.distil_path)
+            distilled_filters, distilled_actions, distilled_extras, agent_pos = self.handle_distillation(episode)
             # Insert 7x7 obs into full board if needed
             if self.experiment.env.observation_shape[1:] == (7,7):
                 agent_pos = np.array(episode.other["ag_pos"])
@@ -255,23 +270,31 @@ class Selector(App):
                         fy_s, fy_e = y_s - y_start, y_e - y_start
                         n_obs[t,a,:,x_s:x_e,y_s:y_e] = filt[:,fx_s:fx_e,fy_s:fy_e]
                 distilled_filters = n_obs
-            viewer = HeatmapXFrameViewer(
-                replay.frames, episode.n_agents, agent_pos,
-                distilled_actions, action_names,
-                distilled_filters, distilled_extras, extras_meaning
-            )
+            if self.query_one("#qvalues", Checkbox).value:
+                viewer = HeatmapActFrameViewer(
+                    replay.frames, episode.n_agents, agent_pos,
+                    distilled_actions, action_names,
+                    distilled_filters, distilled_extras, extras_meaning,
+                    #replay.qvalues
+                )
+            else:
+                viewer = HeatmapActFrameViewer(
+                    replay.frames, episode.n_agents, agent_pos,
+                    distilled_actions, action_names,
+                    distilled_filters, distilled_extras, extras_meaning
+                )
         else:
             viewer = FrameViewer(replay.frames)
         viewer.show()
 
-    def handle_distillation(self, episode: Episode, distil_path: Path):
-        if "sdt" in str(distil_path):
+    def handle_distillation(self, episode: Episode):
+        if "sdt" in str(self.distiler_path):
             dist_type = self.query_one("#dist_switch", Switch).value
-            if "individual" in str(distil_path):
+            if "individual" in str(self.distiler_path):
                 distilled_filters, distilled_extras, distilled_actions, agent_pos = [], [], [], []
                 for ag in range(episode.n_agents):
                     fname = f"ag{ag}_sdt_distil{'_extra' if self.extra else ''}.pkl"
-                    distiller = SoftDecisionTree.load(distil_path / fname)
+                    distiller = SoftDecisionTree.load(self.distil_path / fname)
                     df, de, da, ap = distiller.distil_episode(episode, dist_type)
                     distilled_filters.append(df)
                     distilled_extras.append(de)
@@ -285,10 +308,10 @@ class Selector(App):
                 distilled_actions = np.transpose(np.array(distilled_actions), (1,0) + tuple(range(2, np.array(distilled_actions).ndim)))
                 agent_pos = np.transpose(np.array(agent_pos), (1,0,2))
             else:
-                distiller = SoftDecisionTree.load(distil_path)
+                distiller = SoftDecisionTree.load(self.distiler_path)
                 distilled_filters, distilled_extras, distilled_actions, agent_pos = distiller.distil_episode(episode, dist_type)
         else:
-            raise Exception(f"Distiller {distil_path} not implemented in visualization yet.")
+            raise Exception(f"Distiller {self.distiler_path} not implemented in visualization yet.")
         return distilled_filters, distilled_actions, distilled_extras, agent_pos
 
 
