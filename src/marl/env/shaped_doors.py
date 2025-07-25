@@ -42,10 +42,10 @@ class ShapedDoors(RLEnvWrapper[MultiDiscreteSpace]):
             if countdown == 0:
                 step.reward += 1.0
             self._reward_countdown[agent_pos] = max(-1, countdown - 1)
-        step.obs = self.get_observation()
         if step.done:
             # Flush rewards for the final step
             for countdown in self._reward_countdown.values():
                 if countdown >= 0 and countdown != self.delay:
                     step.reward += 1.0
+        step.obs = self.get_observation()
         return step
