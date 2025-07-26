@@ -15,7 +15,7 @@ from marl.models.batch import Batch
 from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos
 from marlenv.models import Episode
 
-EPS = 1e-8
+EPS = 1e-6
 
 class InnerNode(nn.Module):
     """SoftDecisionTree: a class representing an Inner Node in a SDT.
@@ -38,7 +38,7 @@ class InnerNode(nn.Module):
         self.device = device
         # Modules
         self.fc = nn.Linear(self.input_shape, 1)
-        self.beta = nn.Parameter(torch.tensor(1.0)) # Fixed at one, to keep in check
+        self.beta = nn.Parameter(torch.tensor(10.0)) # Fixed at one, to keep in check
         # Tree specific
         self.leaf = False
         self.prob = None
@@ -204,6 +204,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
         loss = 0.
         max_prob = [-1. for _ in range(self.batch_size)]
         max_Q = torch.zeros((self.batch_size,self.output_shape))
+        entropy_reg = 0
         for (path_prob, Q) in leaf_accumulator:
             if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
                 print("Q: NaN or Inf detected!")
@@ -217,6 +218,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
                 if max_prob[i] < path_prob_numpy[i]:
                     max_prob[i] = path_prob_numpy[i]
                     max_Q[i] = Q[i]
+
+            entropy = -torch.sum(Q * log_Q, dim=1)  # shape: (batch_size,)
+            entropy_reg += (path_prob.squeeze() * entropy).mean()
         loss = loss.mean()
         # Regalurization penalty
         penalties = self.root.get_penalty()
@@ -228,11 +232,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
                 print("C: NaN or Inf detected!")
             if torch.any(torch.isnan(penalty)) or torch.any(torch.isinf(penalty)):
                 print("penalty: NaN or Inf detected!")
-        #output = torch.stack(max_Q)
+        
         self.root.reset() ##reset all stacked calculation
         if torch.any(torch.isnan(loss)) or torch.any(torch.isinf(loss)):
             print("loss: NaN or Inf detected!")
-        return(-loss + C, max_Q) ## -log(loss) will always output non, because loss is always below zero. I suspect this is the mistake of the paper?
+        entropy_fact = 0.1  # start small
+
+        return(-loss + C - entropy_fact * entropy_reg, max_Q) # -log(loss) in paper, loss already in logspace here
 
 
     def train_(self, train_data, train_targets, epoch=0):
@@ -387,7 +393,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             leaves = []
             parent_child = {}
             agent_pos = get_agent_pos(np.array(episode.all_observations))[:,self.agent_id]
-            outputs = np.zeros((self.max_depth**2,episode.n_actions), dtype=float)
+            outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child)
             for act_idx in ep_acts:
                 best_leaves = self.associate_action_leaf([act_idx], leaves, outputs) # Get best leaf per agent
@@ -441,7 +447,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             leaves = []
             parent_child = {}
             agent_pos = get_agent_pos(np.array(episode.all_observations))
-            outputs = np.zeros((self.max_depth**2,episode.n_actions), dtype=float)
+            outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child)
             for act in ep_acts:
                 best_leaves = self.associate_action_leaf(act, leaves, outputs) # Get best leaf per agent
