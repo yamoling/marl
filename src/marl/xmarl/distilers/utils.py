@@ -4,23 +4,56 @@ from marl.models import Experiment
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_importance(importance_scores,path):
-    # Example importance scores (use your real data)
-    # importance_scores = np.array([...])
+def plot_target_distro(targets, path, labels):
+    n_agents  = targets.shape[1]
+    n_classes = len(labels)                     # 0‒4
+    # counts[i, j] = how many times class j occurs for agent i
+    counts = np.stack([
+        np.bincount(np.argmax(targets,axis=-1)[:, i], minlength=n_classes)
+        for i in range(n_agents)
+    ])
+    fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
 
+    bottom = np.zeros(n_agents)       # where the next bar segment starts
+
+    for cls in range(n_classes):
+        ax.bar(
+            np.arange(n_agents),
+            counts[:, cls],
+            bottom=bottom,
+            label=labels[cls]
+        )
+        bottom += counts[:, cls]
+
+    ax.set_xlabel('Agent index')
+    ax.set_ylabel('Number of targets')
+    ax.set_title('Target distribution per agent')
+    ax.set_xticks(np.arange(n_agents),[f"Agent {id}" for id in range(n_agents)])
+    ax.legend(title='Target class', bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.savefig(path)
+
+def plot_reference_lines(dataset):
     # Calculate stats
-    mean_val = np.mean(importance_scores)
-    median_val = np.median(importance_scores)
-    top25_thresh = np.percentile(importance_scores, 75)
+    mean_val = np.mean(dataset)
+    median_val = np.median(dataset)
+    top25_thresh = np.percentile(dataset, 75)
+    top10_thresh = np.percentile(dataset, 90)
 
-    # Plot histogram
-    plt.figure(figsize=(10, 5))
-    plt.hist(importance_scores, bins=50, alpha=0.7, color='skyblue', edgecolor='black')
-
-    # Add lines for mean, median, 75th percentile
+    # Add lines for mean, median, 75th percentile 90th percentile
     plt.axvline(mean_val, color='red', linestyle='--', linewidth=2, label=f"Mean = {mean_val:.3f}")
     plt.axvline(median_val, color='green', linestyle='--', linewidth=2, label=f"Median = {median_val:.3f}")
     plt.axvline(top25_thresh, color='purple', linestyle='--', linewidth=2, label=f"75th %ile = {top25_thresh:.3f}")
+    plt.axvline(top10_thresh, color='yellow', linestyle='--', linewidth=2, label=f"90th %ile = {top10_thresh:.3f}")
+
+def plot_importance(importance_scores,path):
+
+    # Plot histogram
+    plt.figure(figsize=(10, 5))
+    plt.hist(importance_scores, bins=75, alpha=0.7, color='skyblue', edgecolor='black')
+    # Plot: mean, median, percentiles... reference lines
+    plot_reference_lines(importance_scores)
 
     # Labels
     plt.title("Distribution of State Importance Scores")
@@ -31,6 +64,70 @@ def plot_importance(importance_scores,path):
     plt.tight_layout()
     plt.savefig(path)
 
+def plot_importance_with_targets(importance_scores,        # shape (n_samples,)
+                                    label_probs,              # shape (n_samples, 5)
+                                    path,
+                                    labels,
+                                    bins=50,
+                                    agg="mean"):               # "sum" or "mean"
+    # Histogram of `importance_scores` with stacked bar segments that
+    # visualise the aggregated action probabilities per bin.
+    
+    importance_scores = np.asarray(importance_scores).ravel()
+    label_probs       = np.asarray(label_probs)
+    assert label_probs.shape[0] == importance_scores.size and label_probs.shape[1] == 5, \
+        "`label_probs` must be (n_samples, 5)"
+
+    # Bin edges & indices
+
+    _, bin_edges = np.histogram(importance_scores, bins=bins)
+    bin_width    = np.diff(bin_edges)
+    bin_centers  = bin_edges[:-1] + bin_width/2
+    bin_idx      = np.digitize(importance_scores, bin_edges[:-1], right=False) - 1
+    bin_idx      = np.clip(bin_idx, 0, bins-1)              # safety
+
+    # Aggregate probabilities per bin
+
+    agg_matrix = np.zeros((bins, 5))                        # (bins × classes)
+    for b in range(bins):
+        mask = bin_idx == b
+        if mask.any():
+            if agg == "sum":
+                agg_matrix[b] = label_probs[mask].sum(axis=0)
+            elif agg == "mean":
+                agg_matrix[b] = label_probs[mask].mean(axis=0) #* mask.sum()
+            else:
+                raise ValueError("agg must be 'sum' or 'mean'")
+
+    # Stacked bar plot
+
+    class_colors = ["#4C72B0", "#55A868", "#C44E52",
+                    "#8172B3", "#CCB974"]      
+
+    fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
+    bottom = np.zeros(bins)
+    for c in range(5):
+        ax.bar(bin_centers,
+               agg_matrix[:, c],
+               bottom=bottom,
+               width=bin_width,
+               color=class_colors[c],
+               edgecolor="black",
+               align="center",
+               label=labels[c])
+        bottom += agg_matrix[:, c]
+
+    # Plot: mean, median, percentiles... reference lines
+    plot_reference_lines(importance_scores)
+
+    # Cosmetics & save
+    ax.set_title("Action distribution by importance bin")
+    ax.set_xlabel("Importance score")
+    ax.set_ylabel("Expected count" if agg == "sum" else "Scaled count")
+    ax.grid(True, axis="y", alpha=.3)
+    ax.legend(ncol=2, bbox_to_anchor=(1.04, 1), loc="upper left", borderaxespad=0)
+    plt.savefig(path, dpi=1000, bbox_inches="tight")
+    plt.close()
 
 def get_agent_pos(observations: np.ndarray):
     n_timesteps, n_agents, _, height, width = observations.shape

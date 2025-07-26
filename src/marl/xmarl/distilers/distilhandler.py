@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import flatten_observation, plot_importance
+from marl.xmarl.distilers.utils import flatten_observation, plot_importance, plot_target_distro, plot_importance_with_targets
 from marl.models import Experiment
 from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
@@ -27,6 +27,7 @@ class DistilHandler:
 
     dist_type: str
     n_agents: int
+    target_labels = list[str]
     extras: bool
     individual_agents: bool
 
@@ -51,6 +52,7 @@ class DistilHandler:
         self.n_sets = n_sets
         self.epochs = epochs
         self.n_agents = self._experiment.env.n_agents
+        self.target_labels = self._experiment.env.action_space.action_names
         self.individual_agents = individual_agents
         self.extras = extras
 
@@ -81,7 +83,7 @@ class DistilHandler:
                         output_shape = experiment.env.n_actions,
                         logdir = experiment.logdir,
                         extras=extras,
-                        max_depth=7,
+                        max_depth=4,
                         bs=32,
                         n_agent=experiment.env.n_agents,
                         agent_id=i
@@ -93,19 +95,18 @@ class DistilHandler:
                     output_shape = experiment.env.n_actions,
                     logdir = experiment.logdir,
                     extras=extras,
-                    max_depth=7,
+                    max_depth=4,
                     bs=32,
                     n_agent=experiment.env.n_agents,
                 )
                 distilers.append(distil_model)
             distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, individual_agents)
-            return distil_handler
-        # Get runner, do perform_one_test
-        # makes one episode as test (on trained agent)
         else:
             raise NotImplementedError(f"Distilation not implemented for agent {experiment.agent.name}")
             # Modify to check if qvalues of experiment is true or not, if true we can access them if not no, also only do it if getting qvalues, else distribution/action should always be accessible, albeit by bypassing something
-    
+        os.makedirs(distil_model.logdir,exist_ok=True)
+        return distil_handler
+
     def run(self, 
             #seed: int =0,
             fill_strategy: Literal["scatter", "group"] = "scatter",
@@ -126,7 +127,7 @@ class DistilHandler:
             filtered_outputs = []
             for agent_id in range(self.n_agents):
                 #agent_mask = importance[:, agent_id] >= np.median(importance[:, agent_id])
-                agent_mask = importance[:, agent_id] >= np.percentile(importance[:, agent_id],75)
+                agent_mask = importance[:, agent_id] >= np.percentile(importance[:, agent_id],90)
                 # Select samples for this agent only
                 agent_inputs = inputs[agent_mask, agent_id, :]        # shape (N_i, input_shape)
                 agent_outputs = outputs[agent_mask, agent_id, :]      # shape (N_i, output_shape)
@@ -135,11 +136,15 @@ class DistilHandler:
                 filtered_outputs.append(agent_outputs)
             inputs = np.array(filtered_inputs).transpose(1,0,2)
             outputs = np.array(filtered_outputs).transpose(1,0,2)
+            # Plot action distributions after filter
+            plot_target_distro(outputs.reshape((-1,self.n_agents,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
         else: 
             #median_mask = importance >= np.median(importance)
-            median_mask = importance >= np.percentile(importance,75)
+            median_mask = importance >= np.percentile(importance,90)
             inputs = inputs[median_mask] # also flattens batch and agent dims
             outputs = outputs[median_mask]
+            # Plot action distributions after filter
+            plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
         # Determine and set batch size
         n_batches = len(inputs)//batch_size
         if self.individual_agents:  # TODO: Shape OK?
@@ -150,10 +155,10 @@ class DistilHandler:
             outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self._distilers[0].output_shape)
 
         inputs_train, inputs_validation, outputs_train, outputs_validation = train_test_split(
-            inputs, outputs, test_size=0.4, random_state=42, shuffle=True
+            inputs, outputs, test_size=0.5, random_state=44, shuffle=True
         )
         inputs_validation, inputs_test, outputs_validation, outputs_test = train_test_split(
-            inputs_validation, outputs_validation, test_size=0.5, random_state=42, shuffle=True
+            inputs_validation, outputs_validation, test_size=0.5, random_state=44, shuffle=True
         )
         if self.individual_agents:
             for ag in range(len(self._distilers)):
@@ -175,7 +180,9 @@ class DistilHandler:
                 np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
                 np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
 
-                cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test[:,:,ag], axis=2).flatten(), test_preds, labels=None)) # outputs_test one-hot 
+                cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test[:,:,ag], axis=2).flatten(), test_preds,
+                                                                                   labels=np.arange(len(self.target_labels))),
+                                                                                    display_labels=self.target_labels) # outputs_test one-hot 
                 cm_disp.plot()
                 plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}{"_extra" if self.extras else ""}_cm.png"))
 
@@ -198,9 +205,11 @@ class DistilHandler:
             np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
             np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
             
-            cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test, axis=2).flatten(), test_preds, labels=None)) # outputs_test one-hot 
+            cm_disp = ConfusionMatrixDisplay(confusion_matrix=confusion_matrix(np.argmax(outputs_test, axis=2).flatten(), test_preds, 
+                                                                               labels=np.arange(len(self.target_labels))),
+                                                                               display_labels=self.target_labels) # outputs_test one-hot 
             cm_disp.plot()
-            plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}{"_extra" if self.extras else ""}_cm.png"))
+            plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}{"_extra" if self.extras else ""}_cm.png")) 
 
 
        
@@ -232,6 +241,8 @@ class DistilHandler:
                 importances += imp
         importances = np.array(importances)
         plot_importance(importances.flatten(),pathlib.Path(self._distilers[0].logdir,"dataset_importance"))
+        plot_target_distro(np.array(targets),pathlib.Path(self._distilers[0].logdir,"dataset_target_distribution"), self.target_labels)
+        plot_importance_with_targets(importances.flatten(),np.array(targets).reshape(-1,len(self.target_labels)),pathlib.Path(self._distilers[0].logdir,"dataset_target_importance"), self.target_labels)
         return np.array(targets), np.array(observations), importances
         
     # Seed can at some point be replaced to a number of epochs we want to train to note change of seed for the SDT epochs?
