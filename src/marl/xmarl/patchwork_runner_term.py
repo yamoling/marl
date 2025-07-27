@@ -83,7 +83,7 @@ class Selector(App):
                 yield Label("No test selected", id="test_label")
 
             with Horizontal(id="qvalues"):
-                yield Checkbox(id="qvals_switch")
+                yield Checkbox(id="qvals_check")
                 yield Label("Show decomposed Qvalues?", id="qvals_label")
 
             with Horizontal(id="distil_h"):
@@ -270,18 +270,18 @@ class Selector(App):
                         fy_s, fy_e = y_s - y_start, y_e - y_start
                         n_obs[t,a,:,x_s:x_e,y_s:y_e] = filt[:,fx_s:fx_e,fy_s:fy_e]
                 distilled_filters = n_obs
-            if self.query_one("#qvalues", Checkbox).value:
+            if self.query_one("#qvals_check", Checkbox).value:
                 viewer = HeatmapActFrameViewer(
                     replay.frames, episode.n_agents, agent_pos,
                     distilled_actions, action_names,
-                    distilled_filters, distilled_extras, extras_meaning,
+                    distilled_filters, distilled_extras, extras_meaning, None
                     #replay.qvalues
                 )
             else:
                 viewer = HeatmapActFrameViewer(
                     replay.frames, episode.n_agents, agent_pos,
                     distilled_actions, action_names,
-                    distilled_filters, distilled_extras, extras_meaning
+                    distilled_filters, distilled_extras, extras_meaning, None
                 )
         else:
             viewer = FrameViewer(replay.frames)

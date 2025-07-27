@@ -130,11 +130,8 @@ class ActFrameViewer(FrameViewer):
         self.actions = actions
         self.action_names = action_names
         self.agent_pos = agent_pos
-        if qvalues is None:
-            self.init_action_plot()
-        else:
-            self.qvalues = qvalues
-            self.init_qvalues_plot()
+        self.qvalues = qvalues
+        self.init_action_plot()
 
     def init_ctrl(self):
         super().init_ctrl()
@@ -174,7 +171,10 @@ class ActFrameViewer(FrameViewer):
             self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
             self.ax_action.legend()
             self.fig_action.canvas.draw_idle()
-
+        else:
+            self.ax_action.clear()
+            self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
+            self.fig_action.canvas.draw_idle()
         return H_img, W_img
 
     def get_distribution(self):
@@ -222,7 +222,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
     norm_layers: list[Normalize]
     cmap: Colormap
 
-    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray]):
+    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray] = None):
         self.heatmap_dat = heatmap_dat
         self.extras_dat = extras_dat
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
