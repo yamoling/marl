@@ -183,6 +183,115 @@ def flatten_observation(observation, n_agents, axis=0):
 
     return flattened_obs+1, agent_pos # +1 to have 0 as empty cells and no overlap with agent 0 identifier
     
-def abstract_observation(self, observation, extras):
-    """Abstracts a given observation to high-level components"""
-    pass
+def abstract_observation(obs, n_agents):
+    A, L, H, W = obs.shape
+    LASER_START = A + 1
+    LASER_END   = L - 2 # exclusive ( ‑2 = gems, ‑1 = exits )
+
+    # Extract global elements layers
+    wall_mask = obs[:, A, :, :] == 1 # (A,H,W)
+    gem_mask = obs[:, -2, :, :] == 1 # (A,H,W)
+    exit_mask = obs[:, -1, :, :] == 1 # (A,H,W)
+
+    # build global elements mask (same for all agents)
+    walls_yx = np.argwhere(wall_mask[0])
+    gems_yx  = np.argwhere(gem_mask[0])
+    exits_yx = np.argwhere(exit_mask[0])
+
+    # laser sources & beams
+    beam_mask_global = np.zeros((H, W), dtype=bool)
+    laser_srcs_yx = []
+    for k in range(LASER_START, LASER_END):
+        layer = obs[0, k] # same for every agent
+        laser_srcs_yx.extend(np.argwhere(layer == -1))
+        beam_mask_global |= (layer == 1)
+
+    # pre‑compute agent positions
+    agent_pos = np.zeros((A, 2), dtype=int)  # (y,x)
+    for a in range(A):
+        y, x = np.argwhere(obs[a, a] == 1)[0]
+        agent_pos[a] = (y, x)
+
+    # Agent-wise feature extraction (lasers, other agents)
+    labels = feature_labels(n_agents, len(gems_yx), len(laser_srcs_yx))
+    features = []
+    for i in range(A):
+        y_i, x_i = agent_pos[i]
+        f = []
+
+        # current agent absolute position normalised [0,1]
+        f += [x_i / (W-1), y_i / (H-1)]
+
+        # relative position & euclidean distance to other agents
+        for j in range(A):
+            if j == i: continue
+            y_j, x_j = agent_pos[j]
+            dx, dy = x_j - x_i, y_j - y_i
+            f += [dx, dy, np.hypot(dx, dy)]
+
+        # relative position to every gem
+        for (y_g, x_g) in gems_yx:
+            f += [x_g - x_i, y_g - y_i]
+
+        # relative position to every laser source
+        for (y_l, x_l) in laser_srcs_yx:
+            f += [x_l - x_i, y_l - y_i]
+
+        # relative position to closest exit
+        if len(exits_yx):
+            dists = [np.hypot(x_e - x_i, y_e - y_i) for (y_e, x_e) in exits_yx]
+            idx   = int(np.argmin(dists))
+            y_e, x_e = exits_yx[idx]
+            dx_e, dy_e = x_e - x_i, y_e - y_i
+            f += [dx_e, dy_e, dists[idx]]
+        else:
+            f += [0, 0, 0]
+
+        # wall distance in four cardinal directions
+        up    = np.min([y_i - y for (y, x) in walls_yx if x == x_i and y < y_i], initial=H)
+        down  = np.min([y - y_i for (y, x) in walls_yx if x == x_i and y > y_i], initial=H)
+        left  = np.min([x_i - x for (y, x) in walls_yx if y == y_i and x < x_i], initial=W)
+        right = np.min([x - x_i for (y, x) in walls_yx if y == y_i and x > x_i], initial=W)
+        f += [up, down, left, right]
+
+        # TODO: laser threat indicators
+        
+
+    return np.asarray(features), labels   # shape (n_agents, feature_dim)
+
+def feature_labels(n_agents, n_gems, n_lasers):
+    """ Compute labels for features extracted in abstract_observation
+    """
+    labels = []
+
+    # Own absolute
+    labels += ["Own normalized x", "Own normalized y"]
+
+    # Relative and euclidian distance for each other agent
+    for j in range(n_agents - 1):
+        labels += [f"Delta x to agent {j+1}",
+                   f"Delta y to agent {j+1}",
+                   f"Distance to agent {j+1}"]
+
+    # Relative distance to gems
+    for g in range(n_gems):
+        labels += [f"Delta x to gem{g+1}",
+                   f"Delta y to gem{g+1}"]
+
+    # Relative distance to laser sources
+    for l in range(n_lasers):
+        labels += [f"Delta x to laser {l+1}",
+                   f"Delta y to laser {l+1}"]
+
+    # Relative distance to closest exit
+    labels += ["Delta x to closest exit",
+               "Delta y to closest exit",
+               "Distance to closest exit"]
+
+    # wall distances (cardinal)
+    labels += ["Closest wall up", "Closest wall down", "Closest wall left", "Closest wall right"]
+
+    # TODO: laser threats
+
+    return labels
+

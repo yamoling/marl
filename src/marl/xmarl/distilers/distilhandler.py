@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import flatten_observation, plot_importance, plot_target_distro, plot_importance_with_targets
+from marl.xmarl.distilers.utils import flatten_observation, plot_importance, plot_target_distro, plot_importance_with_targets, abstract_observation
 from marl.models import Experiment
 from marl.agents.qlearning import DQN
 from marl.utils.gpu import get_device
@@ -106,6 +106,34 @@ class DistilHandler:
             # Modify to check if qvalues of experiment is true or not, if true we can access them if not no, also only do it if getting qvalues, else distribution/action should always be accessible, albeit by bypassing something
         os.makedirs(distil_model.logdir,exist_ok=True)
         return distil_handler
+    
+    def filter_by_importance(self, inputs, outputs, importance, percentile = 50):
+        """ Filters in- and output arrays by using the importance as a metric, by only keeping the most important ones withing the percentile.
+        """
+        if self.individual_agents:
+            filtered_inputs = []
+            filtered_outputs = []
+            for agent_id in range(self.n_agents):
+                #agent_mask = importance[:, agent_id] >= np.median(importance[:, agent_id])
+                agent_mask = importance[:, agent_id] >= np.percentile(importance[:, agent_id],percentile)
+                # Select samples for this agent only
+                agent_inputs = inputs[agent_mask, agent_id, :]        # shape (N_i, input_shape)
+                agent_outputs = outputs[agent_mask, agent_id, :]      # shape (N_i, output_shape)
+                
+                filtered_inputs.append(agent_inputs)
+                filtered_outputs.append(agent_outputs)
+            inputs = np.array(filtered_inputs).transpose(1,0,2)
+            outputs = np.array(filtered_outputs).transpose(1,0,2)
+            # Plot action distributions after filter
+            plot_target_distro(outputs.reshape((-1,self.n_agents,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
+        else: 
+            #median_mask = importance >= np.median(importance)
+            median_mask = importance >= np.percentile(importance,percentile)
+            inputs = inputs[median_mask] # also flattens batch and agent dims
+            outputs = outputs[median_mask]
+            # Plot action distributions after filter
+            plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
+        return inputs, outputs
 
     def run(self, 
             #seed: int =0,
@@ -122,32 +150,11 @@ class DistilHandler:
 
         assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
 
-        if self.individual_agents:
-            filtered_inputs = []
-            filtered_outputs = []
-            for agent_id in range(self.n_agents):
-                #agent_mask = importance[:, agent_id] >= np.median(importance[:, agent_id])
-                agent_mask = importance[:, agent_id] >= np.percentile(importance[:, agent_id],90)
-                # Select samples for this agent only
-                agent_inputs = inputs[agent_mask, agent_id, :]        # shape (N_i, input_shape)
-                agent_outputs = outputs[agent_mask, agent_id, :]      # shape (N_i, output_shape)
-                
-                filtered_inputs.append(agent_inputs)
-                filtered_outputs.append(agent_outputs)
-            inputs = np.array(filtered_inputs).transpose(1,0,2)
-            outputs = np.array(filtered_outputs).transpose(1,0,2)
-            # Plot action distributions after filter
-            plot_target_distro(outputs.reshape((-1,self.n_agents,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
-        else: 
-            #median_mask = importance >= np.median(importance)
-            median_mask = importance >= np.percentile(importance,90)
-            inputs = inputs[median_mask] # also flattens batch and agent dims
-            outputs = outputs[median_mask]
-            # Plot action distributions after filter
-            plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
+        outputs, inputs = self.filter_by_importance(inputs, outputs, importance, 90)
+        
         # Determine and set batch size
         n_batches = len(inputs)//batch_size
-        if self.individual_agents:  # TODO: Shape OK?
+        if self.individual_agents:
             inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].input_shape) # inputs[:batch_size*n_batches] to fit to batch sizes
             outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].output_shape)
         else:   # Squeeze in agents dim
@@ -283,7 +290,8 @@ class DistilHandler:
                 temp = obs.data
                 
                 distributions.append(qv_distr)
-                f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                #f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                f_obs = abstract_observation(temp, self.n_agents)  # Very specific to flattened layers. If extras also adds agent position
                 if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), obs.extras, ag_pos], axis=1)
                 else: f_obs = f_obs.reshape(self.n_agents,-1)
                 observations.append(f_obs) # axis one because axis 0 is agent
