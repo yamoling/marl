@@ -39,13 +39,15 @@ def plot_reference_lines(dataset):
     mean_val = np.mean(dataset)
     median_val = np.median(dataset)
     top25_thresh = np.percentile(dataset, 75)
-    top10_thresh = np.percentile(dataset, 90)
+    top5_thresh = np.percentile(dataset, 95)
+    top3_thresh = np.percentile(dataset, 97)
 
     # Add lines for mean, median, 75th percentile 90th percentile
     plt.axvline(mean_val, color='red', linestyle='--', linewidth=2, label=f"Mean = {mean_val:.3f}")
     plt.axvline(median_val, color='green', linestyle='--', linewidth=2, label=f"Median = {median_val:.3f}")
     plt.axvline(top25_thresh, color='purple', linestyle='--', linewidth=2, label=f"75th %ile = {top25_thresh:.3f}")
-    plt.axvline(top10_thresh, color='yellow', linestyle='--', linewidth=2, label=f"90th %ile = {top10_thresh:.3f}")
+    plt.axvline(top5_thresh, color='yellow', linestyle='--', linewidth=2, label=f"95th %ile = {top5_thresh:.3f}")
+    plt.axvline(top3_thresh, color='black', linestyle='--', linewidth=2, label=f"97th %ile = {top3_thresh:.3f}")
 
 def plot_importance(importance_scores,path):
 

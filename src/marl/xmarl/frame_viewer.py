@@ -274,7 +274,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
                 vmax = np.max(self.heatmap_dat)
             self.norm_layers.append(Normalize(vmin=vmin, vmax=vmax))  # single norm
 
-        self.cmap = get_cmap('cividis')
+        self.cmap = get_cmap('coolwarm')
         sm = ScalarMappable(norm=self.norm_layers[0], cmap=self.cmap)
         sm.set_array([])  # required by colorbar API
         self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img, self.ax_bar],

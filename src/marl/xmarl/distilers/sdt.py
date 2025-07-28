@@ -34,7 +34,7 @@ class InnerNode(nn.Module):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.max_depth = max_depth
-        self.lmbda = lmbda * 2 ** (-depth) # Lambda decays with depth
+        self.lmbda = lmbda* 2 ** (-depth) # Lambda decays with depth
         self.device = device
         # Modules
         self.fc = nn.Linear(self.input_shape, 1)
@@ -204,7 +204,6 @@ class SoftDecisionTree[B: Batch](nn.Module):
         loss = 0.
         max_prob = [-1. for _ in range(self.batch_size)]
         max_Q = torch.zeros((self.batch_size,self.output_shape))
-        entropy_reg = 0
         for (path_prob, Q) in leaf_accumulator:
             if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
                 print("Q: NaN or Inf detected!")
@@ -219,8 +218,6 @@ class SoftDecisionTree[B: Batch](nn.Module):
                     max_prob[i] = path_prob_numpy[i]
                     max_Q[i] = Q[i]
 
-            entropy = -torch.sum(Q * log_Q, dim=1)  # shape: (batch_size,)
-            entropy_reg += (path_prob.squeeze() * entropy).mean()
         loss = loss.mean()
         # Regalurization penalty
         penalties = self.root.get_penalty()
@@ -236,9 +233,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.root.reset() ##reset all stacked calculation
         if torch.any(torch.isnan(loss)) or torch.any(torch.isinf(loss)):
             print("loss: NaN or Inf detected!")
-        entropy_fact = 0.1  # start small
 
-        return(-loss + C - entropy_fact * entropy_reg, max_Q) # -log(loss) in paper, loss already in logspace here
+        return(-loss + C, max_Q) # -log(loss) in paper, loss already in logspace here
 
 
     def train_(self, train_data, train_targets, epoch=0):

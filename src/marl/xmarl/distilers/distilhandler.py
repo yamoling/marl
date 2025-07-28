@@ -83,10 +83,11 @@ class DistilHandler:
                         output_shape = experiment.env.n_actions,
                         logdir = experiment.logdir,
                         extras=extras,
-                        max_depth=4,
+                        max_depth=6,
                         bs=32,
                         n_agent=experiment.env.n_agents,
-                        agent_id=i
+                        agent_id=i,
+                        lmbda=0.75
                     )
                     distilers.append(distil_model)
             else:
@@ -95,9 +96,10 @@ class DistilHandler:
                     output_shape = experiment.env.n_actions,
                     logdir = experiment.logdir,
                     extras=extras,
-                    max_depth=4,
+                    max_depth=6,
                     bs=32,
                     n_agent=experiment.env.n_agents,
+                    lmbda=0.75
                 )
                 distilers.append(distil_model)
             distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, individual_agents)
@@ -133,7 +135,7 @@ class DistilHandler:
             outputs = outputs[median_mask]
             # Plot action distributions after filter
             plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
-        return inputs, outputs
+        return outputs, inputs
 
     def run(self, 
             #seed: int =0,
@@ -150,7 +152,7 @@ class DistilHandler:
 
         assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
 
-        outputs, inputs = self.filter_by_importance(inputs, outputs, importance, 90)
+        outputs, inputs = self.filter_by_importance(inputs, outputs, importance, 95)
         
         # Determine and set batch size
         n_batches = len(inputs)//batch_size
@@ -290,8 +292,8 @@ class DistilHandler:
                 temp = obs.data
                 
                 distributions.append(qv_distr)
-                #f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
-                f_obs = abstract_observation(temp, self.n_agents)  # Very specific to flattened layers. If extras also adds agent position
+                f_obs, ag_pos = flatten_observation(temp, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                #f_obs = abstract_observation(temp, self.n_agents)  # Very specific to flattened layers. If extras also adds agent position
                 if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), obs.extras, ag_pos], axis=1)
                 else: f_obs = f_obs.reshape(self.n_agents,-1)
                 observations.append(f_obs) # axis one because axis 0 is agent
