@@ -133,7 +133,8 @@ class ActFrameViewer(FrameViewer):
         self.qvalues = qvalues # Before parent init, because else qvalues = None
 
         super(ActFrameViewer, self).__init__(frames, n_agents)
-        assert actions.shape[:-1] == (self.episode_len-1,n_agents,2) or actions.shape[:-1] == (self.episode_len-1,n_agents) # episode_len, based on len(frames), but there is 1 more frame at the end state, which has no related step
+        # Assert specific to sdt case, so comment for now til a better implementation
+        #assert actions.shape[:-1] == (self.episode_len-1,n_agents,2) or actions.shape[:-1] == (self.episode_len-1,n_agents) # episode_len, based on len(frames), but there is 1 more frame at the end state, which has no related step
 
         self.selected_agent = next(iter(self.agent_ids))
         self.selected_agent_id = self.agent_ids[self.selected_agent]
@@ -209,7 +210,7 @@ class ActFrameViewer(FrameViewer):
                             bottom=neg_bottom,
                             color=colours[k],)
                     self._attach_cursor(bars_neg, [f"{self.qvalue_labels[k]}  {v:.3f}"  for v in neg_vals])
-                    
+
                     pos_bottom += pos_vals
                     neg_bottom += neg_vals
                 ymin = neg_bottom.min() # often ≤ 0
@@ -239,10 +240,7 @@ class ActFrameViewer(FrameViewer):
     def get_distribution(self):
         """Returns one or two action distributions depending on the action array shape."""
         vals = self.actions[self.frame_idx, self.selected_agent_id]
-        if vals.ndim == 1:
-            return [vals]
-        elif vals.ndim == 2:
-            return [vals[0], vals[1]]
+        return [vals]
         
     def get_qvalues(self):
         """Returns the array of qvalues for each action for the current agent and time-step."""
@@ -359,6 +357,24 @@ class HeatmapActFrameViewer(ActFrameViewer):
             self.heatmap_prev.on_clicked(self.on_heatmap_prev)
             self.heatmap_next.on_clicked(self.on_heatmap_next)
 
+    def highlight_agent(self, heatmap_shape, H_img, W_img):
+        #  Highlight current agent cell:
+        grid_y, grid_x = self.get_agent_pos()
+        # Image-space coordinates for rectangle
+        H_map, W_map = heatmap_shape
+        scale_x = W_img / W_map
+        scale_y = H_img / H_map
+        rect_x = grid_x * scale_x
+        rect_y = grid_y * scale_y
+
+        self.agent_patch = Rectangle(
+            (rect_x, rect_y), scale_x, scale_y,  # (x, y, width, height)
+            edgecolor='red',
+            facecolor='none',
+            linewidth=2
+        )
+        self.ax_img.add_patch(self.agent_patch)
+
     def update_canvas(self):
         H_img, W_img = super().update_canvas()
         if self.frame_idx < self.episode_len:
@@ -370,23 +386,9 @@ class HeatmapActFrameViewer(ActFrameViewer):
                             alpha=0.8,
                             extent=(0, W_img, H_img, 0),  # match pixel grid
                             interpolation='nearest')
-                
-            # = Highlight current agent cell:
-            grid_y, grid_x = self.get_agent_pos()
-            H_map, W_map = heatmap.shape
-            scale_x = W_img / W_map
-            scale_y = H_img / H_map
-            # Image-space coordinates for rectangle
-            rect_x = grid_x * scale_x
-            rect_y = grid_y * scale_y
-
-            self.agent_patch = Rectangle(
-                (rect_x, rect_y), scale_x, scale_y,  # (x, y, width, height)
-                edgecolor='red',
-                facecolor='none',
-                linewidth=2
-            )
-            self.ax_img.add_patch(self.agent_patch)
+            
+            if self.agent_pos is not None:
+                self.highlight_agent(heatmap.shape, H_img, W_img)
 
             if self.heatmap_layer > 1:
                 self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: {self.heatmap_idx+1}/{self.heatmap_layer}")
@@ -407,6 +409,14 @@ class HeatmapActFrameViewer(ActFrameViewer):
     def clear_canvas(self):
         super().clear_canvas()
         self.ax_bar.clear()
+
+    def get_distribution(self): # Overload
+        """Returns one or two action distributions depending on the action array shape."""
+        vals = self.actions[self.frame_idx, self.selected_agent_id]
+        if vals.ndim == 1:
+            return [vals]
+        elif vals.ndim == 2:
+            return [vals[0], vals[1]]
 
     def get_heatmap_data(self):
         """Returns the arrays to plot the heatmap in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""

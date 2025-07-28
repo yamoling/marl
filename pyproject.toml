@@ -29,6 +29,7 @@ dependencies = [
     # "gymnasium[box2d]>=1.0.0",
     "pettingzoo>=1.24.3",
     "textual>=4.0.0",
+    "mplcursors>=0.6",
 ]
 
 [project.optional-dependencies]

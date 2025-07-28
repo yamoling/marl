@@ -6,7 +6,7 @@ import os
 import numpy as np
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl import FrameViewer, HeatmapActFrameViewer
+from marl.xmarl import FrameViewer, ActFrameViewer, HeatmapActFrameViewer
 from marl.xmarl.distilers.utils import get_env_infos
 from marl.xmarl import FilePickerScreen
 
@@ -284,7 +284,13 @@ class Selector(App):
                     distilled_filters, distilled_extras, extras_meaning, None
                 )
         else:
-            viewer = FrameViewer(replay.frames)
+            if self.query_one("#qvals_check", Checkbox).value:
+                viewer = ActFrameViewer(
+                    replay.frames, episode.n_agents, None,
+                    np.array(episode.actions), action_names,
+                    np.array(replay.qvalues), self.experiment.qvalue_infos[0]
+                )
+            else: viewer = FrameViewer(replay.frames)
         viewer.show()
 
     def handle_distillation(self, episode: Episode):
