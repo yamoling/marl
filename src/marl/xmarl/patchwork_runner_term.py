@@ -256,7 +256,7 @@ class Selector(App):
             distilled_filters, distilled_actions, distilled_extras, agent_pos = self.handle_distillation(episode)
             # Insert 7x7 obs into full board if needed
             if self.experiment.env.observation_shape[1:] == (7,7):
-                agent_pos = np.array(episode.other["ag_pos"])
+                agent_pos = np.array(episode.states,   dtype=int)[:,:2*episode.n_agents].reshape((episode.episode_len,episode.n_agents,2))
                 n_obs = np.zeros(distilled_filters.shape[0:-2] + (12,13))
                 for t in range(episode.episode_len):
                     for a in range(episode.n_agents):
