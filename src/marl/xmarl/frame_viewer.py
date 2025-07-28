@@ -7,6 +7,8 @@ from matplotlib.colors import Normalize, Colormap
 from matplotlib.cm import ScalarMappable, get_cmap
 from matplotlib.colorbar import Colorbar
 from matplotlib.patches import Rectangle
+import mplcursors 
+from cycler import cycler
 
 import numpy as np
 
@@ -118,9 +120,17 @@ class ActFrameViewer(FrameViewer):
     fig_action: plt.Figure
     ax_action: plt.Axes
 
-    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray[np.ndarray,np.ndarray], action_names: list[str], qvalues: Optional[np.ndarray]):
+    qvalues_check_ax: Optional[plt.Axes] = None
+    qvalues_check: Optional[CheckButtons] = None
+    qvalues: Optional[np.ndarray] = None
+    qvalue_labels: Optional[list[str]] = None
+    show_qvalues: bool = False
+    cursor: mplcursors.cursor = None
+
+    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray[np.ndarray,np.ndarray], action_names: list[str], qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
         for i in range(n_agents):
             self.agent_ids[f"Agent {i}"] = i
+        self.qvalues = qvalues # Before parent init, because else qvalues = None
 
         super(ActFrameViewer, self).__init__(frames, n_agents)
         assert actions.shape[:-1] == (self.episode_len-1,n_agents,2) or actions.shape[:-1] == (self.episode_len-1,n_agents) # episode_len, based on len(frames), but there is 1 more frame at the end state, which has no related step
@@ -130,7 +140,7 @@ class ActFrameViewer(FrameViewer):
         self.actions = actions
         self.action_names = action_names
         self.agent_pos = agent_pos
-        self.qvalues = qvalues
+        self.qvalue_labels = qvalue_labels
         self.init_action_plot()
 
     def init_ctrl(self):
@@ -140,6 +150,13 @@ class ActFrameViewer(FrameViewer):
         self.ctrl_height += elem_height+0.05
         self.radio = RadioButtons(self.radio_ax, list(self.agent_ids.keys())) # TODO: Replace with agents
         self.radio.on_clicked(self.on_radio)
+
+        if self.qvalues is not None:
+            self.qvalues_check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
+            self.ctrl_height += 0.15
+            self.qvalues_check = CheckButtons(self.qvalues_check_ax, ["Qvalues"])
+            self.qvalues_check.on_clicked(self.on_check_qvalues)
+
 
     def init_action_plot(self):
         """Initializes a separate figure to show the action distribution of the selected agent."""
@@ -156,40 +173,80 @@ class ActFrameViewer(FrameViewer):
         if self.frame_idx < self.episode_len:
             # = Plot action distribution
             self.ax_action.clear()
-            dists = self.get_distribution()
             x = np.arange(len(self.action_names))
 
-            if len(dists) == 1:
-                self.ax_action.bar(x, dists[0], color='skyblue', label='Policy')
+            if not self.show_qvalues:
+                dists = self.get_distribution()
+                if len(dists) == 1:
+                    self.ax_action.bar(x, dists[0], color='skyblue', label='Policy')
+                else:
+                    self.ax_action.bar(x - 0.2, dists[0], width=0.4, label='Distilled', color='skyblue')
+                    self.ax_action.bar(x + 0.2, dists[1], width=0.4, label='Policy', color='orange')
+                self.ax_action.set_ylim(0, 1)
+                self.ax_action.legend()
             else:
-                self.ax_action.bar(x - 0.2, dists[0], width=0.4, label='Distilled', color='skyblue')
-                self.ax_action.bar(x + 0.2, dists[1], width=0.4, label='Policy', color='orange')
+                qvalues = self.get_qvalues()
+                n_acts, n_qvals = qvalues.shape
+                default_cycler = plt.rcParams["axes.prop_cycle"]
+                colours = (default_cycler * cycler(linestyle=["-"])).by_key()["color"][:n_qvals]
+                pos_bottom = np.zeros(n_acts)       #  Keep track of stack positions
+                neg_bottom = np.zeros(n_acts)
 
+                for k in range(n_qvals):
+                    vals = qvalues[:, k]
+                    # Consider positive and negative values separately
+                    pos_vals = np.where(vals >= 0, vals, 0)
+                    neg_vals = np.where(vals <  0, vals, 0)
+
+                    bars_pos = self.ax_action.bar(range(n_acts), 
+                            pos_vals,              
+                            bottom=pos_bottom,
+                            color=colours[k], 
+                            label=self.qvalue_labels[k])
+                    self._attach_cursor(bars_pos, [f"{self.qvalue_labels[k]}  +{v:.3f}" for v in pos_vals])
+                    bars_neg = self.ax_action.bar(range(n_acts),
+                            neg_vals,
+                            bottom=neg_bottom,
+                            color=colours[k],)
+                    self._attach_cursor(bars_neg, [f"{self.qvalue_labels[k]}  {v:.3f}"  for v in neg_vals])
+                    
+                    pos_bottom += pos_vals
+                    neg_bottom += neg_vals
+                ymin = neg_bottom.min() # often ≤ 0
+                ymax = pos_bottom.max()
+                self.ax_action.set_ylim(ymin * 1.1, ymax * 1.1)
+                self.ax_action.set_ylabel("Q-value")
+                self.ax_action.legend()
+
+            self.ax_action.set_title(f"{"Actions" if not self.show_qvalues else "Q-values"} - {self.selected_agent}, Frame {self.frame_idx + 1}")
+            self.ax_action.axhline(0, color="k", linewidth=0.8)
             self.ax_action.set_xticks(x)
             self.ax_action.set_xticklabels(self.action_names)
-            self.ax_action.set_ylim(0, 1)
-            self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
-            self.ax_action.legend()
-            self.fig_action.canvas.draw_idle()
         else:
             self.ax_action.clear()
-            self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
-            self.fig_action.canvas.draw_idle()
+        self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
+        self.fig_action.canvas.draw_idle()
         return H_img, W_img
+    
+    def _attach_cursor(self, container, texts):
+        """Give mplcursors <container> and show <texts[i]> for bar i on hover."""
+        self.cursor = mplcursors.cursor(container, hover=mplcursors.HoverMode.Transient)
+        @self.cursor.connect("add")
+        def _(sel):
+            idx = sel.index # bar number inside the container
+            sel.annotation.set_text(texts[idx])
 
     def get_distribution(self):
         """Returns one or two action distributions depending on the action array shape."""
-        if self.qvalues == None:
-            vals = self.actions[self.frame_idx, self.selected_agent_id]
-        else:
-            vals = self.qvalues[self.frame_idx, self.selected_agent_id]
-
+        vals = self.actions[self.frame_idx, self.selected_agent_id]
         if vals.ndim == 1:
             return [vals]
         elif vals.ndim == 2:
             return [vals[0], vals[1]]
-        else:
-            return [val for val in vals]
+        
+    def get_qvalues(self):
+        """Returns the array of qvalues for each action for the current agent and time-step."""
+        return self.qvalues[self.frame_idx, self.selected_agent_id]
         
     def get_agent_pos(self):
         return self.agent_pos[self.frame_idx, self.selected_agent_id]
@@ -198,6 +255,11 @@ class ActFrameViewer(FrameViewer):
         """Callback of radiobuttons: Stores the new label for agent selection and rerenders plot"""
         self.selected_agent = label
         self.selected_agent_id = self.agent_ids[self.selected_agent]
+        self.render()
+
+    def on_check_qvalues(self, label):
+        """Callback of Qvalue CheckButtons: Flips the boolean value of show_qvalues"""
+        self.show_qvalues = not(self.show_qvalues)
         self.render()
 
 class HeatmapActFrameViewer(ActFrameViewer):
@@ -222,7 +284,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
     norm_layers: list[Normalize]
     cmap: Colormap
 
-    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray] = None):
+    def __init__(self, frames: list[str], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
         self.heatmap_dat = heatmap_dat
         self.extras_dat = extras_dat
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
@@ -233,7 +295,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
             pass
         else: raise Exception(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
 
-        super(HeatmapActFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names,qvalues)
+        super(HeatmapActFrameViewer, self).__init__(frames,n_agents,agent_pos,actions,action_names,qvalues,qvalue_labels)
 
         self.extras = self.extras_dat is not None
         if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
@@ -287,7 +349,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         self.check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
         self.ctrl_height += 0.15
         self.heatmap_check = CheckButtons(self.check_ax, ["Heatmap"], actives=["Heatmap"])
-        self.heatmap_check.on_clicked(self.on_check)
+        self.heatmap_check.on_clicked(self.on_check_heatmap)
 
         if self.heatmap_layered: # TODO: As is always true at init, change way of doing if relevant/possible timewise
             self.heatmap_prev = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.35, 0.1]), '←')
@@ -356,7 +418,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         if self.heatmap_layered: return self.extras_dat[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
         else: return self.extras_dat[self.frame_idx,self.selected_agent_id]
 
-    def on_check(self, label):
+    def on_check_heatmap(self, label):
         """Callback of CheckButtons: Flips the boolean value of show_heatmap"""
         self.show_heatmap = not(self.show_heatmap)
         self.render()

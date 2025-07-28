@@ -274,8 +274,8 @@ class Selector(App):
                 viewer = HeatmapActFrameViewer(
                     replay.frames, episode.n_agents, agent_pos,
                     distilled_actions, action_names,
-                    distilled_filters, distilled_extras, extras_meaning, None
-                    #replay.qvalues
+                    distilled_filters, distilled_extras, extras_meaning,
+                    np.array(replay.qvalues), self.experiment.qvalue_infos[0]
                 )
             else:
                 viewer = HeatmapActFrameViewer(

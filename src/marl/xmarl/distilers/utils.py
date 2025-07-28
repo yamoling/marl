@@ -3,6 +3,7 @@ from marl.models import Experiment
 
 import numpy as np
 import matplotlib.pyplot as plt
+from cycler import cycler
 
 def plot_target_distro(targets, path, labels):
     n_agents  = targets.shape[1]
@@ -103,8 +104,8 @@ def plot_importance_with_targets(importance_scores,        # shape (n_samples,)
 
     # Stacked bar plot
 
-    class_colors = ["#4C72B0", "#55A868", "#C44E52",
-                    "#8172B3", "#CCB974"]      
+    default_cycler = plt.rcParams["axes.prop_cycle"]
+    class_colors = (default_cycler * cycler(linestyle=["-"])).by_key()["color"][:n_qvals]    
 
     fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
     bottom = np.zeros(bins)
