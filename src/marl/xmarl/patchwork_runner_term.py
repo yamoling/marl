@@ -202,6 +202,7 @@ class Selector(App):
     def reset_distil(self):
         self.distil_path = ""
         self.extra = False
+        self.abstract = False
         # Handle cancellation or no file selected
         self.query_one("#distil_label", Label).update("No Distillation selected")
         self.query_one("#select_distil", Button).disabled = True
@@ -214,6 +215,7 @@ class Selector(App):
             else: self.distil_path = self.experiment_path / "distil" # Get the file path when popped
             self.distiler_path = self.distil_path/distil
             self.extra = "extra" in distil
+            self.abstract = "abstract" in distil
             self.query_one("#distil_label", Label).update(str(self.distil_path/distil))
             if "sdt" in distil:
                 self.query_one("#distil_way", Horizontal).display = True
@@ -227,7 +229,7 @@ class Selector(App):
             if ".pkl" in distil: distil_list.append(distil)
             elif "individual" in distil:
                 for ind_distil in os.listdir(self.experiment_path/"distil"/distil):
-                    if ".pkl" in ind_distil:
+                    if ".pkl" in ind_distil and "sdt" in ind_distil:
                         ind_dist_name = distil + self.spec_sep + ind_distil.split('_',1)[1]
                         if ind_dist_name not in distil_list: distil_list.append(ind_dist_name) # Add with special separator to split in callback
         await self.push_screen(FilePickerScreen("Distillation", distil_list), callback=self.set_distil)  # Push FilePickerScreen
@@ -253,9 +255,10 @@ class Selector(App):
         action_names, extras_meaning = get_env_infos(self.experiment)
 
         if self.distil_path:
-            distilled_filters, distilled_actions, distilled_extras, agent_pos = self.handle_distillation(episode)
+            if not self.abstract: distilled_filters, distilled_actions, distilled_extras, agent_pos,_,_ = self.handle_distillation(episode)
+            else: distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras = self.handle_distillation(episode)
             # Insert 7x7 obs into full board if needed
-            if self.experiment.env.observation_shape[1:] == (7,7):
+            if self.experiment.env.observation_shape[1:] == (7,7) and not self.abstract:
                 agent_pos = np.array(episode.states,   dtype=int)[:,:2*episode.n_agents].reshape((episode.episode_len,episode.n_agents,2))
                 n_obs = np.zeros(distilled_filters.shape[0:-2] + (12,13))
                 for t in range(episode.episode_len):
@@ -271,18 +274,20 @@ class Selector(App):
                         n_obs[t,a,:,x_s:x_e,y_s:y_e] = filt[:,fx_s:fx_e,fy_s:fy_e]
                 distilled_filters = n_obs
             if self.query_one("#qvals_check", Checkbox).value:
-                viewer = HeatmapActFrameViewer(
-                    replay.frames, episode.n_agents, agent_pos,
-                    distilled_actions, action_names,
-                    distilled_filters, distilled_extras, extras_meaning,
-                    np.array(replay.qvalues), self.experiment.qvalue_infos[0]
-                )
+                if not self.abstract: viewer = HeatmapActFrameViewer(
+                        replay.frames, episode.n_agents, agent_pos,
+                        distilled_actions, action_names,
+                        distilled_filters, distilled_extras, extras_meaning,
+                        np.array(replay.qvalues), self.experiment.qvalue_infos[0]
+                    )
+                else: pass  
             else:
-                viewer = HeatmapActFrameViewer(
-                    replay.frames, episode.n_agents, agent_pos,
-                    distilled_actions, action_names,
-                    distilled_filters, distilled_extras, extras_meaning, None
-                )
+                if not self.abstract: viewer = HeatmapActFrameViewer(
+                        replay.frames, episode.n_agents, agent_pos,
+                        distilled_actions, action_names,
+                        distilled_filters, distilled_extras, extras_meaning, None
+                    )
+                else: pass 
         else:
             if self.query_one("#qvals_check", Checkbox).value:
                 viewer = ActFrameViewer(
@@ -298,27 +303,33 @@ class Selector(App):
             dist_type = self.query_one("#dist_switch", Switch).value
             if "individual" in str(self.distiler_path):
                 distilled_filters, distilled_extras, distilled_actions, agent_pos = [], [], [], []
+                if self.abstract: obs, extras = [], []
                 for ag in range(episode.n_agents):
-                    fname = f"ag{ag}_sdt_distil{'_extra' if self.extra else ''}.pkl"
+                    fname = f"ag{ag}_sdt_distil{'_extra' if self.extra else ''}{'_abstract' if self.abstract else ''}.pkl"
                     distiller = SoftDecisionTree.load(self.distil_path / fname)
-                    df, de, da, ap = distiller.distil_episode(episode, dist_type)
+                    df, de, da, ap, o, e = distiller.distil_episode(episode, dist_type)
                     distilled_filters.append(df)
                     distilled_extras.append(de)
                     distilled_actions.append(da)
                     agent_pos.append(ap)
-                # Transpose lists into arrays of shape [T, agents, ...]
-                distilled_filters = np.transpose(np.array(distilled_filters), (1,0,2,3,4))
-                if np.any(distilled_extras):
-                    distilled_extras = np.transpose(np.array(distilled_extras).squeeze(), (1,0,2,3))
-                else: distilled_extras = None
-                distilled_actions = np.transpose(np.array(distilled_actions), (1,0) + tuple(range(2, np.array(distilled_actions).ndim)))
-                agent_pos = np.transpose(np.array(agent_pos), (1,0,2))
+                    if self.abstract:
+                        obs.append(o)
+                        extras.append(e)
+                if not self.abstract:   # Can't because abstract inhomogenous. Should modify to use order (agent,T) in viewer if wanna make cleaner
+                    # Transpose lists into arrays of shape [T, agents, ...]
+                    distilled_filters = np.array(distilled_filters).swapaxes(0,1)
+                    if np.any(distilled_extras):
+                        distilled_extras = np.array(distilled_extras).squeeze().swapaxes(0,1)
+                    else: distilled_extras = None
+                    distilled_actions = np.array(distilled_actions).swapaxes(0,1)
+                    agent_pos = np.array(agent_pos).swapaxes(0,1)
             else:
                 distiller = SoftDecisionTree.load(self.distiler_path)
                 distilled_filters, distilled_extras, distilled_actions, agent_pos = distiller.distil_episode(episode, dist_type)
         else:
             raise Exception(f"Distiller {self.distiler_path} not implemented in visualization yet.")
-        return distilled_filters, distilled_actions, distilled_extras, agent_pos
+        if not self.abstract: return distilled_filters, distilled_actions, distilled_extras, agent_pos, None, None # Inelegant patch to be symmetric with ind (might send data if abstract)
+        else: return distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras
 
 
 def main():

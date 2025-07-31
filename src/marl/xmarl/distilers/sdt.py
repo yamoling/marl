@@ -12,7 +12,7 @@ import numpy as np
 from typing import Optional, Dict, Union
 
 from marl.models.batch import Batch
-from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos
+from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos, get_fixed_features, abstract_observation
 from marlenv.models import Episode
 
 EPS = 1e-6
@@ -353,6 +353,10 @@ class SoftDecisionTree[B: Batch](nn.Module):
         return np.array(path)[::-1]
 
     def distil_episode(self, episode: Episode, backwards: bool = False):
+        """ Distils an episode, either by forward or backward pass, compounded or individually.
+        Returns distilled episode board filters, distilled episode extras filters, distilled actions and agent positions.
+        If abstracted obs will also return abstracted obs and extras.
+        """
         if self.agent_id is None:
             return self.distil_episode_comp(episode, backwards)
         else:
@@ -361,26 +365,39 @@ class SoftDecisionTree[B: Batch](nn.Module):
     def distil_episode_ind(self, episode: Episode, backwards: bool = False):
         obs_w = episode.observation_shape[-1]
         obs_h = episode.observation_shape[-2]
-        extras = obs_w*obs_h < self.input_shape
 
         paths_taken = [] # Will be filled with paths
+        if self.abstract: abs_obs = []
 
         ep_acts = np.array(episode.actions)[:,self.agent_id]
 
         if not backwards:
             pred_actions = np.zeros((episode.episode_len,episode.n_actions),dtype=float)
-            agent_pos = np.zeros((episode.episode_len,2))
+            if not self.abstract: agent_pos = np.zeros((episode.episode_len,2))
+            else: 
+                fix_ft = get_fixed_features(episode.all_observations[0])
+                agent_pos = get_agent_pos(np.array(episode.all_observations))
             for i in range(episode.episode_len):
-                f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
-                agent_pos[i] = ag_pos[self.agent_id]
+                if not self.abstract: 
+                    f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
+                    agent_pos[i] = ag_pos[self.agent_id]
+                else: 
+                    f_obs = abstract_observation(episode.all_observations[i], fix_ft, agent_pos[i])
+                    abs_obs.append(f_obs[self.agent_id])
                 paths = []
                 leaves = []
-                if extras: 
-                    leaf, path = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
+                if self.extras: 
+                    if not self.abstract:
+                        leaf, path = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
+                    else:
+                        leaf, path = self.greedy_trace(f_obs[self.agent_id]+episode.all_extras[i][self.agent_id].tolist())# TODO: arrived here
                     leaves.append(leaf)
                     paths.append(path)
                 else: 
-                    leaf, path = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
+                    if not self.abstract:
+                        leaf, path = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
+                    else: 
+                        leaf, path = self.greedy_trace(f_obs[self.agent_id])
                     leaves.append(leaf)
                     paths.append(path)
                 pred_actions[i] = leaf.forward().data.numpy().flatten()
@@ -402,14 +419,17 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         paths_taken = np.array(paths_taken)
         # If applicable separate extras from board
-        if extras:
-            obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-            extras_f = paths_taken[:, : , :, obs_w*obs_h:]
-        else: 
-            obs_f = paths_taken.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-            extras_f = None
-
-        return obs_f, extras_f, actions_comp, agent_pos
+        if not self.abstract:
+            if self.extras:
+                obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+                extras_f = paths_taken[:, : , :, obs_w*obs_h:]
+            else: 
+                obs_f = paths_taken.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+                extras_f = None
+        else:
+            obs_f = paths_taken
+        if not self.abstract: return obs_f, extras_f, actions_comp, agent_pos, None, None
+        else: return obs_f, None, actions_comp, agent_pos, abs_obs, np.array(episode.all_extras)[:,self.agent_id]
 
     def distil_episode_comp(self, episode: Episode, backwards: bool = False):
         obs_w = episode.observation_shape[-1]
@@ -446,6 +466,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             leaves = []
             parent_child = {}
             agent_pos = get_agent_pos(np.array(episode.all_observations))
+            # TODO: get abstract data if abstract
             outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child)
             for act in ep_acts:
@@ -463,20 +484,22 @@ class SoftDecisionTree[B: Batch](nn.Module):
             obs_f = paths_taken.reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
             extras_f = None
 
-        return obs_f, extras_f, actions_comp, agent_pos
+        return obs_f, extras_f, actions_comp, agent_pos, None, None # Inelegant patch to be symmetric with ind (might send data if abstract)
     
     @staticmethod
     def load(filedir: str) -> "SoftDecisionTree":
         """Load an experiment from disk."""
         with open(filedir, "rb") as f:
             sdt: SoftDecisionTree = pickle.load(f)
-        if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"comp_sdt{"_extra" if sdt.extras else ""}.params"))))
-        else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt{"_extra" if sdt.extras else ""}.params"))))
+        addition = f"{"_extra" if sdt.extras else ""}{"_abstract" if sdt.abstract else ""}"
+        if sdt.agent_id is None: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"comp_sdt{addition}.params"))))
+        else: sdt.load_state_dict(torch.load(str(pathlib.Path(sdt.logdir,f"ag{sdt.agent_id}_sdt{addition}.params"))))
         return sdt
     
     def load_best(self):
-        if self.agent_id is None: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"comp_sdt{"_extra" if self.extras else ""}.params"))))
-        else: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{"_extra" if self.extras else ""}.params"))))
+        addition = f"{"_extra" if self.extras else ""}{"_abstract" if self.abstract else ""}"
+        if self.agent_id is None: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"comp_sdt{addition}.params"))))
+        else: self.load_state_dict(torch.load(str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{addition}.params"))))
 
     def save_best(self):
         os.makedirs(self.logdir, exist_ok=True)

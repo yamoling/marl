@@ -67,10 +67,9 @@ class DistilHandler:
         if abstract_obs:
             self.fixed_abs_features = fixed_abs_features
             self.abs_labels = [feature_labels(self.n_agents,len(self.fixed_abs_features[2]),self.fixed_abs_features[-1][i].keys()) for i in range(self.n_agents)]
-            import json
             with open(self._distilers[0].logdir/"abstract_obs_labels.pkl","wb") as f:
                 pickle.dump(self.abs_labels, f)
-            with open(self._distilers[0].logdir/"abstract_obs_fixed_features.json","wb") as f:
+            with open(self._distilers[0].logdir/"abstract_obs_fixed_features.pkl","wb") as f:
                 pickle.dump(self.fixed_abs_features, f)
             
 
@@ -80,7 +79,7 @@ class DistilHandler:
         # check if there has been a run
         experiment = Experiment.load(logdir)
         n_agents = experiment.env.n_agents
-        # Some weird things with how logdir is handeled by experiment
+        # Some weird things with how logdir is handled by experiment
         if experiment.logdir != logdir:
             experiment.logdir = logdir
 
@@ -134,8 +133,8 @@ class DistilHandler:
                     lmbda=0.75
                 )
                 distilers.append(distil_model)
-            if abstracted_obs: distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, individual_agents,imp_perc,abstracted_obs,fix_ft)
-            else: distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, individual_agents,imp_perc)
+            if abstracted_obs: distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, imp_perc, individual_agents, abstracted_obs, fix_ft)
+            else: distil_handler = DistilHandler(experiment, n_runs, n_sets, epochs, distilers, distiler, extras, imp_perc, individual_agents)
         else:
             raise NotImplementedError(f"Distilation not implemented for agent {experiment.agent.name}")
             # Modify to check if qvalues of experiment is true or not, if true we can access them if not no, also only do it if getting qvalues, else distribution/action should always be accessible, albeit by bypassing something
@@ -270,13 +269,14 @@ class DistilHandler:
                     valid_logs.append(v_acc)
 
                 train_logs = np.array(train_logs)
-                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
-                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
+                #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+                #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
 
                 dist.load_best()
-                test_logs, test_preds = dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag],best_dist)
-                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
-                np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
+                if not self.abstract_obs: test_logs, test_preds = dist.test_(inputs_test[:,:,ag],outputs_test[:,:,ag],best_dist)
+                else: test_logs, test_preds = dist.test_(inputs_test[ag],outputs_test[ag],best_dist)
+                #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+                #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
 
                 if not self.abstract_obs: cm_dat = np.argmax(outputs_test[:,:,ag], axis=2).flatten()
                 else: cm_dat = np.argmax(outputs_test[ag], axis=2).flatten()
@@ -287,7 +287,7 @@ class DistilHandler:
                     labels=np.arange(len(self.target_labels))),
                      display_labels=self.target_labels) # outputs_test one-hot 
                 cm_disp.plot()
-                plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}{"_extra" if self.extras else ""}_cm.png"))
+                plt.savefig(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}{"_extra" if self.extras else ""}{"_abstract" if self.abstract_obs else ""}_cm.png"))
 
         else:
             train_logs = []
@@ -300,13 +300,13 @@ class DistilHandler:
                 valid_logs.append(v_acc)
 
             train_logs = np.array(train_logs)
-            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
-            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
+            #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_train_logs{"_extra" if self.extras else ""}.npz"),train_logs)
+            #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
 
             dist.load_best()
             test_logs, test_preds = dist.test_(inputs_test,outputs_test,best_dist)
-            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
-            np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
+            #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
+            #np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
             
             cm_disp = ConfusionMatrixDisplay(
                 confusion_matrix=confusion_matrix(np.argmax(outputs_test, axis=2).flatten(),
