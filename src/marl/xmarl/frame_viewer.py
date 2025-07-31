@@ -81,7 +81,7 @@ class FrameViewer:
         img_rgb = self.decode_b64_image(frame)
         H_img, W_img = img_rgb.shape[:2]
 
-        # Insert image and plot heatmap
+        # Insert image
         self.ax_img.imshow(img_rgb)
         self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}")
         self.ax_img.axis('off')
@@ -99,7 +99,7 @@ class FrameViewer:
 
     def on_next(self, event):
         """Callback of next button: Increments current index to get the frame and rerenders plot"""
-        self.frame_idx = (self.frame_idx + 1) % len(self.frames)
+        self.frame_idx = (self.frame_idx + 1) % (len(self.frames))
         self.render()
 
     def on_prev(self, event):
@@ -225,7 +225,7 @@ class ActFrameViewer(FrameViewer):
             self.ax_action.set_xticklabels(self.action_names)
         else:
             self.ax_action.clear()
-        self.ax_action.set_title(f"Actions - {self.selected_agent}, Frame {self.frame_idx + 1}")
+            self.ax_action.set_title(f"Frame {self.frame_idx + 1}")
         self.fig_action.canvas.draw_idle()
         return H_img, W_img
     
@@ -386,6 +386,18 @@ class HeatmapActFrameViewer(ActFrameViewer):
                             alpha=0.8,
                             extent=(0, W_img, H_img, 0),  # match pixel grid
                             interpolation='nearest')
+                # = Plot barplot (extras)
+                if self.extras:
+                    norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
+                    bar_vals = self.get_barplot_data()
+                    colors = self.cmap(norm(bar_vals))
+                    self.ax_bar.barh(np.arange(len(bar_vals)), bar_vals, color=colors, height=0.6)
+                    self.ax_bar.set_yticks(np.arange(len(self.extras_meaning)))
+                    self.ax_bar.set_yticklabels(self.extras_meaning)
+                    self.ax_bar.set_title(f"Barplot: {self.selected_agent}")
+
+                    self.ax_bar.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
+                    self.ax_bar.axvline(0, color='black', linewidth=1)
             
             if self.agent_pos is not None:
                 self.highlight_agent(heatmap.shape, H_img, W_img)
@@ -393,18 +405,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
             if self.heatmap_layer > 1:
                 self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: {self.heatmap_idx+1}/{self.heatmap_layer}")
 
-            # = Plot barplot (extras)
-            if self.extras:
-                norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
-                bar_vals = self.get_barplot_data()
-                colors = self.cmap(norm(bar_vals))
-                self.ax_bar.barh(np.arange(len(bar_vals)), bar_vals, color=colors, height=0.6)
-                self.ax_bar.set_yticks(np.arange(len(self.extras_meaning)))
-                self.ax_bar.set_yticklabels(self.extras_meaning)
-                self.ax_bar.set_title(f"Barplot: {self.selected_agent}")
-
-                self.ax_bar.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
-                self.ax_bar.axvline(0, color='black', linewidth=1)
+        else:
+            self.ax_img.set_title(f"Frame {len(self.frames)}/{len(self.frames)}")
 
     def clear_canvas(self):
         super().clear_canvas()
