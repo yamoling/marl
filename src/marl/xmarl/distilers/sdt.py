@@ -149,12 +149,14 @@ class SoftDecisionTree[B: Batch](nn.Module):
     n_agent: int
     agent_id: int
     extras: bool
+    abstract: bool
 
     def __init__(self, 
                  input_shape: int,
                  output_shape: int,
                  logdir: str,
                  extras: bool,
+                 abstract: bool,
                  n_agent: int = 1,
                  max_depth: int = 4, 
                  seed: int = 0,
@@ -172,8 +174,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
         self.n_agent = n_agent
         self.agent_id = agent_id
         self.extras = extras
+        self.abstract = abstract
         if self.agent_id is None: self.logdir = pathlib.Path(logdir, "distil")
-        else:self.logdir = pathlib.Path(logdir, "distil", "individual_sdt_distil")
+        else: self.logdir = pathlib.Path(logdir, "distil", "individual_sdt_distil")
 
         self.max_depth = max_depth
         self.seed = seed
@@ -477,11 +480,12 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def save_best(self):
         os.makedirs(self.logdir, exist_ok=True)
+        addition = f"{"_extra" if self.extras else ""}{"_abstract" if self.abstract else ""}"
         if self.agent_id is None:
-            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"comp_sdt{"_extra" if self.extras else ""}.params")))
-            with open(self.logdir/f"comp_sdt_distil{"_extra" if self.extras else ""}.pkl", 'wb') as output_file:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"comp_sdt{addition}.params")))
+            with open(self.logdir/f"comp_sdt_distil{addition}.pkl", 'wb') as output_file:
                 pickle.dump(self, output_file)
         else:
-            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{"_extra" if self.extras else ""}.params")))
-            with open(self.logdir/f"ag{self.agent_id}_sdt_distil{"_extra" if self.extras else ""}.pkl", 'wb') as output_file:
+            torch.save(self.state_dict(), str(pathlib.Path(self.logdir,f"ag{self.agent_id}_sdt{addition}.params")))
+            with open(self.logdir/f"ag{self.agent_id}_sdt_distil{addition}.pkl", 'wb') as output_file:
                 pickle.dump(self, output_file)
