@@ -334,13 +334,17 @@ class AbstractActFrameViewer(ActFrameViewer):
         else:
             return str(v)
 
-    def init_bar_colours(self, vmin, vmax):
+    def init_bar_colours(self, vmin, vmax, idx=None):
         scaler = max(abs(vmin),abs(vmax))
         norm = TwoSlopeNorm(vmin=-scaler, vcenter=0, vmax=scaler)
         sm = ScalarMappable(norm=norm, cmap=self.cmap)
         sm.set_array([])  # required by colorbar API
-        self.norm_layers.append(norm)
-        self.sm_layers.append(sm) 
+        if self.filters_layered:
+            self.norm_layers[idx].append(norm)
+            self.sm_layers[idx].append(sm) 
+        else:
+            self.norm_layers.append(norm)
+            self.sm_layers.append(sm) 
 
     def init_plots(self):
         super().init_plots()
@@ -357,20 +361,22 @@ class AbstractActFrameViewer(ActFrameViewer):
         self.cmap = get_cmap('coolwarm')
 
         if self.filters_layered: # In abstract extras are already mixed with filters (same handling)
-            for i in range(self.filters_layer):
-                vmin = min(np.min(self.filters_dat[j][:,i]) for j in range(self.n_agents))
-                vmax = max(np.max(self.filters_dat[j][:,i]) for j in range(self.n_agents))
-                self.norm_layers.append(TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax))
-                self.init_bar_colours(vmin,vmax)
+            for j in range(self.n_agents):
+                self.norm_layers.append([])
+                self.sm_layers.append([])
+                for i in range(self.filters_layer):
+                    vmin = np.min(self.filters_dat[j][:,i])
+                    vmax = np.max(self.filters_dat[j][:,i])
+                    self.init_bar_colours(vmin,vmax,j)
         else:
-            vmin = min(np.min(self.filters_dat[j][:,i]) for j in range(self.n_agents))
-            vmax = max(np.max(self.filters_dat[j][:,i]) for j in range(self.n_agents))
-            self.norm_layers.append(TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax))  # single norm
-            self.init_bar_colours(vmin,vmax)
+            for j in range(self.n_agents):
+                vmin = np.min(self.filters_dat[j][:,0])
+                vmax = np.max(self.filters_dat[j][:,0])
+                self.init_bar_colours(vmin,vmax)
 
-        self.colorbar = self.fig.colorbar(self.sm_layers[0], ax=[self.ax_abstract,self.ax_abstract_vals],
-                                        orientation='vertical', shrink=0.85,
-                                        pad=0.02)
+        if self.filters_layered: sm = self.sm_layers[0][0]
+        else: sm = self.sm_layers[0]
+        self.colorbar = self.fig.colorbar(sm, ax=[self.ax_abstract,self.ax_abstract_vals],orientation='vertical', shrink=0.85,pad=0.02)
 
     def init_ctrl(self):
         super().init_ctrl()
@@ -394,7 +400,7 @@ class AbstractActFrameViewer(ActFrameViewer):
             # = Overlay heatmap
             filters = self.get_filters_data()
             if self.show_filters:
-                norm = self.norm_layers[self.filters_idx if self.filters_layered else 0]
+                norm = self.norm_layers[self.selected_agent_id][self.filters_idx if self.filters_layered else 0]
                 colors = self.cmap(norm(filters))
                 self.ax_abstract.barh(np.arange(len(filters),0,-1), filters, color=colors, height=0.6)
                 self.ax_abstract.set_yticks(np.arange(len(filters),0,-1))
@@ -428,7 +434,8 @@ class AbstractActFrameViewer(ActFrameViewer):
                 self.ax_abstract.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
                 self.ax_abstract.axvline(0, color='black', linewidth=1)
 
-                sm = self.sm_layers[self.filters_idx]
+                if self.filters_layered: sm = self.sm_layers[self.selected_agent_id][self.filters_idx]
+                else: sm = self.sm_layers[self.selected_agent_id]
                 self.colorbar.mappable = sm
                 self.colorbar.update_normal(sm)
 
@@ -515,13 +522,17 @@ class HeatmapActFrameViewer(ActFrameViewer):
         if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
         else: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents)
 
-    def init_bar_colours(self, vmin, vmax):
+    def init_bar_colours(self, vmin, vmax, idx=None):
         scaler = max(abs(vmin),abs(vmax))
         norm = TwoSlopeNorm(vmin=-scaler, vcenter=0, vmax=scaler)
         sm = ScalarMappable(norm=norm, cmap=self.cmap)
         sm.set_array([])  # required by colorbar API
-        self.norm_layers.append(norm)
-        self.sm_layers.append(sm) 
+        if self.heatmap_layered:
+            self.norm_layers[idx].append(norm)
+            self.sm_layers[idx].append(sm) 
+        else:
+            self.norm_layers.append(norm)
+            self.sm_layers.append(sm) 
 
     def init_plots(self):
         # Main Plot Figure
@@ -538,31 +549,35 @@ class HeatmapActFrameViewer(ActFrameViewer):
         self.cmap = get_cmap('coolwarm')
 
         if self.heatmap_layered:
-            if self.extras:
+            for j in range(self.n_agents):
+                self.norm_layers.append([])
+                self.sm_layers.append([])
                 for i in range(self.heatmap_layer):
-                    hm_layer_data = self.heatmap_dat[:, :, i]
-                    ex_layer_data = self.extras_dat[:, :, i]
-                    vmin = min(np.min(hm_layer_data), np.min(ex_layer_data))
-                    vmax = max(np.max(hm_layer_data), np.max(ex_layer_data))
-                    self.init_bar_colours(vmin,vmax)
-            else:
-                for i in range(self.heatmap_layer):
-                    layer_data = self.heatmap_dat[:, :, i]
-                    vmin = np.min(layer_data)
-                    vmax = np.max(layer_data)
-                    self.init_bar_colours(vmin,vmax)
+                    if self.extras:
+                        hm_layer_data = self.heatmap_dat[:, j, i]
+                        ex_layer_data = self.extras_dat[:, j, i]
+                        vmin = min(np.min(hm_layer_data), np.min(ex_layer_data))
+                        vmax = max(np.max(hm_layer_data), np.max(ex_layer_data))
+                        self.init_bar_colours(vmin,vmax,j)
+                    else:
+                        layer_data = self.heatmap_dat[:, j, i]
+                        vmin = np.min(layer_data)
+                        vmax = np.max(layer_data)
+                        self.init_bar_colours(vmin,vmax,j)
         else:
-            if self.extras:
-                vmin = min(np.min(self.heatmap_dat), np.min(self.extras_dat))
-                vmax = max(np.max(self.heatmap_dat), np.max(self.extras_dat))
-            else:   # single norm
-                vmin = np.min(self.heatmap_dat)
-                vmax = np.max(self.heatmap_dat)
+            for j in range(self.n_agents):
+                if self.extras:
+                        vmin = min(np.min(self.heatmap_dat[:,j]), np.min(self.extras_dat[:,j]))
+                        vmax = max(np.max(self.heatmap_dat[:,j]), np.max(self.extras_dat[:,j]))
+                else:   # single norm
+                        vmin = np.min(self.heatmap_dat[:,j])
+                        vmax = np.max(self.heatmap_dat[:,j])
             self.init_bar_colours(vmin,vmax)
 
-        self.colorbar = self.fig.colorbar(self.sm_layers[0], ax=[self.ax_img, self.ax_bar],
-                                        orientation='vertical', shrink=0.85,
-                                        pad=0.02)
+        if self.heatmap_layered: sm = self.sm_layers[0][0]
+        else: sm = self.sm_layers[0]
+        self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img, self.ax_bar], orientation='vertical', shrink=0.85, pad=0.02)
+
 
     def init_ctrl(self):
         super().init_ctrl()
@@ -586,14 +601,13 @@ class HeatmapActFrameViewer(ActFrameViewer):
             # = Overlay heatmap
             heatmap = self.get_heatmap_data()
             if self.show_heatmap:
-                norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
+                norm = self.norm_layers[self.selected_agent_id][self.heatmap_idx if self.heatmap_layered else 0]
                 self.ax_img.imshow(self.cmap(norm(heatmap))[:, :, :3],
                             alpha=0.8,
                             extent=(0, W_img, H_img, 0),  # match pixel grid
                             interpolation='nearest')
                 # = Plot barplot (extras)
                 if self.extras:
-                    norm = self.norm_layers[self.heatmap_idx if self.heatmap_layered else 0]
                     bar_vals = self.get_barplot_data()
                     colors = self.cmap(norm(bar_vals))
                     self.ax_bar.barh(np.arange(len(bar_vals)), bar_vals, color=colors, height=0.6)
@@ -604,7 +618,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
                     self.ax_bar.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
                     self.ax_bar.axvline(0, color='black', linewidth=1)
 
-                sm = self.sm_layers[self.heatmap_idx]
+                if self.heatmap_layered: sm = self.sm_layers[self.selected_agent_id][self.heatmap_idx]
+                else: sm = self.sm_layers[self.selected_agent_id]
                 self.colorbar.mappable = sm
                 self.colorbar.update_normal(sm)
             
