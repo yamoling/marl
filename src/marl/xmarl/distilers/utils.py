@@ -244,8 +244,8 @@ def dist_to_beam(ag_pos, beam, delta = False):
     for beam_y, beam_x in beam:
         beam_d_x.append(beam_x-ag_pos[1])
         beam_d_y.append(beam_y-ag_pos[0])
-    d_x = min(beam_d_x) # either beam x or y is always the same, so we can roughly take the min of both
-    d_y = min(beam_d_y)
+    d_x = min(abs(beam_d_x)) # either beam x or y is always the same, so we can roughly take the absolute min of both
+    d_y = min(abs(beam_d_y))
     if delta: return [d_y.item(),d_x.item()]
     else: return math.hypot(d_x, d_y)
 
