@@ -409,7 +409,7 @@ class AbstractActFrameViewer(ActFrameViewer):
 
                 if self.extras: 
                     self.ax_abstract.set_yticklabels(self.abstract_obs_meanings[self.selected_agent_id]+self.extras_meaning)
-                    self.ax_abstract_vals.set_yticklabels(self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+self.extras_dat[self.selected_agent_id][self.frame_idx])
+                    self.ax_abstract_vals.set_yticklabels(self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+self.extras_dat[self.selected_agent_id][self.frame_idx].tolist())
                 else: 
                     self.ax_abstract.set_yticklabels(self.abstract_obs_meanings[self.selected_agent_id])
                     self.ax_abstract_vals.set_yticklabels(self.abs_obs_dat[self.selected_agent_id][self.frame_idx])
