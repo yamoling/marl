@@ -143,8 +143,10 @@ class DistilHandler:
     
     def filter_by_importance(self, inputs, outputs, ag_poses, extras, importance, percentile = 50):
         """ Filters in- and output arrays by using the importance as a metric, by only keeping the most important ones withing the percentile.
+        In the case of compound observation also folds agent dim into batches dim.
         """
-        if self.individual_agents:
+        #if self.individual_agents:
+        if True:
             filtered_inputs = []
             filtered_outputs = []
             filtered_ag_poses = []
@@ -169,26 +171,29 @@ class DistilHandler:
             if self.extras: extras = np.array(filtered_extras).swapaxes(0,1)
             # Plot action distributions after filter
             plot_target_distro(outputs.reshape((-1,self.n_agents,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
-        else: 
-            percentile_mask = importance >= np.percentile(importance,percentile)
-            inputs = inputs[percentile_mask] # also flattens batch and agent dims
-            outputs = outputs[percentile_mask]
-            ag_poses = ag_poses[percentile_mask]
-            if self.extras: extras = extras[percentile_mask]
-            # Plot action distributions after filter
-            plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
+        # else: 
+        #     percentile_mask = np.sum(importance,axis=1) >= np.percentile(np.sum(importance,axis=1),percentile)
+        #     inputs = inputs[percentile_mask] # also flattens batch and agent dims
+        #     outputs = outputs[percentile_mask]
+        #     ag_poses = ag_poses[percentile_mask]
+        #     if self.extras: extras = extras[percentile_mask]
+        #     # Plot action distributions after filter
+        #     plot_target_distro(outputs.reshape((-1,1,len(self.target_labels))),pathlib.Path(self._distilers[0].logdir,"dataset_filtered_target_distribution"), self.target_labels)
         return outputs, inputs, ag_poses, extras # If not extras returns received (empty) extras
 
     def transform_inputs(self, inputs, ag_poses, extras):
-        """Flattens or abstracts an input, also adds extras if needed"""
+        """Flattens or abstracts an input, also adds extras, including agent_pos if needed.
+        In the case of compounded, folds agent dim into batch dim"""
         t_obs = []
-        for batch_idx in range(len(inputs)):
+        n_batches = len(inputs)
+        batch_size = len(inputs[0])
+        for batch_idx in range(n_batches):    # Traverse batches
             t_obs.append([])
-            for i,obs in enumerate(inputs[batch_idx]):
+            for i,obs in enumerate(inputs[batch_idx]):  # Traverse batch elements
                 ag_pos = ag_poses[batch_idx][i]
                 if not self.abstract_obs: 
-                # Environment specific
-                    f_obs = flatten_observation(obs, self.n_agents, axis=1)  # Very specific to flattened layers. If extras also adds agent position
+                    # Very specific to flattened layers. If extras also adds agent position
+                    f_obs = flatten_observation(obs, self.n_agents, axis=1)
                     if self.extras: f_obs = np.concatenate([f_obs.reshape(self.n_agents,-1), extras[batch_idx][i], ag_pos], axis=1)
                     else: f_obs = f_obs.reshape(self.n_agents,-1)
                 else: 
@@ -196,7 +201,9 @@ class DistilHandler:
                     if self.extras:
                         for j in range(self.n_agents): f_obs[j] += extras[batch_idx][i][j].tolist()
                 t_obs[batch_idx].append(f_obs)
-        if not self.abstract_obs: return np.array(t_obs)
+        if not self.abstract_obs: 
+            if self.individual_agents: return np.array(t_obs)
+            else: return np.array(t_obs).reshape((n_batches*self.n_agents,batch_size,-1))
         else: return t_obs
 
 
@@ -219,19 +226,18 @@ class DistilHandler:
         
         # Determine and set batch size
         n_batches = len(inputs)//batch_size
-        assert n_batches > 0, f"Given dataset too small at length: {len(inputs)}"
-        if self.individual_agents:
-            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*inputs.shape[2:]) # From agent dim onwards
-            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].output_shape)
-            ag_poses = ag_poses[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*ag_poses.shape[2:])
-            if self.extras: extras = extras[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*extras.shape[2:])
-        else:   # Squeeze in agents dim
-            inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,*inputs.shape[3:]) # After agent dim onwards
-            outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self._distilers[0].output_shape)
-            ag_poses = ag_poses[:batch_size*n_batches].reshape(n_batches,batch_size,*ag_poses.shape[3:])
-            if self.extras: extras = extras[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*extras.shape[3:])
-        
+        if self.individual_agents: assert n_batches > 4, f"Given dataset too small at length: {len(inputs)}"
+        else: assert n_batches*self.n_agents > 4, f"Given dataset too small at length: {len(inputs)}"
+
+        inputs = inputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*inputs.shape[2:]) # From agent dim onwards
+        outputs = outputs[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,self._distilers[0].output_shape)
+        ag_poses = ag_poses[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*ag_poses.shape[2:])
+        if self.extras: extras = extras[:batch_size*n_batches].reshape(n_batches,batch_size,self.n_agents,*extras.shape[2:])
+    
         inputs = self.transform_inputs(inputs, ag_poses, extras)    # If not extras, extras is empty 
+        
+        if not self.individual_agents:  # Fold agent dim into batch dim for rest
+            outputs = outputs.reshape(n_batches*self.n_agents,batch_size,self._distilers[0].output_shape)
 
         if not self.abstract_obs: assert inputs.shape[-1] == self._distilers[0].input_shape and outputs.shape[-1] == self._distilers[0].output_shape 
         else: 
@@ -319,7 +325,7 @@ class DistilHandler:
 
        
     def prepare_dataset(self, device):
-        """Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not."""
+        """Prepares the dataset used to train a distilled model, depending on the type given as argument and whether it's to be extended or not. Dimensions are (episodes*timestep, agents,...) ... is the set-specific shape"""
         targets = []
         observations = []
         importances = []

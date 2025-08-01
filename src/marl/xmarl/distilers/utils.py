@@ -147,15 +147,17 @@ def get_agent_pos(observations: np.ndarray):
     return agent_positions
 
 def get_env_infos(experiment: Experiment):
+    """Reutrns action and extras names/meanings as well as world shape: ONLY WORKS FOR LLE level 6/7 as is (would need a proper way to get the shape)"""
     env = experiment.env
     action_names = env.action_space.action_names
     extras_meanings = env.extras_meanings
+    world_shape = (12,13)
 
-    return action_names, extras_meanings
+    return action_names, extras_meanings, world_shape
 
 def flatten_observation(observation, n_agents, axis=0):
     """Flattens the observation as per the structure of a layered observation from LLE.
-    axis is the axis starting which the field is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
+    axis is the axis starting which the board is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
     """
     observation = np.array(observation)
     flattened_obs = np.full((n_agents, observation.shape[axis+1], observation.shape[axis+2]), -1, dtype=int)
@@ -249,7 +251,8 @@ def dist_to_beam(ag_pos, beam, delta = False):
 
 
 def abstract_observation(obs, fix_feats, ag_pos):
-    """Returns for each agent their abstracted observation. The shape of the abstracted observation might change from agent to agent."""
+    """
+    Returns for each agent their abstracted observation. The shape of the abstracted observation might change from agent to agent."""
     ag_pos = ag_pos.tolist()
 
     A, L, H, W = obs.shape

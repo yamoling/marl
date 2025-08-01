@@ -6,8 +6,8 @@ import os
 import numpy as np
 
 from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl import FrameViewer, ActFrameViewer, HeatmapActFrameViewer
-from marl.xmarl.distilers.utils import get_env_infos
+from marl.xmarl import FrameViewer, ActFrameViewer, HeatmapActFrameViewer, AbstractActFrameViewer
+from marl.xmarl.distilers.utils import get_env_infos, feature_labels
 from marl.xmarl import FilePickerScreen
 
 from textual.app import App, ComposeResult
@@ -23,6 +23,7 @@ from textual import on
 from textual.reactive import reactive
 
 from pathlib import Path
+
 
 LOG_PATH = Path("logs")
 
@@ -44,11 +45,11 @@ class Selector(App):
 
     spec_sep = " & "
     experiment = None
-    experiment_path = ""
-    distil_path = ""
-    run_path = ""
-    test_path = ""
-    timestamp_path = ""
+    experiment_path = Path()
+    distil_path = Path()
+    run_path = Path()
+    test_path = Path()
+    timestamp_path = Path()
     dist_type = 0
 
     show_extra_input = reactive(False)
@@ -252,11 +253,13 @@ class Selector(App):
         replay = self.experiment.replay_episode(episode_str)
         episode = replay.episode
 
-        action_names, extras_meaning = get_env_infos(self.experiment)
+        action_names, extras_meaning, world_shape = get_env_infos(self.experiment)
 
         if self.distil_path:
-            if not self.abstract: distilled_filters, distilled_actions, distilled_extras, agent_pos,_,_ = self.handle_distillation(episode)
-            else: distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras = self.handle_distillation(episode)
+            if not self.abstract: distilled_filters, distilled_actions, distilled_extras, agent_pos,_,_,_ = self.handle_distillation(episode)
+            else: 
+                distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras, abs_labels = self.handle_distillation(episode)
+                if not self.extra: extras = None
             # Insert 7x7 obs into full board if needed
             if self.experiment.env.observation_shape[1:] == (7,7) and not self.abstract:
                 agent_pos = np.array(episode.states,   dtype=int)[:,:2*episode.n_agents].reshape((episode.episode_len,episode.n_agents,2))
@@ -275,27 +278,38 @@ class Selector(App):
                 distilled_filters = n_obs
             if self.query_one("#qvals_check", Checkbox).value:
                 if not self.abstract: viewer = HeatmapActFrameViewer(
-                        replay.frames, episode.n_agents, agent_pos,
+                        replay.frames, world_shape, episode.n_agents, agent_pos,
                         distilled_actions, action_names,
                         distilled_filters, distilled_extras, extras_meaning,
                         np.array(replay.qvalues), self.experiment.qvalue_infos[0]
                     )
-                else: pass  
+                else: viewer = AbstractActFrameViewer(
+                        replay.frames, world_shape, episode.n_agents, agent_pos,
+                        distilled_actions, action_names,
+                        distilled_filters, obs, extras,
+                        extras_meaning, abs_labels,
+                        np.array(replay.qvalues), self.experiment.qvalue_infos[0]
+                    )   
             else:
                 if not self.abstract: viewer = HeatmapActFrameViewer(
-                        replay.frames, episode.n_agents, agent_pos,
+                        replay.frames, world_shape, episode.n_agents, agent_pos,
                         distilled_actions, action_names,
-                        distilled_filters, distilled_extras, extras_meaning, None
+                        distilled_filters, distilled_extras, extras_meaning
                     )
-                else: pass 
+                else: viewer = AbstractActFrameViewer(
+                        replay.frames, world_shape, episode.n_agents, agent_pos,
+                        distilled_actions, action_names,
+                        distilled_filters, obs, extras,
+                        extras_meaning, abs_labels
+                ) 
         else:
             if self.query_one("#qvals_check", Checkbox).value:
                 viewer = ActFrameViewer(
-                    replay.frames, episode.n_agents, None,
+                    replay.frames, world_shape, episode.n_agents, None,
                     np.array(episode.actions), action_names,
                     np.array(replay.qvalues), self.experiment.qvalue_infos[0]
                 )
-            else: viewer = FrameViewer(replay.frames)
+            else: viewer = FrameViewer(replay.frames, world_shape)
         viewer.show()
 
     def handle_distillation(self, episode: Episode):
@@ -303,11 +317,11 @@ class Selector(App):
             dist_type = self.query_one("#dist_switch", Switch).value
             if "individual" in str(self.distiler_path):
                 distilled_filters, distilled_extras, distilled_actions, agent_pos = [], [], [], []
-                if self.abstract: obs, extras = [], []
+                if self.abstract: obs, extras, labels = [], [], []
                 for ag in range(episode.n_agents):
                     fname = f"ag{ag}_sdt_distil{'_extra' if self.extra else ''}{'_abstract' if self.abstract else ''}.pkl"
                     distiller = SoftDecisionTree.load(self.distil_path / fname)
-                    df, de, da, ap, o, e = distiller.distil_episode(episode, dist_type)
+                    df, de, da, ap, o, e, fx = distiller.distil_episode(episode, dist_type)
                     distilled_filters.append(df)
                     distilled_extras.append(de)
                     distilled_actions.append(da)
@@ -315,6 +329,7 @@ class Selector(App):
                     if self.abstract:
                         obs.append(o)
                         extras.append(e)
+                        labels.append(feature_labels(episode.n_agents,len(fx[2]),fx[-1][ag].keys()))
                 if not self.abstract:   # Can't because abstract inhomogenous. Should modify to use order (agent,T) in viewer if wanna make cleaner
                     # Transpose lists into arrays of shape [T, agents, ...]
                     distilled_filters = np.array(distilled_filters).swapaxes(0,1)
@@ -325,15 +340,20 @@ class Selector(App):
                     agent_pos = np.array(agent_pos).swapaxes(0,1)
             else:
                 distiller = SoftDecisionTree.load(self.distiler_path)
-                distilled_filters, distilled_extras, distilled_actions, agent_pos = distiller.distil_episode(episode, dist_type)
+                distilled_filters, distilled_extras, distilled_actions, agent_pos,_,_,_ = distiller.distil_episode(episode, dist_type)
         else:
             raise Exception(f"Distiller {self.distiler_path} not implemented in visualization yet.")
-        if not self.abstract: return distilled_filters, distilled_actions, distilled_extras, agent_pos, None, None # Inelegant patch to be symmetric with ind (might send data if abstract)
-        else: return distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras
+        if not self.abstract: return distilled_filters, distilled_actions, distilled_extras, agent_pos, None, None, None # Inelegant patch to be symmetric with ind (might send data if abstract)
+        else: return distilled_filters, distilled_actions, distilled_extras, agent_pos, obs, extras, labels
 
 
 def main():
-    Selector().run()
+    import sys
+    try:
+        Selector().run()
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

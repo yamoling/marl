@@ -367,53 +367,46 @@ class SoftDecisionTree[B: Batch](nn.Module):
         obs_h = episode.observation_shape[-2]
 
         paths_taken = [] # Will be filled with paths
-        if self.abstract: abs_obs = []
+        if self.abstract:
+            abs_obs = []
+            fix_ft = get_fixed_features(episode.all_observations[0])
+            agent_pos = get_agent_pos(np.array(episode.all_observations))
+        else:
+            agent_pos = get_agent_pos(np.array(episode.all_observations))[:,self.agent_id]
 
         ep_acts = np.array(episode.actions)[:,self.agent_id]
 
         if not backwards:
             pred_actions = np.zeros((episode.episode_len,episode.n_actions),dtype=float)
-            if not self.abstract: agent_pos = np.zeros((episode.episode_len,2))
-            else: 
-                fix_ft = get_fixed_features(episode.all_observations[0])
-                agent_pos = get_agent_pos(np.array(episode.all_observations))
             for i in range(episode.episode_len):
                 if not self.abstract: 
-                    f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
-                    agent_pos[i] = ag_pos[self.agent_id]
+                    f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
                 else: 
                     f_obs = abstract_observation(episode.all_observations[i], fix_ft, agent_pos[i])
                     abs_obs.append(f_obs[self.agent_id])
-                paths = []
-                leaves = []
                 if self.extras: 
                     if not self.abstract:
                         leaf, path = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
                     else:
-                        leaf, path = self.greedy_trace(f_obs[self.agent_id]+episode.all_extras[i][self.agent_id].tolist())# TODO: arrived here
-                    leaves.append(leaf)
-                    paths.append(path)
+                        leaf, path = self.greedy_trace(f_obs[self.agent_id]+episode.all_extras[i][self.agent_id].tolist())
                 else: 
                     if not self.abstract:
                         leaf, path = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
                     else: 
                         leaf, path = self.greedy_trace(f_obs[self.agent_id])
-                    leaves.append(leaf)
-                    paths.append(path)
                 pred_actions[i] = leaf.forward().data.numpy().flatten()
-                paths_taken.append(paths)
+                paths_taken.append(path)
             og_acts = np.zeros_like(pred_actions, dtype=int)
             np.put_along_axis(og_acts, ep_acts[..., np.newaxis], 1, axis=-1)
             actions_comp = np.stack([pred_actions, og_acts], axis=-2)
-        else:
+        else:   # Backwards
             leaves = []
             parent_child = {}
-            agent_pos = get_agent_pos(np.array(episode.all_observations))[:,self.agent_id]
             outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
-            self.collect_leaves(self.root, leaves, outputs, parent_child)
+            self.collect_leaves(self.root, leaves, outputs, parent_child) 
             for act_idx in ep_acts:
-                best_leaves = self.associate_action_leaf([act_idx], leaves, outputs) # Get best leaf per agent
-                paths_taken.append([self.backtrack_leaf(leaf, parent_child) for leaf in best_leaves]) # Right now stores filters of path not actual path
+                leaf = self.associate_action_leaf([act_idx], leaves, outputs)[0] # Get best leaf (only one since individual)
+                paths_taken.append(self.backtrack_leaf(leaf, parent_child)) # Right now stores filters of path not actual path
             actions_comp = np.zeros((episode.episode_len, episode.n_actions), dtype=int)
             np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=1)
 
@@ -421,15 +414,15 @@ class SoftDecisionTree[B: Batch](nn.Module):
         # If applicable separate extras from board
         if not self.abstract:
             if self.extras:
-                obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-                extras_f = paths_taken[:, : , :, obs_w*obs_h:]
+                obs_f = paths_taken[:, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+                extras_f = paths_taken[: , :, obs_w*obs_h:]
             else: 
                 obs_f = paths_taken.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
                 extras_f = None
         else:
             obs_f = paths_taken
-        if not self.abstract: return obs_f, extras_f, actions_comp, agent_pos, None, None
-        else: return obs_f, None, actions_comp, agent_pos, abs_obs, np.array(episode.all_extras)[:,self.agent_id]
+        if not self.abstract: return obs_f, extras_f, actions_comp, agent_pos, None, None, None
+        else: return obs_f, None, actions_comp, agent_pos[:,self.agent_id], abs_obs, np.array(episode.all_extras)[:,self.agent_id], fix_ft
 
     def distil_episode_comp(self, episode: Episode, backwards: bool = False):
         obs_w = episode.observation_shape[-1]
@@ -440,17 +433,17 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         ep_acts = np.array(episode.actions)
 
+        agent_pos = get_agent_pos(np.array(episode.all_observations))
+
         if not backwards:
             pred_actions = np.zeros((episode.episode_len,episode.n_agents,episode.n_actions),dtype=float)
-            agent_pos = np.zeros((episode.episode_len,episode.n_agents,2))
             for i in range(episode.episode_len):
-                f_obs, ag_pos = flatten_observation(episode.all_observations[i], episode.n_agents, 1)
-                agent_pos[i] = ag_pos
+                f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1)
                 paths = []
                 leaves = []
                 for ag in range(episode.n_agents):
                     if extras: 
-                        leaf, path = self.greedy_trace(np.concat([f_obs[ag].reshape(-1), episode.all_extras[i][ag], ag_pos[ag]]))
+                        leaf, path = self.greedy_trace(np.concat([f_obs[ag].reshape(-1), episode.all_extras[i][ag], agent_pos[i][ag]]))
                         leaves.append(leaf)
                         paths.append(path)
                     else: 
@@ -465,7 +458,6 @@ class SoftDecisionTree[B: Batch](nn.Module):
         else:
             leaves = []
             parent_child = {}
-            agent_pos = get_agent_pos(np.array(episode.all_observations))
             # TODO: get abstract data if abstract
             outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child)
@@ -484,7 +476,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             obs_f = paths_taken.reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
             extras_f = None
 
-        return obs_f, extras_f, actions_comp, agent_pos, None, None # Inelegant patch to be symmetric with ind (might send data if abstract)
+        return obs_f, extras_f, actions_comp, agent_pos, None, None, None # Inelegant patch to be symmetric with ind (we use those to send data if abstract)
     
     @staticmethod
     def load(filedir: str) -> "SoftDecisionTree":
