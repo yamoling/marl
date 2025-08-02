@@ -566,8 +566,11 @@ class HeatmapActFrameViewer(ActFrameViewer):
         self.heatmap_dat = heatmap_dat
         self.heatmap_bias = heatmap_bias
         self.obs_dat = obs_dat
-        self.extras_filter = extras_filter
-        if extras_dat is not None: self.extras_dat = np.concatenate([extras_dat,agent_pos], axis=-1) # Distil considers extras to contain agent pos
+        if extras_dat is not None: 
+            self.extras_dat = np.concatenate([extras_dat,agent_pos], axis=-1) # Distil considers extras to contain agent pos
+        if extras_filter is not None:
+            self.extras_filter = extras_filter
+            self.extras = True
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
         if len(heatmap_dat.shape[2:]) == 3: # Extra layer to traverse heatmaps, i.e. hierarchical filters of sdt
             self.heatmap_layer = heatmap_dat.shape[2]
@@ -578,7 +581,6 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
         super(HeatmapActFrameViewer, self).__init__(frames,world_shape,n_agents,agent_pos,actions,action_names,qvalues,qvalue_labels)
 
-        self.extras = self.extras_filter is not None
         if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_filter.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
         else: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents)
 
@@ -600,6 +602,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         temp.axis('off')
         self.fig.subplots_adjust(wspace=0.3)
         self.ax_bar.yaxis.set_tick_params(pad=10)
+        if not self.extras: self.ax_bar.axis('off') 
 
         self.ax_split_right = self.ax_split.twinx()
         self.ax_split.axvline(0, color='black', linewidth=1)
@@ -640,7 +643,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
         if self.heatmap_layered: sm = self.sm_layers[0][0]
         else: sm = self.sm_layers[0]
-        self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img, self.ax_bar], orientation='vertical', shrink=0.85, pad=0.02)
+        if self.extras: self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img, self.ax_bar], orientation='vertical', shrink=0.85, pad=0.02)
+        else: self.colorbar = self.fig.colorbar(sm, ax=[self.ax_img], orientation='vertical', shrink=0.85, pad=0.02)
 
 
     def init_ctrl(self):
@@ -730,7 +734,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
     def clear_canvas(self):
         super().clear_canvas()
-        self.ax_bar.clear()
+        if self.extras: self.ax_bar.clear()
         self.ax_split.clear()
 
     def get_distribution(self): # Overload
