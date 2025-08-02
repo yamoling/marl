@@ -98,9 +98,9 @@ class InnerNode(nn.Module):
             self.penalties.extend(right_penalty)
         return(self.penalties)
     
-    def getfilters(self):
+    def get_filters(self):
         """Returns the learned filter of the node, The added bias is ignored, supposed to be negligible"""
-        return next(iter(self.fc.parameters())).data[0].cpu().numpy()*self.beta.data.cpu().numpy()
+        return self.fc.weight.data[0].cpu().numpy()*self.beta.data.cpu().numpy(), self.fc.bias.data.cpu().numpy()*self.beta.data.cpu().numpy()
 
 class LeafNode(nn.Module):
     """SoftDecisionTree: a class representing a Leaf Node in a SDT
@@ -313,13 +313,15 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
     def greedy_trace(self, obs) -> tuple[LeafNode, list[InnerNode]]:
         """Greedy deterministic path through the SDT based on sigmoid threshold 0.5 and returns each filter."""
-        path = []
+        path_weights, path_biases = [], []
         node = self.root
         while not node.leaf:
             prob = node.forward(torch.Tensor(obs, device=self.device)).item()
-            path.append(node.getfilters())
+            weight, bias = node.get_filters()
+            path_weights.append(weight)
+            path_biases.append(bias)
             node = node.right if prob >= 0.5 else node.left
-        return node, path  # node is leaf, use to get output
+        return node, path_weights, path_biases  # node is leaf, use to get output
     
     def collect_leaves(self, node, leaves, outputs, parent_child, lf_c = 0):
         if node.leaf:
@@ -345,12 +347,14 @@ class SoftDecisionTree[B: Batch](nn.Module):
     def backtrack_leaf(self, leaf: LeafNode, parent_child: dict[Union[LeafNode|InnerNode],InnerNode]):
         """Given a leaf node, traces back to the root and returns each filter.
         The filters order is reversed to be in top to bottom order."""
-        path = []
+        path_weights, path_biases = [], []
         node = leaf
         while node in parent_child:
             node = parent_child[node]
-            path.append(node.getfilters())
-        return np.array(path)[::-1]
+            weight, bias = node.get_filters()
+            path_weights.append(weight)
+            path_biases.append(bias)
+        return np.array(path_weights)[::-1], np.array(path_biases)[::-1]
 
     def distil_episode(self, episode: Episode, backwards: bool = False):
         """ Distils an episode, either by forward or backward pass, compounded or individually.
@@ -366,9 +370,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
         obs_w = episode.observation_shape[-1]
         obs_h = episode.observation_shape[-2]
 
-        paths_taken = [] # Will be filled with paths
+        paths_taken_weights, paths_taken_biases = [], []# Will be filled with paths
+        obs = []
         if self.abstract:
-            abs_obs = []
             fix_ft = get_fixed_features(episode.all_observations[0])
             agent_pos = get_agent_pos(np.array(episode.all_observations))
         else:
@@ -379,23 +383,22 @@ class SoftDecisionTree[B: Batch](nn.Module):
         if not backwards:
             pred_actions = np.zeros((episode.episode_len,episode.n_actions),dtype=float)
             for i in range(episode.episode_len):
-                if not self.abstract: 
-                    f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
-                else: 
-                    f_obs = abstract_observation(episode.all_observations[i], fix_ft, agent_pos[i])
-                    abs_obs.append(f_obs[self.agent_id])
+                if not self.abstract: f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
+                else: f_obs = abstract_observation(episode.all_observations[i], fix_ft, agent_pos[i])
+                obs.append(f_obs[self.agent_id])
                 if self.extras: 
                     if not self.abstract:
-                        leaf, path = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
+                        leaf, path_w, path_b = self.greedy_trace(np.concat([f_obs[self.agent_id].reshape(-1), episode.all_extras[i][self.agent_id], agent_pos[i]]))
                     else:
-                        leaf, path = self.greedy_trace(f_obs[self.agent_id]+episode.all_extras[i][self.agent_id].tolist())
+                        leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id]+episode.all_extras[i][self.agent_id].tolist())
                 else: 
                     if not self.abstract:
-                        leaf, path = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
+                        leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
                     else: 
-                        leaf, path = self.greedy_trace(f_obs[self.agent_id])
+                        leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id])
                 pred_actions[i] = leaf.forward().data.numpy().flatten()
-                paths_taken.append(path)
+                paths_taken_weights.append(path_w)
+                paths_taken_biases.append(path_b)
             og_acts = np.zeros_like(pred_actions, dtype=int)
             np.put_along_axis(og_acts, ep_acts[..., np.newaxis], 1, axis=-1)
             actions_comp = np.stack([pred_actions, og_acts], axis=-2)
@@ -404,32 +407,41 @@ class SoftDecisionTree[B: Batch](nn.Module):
             parent_child = {}
             outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child) 
-            for act_idx in ep_acts:
+            for i,act_idx in enumerate(ep_acts):
+                if not self.abstract: f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1) # Gonna flatten for all, inefficient in individual
+                else: f_obs = abstract_observation(episode.all_observations[i], fix_ft, agent_pos[i])
+                obs.append(f_obs[self.agent_id])
                 leaf = self.associate_action_leaf([act_idx], leaves, outputs)[0] # Get best leaf (only one since individual)
-                paths_taken.append(self.backtrack_leaf(leaf, parent_child)) # Right now stores filters of path not actual path
+                weight, bias = self.backtrack_leaf(leaf, parent_child)
+                paths_taken_weights.append(weight) # Right now stores weights of filters of path not actual path
+                paths_taken_biases.append(bias)
             actions_comp = np.zeros((episode.episode_len, episode.n_actions), dtype=int)
             np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=1)
 
-        paths_taken = np.array(paths_taken)
+        paths_taken_weights = np.array(paths_taken_weights)
+        paths_taken_biases = np.array(paths_taken_biases)
         # If applicable separate extras from board
         if not self.abstract:
             if self.extras:
-                obs_f = paths_taken[:, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-                extras_f = paths_taken[: , :, obs_w*obs_h:]
+                obs_f = paths_taken_weights[:, :, :obs_w*obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+                extras_f = paths_taken_weights[: , :, obs_w*obs_h:]
             else: 
-                obs_f = paths_taken.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
+                obs_f = paths_taken_weights.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
                 extras_f = None
+            obs_b = paths_taken_biases.reshape(episode.episode_len, self.max_depth)
         else:
-            obs_f = paths_taken
-        if not self.abstract: return obs_f, extras_f, actions_comp, agent_pos, None, None, None
-        else: return obs_f, None, actions_comp, agent_pos[:,self.agent_id], abs_obs, np.array(episode.all_extras)[:,self.agent_id], fix_ft
+            obs_f = paths_taken_weights
+            obs_b = paths_taken_biases
+        if not self.abstract: return obs_f, obs_b, extras_f, actions_comp, agent_pos, obs, np.array(episode.all_extras)[:,self.agent_id], None
+        else: return obs_f, obs_b, None, actions_comp, agent_pos[:,self.agent_id], obs, np.array(episode.all_extras)[:,self.agent_id], fix_ft
 
     def distil_episode_comp(self, episode: Episode, backwards: bool = False):
         obs_w = episode.observation_shape[-1]
         obs_h = episode.observation_shape[-2]
         extras = obs_w*obs_h < self.input_shape
 
-        paths_taken = [] # Will be filled with paths
+        paths_taken_weights, paths_taken_biases = [], [] # Will be filled with path weights and biases
+        flat_grid_observations = [] # Flattened layers, but grid structure
 
         ep_acts = np.array(episode.actions)
 
@@ -439,44 +451,56 @@ class SoftDecisionTree[B: Batch](nn.Module):
             pred_actions = np.zeros((episode.episode_len,episode.n_agents,episode.n_actions),dtype=float)
             for i in range(episode.episode_len):
                 f_obs = flatten_observation(episode.all_observations[i], episode.n_agents, 1)
-                paths = []
+                flat_grid_observations.append(f_obs)
+                weights, biases = [], []
                 leaves = []
                 for ag in range(episode.n_agents):
                     if extras: 
-                        leaf, path = self.greedy_trace(np.concat([f_obs[ag].reshape(-1), episode.all_extras[i][ag], agent_pos[i][ag]]))
+                        leaf, path_w, path_b = self.greedy_trace(np.concat([f_obs[ag].reshape(-1), episode.all_extras[i][ag], agent_pos[i][ag]]))
                         leaves.append(leaf)
-                        paths.append(path)
+                        weights.append(path_w)
+                        biases.append(path_b)
                     else: 
-                        leaf, path = self.greedy_trace(f_obs[ag].reshape(-1))
+                        leaf, path_w, path_b = self.greedy_trace(f_obs[ag].reshape(-1))
                         leaves.append(leaf)
-                        paths.append(path)
+                        weights.append(path_w)
+                        biases.append(path_b)
                     pred_actions[i,ag] = leaf.forward().data.numpy().flatten()
-                paths_taken.append(paths)
+                paths_taken_weights.append(weights)
+                paths_taken_biases.append(biases)
             og_acts = np.zeros_like(pred_actions, dtype=int)
             np.put_along_axis(og_acts, ep_acts[..., np.newaxis], 1, axis=-1)
             actions_comp = np.stack([pred_actions, og_acts], axis=-2)
         else:
             leaves = []
             parent_child = {}
-            # TODO: get abstract data if abstract
             outputs = np.zeros((2**self.max_depth,episode.n_actions), dtype=float)
             self.collect_leaves(self.root, leaves, outputs, parent_child)
-            for act in ep_acts:
+            for i,act in enumerate(ep_acts):
+                flat_grid_observations.append(flatten_observation(episode.all_observations[i], episode.n_agents, 1))
                 best_leaves = self.associate_action_leaf(act, leaves, outputs) # Get best leaf per agent
-                paths_taken.append([self.backtrack_leaf(leaf, parent_child) for leaf in best_leaves]) # Right now stores filters of path not actual path
+                weigths, biases = [], []
+                for leaf in best_leaves:
+                    w,b = self.backtrack_leaf(leaf, parent_child)
+                    weigths.append(w)
+                    biases.append(b)
+                paths_taken_weights.append(weigths) # Right now stores weight filters of path not actual path
+                paths_taken_biases.append(biases) 
             actions_comp = np.zeros((episode.episode_len, episode.n_agents, episode.n_actions), dtype=int)
             np.put_along_axis(actions_comp, ep_acts[..., np.newaxis], 1, axis=2)
 
-        paths_taken = np.array(paths_taken)
+        paths_taken_weights = np.array(paths_taken_weights)
+        paths_taken_biases = np.array(paths_taken_biases)
+        flat_grid_observations = np.array(flat_grid_observations)
         # If applicable separate extras from board
         if extras:
-            obs_f = paths_taken[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
-            extras_f = paths_taken[: ,:, :, obs_w*obs_h:]
+            obs_f = paths_taken_weights[:, :, :, :obs_w*obs_h].reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
+            extras_f = paths_taken_weights[: ,:, :, obs_w*obs_h:]
         else: 
-            obs_f = paths_taken.reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
+            obs_f = paths_taken_weights.reshape(episode.episode_len, episode.n_agents, self.max_depth, obs_h, obs_w)
             extras_f = None
-
-        return obs_f, extras_f, actions_comp, agent_pos, None, None, None # Inelegant patch to be symmetric with ind (we use those to send data if abstract)
+        obs_b = paths_taken_biases.reshape(episode.episode_len, episode.n_agents, self.max_depth)
+        return obs_f, obs_b, extras_f, actions_comp, agent_pos, flat_grid_observations, np.array(episode.all_extras), None # Inelegant patch to be symmetric with ind (Additional return of fix features)
     
     @staticmethod
     def load(filedir: str) -> "SoftDecisionTree":

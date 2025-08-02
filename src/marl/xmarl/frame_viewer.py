@@ -289,11 +289,15 @@ class AbstractActFrameViewer(ActFrameViewer):
     fig_abstract: plt.Figure
     ax_abstract: plt.Axes
     ax_abstract_vals: plt.Axes
+    ax_split: plt.Axes
+    ax_split_right: plt.Axes
     formatter: mticker.FuncFormatter
 
     show_filters: bool = True
-    abs_obs_dat: list   # Extras are in there
     filters_dat: list
+    filters_bias: list
+    abs_obs_dat: list   # Extras are in there
+    abs_obs_dat_str: list   # formatted strings
 
     filters_idx: int = 0
     filters_layer: int = 1
@@ -305,15 +309,23 @@ class AbstractActFrameViewer(ActFrameViewer):
     norm_layers: list[TwoSlopeNorm]
     cmap: Colormap
 
-    def __init__(self, frames: list[str], world_shape: tuple[int, int], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], filters_dat: list[np.ndarray], obs_dat: list, extras_dat: list, extras_meaning: list[str], abstract_obs_meanings: list[str], qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
+    def __init__(self, frames: list[str], world_shape: tuple[int, int], n_agents: int,
+                 agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], 
+                 filters_dat: list[np.ndarray], filters_bias: list, obs_dat: list, extras_dat: list, extras_meaning: list[str], abstract_obs_meanings: list[str],
+                 qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
 
         self.filters_dat = filters_dat
-        self.abs_obs_dat = []
+        self.filters_bias = filters_bias
+        self.abs_obs_dat = obs_dat
+        if extras_dat != None:
+            for i in range(len(self.abs_obs_dat)):
+                self.abs_obs_dat[i] = np.concatenate([self.abs_obs_dat[i],extras_dat[i][:-1]],axis=-1)
+        self.abs_obs_dat_str = []
         for ag_r in obs_dat:
             formatted_row = []
             for time_step in ag_r:
                 formatted_row.append([self._fmt_value(val) for val in time_step])
-            self.abs_obs_dat.append(formatted_row)
+            self.abs_obs_dat_str.append(formatted_row)
         self.extras_dat = extras_dat
         self.extras_meaning = extras_meaning
         self.abstract_obs_meanings = abstract_obs_meanings
@@ -349,8 +361,11 @@ class AbstractActFrameViewer(ActFrameViewer):
     def init_plots(self):
         super().init_plots()
         # Main Plot Figure
-        self.fig_abstract, self.ax_abstract = plt.subplots(figsize=(10, 6))
+        self.fig_abstract, (self.ax_split, self.ax_abstract) = plt.subplots(2,1,figsize=(10, 6),gridspec_kw={'height_ratios': [1, len(self.abs_obs_dat[0][0])]}) # dat has no layer dimension
         self.ax_abstract_vals = self.ax_abstract.twinx()
+
+        self.ax_split_right = self.ax_split.twinx()
+        self.ax_split.axvline(0, color='black', linewidth=1)
 
         self.fig_abstract.canvas.manager.set_window_title("Observation Filters")
 
@@ -394,12 +409,43 @@ class AbstractActFrameViewer(ActFrameViewer):
         super().render()
         self.fig_abstract.canvas.draw_idle()
 
+    def draw_path_bar(self, filters):
+        pos_sum = filters[filters > 0].sum()
+        neg_sum = filters[filters < 0].sum()
+        total_val = abs(neg_sum)+pos_sum
+
+        norm = TwoSlopeNorm(vmin=-total_val, vcenter=0, vmax=total_val)
+        bars = self.ax_split.barh([0,0], [neg_sum, pos_sum], color=self.cmap(norm([neg_sum, pos_sum])), height=0.6)
+
+        if abs(pos_sum) > abs(neg_sum): 
+            winner_idx = 1  
+            highlight_color = self.cmap(1.0)
+        else:
+            winner_idx = 0
+            highlight_color = self.cmap(0)
+        rect = bars[winner_idx]
+        y0 = rect.get_y()
+        y1 = y0 + rect.get_height()
+
+        x_edge = rect.get_width()
+
+        self.ax_split.vlines(x_edge,y0,y1,color=highlight_color,linewidth=3)
+
+        lim = max(total_val, 1e-6)
+        self.ax_split.set_xlim(-lim, lim)
+        self.ax_split_right.set_xlim(self.ax_split.get_xlim())
+        self.ax_split.set_yticks([0])
+        self.ax_split_right.set_yticks([0])
+        self.ax_split.set_yticklabels(["Left path"])
+        self.ax_split_right.set_yticklabels(["Right path"])
+
     def update_canvas(self):
         H_img, W_img = super().update_canvas()
         if self.frame_idx < self.episode_len:
             # = Overlay heatmap
             filters = self.get_filters_data()
             if self.show_filters:
+                self.draw_path_bar(filters)
                 norm = self.norm_layers[self.selected_agent_id][self.filters_idx if self.filters_layered else 0]
                 colors = self.cmap(norm(filters))
                 self.ax_abstract.barh(np.arange(len(filters),0,-1), filters, color=colors, height=0.6)
@@ -415,10 +461,9 @@ class AbstractActFrameViewer(ActFrameViewer):
 
                 if self.extras: 
                     self.ax_abstract.set_yticklabels(self.abstract_obs_meanings[self.selected_agent_id]+self.extras_meaning)
-                    self.ax_abstract_vals.set_yticklabels(self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+self.extras_dat[self.selected_agent_id][self.frame_idx].tolist())
                 else: 
                     self.ax_abstract.set_yticklabels(self.abstract_obs_meanings[self.selected_agent_id])
-                    self.ax_abstract_vals.set_yticklabels(self.abs_obs_dat[self.selected_agent_id][self.frame_idx])
+                self.ax_abstract_vals.set_yticklabels(self.get_obs_strings())
 
                 self.ax_abstract.set_axisbelow(True)   # gridlines below bar artists
                 self.ax_abstract.yaxis.grid(
@@ -429,7 +474,7 @@ class AbstractActFrameViewer(ActFrameViewer):
                     alpha=0.5,
                 )
                 
-                self.ax_abstract.set_title(f"Barplot: {self.selected_agent}")
+                self.ax_abstract.set_title(f"Barplot: {self.selected_agent} - Filter Layer: {self.filters_idx+1}/{self.filters_layer}")
 
                 self.ax_abstract.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
                 self.ax_abstract.axvline(0, color='black', linewidth=1)
@@ -442,15 +487,12 @@ class AbstractActFrameViewer(ActFrameViewer):
             if self.agent_pos is not None:
                 self.highlight_agent(H_img, W_img)
 
-            if self.filters_layer > 1:
-                self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: {self.filters_idx+1}/{self.filters_layer}")
-
-        else:
-            self.ax_img.set_title(f"Frame {len(self.frames)}/{len(self.frames)}")
+        self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}")
 
     def clear_canvas(self):
         super().clear_canvas()
         self.ax_abstract.clear()
+        self.ax_split.clear()
 
     def get_distribution(self): # Overload
         """Returns one or two action distributions depending on the action array shape."""
@@ -462,12 +504,18 @@ class AbstractActFrameViewer(ActFrameViewer):
 
     def get_filters_data(self):
         """Returns the arrays to plot the filters in function of the current frame idx, current selected agent and if applicable current layer of the filters."""
-        if self.filters_layered: return self.filters_dat[self.selected_agent_id][self.frame_idx,self.filters_idx]
-        else: return self.filters_dat[self.selected_agent_id][self.frame_idx]
+        if self.filters_layered: 
+            return self.filters_dat[self.selected_agent_id][self.frame_idx,self.filters_idx]*\
+                self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+\
+                self.filters_bias[self.selected_agent_id][self.frame_idx,self.filters_idx]
+        else: 
+            return self.filters_dat[self.selected_agent_id][self.frame_idx]*\
+                self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+\
+                self.filters_bias[self.selected_agent_id][self.frame_idx]
     
-    def get_obs_data(self):
+    def get_obs_strings(self):
         """Returns the arraywith the observed data on which filters were applied."""
-        return self.abs_obs_dat[self.selected_agent_id][self.frame_idx] + self.extras_dat[self.selected_agent_id][self.frame_idx].tolist()
+        return self.abs_obs_dat_str[self.selected_agent_id][self.frame_idx]
 
     def on_filters_next(self, event):
         """Callback of the filters next button: Increments current filters index to get the filters and rerenders plot"""
@@ -485,14 +533,20 @@ class AbstractActFrameViewer(ActFrameViewer):
 
 class HeatmapActFrameViewer(ActFrameViewer):
     ax_bar: plt.Axes
+    # For the bar with the path
+    ax_split: plt.Axes
+    ax_split_right: plt.Axes
 
     check_ax: plt.Axes
     heatmap_check: CheckButtons
 
     show_heatmap: bool = True
     heatmap_dat: np.ndarray
+    heatmap_bias: np.ndarray
+    obs_dat: np.ndarray
+    extras_filter: np.ndarray
     extras_dat: np.ndarray
-    heatmap_dat: list[str]
+    #heatmap_dat: list[str]
     extras: bool = False
 
     heatmap_idx: int = 0
@@ -505,9 +559,15 @@ class HeatmapActFrameViewer(ActFrameViewer):
     norm_layers: list[TwoSlopeNorm]
     cmap: Colormap
 
-    def __init__(self, frames: list[str], world_shape: tuple[int, int], n_agents: int, agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str], heatmap_dat: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str], qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
+    def __init__(self, frames: list[str], world_shape: tuple[int, int], n_agents: int,
+                 agent_pos: np.ndarray, actions: np.ndarray, action_names: list[str],
+                 heatmap_dat: np.ndarray, heatmap_bias: np.ndarray, obs_dat: np.ndarray, extras_filter: np.ndarray, extras_dat: np.ndarray, extras_meaning: list[str],
+                 qvalues: Optional[np.ndarray] = None, qvalue_labels: Optional[list[str]] = None):
         self.heatmap_dat = heatmap_dat
-        self.extras_dat = extras_dat
+        self.heatmap_bias = heatmap_bias
+        self.obs_dat = obs_dat
+        self.extras_filter = extras_filter
+        if extras_dat is not None: self.extras_dat = np.concatenate([extras_dat,agent_pos], axis=-1) # Distil considers extras to contain agent pos
         self.extras_meaning = extras_meaning + ["Agent pos x", "Agent pos y"]
         if len(heatmap_dat.shape[2:]) == 3: # Extra layer to traverse heatmaps, i.e. hierarchical filters of sdt
             self.heatmap_layer = heatmap_dat.shape[2]
@@ -518,8 +578,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
         super(HeatmapActFrameViewer, self).__init__(frames,world_shape,n_agents,agent_pos,actions,action_names,qvalues,qvalue_labels)
 
-        self.extras = self.extras_dat is not None
-        if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_dat.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
+        self.extras = self.extras_filter is not None
+        if self.extras: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents) and extras_filter.shape[:2] == (self.episode_len-1,self.n_agents) # episode_len-1, because extra frame for final state
         else: assert heatmap_dat.shape[:2] == (self.episode_len-1,self.n_agents)
 
     def init_bar_colours(self, vmin, vmax, idx=None):
@@ -536,9 +596,13 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
     def init_plots(self):
         # Main Plot Figure
-        self.fig, (self.ax_img, self.ax_bar) = plt.subplots(1,2, figsize=(10, 6), gridspec_kw={'width_ratios': [7, 3]})
+        self.fig, ((self.ax_split, temp), (self.ax_img, self.ax_bar)) = plt.subplots(2,2, figsize=(10, 6), gridspec_kw={'width_ratios': [7, 3],'height_ratios':[1,1.25*self.heatmap_dat.shape[-2]]})
+        temp.axis('off')
         self.fig.subplots_adjust(wspace=0.3)
         self.ax_bar.yaxis.set_tick_params(pad=10)
+
+        self.ax_split_right = self.ax_split.twinx()
+        self.ax_split.axvline(0, color='black', linewidth=1)
 
         self.fig.canvas.manager.set_window_title("Frame Viewer")
 
@@ -555,7 +619,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
                 for i in range(self.heatmap_layer):
                     if self.extras:
                         hm_layer_data = self.heatmap_dat[:, j, i]
-                        ex_layer_data = self.extras_dat[:, j, i]
+                        ex_layer_data = self.extras_filter[:, j, i]
                         vmin = min(np.min(hm_layer_data), np.min(ex_layer_data))
                         vmax = max(np.max(hm_layer_data), np.max(ex_layer_data))
                         self.init_bar_colours(vmin,vmax,j)
@@ -567,8 +631,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
         else:
             for j in range(self.n_agents):
                 if self.extras:
-                        vmin = min(np.min(self.heatmap_dat[:,j]), np.min(self.extras_dat[:,j]))
-                        vmax = max(np.max(self.heatmap_dat[:,j]), np.max(self.extras_dat[:,j]))
+                        vmin = min(np.min(self.heatmap_dat[:,j]), np.min(self.extras_filter[:,j]))
+                        vmax = max(np.max(self.heatmap_dat[:,j]), np.max(self.extras_filter[:,j]))
                 else:   # single norm
                         vmin = np.min(self.heatmap_dat[:,j])
                         vmax = np.max(self.heatmap_dat[:,j])
@@ -595,12 +659,44 @@ class HeatmapActFrameViewer(ActFrameViewer):
             self.heatmap_prev.on_clicked(self.on_heatmap_prev)
             self.heatmap_next.on_clicked(self.on_heatmap_next)
 
+    
+    def draw_path_bar(self, filters):
+        pos_sum = filters[filters > 0].sum()
+        neg_sum = filters[filters < 0].sum()
+        total_val = abs(neg_sum)+pos_sum
+
+        norm = TwoSlopeNorm(vmin=-total_val, vcenter=0, vmax=total_val)
+        bars = self.ax_split.barh([0,0], [neg_sum, pos_sum], color=self.cmap(norm([neg_sum, pos_sum])), height=0.6)
+
+        if abs(pos_sum) > abs(neg_sum): 
+            winner_idx = 1  
+            highlight_color = self.cmap(1.0)
+        else:
+            winner_idx = 0
+            highlight_color = self.cmap(0)
+        rect = bars[winner_idx]
+        y0 = rect.get_y()
+        y1 = y0 + rect.get_height()
+
+        x_edge = rect.get_width()
+
+        self.ax_split.vlines(x_edge,y0,y1,color=highlight_color,linewidth=3)
+
+        lim = max(total_val, 1e-6)
+        self.ax_split.set_xlim(-lim, lim)
+        self.ax_split_right.set_xlim(self.ax_split.get_xlim())
+        self.ax_split.set_yticks([0])
+        self.ax_split_right.set_yticks([0])
+        self.ax_split.set_yticklabels(["Left path"])
+        self.ax_split_right.set_yticklabels(["Right path"])
+
     def update_canvas(self):
         H_img, W_img = super().update_canvas()
         if self.frame_idx < self.episode_len:
             # = Overlay heatmap
             heatmap = self.get_heatmap_data()
             if self.show_heatmap:
+                self.draw_path_bar(heatmap)
                 norm = self.norm_layers[self.selected_agent_id][self.heatmap_idx if self.heatmap_layered else 0]
                 self.ax_img.imshow(self.cmap(norm(heatmap))[:, :, :3],
                             alpha=0.8,
@@ -635,6 +731,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
     def clear_canvas(self):
         super().clear_canvas()
         self.ax_bar.clear()
+        self.ax_split.clear()
 
     def get_distribution(self): # Overload
         """Returns one or two action distributions depending on the action array shape."""
@@ -646,13 +743,29 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
     def get_heatmap_data(self):
         """Returns the arrays to plot the heatmap in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""
-        if self.heatmap_layered: return self.heatmap_dat[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
-        else: return self.heatmap_dat[self.frame_idx,self.selected_agent_id]
+        obs   = self.obs_dat[self.frame_idx, self.selected_agent_id]
+        if self.heatmap_layered: 
+            heat  = self.heatmap_dat[self.frame_idx, self.selected_agent_id, self.heatmap_idx]
+            bias  = self.heatmap_bias[self.frame_idx, self.selected_agent_id, self.heatmap_idx]
+        else:
+            heat  = self.heatmap_dat[self.frame_idx, self.selected_agent_id]
+            bias  = self.heatmap_bias[self.frame_idx, self.selected_agent_id]
+        mask = obs != 0
+        return np.where(mask, heat*obs+bias, 0)  # Keep 0 when data is 0 (for legibility)
+
 
     def get_barplot_data(self):
         """Returns the arrays to plot the extras barplot in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""
-        if self.heatmap_layered: return self.extras_dat[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
-        else: return self.extras_dat[self.frame_idx,self.selected_agent_id]
+        extras = self.extras_dat[self.frame_idx,self.selected_agent_id]
+        if self.heatmap_layered: 
+            filt = self.extras_filter[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
+            bias = self.heatmap_bias[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
+        else:
+            filt = self.extras_filter[self.frame_idx,self.selected_agent_id]
+            bias = self.heatmap_bias[self.frame_idx,self.selected_agent_id]
+        mask = extras != 0
+        return np.where(mask, filt*extras+bias, 0)  # Keep 0 when data is 0 (for legibility)
+
 
     def on_check_heatmap(self, label):
         """Callback of CheckButtons: Flips the boolean value of show_heatmap"""

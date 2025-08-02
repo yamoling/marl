@@ -156,7 +156,7 @@ def get_env_infos(experiment: Experiment):
     return action_names, extras_meanings, world_shape
 
 def flatten_observation(observation, n_agents, axis=0):
-    """Flattens the observation as per the structure of a layered observation from LLE.
+    """Flattens the observation as per the structure of a layered observation from LLE. Keeps the grid structure though.
     axis is the axis starting which the board is. Note that in the case of layered, axis=1 is the one representing the type of observation. 
     """
     observation = np.array(observation)
@@ -240,14 +240,23 @@ def get_fixed_features(obs):
 def dist_to_beam(ag_pos, beam, delta = False):
     """ Gives the distance by hypothenus or deltax and deltay between a given point (y,x) and a beam (list of points)
     """
-    beam_d_x, beam_d_y = [], []
-    for beam_y, beam_x in beam:
-        beam_d_x.append(beam_x-ag_pos[1])
-        beam_d_y.append(beam_y-ag_pos[0])
-    d_x = min(abs(beam_d_x)) # either beam x or y is always the same, so we can roughly take the absolute min of both
-    d_y = min(abs(beam_d_y))
-    if delta: return [d_y.item(),d_x.item()]
-    else: return math.hypot(d_x, d_y)
+    beam_arr = np.asarray(beam)
+    ag_arr   = np.asarray(ag_pos)
+
+    deltas = beam_arr - ag_arr
+    dy_arr = deltas[:, 0]
+    dx_arr = deltas[:, 1]
+
+    # Use absolute value so that 0 is considered closer than -3
+    idx_y = np.abs(dy_arr).argmin()
+    idx_x = np.abs(dx_arr).argmin()
+
+    # get the signed values
+    dy = dy_arr[idx_y]
+    dx = dx_arr[idx_x]
+
+    if delta: return [dx.item(), dy.item()]
+    else: return float(np.hypot(dy, dx))
 
 
 def abstract_observation(obs, fix_feats, ag_pos):
@@ -295,7 +304,7 @@ def abstract_observation(obs, fix_feats, ag_pos):
         # relative position to every gem
         for (y_g, x_g) in init_gems_yx:
             if (y_g, x_g) in gems_yx: f += [x_g - agent_x, y_g - agent_y] # 1 per gem: relative pos to gem
-            else: f += [H*H,W*W] # If gem already taken -> very big distance
+            else: f += [0,0] # If gem already taken -> very big distance
 
         # laser sources (own colour only; distance to source)
         for y_s, x_s in agent_l_sources[i]:
@@ -340,9 +349,9 @@ def abstract_observation(obs, fix_feats, ag_pos):
             else: # Any other laser
                 for ag_beam in ags_to_beams[ag_b_i]: # Only consider 1 -> lose some precision but OK, else dynamic
                     if ag_beam[i] <= 1: 
-                        danger_and_block[0] = True
-                        if math.hypot(ag_beam[ag_b_i][0],ag_beam[ag_b_i][1]) <= 1: danger_and_block[1] = True
-                        else: danger_and_block[1] = False
+                        danger_and_block[0] = True  # In danger
+                        if math.hypot(ag_beam[ag_b_i][0],ag_beam[ag_b_i][1]) <= 1: danger_and_block[1] = True # ally can block
+                        else: danger_and_block[1] = False # No one can block
         f += danger_and_block # 2: is threat, someone to block threat 
 
 
