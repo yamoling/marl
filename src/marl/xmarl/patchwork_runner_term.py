@@ -195,7 +195,8 @@ class Selector(App):
     @on(Button.Pressed, "#select_test")
     async def open_test_picker(self):
         self.test_path = self.run_path / "test"
-        test_list = sorted(os.listdir(self.test_path),key=int)
+        # Need to ignore files starting with '.' MacOS has .DS_Store which makes the sort fail
+        test_list = sorted([file.name for file in self.test_path.iterdir() if not file.name.startswith(".")], key=int)
         await self.push_screen(FilePickerScreen("Run", test_list), callback=self.set_test)  # Push FilePickerScreen
 
     # == DISTIL ==
