@@ -68,22 +68,22 @@ class FrameViewer:
         self.figures.append(self.control_fig)
 
         self.ctrl_height = 0.01
+
+        self.btn_close = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.05]), 'CLOSE')
+        self.ctrl_height += 0.075
+        self.btn_close.on_clicked(self.on_close)
         
         self.btn_prev = Button(self.control_fig.add_axes([0.15, self.ctrl_height, 0.3, 0.075]), '←')
         self.btn_next = Button(self.control_fig.add_axes([0.6, self.ctrl_height, 0.3, 0.075]), '→')
+        self.btn_prev.on_clicked(self.on_prev)
+        self.btn_next.on_clicked(self.on_next)
         self.ctrl_height += 0.075
         
         self.frame_btn_text = self.control_fig.add_axes([0, self.ctrl_height, 1, 0.05])
         self.frame_btn_text.axis('off')
         self.frame_btn_text.text(0.5,0.5,'Navigate Frames',ha="center",va="center")
-        self.ctrl_height += 0.075
-
-        self.btn_prev.on_clicked(self.on_prev)
-        self.btn_next.on_clicked(self.on_next)
-
-        self.btn_close = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.05]), 'CLOSE')
         self.ctrl_height += 0.05
-        self.btn_close.on_clicked(self.on_close)
+
 
     def show(self):
         self.render()
