@@ -141,8 +141,8 @@ def get_agent_pos(observations: np.ndarray):
         agent_layer = observations[:, a, a]
         pos = np.argwhere(agent_layer == 1)
         # Store each position
-        for t, i, j in pos:
-            agent_positions[t, a] = [i, j]
+        for t, y, x in pos:
+            agent_positions[t, a] = [y, x] 
 
     return agent_positions
 
