@@ -36,10 +36,14 @@ class FrameViewer:
     ax_img: plt.Axes
 
     control_fig: plt.Figure
+    frame_btn_text = plt.Axes
     btn_prev: Button
     btn_next: Button
+    btn_close: Button
 
     ctrl_height: int
+
+    figures: list[plt.Figure] = []
 
     def __init__(self, frames: list[str], world_shape: tuple[int,int], n_agents: int=1):
         self.frames = frames
@@ -55,19 +59,31 @@ class FrameViewer:
         # Main Plot Figure
         self.fig, self.ax_img = plt.subplots(1, 1, figsize=(10, 6))
         self.fig.canvas.manager.set_window_title("Frame Viewer")
+        self.figures.append(self.fig)
 
     def init_ctrl(self):
          # Control Panel (Separated, to more easily save the actual plot)
         self.control_fig = plt.figure(figsize=(3, 4))
         self.control_fig.canvas.manager.set_window_title("Controls")
+        self.figures.append(self.control_fig)
 
-        self.ctrl_height = 0.05
-        self.btn_prev = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.35, 0.1]), '←')
-        self.btn_next = Button(self.control_fig.add_axes([0.55, self.ctrl_height, 0.35, 0.1]), '→')
-        self.ctrl_height += 0.15
+        self.ctrl_height = 0.01
+        
+        self.btn_prev = Button(self.control_fig.add_axes([0.15, self.ctrl_height, 0.3, 0.075]), '←')
+        self.btn_next = Button(self.control_fig.add_axes([0.6, self.ctrl_height, 0.3, 0.075]), '→')
+        self.ctrl_height += 0.075
+        
+        self.frame_btn_text = self.control_fig.add_axes([0, self.ctrl_height, 1, 0.05])
+        self.frame_btn_text.axis('off')
+        self.frame_btn_text.text(0.5,0.5,'Navigate Frames',ha="center",va="center")
+        self.ctrl_height += 0.075
 
         self.btn_prev.on_clicked(self.on_prev)
         self.btn_next.on_clicked(self.on_next)
+
+        self.btn_close = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.05]), 'CLOSE')
+        self.ctrl_height += 0.05
+        self.btn_close.on_clicked(self.on_close)
 
     def show(self):
         self.render()
@@ -110,6 +126,11 @@ class FrameViewer:
         self.frame_idx = (self.frame_idx - 1) % len(self.frames)
         self.render()
 
+    def on_close(self, event):
+        """Callback of close button: Closes all windows"""
+        
+        plt.close('all')
+
 class ActFrameViewer(FrameViewer):   
     radio_ax: plt.Axes
     radio: RadioButtons
@@ -151,13 +172,13 @@ class ActFrameViewer(FrameViewer):
         super().init_ctrl()
         elem_height = 0.075*self.n_agents
         self.radio_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, elem_height])
-        self.ctrl_height += elem_height+0.05
+        self.ctrl_height += elem_height
         self.radio = RadioButtons(self.radio_ax, list(self.agent_ids.keys())) # TODO: Replace with agents
         self.radio.on_clicked(self.on_radio)
 
         if self.qvalues is not None:
             self.qvalues_check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
-            self.ctrl_height += 0.15
+            self.ctrl_height += 0.1
             self.qvalues_check = CheckButtons(self.qvalues_check_ax, ["Qvalues"])
             self.qvalues_check.on_clicked(self.on_check_qvalues)
 
@@ -165,11 +186,13 @@ class ActFrameViewer(FrameViewer):
         """Initializes a separate figure to show the action distribution of the selected agent."""
         self.fig_action, self.ax_action = plt.subplots(figsize=(4, 4))
         self.fig_action.canvas.manager.set_window_title("Action Distribution")
+        self.figures.append(self.fig_action)
     
     def init_qvalues_plot(self):
         """Initializes a separate figure to show the decomposed qvalues distribution of the selected agent."""
         self.fig_action, self.ax_action = plt.subplots(figsize=(4, 4))
         self.fig_action.canvas.manager.set_window_title("Decomposed Qvalues Distribution")
+        self.figures.append(self.fig_action)
 
     def render(self):
         """Calls parent render and draws action plots."""
@@ -293,6 +316,10 @@ class AbstractActFrameViewer(ActFrameViewer):
     ax_split_right: plt.Axes
     formatter: mticker.FuncFormatter
 
+    layer_check_ax: plt.Axes
+    layer_check: CheckButtons
+    combine_layers: bool = False
+
     show_filters: bool = True
     filters_dat: list
     filters_bias: list
@@ -302,6 +329,7 @@ class AbstractActFrameViewer(ActFrameViewer):
     filters_idx: int = 0
     filters_layer: int = 1
     filters_layered: bool = True
+    layer_btn_text: plt.Axes = None
     filters_next: Button = None
     filters_prev: Button = None
 
@@ -368,6 +396,7 @@ class AbstractActFrameViewer(ActFrameViewer):
         self.ax_split.axvline(0, color='black', linewidth=1)
 
         self.fig_abstract.canvas.manager.set_window_title("Observation Filters")
+        self.figures.append(self.fig_abstract)
 
         # Shared colorbar
         # Normalize based on combined data range
@@ -397,12 +426,23 @@ class AbstractActFrameViewer(ActFrameViewer):
         super().init_ctrl()
 
         if self.filters_layered: # TODO: As is always true at init, change way of doing if relevant/possible timewise
-            self.filters_prev = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.35, 0.1]), '←')
-            self.filters_next = Button(self.control_fig.add_axes([0.55, self.ctrl_height, 0.35, 0.1]), '→')
-            self.ctrl_height += 0.15
+            self.ctrl_height += 0.025
+            self.filters_prev = Button(self.control_fig.add_axes([0.15, self.ctrl_height, 0.3, 0.075]), '←')
+            self.filters_next = Button(self.control_fig.add_axes([0.6, self.ctrl_height, 0.3, 0.075]), '→')
+            self.ctrl_height += 0.075
+            
+            self.layer_btn_text = self.control_fig.add_axes([0, self.ctrl_height, 1, 0.05])
+            self.layer_btn_text.axis('off')
+            self.layer_btn_text.text(0.5,0.5,'Navigate Filter Layers',ha="center",va="center")
+            self.ctrl_height += 0.075
 
             self.filters_prev.on_clicked(self.on_filters_prev)
             self.filters_next.on_clicked(self.on_filters_next)
+
+            self.layer_check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
+            self.ctrl_height += 0.1
+            self.layer_check = CheckButtons(self.layer_check_ax, ["Combine Layers"])
+            self.layer_check.on_clicked(self.on_check_layers)
 
     def render(self):
         """Calls parent render and draws filter plots."""
@@ -474,7 +514,9 @@ class AbstractActFrameViewer(ActFrameViewer):
                     alpha=0.5,
                 )
                 
-                self.ax_abstract.set_title(f"Barplot: {self.selected_agent} - Filter Layer: {self.filters_idx+1}/{self.filters_layer}")
+                if not self.combine_layers: self.ax_abstract.set_title(f"Barplot: {self.selected_agent} - Filter Layer: {self.filters_idx+1}/{self.filters_layer}")
+                else: self.ax_abstract.set_title(f"Barplot: {self.selected_agent} - Filter Layer: combined")
+                
 
                 self.ax_abstract.xaxis.grid(True, linestyle='--', linewidth=0.5, color='gray', alpha=0.5)
                 self.ax_abstract.axvline(0, color='black', linewidth=1)
@@ -504,28 +546,44 @@ class AbstractActFrameViewer(ActFrameViewer):
 
     def get_filters_data(self):
         """Returns the arrays to plot the filters in function of the current frame idx, current selected agent and if applicable current layer of the filters."""
-        if self.filters_layered: 
-            return self.filters_dat[self.selected_agent_id][self.frame_idx,self.filters_idx]*\
-                self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+\
-                self.filters_bias[self.selected_agent_id][self.frame_idx,self.filters_idx]
-        else: 
-            return self.filters_dat[self.selected_agent_id][self.frame_idx]*\
-                self.abs_obs_dat[self.selected_agent_id][self.frame_idx]+\
-                self.filters_bias[self.selected_agent_id][self.frame_idx]
+        obs   = self.abs_obs_dat[self.selected_agent_id][self.frame_idx]
+        mask = obs != 0
+        if self.combine_layers:
+            weights  = self.filters_dat[self.selected_agent_id][self.frame_idx]
+            biases  = self.filters_bias[self.selected_agent_id][self.frame_idx]
+            obs = obs*weights+biases
+            sums = obs.sum(axis=(1))
+            obs = np.sum(obs*np.where(sums>0,1,-1)[:,None],axis=0)
+            heat = 1 # already considered
+            bias = 0 # already considered
+        elif self.filters_layered: 
+            heat  = self.filters_dat[self.selected_agent_id][self.frame_idx,self.filters_idx]
+            bias  = self.filters_bias[self.selected_agent_id][self.frame_idx,self.filters_idx]
+        else:
+            heat  = self.filters_dat[self.selected_agent_id][self.frame_idx]
+            bias  = self.filters_bias[self.selected_agent_id][self.frame_idx]
+        return np.where(mask, heat*obs+bias, 0)  # Keep 0 when data is 0 (for legibility)
     
     def get_obs_strings(self):
         """Returns the arraywith the observed data on which filters were applied."""
         return self.abs_obs_dat_str[self.selected_agent_id][self.frame_idx]
 
+    def on_check_layers(self, label):
+        """Callback of layer CheckButtons: Flips the boolean value of combine_layers"""
+        self.combine_layers = not(self.combine_layers)
+        self.render()
+
     def on_filters_next(self, event):
         """Callback of the filters next button: Increments current filters index to get the filters and rerenders plot"""
-        self.filters_idx = (self.filters_idx + 1) % self.filters_layer
-        self.render()
+        if self.show_filters and not self.combine_layers:
+            self.filters_idx = (self.filters_idx + 1) % self.filters_layer
+            self.render()
 
     def on_filters_prev(self, event):
         """Callback of the filters previous button: Decrements current filters index to get the filters and rerenders plot"""
-        self.filters_idx = (self.filters_idx - 1) % self.filters_layer
-        self.render()
+        if self.show_filters and not self.combine_layers:
+            self.filters_idx = (self.filters_idx - 1) % self.filters_layer
+            self.render()
 
     def get_agent_pos(self):    # Override due to access difference
         return self.agent_pos[self.selected_agent_id][self.frame_idx]
@@ -539,8 +597,12 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
     check_ax: plt.Axes
     heatmap_check: CheckButtons
-
     show_heatmap: bool = True
+
+    layer_check_ax: plt.Axes
+    layer_check: CheckButtons
+    combine_layers: bool = False
+
     heatmap_dat: np.ndarray
     heatmap_bias: np.ndarray
     obs_dat: np.ndarray
@@ -552,6 +614,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
     heatmap_idx: int = 0
     heatmap_layer: int = 1
     heatmap_layered: bool = True
+    layer_btn_text: plt.Axes = None
     heatmap_next: Button = None
     heatmap_prev: Button = None
 
@@ -596,7 +659,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
             self.norm_layers.append(norm)
             self.sm_layers.append(sm) 
 
-    def init_plots(self):
+    def init_plots(self):   # Override
         # Main Plot Figure
         self.fig, ((self.ax_split, temp), (self.ax_img, self.ax_bar)) = plt.subplots(2,2, figsize=(10, 6), gridspec_kw={'width_ratios': [7, 3],'height_ratios':[1,1.25*self.heatmap_dat.shape[-2]]})
         temp.axis('off')
@@ -608,6 +671,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         self.ax_split.axvline(0, color='black', linewidth=1)
 
         self.fig.canvas.manager.set_window_title("Frame Viewer")
+        self.figures.append(self.fig)
 
         # Shared colorbar
         # Normalize based on combined data range
@@ -651,17 +715,28 @@ class HeatmapActFrameViewer(ActFrameViewer):
         super().init_ctrl()
 
         self.check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
-        self.ctrl_height += 0.15
+        self.ctrl_height += 0.125
         self.heatmap_check = CheckButtons(self.check_ax, ["Heatmap"], actives=["Heatmap"])
         self.heatmap_check.on_clicked(self.on_check_heatmap)
 
         if self.heatmap_layered: # TODO: As is always true at init, change way of doing if relevant/possible timewise
-            self.heatmap_prev = Button(self.control_fig.add_axes([0.1, self.ctrl_height, 0.35, 0.1]), '←')
-            self.heatmap_next = Button(self.control_fig.add_axes([0.55, self.ctrl_height, 0.35, 0.1]), '→')
-            self.ctrl_height += 0.15
+            self.heatmap_prev = Button(self.control_fig.add_axes([0.15, self.ctrl_height, 0.3, 0.075]), '←')
+            self.heatmap_next = Button(self.control_fig.add_axes([0.6, self.ctrl_height, 0.3, 0.075]), '→')
+            self.ctrl_height += 0.075
+            
+            self.layer_btn_text = self.control_fig.add_axes([0, self.ctrl_height, 1, 0.05])
+            self.layer_btn_text.axis('off')
+            self.layer_btn_text.text(0.5,0.5,'Navigate Filter Layers',ha="center",va="center")
+            self.ctrl_height += 0.075
 
             self.heatmap_prev.on_clicked(self.on_heatmap_prev)
             self.heatmap_next.on_clicked(self.on_heatmap_next)
+
+            if not self.extras:
+                self.layer_check_ax = self.control_fig.add_axes([0.1, self.ctrl_height, 0.8, 0.1])
+                self.ctrl_height += 0.1
+                self.layer_check = CheckButtons(self.layer_check_ax, ["Combine Layers"])
+                self.layer_check.on_clicked(self.on_check_layers)
 
     
     def draw_path_bar(self, filters):
@@ -727,7 +802,8 @@ class HeatmapActFrameViewer(ActFrameViewer):
                 self.highlight_agent(H_img, W_img)
 
             if self.heatmap_layer > 1:
-                self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: {self.heatmap_idx+1}/{self.heatmap_layer}")
+                if not self.combine_layers: self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: {self.heatmap_idx+1}/{self.heatmap_layer}")
+                else: self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}, Filter Layer: combined")
 
         else:
             self.ax_img.set_title(f"Frame {len(self.frames)}/{len(self.frames)}")
@@ -748,40 +824,63 @@ class HeatmapActFrameViewer(ActFrameViewer):
     def get_heatmap_data(self):
         """Returns the arrays to plot the heatmap in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""
         obs   = self.obs_dat[self.frame_idx, self.selected_agent_id]
-        if self.heatmap_layered: 
+        mask = obs != 0
+        if self.combine_layers:
+            weights  = self.heatmap_dat[self.frame_idx, self.selected_agent_id]
+            biases  = self.heatmap_bias[self.frame_idx, self.selected_agent_id]
+            obs = obs*weights+biases[:,None,None]
+            sums = obs.sum(axis=(1,2))
+            obs = np.sum(obs*np.where(sums>0,1,-1)[:,None,None],axis=0)
+            heat = 1 # already considered
+            bias = 0 # already considered
+        elif self.heatmap_layered: 
             heat  = self.heatmap_dat[self.frame_idx, self.selected_agent_id, self.heatmap_idx]
             bias  = self.heatmap_bias[self.frame_idx, self.selected_agent_id, self.heatmap_idx]
         else:
             heat  = self.heatmap_dat[self.frame_idx, self.selected_agent_id]
             bias  = self.heatmap_bias[self.frame_idx, self.selected_agent_id]
-        mask = obs != 0
         return np.where(mask, heat*obs+bias, 0)  # Keep 0 when data is 0 (for legibility)
 
 
     def get_barplot_data(self):
         """Returns the arrays to plot the extras barplot in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""
         extras = self.extras_dat[self.frame_idx,self.selected_agent_id]
+        mask = extras != 0
+        # if self.combine_layers:
+        #     weights  = self.extras_filter[self.frame_idx, self.selected_agent_id]
+        #     biases  = self.heatmap_bias[self.frame_idx, self.selected_agent_id]
+        #     extras = extras*weights+biases
+        #     sums = extras.sum(axis=(1,2))
+        #     extras = np.sum(extras*np.where(sums>0,1,-1)[:,None],axis=0)
+        #     heat = 1 # already considered
+        #     bias = 0 # already considered
         if self.heatmap_layered: 
             filt = self.extras_filter[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
             bias = self.heatmap_bias[self.frame_idx,self.selected_agent_id,self.heatmap_idx]
         else:
             filt = self.extras_filter[self.frame_idx,self.selected_agent_id]
             bias = self.heatmap_bias[self.frame_idx,self.selected_agent_id]
-        mask = extras != 0
         return np.where(mask, filt*extras+bias, 0)  # Keep 0 when data is 0 (for legibility)
 
 
     def on_check_heatmap(self, label):
-        """Callback of CheckButtons: Flips the boolean value of show_heatmap"""
+        """Callback of heatmap CheckButtons: Flips the boolean value of show_heatmap"""
         self.show_heatmap = not(self.show_heatmap)
+        self.render()
+
+    def on_check_layers(self, label):
+        """Callback of layer CheckButtons: Flips the boolean value of combine_layers"""
+        self.combine_layers = not(self.combine_layers)
         self.render()
 
     def on_heatmap_next(self, event):
         """Callback of the heatmap next button: Increments current heatmap index to get the heatmap and rerenders plot"""
-        self.heatmap_idx = (self.heatmap_idx + 1) % self.heatmap_layer
-        self.render()
+        if self.show_heatmap and not self.combine_layers:
+            self.heatmap_idx = (self.heatmap_idx + 1) % self.heatmap_layer
+            self.render()
 
     def on_heatmap_prev(self, event):
         """Callback of the heatmap previous button: Decrements current heatmap index to get the heatmap and rerenders plot"""
-        self.heatmap_idx = (self.heatmap_idx - 1) % self.heatmap_layer
-        self.render()
+        if self.show_heatmap and not self.combine_layers:
+            self.heatmap_idx = (self.heatmap_idx - 1) % self.heatmap_layer
+            self.render()
