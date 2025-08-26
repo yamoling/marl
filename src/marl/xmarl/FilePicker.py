@@ -1,12 +1,13 @@
 from textual.screen import Screen
 from textual.widgets import ListView, ListItem, Label
 from textual.containers import Vertical
-from textual import events, on
+from textual import events
+
 
 class FilePickerScreen(Screen):
     BINDINGS = [("q", "app.pop_screen()", "Cancel")]
 
-    def __init__(self, title: str, item_list: list[str] = None):    
+    def __init__(self, title: str, item_list: list[str] = None):
         super().__init__()
         self.title = title
         self.item_list = item_list
