@@ -204,7 +204,7 @@ def make_dqn(
     if noisy:
         policy = marl.policy.ArgMax()
     else:
-        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=10_000)
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
