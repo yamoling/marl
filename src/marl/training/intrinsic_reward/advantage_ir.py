@@ -1,16 +1,15 @@
 from dataclasses import dataclass
 from typing import Literal
-from typing_extensions import Literal
 from marlenv import Transition
 import torch
 from copy import deepcopy
 
 from marl.models.batch import Batch
 from marl.models import TransitionMemory
-from marl.models.nn import CriticNN, Mixer
+from marl.models.nn import Critic
 from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 
-from .ir_module import IRModule
+from marl.models.nn import IRModule
 
 
 @dataclass
@@ -26,7 +25,7 @@ class AdvantageIntrinsicReward(IRModule):
 
     def __init__(
         self,
-        value_network: CriticNN,
+        value_network: Critic,
         gamma: float,
         update_method: TargetParametersUpdater | Literal["soft", "hard"] = "soft",
         lr: float = 1e-4,
@@ -48,7 +47,7 @@ class AdvantageIntrinsicReward(IRModule):
         self.update_method.add_parameters(self.network.parameters(), self.target_network.parameters())
         self.optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
         self.memory = TransitionMemory(5_000)
-        self.device = self.network.device
+        self._device = self.network.device
         self.grad_norm_clipping = grad_norm_clipping
 
     def compute(self, batch: Batch) -> torch.Tensor:
@@ -63,18 +62,19 @@ class AdvantageIntrinsicReward(IRModule):
         self.memory.add(transition)
         if not self.memory.can_sample(self.batch_size):
             return {}
-        batch = self.memory.sample(self.batch_size).to(self.device)
+        batch = self.memory.sample(self.batch_size).to(self._device)
         return self.update(time_step, batch)
 
     def update(self, time_step: int, batch: Batch) -> dict[str, float]:
         values = self.network.value(batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
+            next_values = next_values * (1 - batch.dones)
         targets = batch.rewards + self.gamma * next_values
         loss = torch.nn.functional.mse_loss(values, targets)
         self.optimizer.zero_grad()
         loss.backward()
-        logs = {"adantage-ir-loss": float(loss.item())}
+        logs = {"ir-loss": float(loss.item())}
         if self.grad_norm_clipping is not None:
             grad_norm = torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.grad_norm_clipping)
             logs["ir-grad-norm"] = float(grad_norm.item())
@@ -85,7 +85,7 @@ class AdvantageIntrinsicReward(IRModule):
     def to(self, device: torch.device):
         self.network.to(device)
         self.target_network.to(device)
-        self.device = device
+        self._device = device
         return self
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):

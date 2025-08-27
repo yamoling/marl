@@ -3,7 +3,7 @@ name = "marl"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10,<4"
+requires-python = ">=3.12,<4"
 dependencies = [
     "laser-learning-environment<=2.3.1",
     "python-dotenv>=1.0.1",
@@ -19,7 +19,7 @@ dependencies = [
     "typed-argparse>=0.3.1",
     "flask-cors>=4.0.1",
     "seaborn>=0.13.2",
-    "multi-agent-rlenv<=3.3.6",
+    "multi-agent-rlenv>=3.5.0",
     "jupyterlab>=4.3.4",
     "scikit-learn>=1.5.2",
     "pygame>=2.6.1",
@@ -28,15 +28,19 @@ dependencies = [
     "swig>=4.3.0",
     # "gymnasium[box2d]>=1.0.0",
     "pettingzoo>=1.24.3",
+    "overcooked-ai>=1.1.0",
+    "torch>=2.6.0",
     "textual>=4.0.0",
     "mplcursors>=0.6",
     "torch>=2.6.0",
 ]
 
 [project.optional-dependencies]
+torch = ["torch>=2.6.0"]
 torch-cpu = ["torch>=2.6.0"]
 torch-cu118 = ["torch>=2.6.0"]
 torch-cu124 = ["torch>=2.6.0"]
+
 
 [[tool.uv.index]]
 name = "torch-cpu"
@@ -61,7 +65,7 @@ conflicts = [
         { extra = "torch-cu118" },
     ],
 ]
-dev-dependencies = ["pytest>=8.3.2", "pytest-xdist>=3.6.1"]
+dev-dependencies = ["pytest>=8.3.2"]
 
 
 [tool.uv.sources]
@@ -70,6 +74,8 @@ torch = [
     { index = "torch-cu118", extra = "torch-cu118" },
     { index = "torch-cu124", extra = "torch-cu124" },
 ]
+#multi-agent-rlenv = { git = "https://github.com/yamoling/multi-agent-rlenv", branch = "dev" }
+# laser-learning-environment = { git = "https://github.com/yamoling/lle", branch = "dev" }
 
 [build-system]
 requires = ["hatchling"]

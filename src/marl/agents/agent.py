@@ -4,23 +4,22 @@ from dataclasses import dataclass
 from functools import cached_property
 from typing import Literal
 
+import numpy as np
 import torch
-from marlenv.models import Observation, ActionSpace
+from marlenv.models import Observation
 
-from marl.models.nn import NN, RecurrentNN
+from marl.models.nn import NN, ActorCritic, RecurrentNN
 
 
 @dataclass
-class Agent[A](ABC):
+class Agent(ABC):
     name: str
 
-    def __init__(self):
+    def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
         self.name = self.__class__.__name__
-        self.device = torch.device("cpu")
-
-    @property
-    def action_space(self) -> ActionSpace:
-        raise NotImplementedError("Action space not implemented")
+        if isinstance(device, str):
+            device = torch.device(device)
+        self._device = torch.device("cpu")
 
     @cached_property
     def networks(self):
@@ -39,6 +38,7 @@ class Agent[A](ABC):
         Seed `ranom`, `numpy`, and `torch` libraries by default.
         """
         import random
+
         import numpy as np
 
         random.seed(seed)
@@ -56,7 +56,17 @@ class Agent[A](ABC):
         raise NotImplementedError("Getting action distribution not implemented")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> A:
+    def get_action_distribution(self, observation: Observation):
+        """Get an action distribution given the input observation."""
+        raise NotImplementedError("Getting action distribution not implemented")
+
+    @abstractmethod
+    def get_action_distribution(self, observation: Observation):
+        """Get an action distribution given the input observation."""
+        raise NotImplementedError("Getting action distribution not implemented")
+
+    @abstractmethod
+    def choose_action(self, observation: Observation) -> np.ndarray:
         """Get the action to perform given the input observation"""
 
     def new_episode(self):
@@ -68,13 +78,9 @@ class Agent[A](ABC):
         for nn in self.recurrent_networks:
             nn.reset_hidden_states()
 
-    def value(self, obs: Observation) -> float:
-        """Get the value of the input observation"""
-        return 0.0
-
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
-        self.device = device
+        self._device = device
         for nn in self.networks:
             nn.to(device)
         return self
@@ -117,3 +123,28 @@ class Agent[A](ABC):
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
         for nn in self.networks:
             nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt")))
+
+
+@dataclass
+class SimpleAgent(Agent):
+    actor_network: ActorCritic
+
+    def __init__(self, actor_network: ActorCritic):
+        super().__init__()
+        self.actor_network = actor_network
+
+    def choose_action(self, observation: Observation):
+        with torch.no_grad():
+            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
+            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
+            available_actions = torch.from_numpy(observation.available_actions).unsqueeze(0).to(self._device, non_blocking=True)
+            distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
+        actions = distribution.sample().squeeze(0)
+        return actions.numpy(force=True)
+
+    def value(self, observation: Observation) -> float:
+        with torch.no_grad():
+            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
+            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
+            values = self.actor_network.value(obs_data, obs_extras)
+            return torch.mean(values).item()

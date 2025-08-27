@@ -1,6 +1,6 @@
 import numpy as np
 import itertools
-from marlenv import MARLEnv, DiscreteActionSpace, Observation, State
+from marlenv import MARLEnv, DiscreteSpace, Observation, State
 
 
 N_ROWS = 11
@@ -19,7 +19,8 @@ class CoordinatedGrid(MARLEnv):
         time_penalty=2,
     ):
         super().__init__(
-            action_space=DiscreteActionSpace(2, 5, ["SOUTH", "NORTH", "WEST", "EAST", "STAY"]),
+            n_agents=2,
+            action_space=DiscreteSpace(5, ["SOUTH", "NORTH", "WEST", "EAST", "STAY"]).repeat(2),
             observation_shape=(N_ROWS + N_COLS,),
             state_shape=(N_ROWS + N_COLS,) * 2,
         )

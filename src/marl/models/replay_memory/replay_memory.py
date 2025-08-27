@@ -61,6 +61,7 @@ class ReplayMemory(Generic[T, B], ABC):
         return self._memory[index]
 
 
+@dataclass
 class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
     """Replay Memory that stores Transitions"""
 
@@ -72,6 +73,7 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
         return TransitionBatch(transitions)
 
 
+@dataclass
 class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
     """Replay Memory that stores and samples full Episodes"""
 

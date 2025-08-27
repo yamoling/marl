@@ -3,7 +3,7 @@ from marlenv import Observation
 from abc import abstractmethod
 import torch
 
-from marlenv.models import MARLEnv, DiscreteActionSpace
+from marlenv.models import MARLEnv, MultiDiscreteSpace
 
 from .nn import NN, RecurrentNN
 
@@ -28,8 +28,8 @@ class QNetwork(NN):
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
-        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
-        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self._device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self._device)
         return obs_tensor, extras
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
@@ -59,12 +59,8 @@ class QNetwork(NN):
         """Compute the Q-values for a batch of observations during training"""
         return self.forward(obs, extras)
 
-    def set_testing(self, test_mode: bool = True):
-        """Set the network in testing mode"""
-        self.test_mode = test_mode
-
     @classmethod
-    def from_env[A](cls, env: MARLEnv[A, DiscreteActionSpace]):
+    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
             output_shape = (env.n_actions,)
         else:
@@ -97,7 +93,6 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
 
         In this case, the RNN considers hidden states=None.
         """
-        self.test_mode = False
         saved_hidden_states = self.hidden_states
         self.reset_hidden_states()
         qvalues = self.forward(obs, extras)

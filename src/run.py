@@ -1,4 +1,5 @@
 import time
+import torch
 import typed_argparse as tap
 
 from typing import Literal, Optional
@@ -13,8 +14,21 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
-    device: Literal["auto", "cpu"] | str = tap.arg(default="auto")
+    _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
+    render: bool = tap.arg(default=False, help="Render the tests")
+
+    @property
+    def device(self) -> Literal["auto", "cpu"] | int:
+        if self._device in ("auto", "cpu"):
+            return self._device
+        try:
+            return int(self._device)
+        except ValueError:
+            pass
+        if self._device.startswith("cuda:"):
+            return int(self._device.split(":")[1])
+        raise ValueError(f"Invalid device: {self._device}. It should be 'auto', 'cpu' or 'cuda:<gpu_id>'")
 
     @property
     def n_processes(self):
@@ -25,10 +39,10 @@ class Arguments(tap.TypedArgs):
         if self._n_processes is not None:
             return min(self._n_processes, self.n_runs)
 
+        import subprocess
+
         try:
             # If we have GPUs, then start as many runs as there are GPUs
-            import subprocess
-
             cmd = "nvidia-smi --list-gpus"
             output = subprocess.check_output(cmd, shell=True).decode()
             # The driver exists but no GPU is available (for instance, the eGPU is disconnected)
@@ -56,17 +70,19 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
         quiet=run_num > 0,
         device=args.device,
         n_tests=args.n_tests,
+        render_tests=args.render,
     )
 
 
 def main(args: Arguments):
-    if args.debug:
+    if args.debug or args.n_runs == 1:
         start_run(args, 0, 0)
         return
 
     from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
 
     # NOTE: within a docker, the pids do not match with the host, so we have to retrieve the pids "unreliably"
+    n_gpus = torch.cuda.device_count() if args.device != "cpu" else 0
     initial_pids = get_gpu_processes()
     estimated_gpu_memory = 0
     print(f"Running on {args.n_processes} processes")
@@ -75,8 +91,9 @@ def main(args: Arguments):
         for run_num in range(args.n_runs):
             h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))
             handles.append(h)
-            # If it is not the last process, wait a bit to let the time to allocate the GPUs correctly.
-            if run_num != args.n_runs - 1:
+            # If it is not the last process and there are multiple GPUs
+            # then wait a bit to let the time to allocate the GPUs correctly.
+            if n_gpus > 1 and run_num != args.n_runs - 1:
                 time.sleep(args.delay)
                 new_pids = get_gpu_processes() - initial_pids
                 estimated_gpu_memory = get_max_gpu_usage(new_pids)

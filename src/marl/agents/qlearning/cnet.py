@@ -9,9 +9,8 @@ from torch.nn.utils import clip_grad_norm_
 
 from marlenv.models import Observation
 from marlenv import Episode
-from marl.utils import DotDic
+from marl.utils.dotdic import DotDic
 
-from typing import Optional
 from marl.models import Policy, DRU
 from marl.nn.model_bank import CNetNN
 

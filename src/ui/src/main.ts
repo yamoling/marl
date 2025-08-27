@@ -8,6 +8,8 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { Chart } from 'chart.js';
 import zoomPlugin from 'chartjs-plugin-zoom';
+import PrimeVue from 'primevue/config';
+import Aura from '@primevue/themes/aura';
 
 Chart.register(zoomPlugin);
 
@@ -46,4 +48,9 @@ createApp(App)
     .component("font-awesome-icon", FontAwesomeIcon)
     .use(createPinia())
     .use(router)
+    .use(PrimeVue, {
+        theme: {
+            preset: Aura,
+        },
+    })
     .mount('#app');

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from marlenv import MARLEnv, State, DiscreteActionSpace
+from marlenv import MARLEnv, State, MultiDiscreteSpace
 from marl.nn.model_bank import CNN_ActorCritic
 from collections import deque
 from marl.logging import CSVLogger
@@ -12,7 +12,7 @@ from copy import deepcopy
 class AlphaZero:
     def __init__(
         self,
-        env: MARLEnv[list[int], DiscreteActionSpace],
+        env: MARLEnv[MultiDiscreteSpace],
         n_search_iterations: int = 100,
         lr: float = 0.001,
         exploration_constant: float = 2**0.5,
@@ -28,7 +28,7 @@ class AlphaZero:
         self.network = CNN_ActorCritic(
             env.state_shape,
             env.state_extra_shape,
-            (env.action_space.n_actions,),
+            (env.action_space.shape[-1],),
         ).to(self.device)
         self.tau = tau
         self.c = exploration_constant
@@ -98,7 +98,7 @@ class AlphaZero:
         availables = torch.from_numpy(np.array([all_availables[i] for i in indices])).to(self.device)
 
         pi, value = self.network.forward(states_data, state_extras, availables)
-        pi = torch.gather(pi, 1, actions.unsqueeze(-1)).squeeze()
+        pi = torch.gather(pi, 1, actions.unsqueeze(-1)).squeeze()  # type: ignore
         value = value.squeeze()
         value_loss = torch.nn.functional.mse_loss(value, qvalues)
         policy_loss = torch.nn.functional.cross_entropy(pi, target_probs)
@@ -124,4 +124,4 @@ class AlphaZero:
             all_actions.extend(actions)
             all_availables.extend(availables)
             loss = self.train_network(all_states, all_qvalues, all_target_probs, all_actions, all_availables)
-            logger.log_print({"loss": loss, "total": total}, t)
+            logger.train.log_print({"loss": loss, "total": total}, t)

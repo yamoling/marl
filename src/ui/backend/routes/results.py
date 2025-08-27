@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from flask import Response
 from . import app, state
 from marl.utils import stats
@@ -9,12 +10,13 @@ def get_experiment_results(logdir: str):
     try:
         exp = state.get_light_experiment(logdir)
     except (ModuleNotFoundError, FileNotFoundError) as e:
-        return Response(str(e), status=404)
+        return Response(str(e), status=HTTPStatus.NOT_FOUND)
     try:
         metrics, qvalues = exp.get_experiment_results(replace_inf=True)
-        response_data = {"metrics":metrics, "qvalues":qvalues}
+        response_data = {"metrics": metrics, "qvalues": qvalues}
         return Response(orjson.dumps(response_data), mimetype="application/json")
     except Exception as e:
+        print(e)
         return Response(str(e), status=500)
 
 
@@ -32,8 +34,8 @@ def get_experiment_results_by_run(logdir: str):
     exp = state.get_light_experiment(logdir)
     for run in exp.runs:
         datasets = stats.compute_datasets([run.test_metrics], logdir, True, suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True)
+        datasets += stats.compute_datasets([run.train_metrics], logdir, True, suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data], logdir, True)
         qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
         runs_results.append(stats.ExperimentResults(run.rundir, datasets, qvalues))
     return Response(orjson.dumps(runs_results), mimetype="application/json")

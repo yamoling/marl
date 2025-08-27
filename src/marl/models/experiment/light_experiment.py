@@ -101,13 +101,11 @@ class LightExperiment:
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
         datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, suffix=" [test]")
-        datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, suffix=" [train]"
-        )
-        datasets += stats.compute_datasets([run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf)
+        datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf)
         qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
 
-        return datasets, qvalues 
+        return datasets, qvalues
 
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)

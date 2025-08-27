@@ -14,10 +14,10 @@ class KillArguments(tap.TypedArgs):
     logdir: str = tap.arg(positional=True, help="The experiment directory")
 
 
-def print_status(experiment):
-    from marl import Experiment
+def print_status(exp):
+    from marl import LightExperiment
 
-    exp: Experiment = experiment
+    assert isinstance(exp, LightExperiment)
     runs = list(exp.runs)
     print(f"Experiment {exp.logdir} has {len(runs)} runs")
     if len(runs) == 0:
@@ -36,9 +36,9 @@ def print_status(experiment):
 
 def interrupt_runs(experiment):
     from marl import exceptions
-    from marl import Experiment, Run
+    from marl import LightExperiment, Run
 
-    exp: Experiment = experiment
+    exp: LightExperiment = experiment
 
     runs_to_cleanup = list[Run]()
     for run in exp.runs:
@@ -67,7 +67,7 @@ def list_active_runs(args: ListArguments):
     for directory in os.listdir(root):
         directory = os.path.join(root, directory)
         try:
-            exp = marl.Experiment.load(directory)
+            exp = marl.LightExperiment.load(directory)
             if exp.is_running:
                 print_status(exp)
         except FileNotFoundError:
@@ -79,7 +79,7 @@ def list_active_runs(args: ListArguments):
 def kill_runs(args: KillArguments):
     import marl
 
-    exp = marl.Experiment.load(args.logdir)
+    exp = marl.LightExperiment.load(args.logdir)
     print_status(exp)
     n_active = exp.n_active_runs()
     if n_active == 0:

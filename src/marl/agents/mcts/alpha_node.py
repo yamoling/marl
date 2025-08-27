@@ -1,9 +1,9 @@
-from marlenv import State, MARLEnv, DiscreteActionSpace
+from marlenv import State, MARLEnv, MultiDiscreteSpace
 import torch
 import numpy as np
 import math
 import random
-from marl.models.nn import DiscreteActorCriticNN
+from marl.models.nn import DiscreteActorCritic
 
 
 class AlphaNode:
@@ -85,7 +85,7 @@ class AlphaNode:
         """
         exponent = 1 / tau
         visit_counts = np.array([child.visit_count for child in self.children])
-        numerator = visit_counts**exponent
+        numerator = np.pow(visit_counts, exponent)
         denominator = self.visit_count**exponent
         return numerator / denominator
 
@@ -105,15 +105,15 @@ class AlphaNode:
         assert self.parent is not None
         return self.q_value + c * self.prior * math.sqrt(self.parent.visit_count) / (self.visit_count + 1)
 
-    def expand(self, env: MARLEnv[list[int], DiscreteActionSpace], nn: DiscreteActorCriticNN, gamma: float):
+    def expand(self, env: MARLEnv[MultiDiscreteSpace], nn: DiscreteActorCritic, gamma: float):
         if self.is_terminal:
             return
         env.set_state(self.state)
-        state = torch.from_numpy(self.state.data).unsqueeze(0).to(nn.device)
-        extras = torch.from_numpy(self.state.extras).unsqueeze(0).to(nn.device)
-        available = torch.from_numpy(env.available_actions()).to(nn.device)
+        state = torch.from_numpy(self.state.data).unsqueeze(0).to(nn._device)
+        extras = torch.from_numpy(self.state.extras).unsqueeze(0).to(nn._device)
+        available = torch.from_numpy(env.available_actions()).to(nn._device)
         with torch.no_grad():
-            priors = nn.policy(state, extras, available)[0].tolist()
+            priors = nn.logits(state, extras, available)[0].tolist()
         for action, prior in enumerate(priors):
             if prior == 0.0:
                 continue
@@ -122,8 +122,8 @@ class AlphaNode:
             if step.is_terminal:
                 next_value = 0.0
             else:
-                next_state = torch.from_numpy(step.state.data).unsqueeze(0).to(nn.device)
-                next_extras = torch.from_numpy(step.state.extras).unsqueeze(0).to(nn.device)
+                next_state = torch.from_numpy(step.state.data).unsqueeze(0).to(nn._device)
+                next_extras = torch.from_numpy(step.state.extras).unsqueeze(0).to(nn._device)
                 with torch.no_grad():
                     next_value = nn.value(next_state, next_extras).item()
             self.children.append(

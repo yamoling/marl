@@ -1,25 +1,23 @@
 import os
-import pathlib
 import pickle
 import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal, Optional, overload
+import pathlib
 
 import numpy as np
 import torch
-from marlenv.models import ActionSpace, MARLEnv
+from marlenv.models import Space, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQN, Agent, ContinuousAgent
-from marl.models.run import Run
-from marl.models.runner import Runner
+from marl.agents import DQNAgent, Agent, SimpleAgent
+from marl.models.run import Run, Runner
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
 from marl.models.replay_episode import ReplayEpisode
-from marl.training import NoTrain
 from marl.utils import encode_b64_image
 from marl.utils.gpu import get_device
 
@@ -28,15 +26,14 @@ from .light_experiment import LightExperiment
 
 
 @dataclass
-class Experiment[A, AS: ActionSpace](LightExperiment):
-    logdir: str
+class Experiment[A: Space](LightExperiment):
     agent: Agent
     trainer: Trainer
-    env: MARLEnv[A, AS]
+    env: MARLEnv[A]
     test_interval: int
     n_steps: int
     creation_timestamp: int
-    test_env: MARLEnv[A, AS]
+    test_env: MARLEnv[A]
     log_qvalues: Optional[bool] = False
 
     def __init__(
@@ -44,11 +41,11 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         logdir: str,
         agent: Agent,
         trainer: Trainer,
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         test_interval: int,
         n_steps: int,
         creation_timestamp: int,
-        test_env: MARLEnv[A, AS],
+        test_env: MARLEnv[A],
         log_qvalues: Optional[bool],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
@@ -60,21 +57,28 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
 
     @staticmethod
     def create(
-        env: MARLEnv[A, AS],
+        env: MARLEnv[A],
         n_steps: int,
         logdir: str = "logs/tests",
         trainer: Optional[Trainer] = None,
         agent: Optional[Agent] = None,
-        test_interval: int = 0,
-        test_env: Optional[MARLEnv[A, AS]] = None,
+        test_interval: int = 5_000,
+        test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
     ):
-        """Create a new experiment."""
-        if test_env is not None:
-            if not env.has_same_inouts(test_env):
-                raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
-        else:
+        """
+        Create a new experiment in the specified directory.
+
+        Parameters
+        ----------
+        - `trainer` defaults to `NoTrain` trainer if not provided
+        - `agent` defaults to `trainer.make_agent()` if not provided
+        - `test_env` defaults to a deep copy of `env` if not provided
+        """
+        if test_env is None:
             test_env = deepcopy(env)
+        if not env.has_same_inouts(test_env):
+            raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
 
         if not logdir.startswith(os.path.join("logs", "")):
             logdir = os.path.join("logs", logdir)
@@ -88,6 +92,8 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         try:
             os.makedirs(logdir, exist_ok=False)
             if trainer is None:
+                from marl.training import NoTrain
+
                 trainer = NoTrain(env)
             if agent is None:
                 agent = trainer.make_agent()
@@ -135,23 +141,14 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         render_tests: bool = False,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
-        if device != "cpu" and device != "auto": device = int(device)
-        runner = self.create_runner()
+        runner = Runner.from_experiment(self, seed, quiet=quiet, n_tests=n_tests)
         selected_device = get_device(device, fill_strategy, required_memory_MB)
         runner = runner.to(selected_device)
-        runner.run(
-            self.logdir,
-            seed=seed,
-            n_tests=n_tests,
-            quiet=quiet,
-            n_steps=self.n_steps,
-            test_interval=self.test_interval,
-            render_tests=render_tests,
-        )
+        runner.run(render_tests)
 
     def test_on_other_env(
         self,
-        other_env: MARLEnv[A, AS],
+        other_env: MARLEnv[A],
         new_logdir: str,
         n_tests: int,
         quiet: bool = False,
@@ -171,36 +168,45 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
             test_interval=self.test_interval,
             test_env=other_env,
         )
-        runner = new_experiment.create_runner().to(device)
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
         for i, base_run in enumerate(runs):
-            new_run = Run.create(new_experiment.logdir, base_run.seed)
-            with new_run as run_handle:
-                for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                    self.agent.load(base_run.get_saved_algo_dir(time_step))
-                    runner._test_and_log(n_tests, time_step, run_handle=run_handle, quiet=True, render=False)
+            runner = Runner.from_experiment(new_experiment, base_run.seed).to(device)
+            for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
+                self.agent.load(base_run.get_saved_algo_dir(time_step))
+                runner._test_and_log(time_step, render=False)
 
-    def create_runner(self):
-        return Runner(
-            env=self.env,
-            agent=self.agent,
-            trainer=self.trainer,
-            test_env=self.test_env,
-            log_qvalues=self.log_qvalues,
-        )
+    @overload
+    def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
+        """
+        Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run.
 
-    def replay_episode(self, episode_folder: str):
-        # Episode folder should look like logs/experiment/run_2021-09-14_14:00:00.000000_seed=0/test/<time_step>/<test_num>
-        # possibly with a trailing slash
-        path = pathlib.Path(episode_folder)
-        test_num = int(path.name)
-        time_step = int(path.parent.name)
-        run = Run.load(path.parent.parent.parent.as_posix())
+        Note that the actions are not re-evaluated from the agent but loaded from the `actions.json` file.
+        """
+
+    @overload
+    def replay_episode(self, episode_folder: str, /) -> ReplayEpisode:
+        """Replay the episode whose actions are saved in the given test folder."""
+
+    def replay_episode(self, *args):
+        match args:
+            case (run_num, time_step, test_num):
+                return self._replay_episode(run_num, time_step, test_num)
+            case (episode_folder,):
+                path = pathlib.Path(episode_folder)
+                test_num = int(path.name)
+                time_step = int(path.parent.name)
+                return self._replay_episode(test_num, time_step, test_num)
+            case _:
+                raise ValueError("Invalid arguments")
+
+    def _replay_episode(self, run_num: int, time_step: int, test_num: int):
+        run = list(self.runs)[run_num]
+        episode_folder = run.test_dir(time_step, test_num)
         self.agent.load(run.get_saved_algo_dir(time_step))
-        runner = self.create_runner()
-        seed = runner.get_test_seed(time_step, test_num)
+        # runner = self.create_runner()
+        seed = Run.get_test_seed(time_step, test_num)
         actions = run.get_test_actions(time_step, test_num)
-        episode = self.test_env.replay(actions, seed=seed)  # type: ignore
+        episode = self.test_env.replay(actions, seed=seed)
         # episode = runner.test(seed)
         frames = [encode_b64_image(img) for img in episode.get_images(self.test_env, seed=seed)]
         replay = ReplayEpisode(episode_folder, episode, frames)
@@ -209,13 +215,24 @@ class Experiment[A, AS: ActionSpace](LightExperiment):
         obs = torch.from_numpy(np.array(episode.obs))
         extras = torch.from_numpy(np.array(episode.extras))
         actions = torch.from_numpy(np.array(episode.actions))
-        if isinstance(self.agent, ContinuousAgent):
-            dist = self.agent.actor_network.policy(obs, extras)
+        available_actions = torch.from_numpy(np.array(episode.available_actions))
+        if isinstance(self.agent, SimpleAgent):
+            dist = self.agent.actor_network.policy(obs, extras, available_actions)
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()
             replay.probs = torch.exp(logits).tolist()
             replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
-        elif isinstance(self.agent, DQN):
+        elif isinstance(self.agent, DQNAgent):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
         return replay
+
+    def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
+        """Load the agent at a specific time step."""
+        if time_step % self.test_interval != 0:
+            raise ValueError(f"Time step must be a multiple of the test interval ({self.test_interval})")
+        for run in self.runs:
+            if run.seed == run_seed:
+                self.agent.load(run.get_saved_algo_dir(time_step))
+                return self.agent
+        raise ValueError(f"No run with seed {run_seed} found in the experiment.")

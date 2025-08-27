@@ -11,82 +11,87 @@
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
-                    <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5,
+                    <th scope="col" :style="{
+                        opacity: (availableActions[action] == 1) ? 1 : 0.5,
                         backgroundColor: (action == takenAction) ? 'yellow' : 'transparent'
-                     }"
-                        v-for="(meaning, action) in experiment.env.action_space.action_names">
+                    }" v-for="(meaning, action) in experiment.env.action_space.action_names">
                         {{ meaning }}
-                        
+
                     </th>
                 </tr>
             </thead>
             <tbody>
                 <tr v-if="currentQvalues.length > 0"
                     v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
-                    <th scope="row" class="text-capitalize"> 
-                        {{ experiment.env.reward_space.size == 1 
+                    <th scope="row" class="text-capitalize">
+                        {{ experiment.env.reward_space.size == 1
                             ? "Qvalues"
-                            : objective }} 
+                            : objective }}
                     </th>
-                    <td v-for="action in currentQvalues.length"
-                        :style='{ "background-color": "#" + (isMultiObj
-                            ? backgroundColours[action - 1][objectiveNum] 
-                            : backgroundColours[action - 1]) }'>
+                    <td v-for="action in currentQvalues.length" :style='{
+                        "background-color": "#" + (isMultiObj
+                            ? backgroundColours[action - 1][objectiveNum]
+                            : backgroundColours[action - 1])
+                    }'>
                         {{ isMultiObj
-                            ? currentQvalues[action - 1][objectiveNum].toFixed(4) 
+                            ? currentQvalues[action - 1][objectiveNum].toFixed(4)
                             : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
                     </td>
                 </tr>
-                <!-- <Policy :qvalues="qvalues" :policy="experiment.algorithm.test_policy.name" /> -->
-                <tr v-if="episode?.logits && episode.logits.length > currentStep">
-                    <th> <b>Logits</b></th>
-                    <td v-for="logit in episode.logits[currentStep][agentNum]">
-                        {{ logit[0].toFixed(4) }}
-                    </td>
-                </tr>
-                <tr v-if="episode?.probs && episode.probs.length > currentStep">
+                {{ isMultiObjective }}
+                <template v-if="logits">
+                    <tr v-if="isMultiObjective" v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+                        TODO
+                    </tr>
+                    <tr v-else>
+                        <th> Logits </th>
+                        <td> {{ logits }}</td>
+                        <!-- <td v-for="logit in logits" :style='{ "background-color": "#" + rainbow.colourAt(logit) }'>
+                            {{ logit.toFixed(4) }}
+                        </td> -->
+                    </tr>
+
+                </template>
+                <!-- <tr v-if="episode?.probs && episode.probs.length > currentStep">
                     <th> <b>Probs</b></th>
                     <td v-for="prob in episode.probs[currentStep][agentNum]">
                         {{ prob[0].toFixed(4) }}
                     </td>
-                </tr>
-                <template v-if="episode?.messages && episode.messages.length > currentStep"
+                </tr> -->
+                <!-- <tr v-if="episode?.messages && episode.messages.length > currentStep"
                     v-for="(messages, index) in episode.messages[currentStep][0][agentNum]">
-                    <tr>
-                        <th>
-                            <b>Message to {{ index }}</b>
-                        </th>
-                        <td v-for="message in messages">
-                            {{ message.toFixed(4) }}
-                        </td>
-                    </tr>
-                </template>
-                <tr v-if="episode?.received_messages && episode.received_messages.length > currentStep">
+                    <th>
+                        <b>Message to {{ index }}</b>
+                    </th>
+                    <td v-for="message in messages">
+                        {{ message.toFixed(4) }}
+                    </td>
+                </tr> -->
+                <!-- <tr v-if="episode?.received_messages && episode.received_messages.length > currentStep">
                     <th> <b>Received Messages</b></th>
                     <td v-for="message in episode.received_messages[currentStep][agentNum]">
                         {{ message.toFixed(4) }}
                     </td>
-                </tr>
-                <tr v-if="episode?.init_qvalues && episode.init_qvalues.length > currentStep">
+                </tr> -->
+                <!-- <tr v-if="episode?.init_qvalues && episode.init_qvalues.length > currentStep">
                     <th> <b>Init Qvalues</b></th>
                     <td v-for="qvalue in episode.init_qvalues[currentStep][agentNum]">
                         {{ qvalue.toFixed(4) }}
                     </td>
-                </tr>
+                </tr> -->
                 <!-- <tr v-if="episode?.messages && episode.messages.length > 0">
                     <th> <b>Messages</b></th>
                     <template v-for="messages in episode.messages[0][currentStep][agentNum]">
                         <td>
-                           {{ messages }}
-                        </td> 
+                            {{ messages }}
+                        </td>
                     </template>
                 </tr> -->
             </tbody>
-            <tfoot v-if="experiment.env.reward_space.size > 1">
+            <tfoot v-if="isMultiObjective && qvalues != null">
                 <tr>
-                    <!-- Sum all objectives for that action -->
                     <td> <b>Q-Total</b></td>
-                    <td v-for="action in currentQvalues.length"
+                    <td v-for="action in qvalues.length"
                         :style='{ "background-color": "#" + totalQValuesColours[action - 1] }'>
                         {{ totalQValues[action - 1].toFixed(4) }}
                     </td>
@@ -117,7 +122,7 @@ const props = defineProps<{
 }>();
 
 const isMultiObj = computed(() => {
-    return props.experiment.env.reward_space.size > 1 
+    return props.experiment.env.reward_space.size > 1
 });
 
 const obsShape = computed(() => {
@@ -158,10 +163,10 @@ const currentQvalues = computed(() => {
 
 const totalQValues = computed(() => {
     const res = [] as number[];
-    for (let i = 0; i < currentQvalues.value.length; i++) {
+    for (let i = 0; i < multiObjectiveQvalues.value.length; i++) {
         let sum = 0;
-        for (let j = 0; j < currentQvalues.value[i].length; j++) {
-            sum += currentQvalues.value[i][j];
+        for (let j = 0; j < multiObjectiveQvalues.value[i].length; j++) {
+            sum += multiObjectiveQvalues.value[i][j];
         }
         res.push(sum);
     }
@@ -173,10 +178,24 @@ const backgroundColours = computed(() => {
     else return (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
 });
 
+
+
 const totalQValuesColours = computed(() => {
     const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
     return colours;
 });
+const multiObjectiveLogits = computed(() => {
+    if (props.episode == null) return [];
+    if (props.episode.logits == null || props.episode.logits.length == 0) return [];
+    if (props.currentStep >= episodeLength.value) return [];
+    return props.episode.logits[props.currentStep][props.agentNum] as number[][];
+});
+const logits = computed(() => {
+    if (props.episode == null) return null;
+    if (props.episode.logits == null || props.episode.logits.length == 0) return null;
+    if (props.currentStep >= episodeLength.value) return null;
+    return props.episode.logits[props.currentStep][props.agentNum] as number[];
+})
 
 const obsFlattened = computed(() => obs.value as number[]);
 const obsLayered = computed(() => obs.value as number[][][]);

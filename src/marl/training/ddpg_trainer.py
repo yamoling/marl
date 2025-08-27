@@ -3,14 +3,14 @@ from marlenv import Episode, Transition
 
 import torch
 from marl.models.replay_memory.replay_memory import ReplayMemory
-from marl.models.nn import DiscreteActorCriticNN
+from marl.models.nn import DiscreteActorCritic
 from marl.models.trainer import Trainer
 
 
 class DDPGTrainer(Trainer):
     def __init__(
         self,
-        network: DiscreteActorCriticNN,
+        network: DiscreteActorCritic,
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,
@@ -19,7 +19,9 @@ class DDPGTrainer(Trainer):
         update_interval: int = 5,
         tau: float = 0.01,
     ):
-        super().__init__(update_type=train_every)
+        super().__init__()
+        self.update_on_episodes = train_every == "episode"
+        self.update_on_steps = train_every == "step"
         self.step_update_interval = update_interval
         self.network = network
         # self.target_network = deepcopy(network)
@@ -34,8 +36,6 @@ class DDPGTrainer(Trainer):
         self.value_optimiser = torch.optim.Adam(self.network.value_parameters, self.lr)
 
         self.step_num = 0
-        self.device = network.device
-        self.to(device=self.device)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.update_on_episodes:
@@ -80,7 +80,7 @@ class DDPGTrainer(Trainer):
         probs = batch.probs
         with torch.no_grad():
             # get next actions
-            new_logits, _ = self.network.forward(obs_, extras_)
+            new_logits, _ = self.network.logits(obs_, extras_, available_actions)
             # new_logits, _ = self.target_network.forward(obs_, extras_)
             new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
             new_logits = new_logits.reshape(actions.shape[0], actions.shape[1], -1)
@@ -92,7 +92,7 @@ class DDPGTrainer(Trainer):
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
-        old_value = self.network.value(states, extras, probs)
+        old_value = self.network.value(states, extras, probs)  # type: ignore
 
         value_loss = torch.nn.functional.mse_loss(old_value, target_values)
         self.value_optimiser.zero_grad()
@@ -100,7 +100,7 @@ class DDPGTrainer(Trainer):
         self.value_optimiser.step()
 
         # get actions
-        logits_current_policy, _ = self.network.forward(obs, extras)
+        logits_current_policy, _ = self.network.forward(obs, extras)  # type: ignore
 
         # reshape and mask unavailable actions
         logits_current_policy = logits_current_policy.reshape(actions.shape[0], actions.shape[1], -1)
@@ -123,16 +123,6 @@ class DDPGTrainer(Trainer):
 
         # self._update_networks()
         return {"value_loss": value_loss.item(), "actor_loss": actor_loss.item()}
-
-    def randomize(self):
-        self.network.randomize()
-        # self.target_network.randomize()
-
-    def to(self, device: torch.device):
-        self.network.to(device)
-        # self.target_network.to(device)
-        self.device = device
-        return self
 
     def _make_optimizer(self, optimiser: Literal["adam", "rmsprop"], parameters):
         if optimiser == "adam":

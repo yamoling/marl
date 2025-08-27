@@ -12,7 +12,7 @@ from ..models.trainer import Trainer
 @dataclass
 class CNetTrainer(Trainer):
     def __init__(self, opt, agents: CNet):
-        super().__init__("episode")
+        super().__init__()
         self.step_update_interval = opt.bs
         self.opt = opt
         self.agents = agents
@@ -56,7 +56,7 @@ class CNetTrainer(Trainer):
     def to(self, device: torch.device):
         """Send the tensors to the given device."""
         self.agents.to(device)
-        self.device = device
+        self._device = device
 
     def randomize(self):
         """Randomize the state of the trainer."""

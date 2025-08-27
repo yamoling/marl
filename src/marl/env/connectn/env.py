@@ -1,16 +1,16 @@
 import numpy as np
-from marlenv import MARLEnv, DiscreteActionSpace, Step, State, Observation
+from marlenv import MARLEnv, MultiDiscreteSpace, Step, State, Observation, DiscreteSpace
 
 from .board import GameBoard, StepResult
 
 
-class ConnectN(MARLEnv[DiscreteActionSpace]):
+class ConnectN(MARLEnv[MultiDiscreteSpace]):
     def __init__(self, width: int = 7, height: int = 6, n: int = 4):
         self.board = GameBoard(width, height, n)
-        action_space = DiscreteActionSpace(1, self.board.width)
+        action_space = DiscreteSpace(self.board.width).repeat(1)
         observation_shape = (self.board.height, self.board.width)
         state_shape = observation_shape
-        super().__init__(action_space, observation_shape, state_shape)
+        super().__init__(1, action_space, observation_shape, state_shape)
 
     def reset(self):
         self.board.clear()
