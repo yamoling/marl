@@ -7,6 +7,7 @@ from typing import Optional
 import torch
 from marlenv import Observation
 
+from marl.logging import Logger
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 
 from ..agent import Agent
@@ -21,7 +22,6 @@ class DQNAgent(Agent):
     qnetwork: QNetwork
     train_policy: Policy
     test_policy: Policy
-    last_qvalues = None
 
     def __init__(
         self,
@@ -29,6 +29,7 @@ class DQNAgent(Agent):
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
         log_qvalues: Optional[bool] = False,
+        logger: Optional[Logger] = None,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -37,8 +38,8 @@ class DQNAgent(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
-        if log_qvalues:
-            self.last_qvalues = np.ndarray(0)
+        self._logger = logger
+        self.log_qvalues = log_qvalues
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
@@ -60,14 +61,8 @@ class DQNAgent(Agent):
             else:
                 sel_action = sel_action[:, None]
             self.last_qvalues = np.take_along_axis(self.last_qvalues, sel_action, self.qnetwork.action_dim)
-
+            self._logger.log()
         return action
-
-    def qvalues(self, obs: Observation) -> torch.Tensor:
-        return self.qnetwork.qvalues(obs)
-
-    def value(self, obs: Observation) -> float:
-        return torch.mean(self.qnetwork.value(obs)).item()
 
     def set_testing(self):
         self.policy = self.test_policy

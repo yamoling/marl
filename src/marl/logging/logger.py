@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Literal, Optional
-from dataclasses import dataclass
+from typing import Optional
 from pprint import pprint
 from marlenv import Episode
 import numpy as np
@@ -15,10 +14,13 @@ TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
 
-@dataclass
 class LogWriter(ABC):
     filename: str
     quiet: bool
+
+    def __init__(self, filename: str, quiet: bool):
+        self.filename = filename
+        self.quiet = quiet
 
     @abstractmethod
     def log(self, data: dict[str, float], time_step: int):
@@ -52,9 +54,15 @@ class LogReader(ABC):
         """Close the log file."""
 
 
-@dataclass
 class Logger(ABC):
-    """Logging interface"""
+    """
+    Logger base class.
+
+    A logger has three different writers because the loggings act on different time scales:
+        - `test` to log the RL metrics (e.g. reward, length) of test episodes. Typically one log entry every 5000 steps.
+        - `train` to log the metrics of train episodes. Typically every step.
+        - `training_data` to log the training data (loss, epsilon, etc). Typically every 5 steps or every episode.
+    """
 
     logdir: str
     quiet: bool
@@ -79,15 +87,14 @@ class Logger(ABC):
     def get_logdir(self, time_step: int) -> str:
         return os.path.join(self.logdir, str(time_step))
 
-    def log(self, kind: Literal["test", "train", "training_data"], data: dict[str, float], time_step: int):
-        """Log the data."""
-        match kind:
-            case "test":
-                self.test.log(data, time_step)
-            case "train":
-                self.train.log(data, time_step)
-            case "training_data":
-                self.training_data.log(data, time_step)
+    def log_train(self, data: dict[str, float], time_step: int):
+        self.train.log(data, time_step)
+
+    def log_training_data(self, data: dict[str, float], time_step: int):
+        self.training_data.log(data, time_step)
+
+    def log_test(self, data: dict[str, float], time_step: int):
+        self.test.log(data, time_step)
 
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.logdir, "test", f"{time_step}")
@@ -95,7 +102,7 @@ class Logger(ABC):
             test_dir = os.path.join(test_dir, f"{test_num}")
         return test_dir
 
-    def log_tests(self, episodes: list[Episode], time_step: int):
+    def log_test_episodes(self, episodes: list[Episode], time_step: int):
         for i, episode in enumerate(episodes):
             episode_directory = self.test_dir(time_step, i)
             self.test.log(episode.metrics, time_step)

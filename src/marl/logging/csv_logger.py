@@ -3,9 +3,9 @@ import time
 import csv
 import polars as pl
 from typing import Any
-from .logger_interface import Logger, LogReader, LogWriter
+from .logger import Logger, LogReader, LogWriter
 
-
+QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
 TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"
@@ -15,7 +15,6 @@ PID = "pid"
 # Dataframe columns
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
-SCHEMA = "schema.json"
 
 
 class CSVWriter(LogWriter):

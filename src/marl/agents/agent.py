@@ -50,7 +50,7 @@ class Agent(ABC):
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray:
-        """Get the action to perform given the input observation"""
+        """Get the action to perform given the input observation."""
 
     def new_episode(self):
         """

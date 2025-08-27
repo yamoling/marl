@@ -4,13 +4,13 @@ from typing import Literal, Optional
 
 import numpy as np
 import torch
-from marlenv import ActionSpace, Episode, MARLEnv, Transition
+from marlenv import Space, Episode, MARLEnv, Transition
 from tqdm import tqdm
 from typing_extensions import TypeVar
 
 from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
-from marl.models.run import Run, RunHandle
+from marl.models.run import Run
 from marl.models.trainer import Trainer
 from marl.training import NoTrain
 from marl.utils import get_device
@@ -56,19 +56,20 @@ class Runner[A, AS: ActionSpace]:
     ):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._agent.value(obs)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state)})
         while not episode.is_finished and step_num < max_step:
             if n_tests > 0 and test_interval > 0 and step_num % test_interval == 0:
                 self._test_and_log(n_tests, step_num, quiet, run_handle, render_tests)
             match self._agent.choose_action(obs):
                 case (action, dict(kwargs)):
                     step = self._env.step(action)
-                case (action):
+                case action:
                     step = self._env.step(action)
                     kwargs = {}
             if step_num == max_step:
                 step.truncated = True
-            if self._log_qvalues: kwargs["qvalues"] = self._agent.last_qvalues # Optional[npt.NDArray[np.float32]]
+            if self._log_qvalues:
+                kwargs["qvalues"] = self._agent.last_qvalues  # Optional[npt.NDArray[np.float32]]
             transition = Transition.from_step(obs, state, action, step, **kwargs)
             training_metrics = self._trainer.update_step(transition, step_num)
             run_handle.log_train_step(training_metrics, step_num)
@@ -77,16 +78,17 @@ class Runner[A, AS: ActionSpace]:
             state = step.state
             step_num += 1
 
-        if self._log_qvalues: 
-            qvalues = np.array(episode.other["qvalues"]) # Added through transition here-above
+        if self._log_qvalues:
+            qvalues = np.array(episode.other["qvalues"])  # Added through transition here-above
             avg_qvalues = np.average(qvalues, axis=0)
             qvalues_met = dict()
             for ag_n, ag in enumerate(avg_qvalues):
                 if self._env.reward_space.size > 1:
                     for qv_n, qv in enumerate(ag.squeeze()):
                         qvalues_met[f"agent{ag_n}-qvalue{qv_n}"] = float(qv)
-                else: qvalues_met[f"agent{ag_n}-qvalue"] = float(ag)
-            episode.add_metrics(qvalues_met) # should "simply" be added to dict
+                else:
+                    qvalues_met[f"agent{ag_n}-qvalue"] = float(ag)
+            episode.add_metrics(qvalues_met)  # should "simply" be added to dict
 
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
         run_handle.log_train_episode(episode, step_num, training_logs)
@@ -171,10 +173,12 @@ class Runner[A, AS: ActionSpace]:
             match self._agent.choose_action(obs):
                 case (action, _):
                     step = self._test_env.step(action)
-                case (action):
-                    step = self._test_env.step(action)            
-            if self._log_qvalues: kwargs = {"qvalues":self._agent.last_qvalues} # Optional[npt.NDArray[np.float32]]
-            else: kwargs = {}
+                case action:
+                    step = self._test_env.step(action)
+            if self._log_qvalues:
+                kwargs = {"qvalues": self._agent.last_qvalues}  # Optional[npt.NDArray[np.float32]]
+            else:
+                kwargs = {}
             transition = Transition.from_step(obs, state, action, step, **kwargs)
             episode.add(transition)
             obs = step.obs

@@ -25,9 +25,6 @@ dependencies = [
     "orjson>=3.10.12",
     "numpy>=2.0",
     "swig>=4.3.0",
-    # "gymnasium[box2d]>=1.0.0",
-    "pettingzoo>=1.24.3",
-    "overcooked-ai>=1.1.0",
     "torch>=2.6.0",
     "textual>=4.0.0",
     "mplcursors>=0.6",
@@ -36,7 +33,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-torch = ["torch>=2.6.0"]
 torch-cpu = ["torch>=2.6.0"]
 torch-cu118 = ["torch>=2.6.0"]
 torch-cu124 = ["torch>=2.6.0"]
