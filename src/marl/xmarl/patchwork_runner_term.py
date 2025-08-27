@@ -1,3 +1,5 @@
+# type: ignore
+
 from marl.models import Experiment
 from marlenv.models import Episode
 
@@ -111,7 +113,7 @@ class Selector(App):
     # == EXPERIMENT ==
 
     def reset_experiment(self):
-        self.experiment_path = ""
+        self.experiment_path = Path()
         self.experiment = None
         # Handle cancellation or no file selected
         self.query_one("#experiment_label", Label).update("No experiment selected")
@@ -156,7 +158,7 @@ class Selector(App):
     # == RUN ==
 
     def reset_run(self):
-        self.run_path = ""
+        self.run_path = Path()
         # Handle cancellation or no file selected
         self.query_one("#run_label", Label).update("No Run selected")
         self.query_one("#select_test", Button).disabled = True

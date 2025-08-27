@@ -1,13 +1,11 @@
 import os
 import pickle
-import numpy as np
 from dataclasses import dataclass
 from typing import Optional
 
 import torch
 from marlenv import Observation
 
-from marl.logging import Logger
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 
 from ..agent import Agent
@@ -28,8 +26,6 @@ class DQNAgent(Agent):
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
-        log_qvalues: Optional[bool] = False,
-        logger: Optional[Logger] = None,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -38,30 +34,14 @@ class DQNAgent(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
-        self._logger = logger
-        self.log_qvalues = log_qvalues
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        if self.last_qvalues is not None:
-            self.last_qvalues = qvalues.copy()
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
         action = self.policy.get_action(qvalues, obs.available_actions)
-
-        if self.last_qvalues is not None:
-            if self.policy.name == "EpsilonGreedy":
-                sel_action = self.test_policy.get_action(qvalues, obs.available_actions)
-            else:
-                sel_action = action.copy()
-            if self.qnetwork.is_multi_objective:
-                sel_action = sel_action[:, None, None]
-            else:
-                sel_action = sel_action[:, None]
-            self.last_qvalues = np.take_along_axis(self.last_qvalues, sel_action, self.qnetwork.action_dim)
-            self._logger.log()
         return action
 
     def set_testing(self):

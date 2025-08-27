@@ -1,3 +1,4 @@
+#type: ignore
 import os
 import pathlib
 import pickle
@@ -19,7 +20,7 @@ from .utils import (
     plot_importance_with_targets,
 )
 from marl.models import Experiment
-from marl.agents.qlearning import DQN
+from marl.agents.qlearning import DQNAgent
 from marl.utils.gpu import get_device
 
 from sklearn.model_selection import train_test_split
@@ -35,7 +36,7 @@ class DistilHandler:
 
     _distilers: list[SoftDecisionTree]  # or sklearn DT/Randomforest?
     _experiment: Experiment
-    _agent: DQN
+    _agent: DQNAgent
 
     dist_type: str
     n_agents: int
@@ -61,7 +62,7 @@ class DistilHandler:
     ):
         self._experiment = experiment
         self._distilers = distilers
-        if not isinstance(experiment.agent, DQN):
+        if not isinstance(experiment.agent, DQNAgent):
             raise NotImplementedError("Distilation only implemented for DQN agent so far.")
         self._agent = experiment.agent
         if self._agent.last_qvalues is None:

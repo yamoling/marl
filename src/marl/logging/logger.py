@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
-from pprint import pprint
+from typing import Any, Optional
 from marlenv import Episode
 import numpy as np
 import os
@@ -14,30 +13,11 @@ TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
 
-class LogWriter(ABC):
-    filename: str
-    quiet: bool
-
-    def __init__(self, filename: str, quiet: bool):
-        self.filename = filename
-        self.quiet = quiet
-
-    @abstractmethod
-    def log(self, data: dict[str, float], time_step: int):
-        """Log the data."""
-
-    def log_print(self, data: dict[str, float], time_step: int):
-        """Log and print the data."""
-        self.log(data, time_step)
-        if not self.quiet:
-            pprint(data)
-
-    @abstractmethod
-    def close(self):
-        """Close the log file."""
-
-
 class LogReader(ABC):
+    def __init__(self, weight_path: str):
+        super().__init__()
+        self.weight_path = weight_path
+
     @property
     @abstractmethod
     def test_metrics(self) -> pl.DataFrame: ...
@@ -50,27 +30,20 @@ class LogReader(ABC):
     @abstractmethod
     def training_data(self) -> pl.DataFrame: ...
 
+    def get_weights_directory(self, time_step: int) -> str:
+        """Return the file path where the weights of the model are saved."""
+        return os.path.join(self.weight_path, str(time_step))
+
     def close(self):
         """Close the log file."""
 
 
 class Logger(ABC):
-    """
-    Logger base class.
-
-    A logger has three different writers because the loggings act on different time scales:
-        - `test` to log the RL metrics (e.g. reward, length) of test episodes. Typically one log entry every 5000 steps.
-        - `train` to log the metrics of train episodes. Typically every step.
-        - `training_data` to log the training data (loss, epsilon, etc). Typically every 5 steps or every episode.
-    """
+    """Logger base class."""
 
     logdir: str
-    quiet: bool
-    test: LogWriter
-    train: LogWriter
-    training_data: LogWriter
 
-    def __init__(self, logdir: str, quiet: bool, test: LogWriter, train: LogWriter, training_data: LogWriter):
+    def __init__(self, logdir: str):
         super().__init__()
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
@@ -79,22 +52,18 @@ class Logger(ABC):
             if os.path.basename(logdir).lower() in ["test", "debug"]:
                 shutil.rmtree(logdir)
         os.makedirs(logdir, exist_ok=True)
-        self.quiet = quiet
-        self.test = test
-        self.train = train
-        self.training_data = training_data
 
     def get_logdir(self, time_step: int) -> str:
         return os.path.join(self.logdir, str(time_step))
 
-    def log_train(self, data: dict[str, float], time_step: int):
-        self.train.log(data, time_step)
+    @abstractmethod
+    def log_train(self, data: dict[str, Any], time_step: int): ...
 
-    def log_training_data(self, data: dict[str, float], time_step: int):
-        self.training_data.log(data, time_step)
+    @abstractmethod
+    def log_training_data(self, data: dict[str, Any], time_step: int): ...
 
-    def log_test(self, data: dict[str, float], time_step: int):
-        self.test.log(data, time_step)
+    @abstractmethod
+    def log_test(self, data: dict[str, Any], time_step: int): ...
 
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.logdir, "test", f"{time_step}")
@@ -105,7 +74,7 @@ class Logger(ABC):
     def log_test_episodes(self, episodes: list[Episode], time_step: int):
         for i, episode in enumerate(episodes):
             episode_directory = self.test_dir(time_step, i)
-            self.test.log(episode.metrics, time_step)
+            self.log_test(episode.metrics, time_step)
             if os.path.exists(episode_directory):
                 print(f"Warning: episode directory {episode_directory} already exists ! Overwriting...")
             else:
@@ -140,8 +109,3 @@ class Logger(ABC):
     @staticmethod
     @abstractmethod
     def reader(from_directory: str) -> "LogReader": ...
-
-    def __del__(self):
-        self.test.close()
-        self.train.close()
-        self.training_data.close()

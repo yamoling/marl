@@ -7,7 +7,7 @@ from textual import events
 class FilePickerScreen(Screen):
     BINDINGS = [("q", "app.pop_screen()", "Cancel")]
 
-    def __init__(self, title: str, item_list: list[str] = None):
+    def __init__(self, title: str, item_list: list[str]):
         super().__init__()
         self.title = title
         self.item_list = item_list

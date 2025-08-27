@@ -51,13 +51,13 @@ class NN(torch.nn.Module, ABC):
         # Required for deserialization (in torch.nn.module)
         return hash(self.name)
 
-    def to(self, device: str | int | torch.device | Literal["cpu", "auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):  # type: ignore
-        if isinstance(device, str):
+    def to(self, device: str | int | torch.device | Literal["auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):  # type: ignore
+        if device == "auto":
             from marl.utils import get_device
 
-            assert device in ("cpu", "auto"), "Device must be 'cpu' or 'auto'."
-            device = get_device(device)
-        self._device = device
+            self._device = get_device(device)  # type: ignore
+        else:
+            self._device = torch.device(device)
         return super().to(device, dtype, non_blocking)
 
 

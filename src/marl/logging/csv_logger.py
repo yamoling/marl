@@ -3,7 +3,7 @@ import time
 import csv
 import polars as pl
 from typing import Any
-from .logger import Logger, LogReader, LogWriter
+from .logger import Logger, LogReader
 
 QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
@@ -17,9 +17,9 @@ TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
 
-class CSVWriter(LogWriter):
-    def __init__(self, filename: str, quiet: bool = False, flush_interval_sec: float = 30):
-        super().__init__(filename, quiet)
+class CSVWriter:
+    def __init__(self, filename: str, flush_interval_sec: float = 30):
+        self.filename = filename
         self._file = None
         self._writer = None
         self._flush_interval = flush_interval_sec
@@ -103,12 +103,20 @@ class CSVLogReader(LogReader):
 
 
 class CSVLogger(Logger):
-    def __init__(self, logdir: str, quiet: bool = False, flush_interval_sec: float = 30):
-        test = CSVWriter(os.path.join(logdir, TEST), quiet, flush_interval_sec)
-        train = CSVWriter(os.path.join(logdir, TRAIN), quiet, flush_interval_sec)
-        training_data = CSVWriter(os.path.join(logdir, TRAINING_DATA), quiet, flush_interval_sec)
+    def __init__(self, logdir: str, flush_interval_sec: float = 30):
+        super().__init__(logdir)
+        self.test = CSVWriter(os.path.join(logdir, TEST), flush_interval_sec)
+        self.train = CSVWriter(os.path.join(logdir, TRAIN), flush_interval_sec)
+        self.training_data = CSVWriter(os.path.join(logdir, TRAINING_DATA), flush_interval_sec)
 
-        super().__init__(logdir, quiet, test, train, training_data)
+    def log_test(self, data: dict[str, float], time_step: int):
+        return self.test.log(data, time_step)
+
+    def log_train(self, data: dict[str, float], time_step: int):
+        return self.train.log(data, time_step)
+
+    def log_training_data(self, data: dict[str, float], time_step: int):
+        return self.training_data.log(data, time_step)
 
     @staticmethod
     def reader(from_directory: str) -> "CSVLogReader":

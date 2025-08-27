@@ -19,8 +19,6 @@ from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from run import Arguments as RunArguments
 from run import main as run_experiment
 
-from os import path
-
 
 class Arguments(RunArguments):
     logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
