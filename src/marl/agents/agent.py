@@ -39,8 +39,6 @@ class Agent(ABC):
         """
         import random
 
-        import numpy as np
-
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -49,21 +47,6 @@ class Agent(ABC):
         """Randomize the algorithm parameters"""
         for nn in self.networks:
             nn.randomize(method)
-
-    @abstractmethod
-    def get_action_distribution(self, observation: Observation):
-        """Get an action distribution given the input observation."""
-        raise NotImplementedError("Getting action distribution not implemented")
-
-    @abstractmethod
-    def get_action_distribution(self, observation: Observation):
-        """Get an action distribution given the input observation."""
-        raise NotImplementedError("Getting action distribution not implemented")
-
-    @abstractmethod
-    def get_action_distribution(self, observation: Observation):
-        """Get an action distribution given the input observation."""
-        raise NotImplementedError("Getting action distribution not implemented")
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray:

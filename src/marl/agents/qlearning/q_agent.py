@@ -37,23 +37,8 @@ class DQNAgent(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
-        if log_qvalues: 
+        if log_qvalues:
             self.last_qvalues = np.ndarray(0)
-
-    def get_action_distribution(self, obs: Observation):
-        """Get an action distribution given the input observation."""
-        with torch.no_grad():
-            qvalues = self.qnetwork.qvalues(obs)
-        qvalues = qvalues.numpy(force=True)
-        if self.qnetwork.is_multi_objective:
-            qvalues = qvalues.sum(axis=-1)
-
-        qvalues[obs.available_actions == 0.0] = -np.inf
-
-        action = self.policy.get_action(qvalues, obs.available_actions)
-
-        qv_distr = torch.softmax(torch.from_numpy(qvalues), axis=1)
-        return qv_distr, action
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
@@ -68,11 +53,13 @@ class DQNAgent(Agent):
         if self.last_qvalues is not None:
             if self.policy.name == "EpsilonGreedy":
                 sel_action = self.test_policy.get_action(qvalues, obs.available_actions)
-            else: 
+            else:
                 sel_action = action.copy()
-            if self.qnetwork.is_multi_objective: sel_action = sel_action[:,None,None]
-            else: sel_action = sel_action[:,None]
-            self.last_qvalues = np.take_along_axis(self.last_qvalues,sel_action,self.qnetwork.action_dim)
+            if self.qnetwork.is_multi_objective:
+                sel_action = sel_action[:, None, None]
+            else:
+                sel_action = sel_action[:, None]
+            self.last_qvalues = np.take_along_axis(self.last_qvalues, sel_action, self.qnetwork.action_dim)
 
         return action
 
