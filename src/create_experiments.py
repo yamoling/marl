@@ -25,7 +25,6 @@ class Arguments(RunArguments):
     overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
-    log_qv: bool = tap.arg(default=False, help="Log qvalues of the experiment")
 
 
 def make_smac(map_name: str):
@@ -269,10 +268,10 @@ def make_experiment(
     n_steps: int,
 ):
     if args.logdir is not None:
-        if not args.logdir.startswith(logs_path):
-            args.logdir = logs_path + args.logdir
+        if not args.logdir.startswith("logs/"):
+            args.logdir = "logs/" + args.logdir
     elif args.debug:
-        args.logdir = logs_path + "debug"
+        args.logdir = "logs/debug"
     else:
         args.logdir = f"logs/{env.name}-{trainer.name}"
         match trainer:
@@ -295,7 +294,6 @@ def make_experiment(
         test_interval=5000,
         n_steps=n_steps,
         test_env=test_env,
-        log_qvalues=args.log_qv,
     )
 
 
@@ -334,7 +332,6 @@ def main(args: Arguments):
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
-            # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
         if not args.overwrite:
             response = ""
@@ -346,5 +343,7 @@ def main(args: Arguments):
         return main(args)
 
 
+if __name__ == "__main__":
+    tap.Parser(Arguments).bind(main).run()
 if __name__ == "__main__":
     tap.Parser(Arguments).bind(main).run()
