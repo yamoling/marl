@@ -124,4 +124,4 @@ class AlphaZero:
             all_actions.extend(actions)
             all_availables.extend(availables)
             loss = self.train_network(all_states, all_qvalues, all_target_probs, all_actions, all_availables)
-            logger.train.log_print({"loss": loss, "total": total}, t)
+            logger.train.log({"loss": loss, "total": total}, t)

@@ -332,7 +332,6 @@ def main(args: Arguments):
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
-            # exp.create_runner(seed=0).to("auto").train(args.n_tests)
     except ExperimentAlreadyExistsException as e:
         if not args.overwrite:
             response = ""
@@ -344,5 +343,7 @@ def main(args: Arguments):
         return main(args)
 
 
+if __name__ == "__main__":
+    tap.Parser(Arguments).bind(main).run()
 if __name__ == "__main__":
     tap.Parser(Arguments).bind(main).run()

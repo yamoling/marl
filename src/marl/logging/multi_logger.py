@@ -1,5 +1,5 @@
 from pprint import pprint
-from .logger_interface import Logger
+from .logger import Logger
 
 
 class MultiLogger(Logger):

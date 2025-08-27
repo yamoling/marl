@@ -9,6 +9,7 @@ from . import policy
 from . import training
 from . import agents
 from . import env
+from . import xmarl
 
 from .utils import seed
 
@@ -35,4 +36,5 @@ __all__ = [
     "Trainer",
     "exceptions",
     "agents",
+    "xmarl",
 ]

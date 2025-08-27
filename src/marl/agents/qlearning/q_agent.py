@@ -39,13 +39,10 @@ class DQNAgent(Agent):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(obs)
         qvalues = qvalues.numpy(force=True)
-        return self.policy.get_action(qvalues, obs.available_actions)
-
-    def qvalues(self, obs: Observation) -> torch.Tensor:
-        return self.qnetwork.qvalues(obs)
-
-    def value(self, obs: Observation) -> float:
-        return torch.mean(self.qnetwork.value(obs)).item()
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        action = self.policy.get_action(qvalues, obs.available_actions)
+        return action
 
     def set_testing(self):
         self.policy = self.test_policy

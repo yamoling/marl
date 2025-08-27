@@ -1,4 +1,4 @@
-import { ExperimentResults } from "./models/Experiment";
+import { ExperimentResults, Dataset } from "./models/Experiment";
 
 /**
  * Compute the shape of a multi-dimensional array.
@@ -72,6 +72,53 @@ export function stringToRGB(s: string) {
     return colour;
 }
 
+const COL_OFFSET = 90;
+const baseLuminance = 50;
+
+// labelIndex maps a label (objective) to an index. The first time an index is given, else it's retrieved from the Map
+const labelIndexMap = new Map<string, number>();
+let nextLabelIndex = 0;
+
+function getLabelIndex(label: string): number {
+    if (!labelIndexMap.has(label)) {
+        labelIndexMap.set(label, nextLabelIndex++);
+    }
+    return labelIndexMap.get(label)!;
+}
+
+// agentNum assumed to be zero-based integer (0,1,2...)
+export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
+    // Fixed hue mapping for 4 agents
+    const hueMap: Record<number, number> = {
+        0: 240, // Blue
+        1: 120, // Green
+        2: 0,   // Red
+        3: 60,   // Yellow
+        4: 300,  // Pink
+    };
+    let hue_idx;
+    if (qv_or_ag) hue_idx = getLabelIndex(label);
+    else hue_idx = parseInt(label);
+    const hue = hueMap[hue_idx] !== undefined ? hueMap[hue_idx] : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
+
+    const saturation = 50; // qvalue dependent: 80 - (index%2)*40;
+    const luminance = 50; // qvalue dependent: 45 + (Math.floor(index/2)%2)*15;
+    return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
+}
+
+export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=0,): string {
+    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+    if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
+    const s = parseInt(match[2], 10)+sat_factor;
+    const l = parseInt(match[3], 10)+lum_factor;
+    return `hsl(${match[2]}, ${s}%, ${l}%)`;
+}
+
+export function alphaToHSL(hsl: string, alpha: number=0): string {
+    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+    if (!match) throw new Error(`Invalid HSL format to add alpha: ${hsl}`);
+    return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;
+}
 
 export function downloadStringAsFile(textToSave: string, fileName: string) {
     const hiddenElement = document.createElement('a');
@@ -91,9 +138,6 @@ export async function fetchWithJSON(url: string, data: Object, method: string = 
     });
 }
 
-
-
-
 export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
     const sqrtN = Math.sqrt(nSamples);
     const lower = Array<number>(std.length);
@@ -112,7 +156,6 @@ export function clip(values: number[], min: number[], max: number[]) {
     }
     return result;
 }
-
 
 
 export function unionXTicks(allXTicks: number[][]) {

@@ -21,9 +21,18 @@ class Batch(ABC):
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones such that each agent has its own (identical) signal."""
-        self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
-        self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # type: ignore
-        self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
+        if (
+            self.reward_size > 1
+        ):  # Need to consider this case, because multiple rewards should be at the end and dones/masks are expanded when called (so rewards needs to be as is until then)
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])  # type: ignore
+            self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape[:-1], self.n_agents, self.masks.shape[-1])
+            self.rewards = self.rewards.repeat_interleave(self.n_agents).view(
+                *self.rewards.shape[:-1], self.n_agents, self.rewards.shape[-1]
+            )
+        else:
+            self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # type: ignore
+            self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
     def __len__(self) -> int:

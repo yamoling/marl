@@ -30,7 +30,11 @@ class Experiment[A: Space](LightExperiment):
     agent: Agent
     trainer: Trainer
     env: MARLEnv[A]
+    test_interval: int
+    n_steps: int
+    creation_timestamp: int
     test_env: MARLEnv[A]
+    log_qvalues: Optional[bool] = False
 
     def __init__(
         self,
@@ -42,12 +46,14 @@ class Experiment[A: Space](LightExperiment):
         n_steps: int,
         creation_timestamp: int,
         test_env: MARLEnv[A],
+        log_qvalues: Optional[bool],
     ):
         super().__init__(logdir, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
         self.test_env = test_env
+        self.log_qvalues = log_qvalues
 
     @staticmethod
     def create(
@@ -58,6 +64,7 @@ class Experiment[A: Space](LightExperiment):
         agent: Optional[Agent] = None,
         test_interval: int = 5_000,
         test_env: Optional[MARLEnv[A]] = None,
+        log_qvalues: Optional[bool] = False,
     ):
         """
         Create a new experiment in the specified directory.
@@ -73,11 +80,11 @@ class Experiment[A: Space](LightExperiment):
         if not env.has_same_inouts(test_env):
             raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
 
-        if not logdir.startswith("logs/"):
+        if not logdir.startswith(os.path.join("logs", "")):
             logdir = os.path.join("logs", logdir)
 
-        # Remove the test and debug logs
-        if logdir in ("logs/test", "logs/debug", "logs/tests"):
+            # Remove the test and debug logs
+        if logdir in [os.path.join("logs", "test"), os.path.join("logs", "debug"), os.path.join("logs", "tests")]:
             try:
                 shutil.rmtree(logdir)
             except FileNotFoundError:
@@ -99,6 +106,7 @@ class Experiment[A: Space](LightExperiment):
                 test_interval=test_interval,
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
+                log_qvalues=log_qvalues,
             )
             experiment.save()
             return experiment

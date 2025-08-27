@@ -149,7 +149,7 @@ class Runner[A: Space](Run):
         self._agent.save(self.get_saved_algo_dir(time_step))
         self._trainer.save(self.get_saved_algo_dir(time_step))
         episodes = self.tests(time_step, render)
-        self.logger.log_tests(episodes, time_step)
+        self.logger.log_test_episodes(episodes, time_step)
 
     def perform_one_test(self, time_step: int, test_num: int, render: bool = False):
         """

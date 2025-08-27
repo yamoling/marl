@@ -16,7 +16,6 @@ from marl.utils import stats
 from marl.logging import LogReader, TIME_STEP_COL, TIMESTAMP_COL, CSVLogger
 from marl.models.replay_episode import LightEpisodeSummary
 
-
 TRAIN = "train.csv"
 TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"

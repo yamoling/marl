@@ -9,12 +9,16 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     const results = ref(new Map<string, ExperimentResults>());
     const loading = ref(new Map<string, boolean>());
 
+    interface DatasetResponse {
+        metrics: Dataset[];
+        qvalues: Dataset[];
+      }
 
     async function load(logdir: string): Promise<ExperimentResults> {
         loading.value.set(logdir, true);
         const resp = await fetch(`${HTTP_URL}/results/load/${logdir}`);
-        const response = await resp.json() as Dataset[];
-        const experimentResults = new ExperimentResults(logdir, response);
+        const response = await resp.json() as DatasetResponse;
+        const experimentResults = new ExperimentResults(logdir, response.metrics, response.qvalues);
         results.value.set(logdir, experimentResults);
         loading.value.set(logdir, false);
         return experimentResults;

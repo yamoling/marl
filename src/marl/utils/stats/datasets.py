@@ -1,10 +1,10 @@
+import re
+from dataclasses import dataclass
 import numpy as np
 import scipy.stats as sp
 import polars as pl
 import polars.exceptions as pl_errors
 from typing import Optional
-
-from dataclasses import dataclass
 
 
 @dataclass
@@ -23,6 +23,7 @@ class Dataset:
 class ExperimentResults:
     logdir: str
     datasets: list[Dataset]
+    qvalue_ds: list[Dataset]
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):
@@ -96,6 +97,9 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
             dfs[i] = df.select(columns)
     df = pl.concat(dfs)
     df = df.drop("timestamp_sec")
+    score_cols = [col for col in df.columns if col.startswith("score")]
+    if len(score_cols) != 0:
+        df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
     to_drop = list[str]()
     for col, dtype in zip(df.columns, df.dtypes):
         if not dtype.is_numeric():
@@ -110,6 +114,53 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
         label = col
         if suffix is not None:
             label = col + suffix
+        res.append(
+            Dataset(
+                logdir=logdir,
+                ticks=ticks,
+                label=label,
+                mean=df_stats[f"mean-{col}"].to_list(),
+                std=df_stats[f"std-{col}"].to_list(),
+                min=df_stats[f"min-{col}"].to_list(),
+                max=df_stats[f"max-{col}"].to_list(),
+                ci95=df_stats[f"ci95-{col}"].to_list(),
+            )
+        )
+    return res
+
+
+def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, infos: tuple[str, int]) -> list[Dataset]:
+    """
+    Aggregates qvalues"""
+    dfs = [d for d in dfs if not d.is_empty()]
+    if len(dfs) == 0:
+        return []
+    df = pl.concat(dfs)
+    df = df.drop("timestamp_sec")
+
+    df_stats = stats_by("time_step", df, replace_inf)
+    res = list[Dataset]()
+    ticks = df_stats["time_step"].to_list()
+
+    n_agents = infos[1]
+    l_metrics = ["mean-", "std-", "min-", "max-", "ci95-"]
+    for i in range(n_agents):
+        prefix = f"agent{i}"
+        for metric in l_metrics:
+            selected_columns = df_stats.select(pl.selectors.contains(f"{metric}{prefix}").abs())
+            row_sum = pl.sum_horizontal(selected_columns)
+            df_stats = df_stats.with_columns(
+                [(pl.col(col) / row_sum).alias(col) for col in selected_columns.columns]
+            )  # Normalize over qvalue type
+    labels = infos[0]
+    for col in df.columns:
+        if col == "time_step":
+            continue
+        col_title = col.split("-")
+        if "qvalue" in col_title[1] and len(labels) > 1:
+            label = f"{col_title[0]}-{labels[int(re.sub(r'\D', '', col_title[1]))]}"
+        else:
+            label = f"{col_title[0]}-{labels[0]}"
         res.append(
             Dataset(
                 logdir=logdir,

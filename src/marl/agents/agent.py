@@ -39,8 +39,6 @@ class Agent(ABC):
         """
         import random
 
-        import numpy as np
-
         random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -52,7 +50,7 @@ class Agent(ABC):
 
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray:
-        """Get the action to perform given the input observation"""
+        """Get the action to perform given the input observation."""
 
     def new_episode(self):
         """

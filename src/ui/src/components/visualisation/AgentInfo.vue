@@ -11,23 +11,31 @@
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
-                    <th scope="col" :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5 }"
-                        v-for="(meaning, action) in experiment.env.action_space.action_names">
+                    <th scope="col" :style="{
+                        opacity: (availableActions[action] == 1) ? 1 : 0.5,
+                        backgroundColor: (action == takenAction) ? 'yellow' : 'transparent'
+                    }" v-for="(meaning, action) in experiment.env.action_space.action_names">
                         {{ meaning }}
+
                     </th>
                 </tr>
             </thead>
             <tbody>
-                <tr v-if="qvalues" v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
-                    <th scope="row" class="text-capitalize"> {{ objective }} </th>
-                    <td v-for="action in experiment.env.n_actions"
-                        :style='{ "background-color": "#" + backgroundColours[action - 1][objectiveNum] }'>
-                        <template v-if="isMultiObjective">
-                            {{ multiObjectiveQvalues[action - 1][objectiveNum].toFixed(4) }}
-                        </template>
-                        <template v-else>
-                            {{ singleObjectiveQvalues[action - 1].toFixed(4) }}
-                        </template>
+                <tr v-if="currentQvalues.length > 0"
+                    v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
+                    <th scope="row" class="text-capitalize">
+                        {{ experiment.env.reward_space.size == 1
+                            ? "Qvalues"
+                            : objective }}
+                    </th>
+                    <td v-for="action in currentQvalues.length" :style='{
+                        "background-color": "#" + (isMultiObj
+                            ? backgroundColours[action - 1][objectiveNum]
+                            : backgroundColours[action - 1])
+                    }'>
+                        {{ isMultiObj
+                            ? currentQvalues[action - 1][objectiveNum].toFixed(4)
+                            : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
                     </td>
                 </tr>
                 {{ isMultiObjective }}
@@ -113,16 +121,16 @@ const props = defineProps<{
     experiment: Experiment
 }>();
 
+const isMultiObj = computed(() => {
+    return props.experiment.env.reward_space.size > 1
+});
+
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
     return computeShape(props.episode.episode.all_observations[0][0])
 });
 const obsDimensions = computed(() => obsShape.value.length);
-const episodeLength = computed(() => {
-    if (props.episode == null) return 0;
-    return props.episode.frames.length - 1;
-});
-const isMultiObjective = computed(() => props.experiment.env.reward_space.size > 1);
+const episodeLength = computed(() => props.episode?.metrics.episode_len || 0);
 
 const obs = computed(() => {
     if (props.episode == null) return [];
@@ -141,14 +149,15 @@ const availableActions = computed(() => {
     return props.episode.episode.all_available_actions[props.currentStep][props.agentNum];
 });
 
-const multiObjectiveQvalues = computed(() => qvalues.value as number[][])
+const takenAction = computed(() => {
+    if (props.episode == null) return [];
+    return props.episode.episode.actions[props.currentStep][props.agentNum];
+});
 
-const singleObjectiveQvalues = computed(() => qvalues.value as number[])
-
-const qvalues = computed(() => {
-    if (props.episode == null) return null;
-    if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return null;
-    if (props.currentStep >= episodeLength.value) return null;
+const currentQvalues = computed(() => {
+    if (props.episode == null) return [];
+    if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
+    if (props.currentStep >= episodeLength.value) return [];
     return props.episode.qvalues[props.currentStep][props.agentNum];
 });
 
@@ -165,13 +174,8 @@ const totalQValues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    if (qvalues.value == null) return [];
-    let actionQvalues = qvalues.value
-    if (!isMultiObjective.value) {
-        actionQvalues = actionQvalues.map(q => [q]) as number[][];
-    }
-    const colours = (actionQvalues as number[][]).map(qs => qs.map(q => props.rainbow.colourAt(q)));
-    return colours;
+    if (isMultiObj.value) return (currentQvalues.value).map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    else return (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
 });
 
 
