@@ -30,7 +30,7 @@ class MAICTrainer(Trainer):
         train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode"),
         grad_norm_clipping: Optional[float] = None,
     ):
-        super().__init__(train_interval[1])
+        super().__init__()
         self.step_update_interval = train_interval[0]
         self.n_agents = args.n_agents
         self.maic_network = maic_network
@@ -44,7 +44,6 @@ class MAICTrainer(Trainer):
         self.double_qlearning = double_qlearning
         self.mixer = mixer
         self.target_mixer = deepcopy(mixer)
-        self.device = torch.device("cpu")
 
         self.update_num = 0
 
@@ -183,7 +182,6 @@ class MAICTrainer(Trainer):
             self.target_mixer.to(device)
         self.maic_network.to(device)
         self.target_network.to(device)
-        self.device = device
         return self
 
     def randomize(self):

@@ -1,23 +1,18 @@
-from .agent import Agent
+from .agent import Agent, SimpleAgent
 from .random_agent import RandomAgent
-from .qlearning import DQN, RDQN, CNet, MAIC
-from .policy_gradient import PPO, DDPG
+from .qlearning import DQNAgent, RDQNAgent, CNet, MAIC
 from .mcts import MCTS
 from .hierarchical import Haven
-from .continuous_agent import ContinuousAgent
-from .discrete_agent import DiscreteAgent
+
 
 __all__ = [
     "Agent",
     "RandomAgent",
-    "DQN",
-    "RDQN",
+    "DQNAgent",
+    "RDQNAgent",
     "CNet",
     "MAIC",
-    "PPO",
-    "DDPG",
     "MCTS",
     "Haven",
-    "ContinuousAgent",
-    "DiscreteAgent",
+    "SimpleAgent",
 ]

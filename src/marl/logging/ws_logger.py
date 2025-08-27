@@ -1,18 +1,15 @@
 import threading
 import os
 import asyncio
-from dataclasses import dataclass
 from typing import ClassVar
 from websockets.exceptions import ConnectionClosed
 from marl.models.replay_episode import LightEpisodeSummary
-from .logger_interface import Logger
 import orjson
 
 from websockets.asyncio.server import serve, ServerConnection
 
 
-@dataclass
-class WSLogger(Logger):
+class WSLogger:
     """A logger that logs to a websocket"""
 
     WS_FILE: ClassVar[str] = "ws_port"
@@ -20,8 +17,7 @@ class WSLogger(Logger):
     clients: set[ServerConnection]
     port: int
 
-    def __init__(self, logdir: str, port: int) -> None:
-        super().__init__(logdir)
+    def __init__(self, port: int) -> None:
         self.port = port
         self.clients = set()
         self.messages = asyncio.Queue()
@@ -74,7 +70,7 @@ class WSLogger(Logger):
             exit(1)
 
     def log(self, tag: str, data: dict[str, float], time_step: int):
-        directory = os.path.join(self.logdir, tag, f"{time_step}")
+        directory = os.path.join(tag, f"{time_step}")
         self.messages.put_nowait(LightEpisodeSummary(directory, data))
 
     def __del__(self):

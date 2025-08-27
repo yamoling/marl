@@ -1,7 +1,7 @@
 from copy import deepcopy
 import time
 from typing import Literal, Callable, Optional
-from marlenv import MARLEnv, DiscreteActionSpace, State
+from marlenv import MARLEnv, State
 import numpy as np
 import random
 

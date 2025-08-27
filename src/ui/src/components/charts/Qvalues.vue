@@ -20,6 +20,11 @@
             </div>
             <div v-show="showOptions">
                 <label>
+                    <b class="me-1">Colour by Qvalues? </b>
+                    <input type="checkbox" v-model="primaryColour">
+                </label>
+                <br>
+                <label>
                     <input type="checkbox" v-model="enablePlusMinus">
                     <b class="me-1">Show std. deviation</b>
                 </label>
@@ -44,6 +49,7 @@ const canvas = ref({} as HTMLCanvasElement);
 
 const fixedYAxis = ref(true);
 const enablePlusMinus = ref(false);
+const primaryColour = ref(false);
 const showOptions = ref(false);
 
 
@@ -72,7 +78,15 @@ function updateChartData() {
     // if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsRowWise(plotDatasets);
     plotDatasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        const colour = colourStore.getQColour(ds.label);
+        // TODO: Add flag of combobox: Agent-hue or value-hue
+        const match = ds.label.match(/^agent(\d+)-(.+)$/);
+        if (!match) throw new Error("Invalid label format");
+        let colour;
+        // Hues diff by Qvalue
+        if (primaryColour.value) colour = colourStore.getQColour(match[2], primaryColour.value); 
+        // Hues diff by Agent
+        else colour = colourStore.getQColour(match[1], primaryColour.value);
+        
         if (enablePlusMinus.value) {
             let lower;
             lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
@@ -110,6 +124,7 @@ function updateChartData() {
 
 watch(props, updateChartData);
 watch(enablePlusMinus, updateChartData);
+watch(primaryColour, updateChartData)
 // Instead of scales values to change, get updated dataset from QvaluesStore
 //watch(yScaleType, () => {
 //    if (yScaleType.value == "Linear") {

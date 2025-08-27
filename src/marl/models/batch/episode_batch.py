@@ -20,11 +20,12 @@ class EpisodeBatch(Batch):
         return super().for_individual_learners()
 
     def compute_returns(self, gamma: float) -> torch.Tensor:
-        result = torch.zeros_like(self.rewards, dtype=torch.float32)
+        result = torch.empty_like(self.rewards, dtype=torch.float32)
         next_step_returns = self.rewards[-1]
         result[-1] = next_step_returns
         for step in range(self._max_episode_len - 2, -1, -1):
-            next_step_returns = self.rewards[step] + gamma * next_step_returns
+            reward = self.rewards[step]
+            next_step_returns = reward + gamma * next_step_returns
             result[step] = next_step_returns
         return result
 
@@ -96,12 +97,12 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def available_actions(self):
-        available_actions = np.array([e.available_actions for e in self.episodes], dtype=np.int64)
+        available_actions = np.array([e.available_actions for e in self.episodes], dtype=np.bool)
         return torch.from_numpy(available_actions).transpose(1, 0).to(self.device)
 
     @cached_property
     def next_available_actions(self):
-        available_actions_ = np.array([e.next_available_actions for e in self.episodes], dtype=np.int64)
+        available_actions_ = np.array([e.next_available_actions for e in self.episodes], dtype=np.bool)
         return torch.from_numpy(available_actions_).transpose(1, 0).to(self.device)
 
     @cached_property
@@ -116,16 +117,18 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def actions(self):
-        actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=np.int64)).to(self.device)
+        dtype = self.episodes[0].actions[0].dtype
+        actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=dtype)).to(self.device)
         return actions.unsqueeze(-1).transpose(1, 0)
 
     @cached_property
     def rewards(self):
-        return torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        rewards = torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        return rewards.squeeze(-1)
 
     @cached_property
     def dones(self):
-        return torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        return torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device)
 
     @cached_property
     def masks(self):

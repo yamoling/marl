@@ -15,8 +15,8 @@ export interface ReplayEpisode {
     metrics: {
         [key: string]: number
     },
-    qvalues?: number[][][][],
-    logits?: number[][][][],
+    qvalues?: number[][][][] | number[][][],
+    logits?: number[][][][] | number[][][],
     probs?: number[][][][],
     messages?: number[][][][],
     received_messages?: number[][][],

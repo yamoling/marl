@@ -9,11 +9,12 @@ from . import policy
 from . import training
 from . import agents
 from . import env
+from . import xmarl
 
 from .utils import seed
 
 
-from .models import Experiment, Runner, Run, Policy, Trainer
+from .models import Experiment, LightExperiment, Runner, Run, Policy, Trainer
 from .agents import Agent
 
 
@@ -27,6 +28,7 @@ __all__ = [
     "training",
     "seed",
     "Experiment",
+    "LightExperiment",
     "Agent",
     "Runner",
     "Run",
@@ -34,4 +36,5 @@ __all__ = [
     "Trainer",
     "exceptions",
     "agents",
+    "xmarl",
 ]

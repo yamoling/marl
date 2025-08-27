@@ -114,7 +114,7 @@ class LocalGraphBottleneckFinder[T]:
 
 class LocalGraphTrainer(Trainer):
     def __init__(self, local_graph: LocalGraphBottleneckFinder[WorldState], world: World):
-        super().__init__("both")
+        super().__init__()
         self.local_graph = local_graph
         self.world = world
         self.states = list[WorldState]()

@@ -1,0 +1,67 @@
+[
+    {
+        "name": "0",
+        "directory": "logs/Overcooked-VDN/run_2025-03-13_13:16:33.793042_seed=2/test/0/0",
+        "initial_value": 0.8755155205726624,
+        "agent_infos": "[{}, {}]",
+        "sparse_r_by_agent": "[0, 0]",
+        "shaped_r_by_agent": "[0, 0]",
+        "phi_s": 30.633689117862914,
+        "phi_s_prime": 30.633689117862914,
+        "episode": "{'ep_game_stats': {'tomato_pickup': [[], []], 'useful_tomato_pickup': [[], []], 'tomato_drop': [[], []], 'useful_tomato_drop': [[], []], 'potting_tomato': [[], []], 'onion_pickup': [[], []], 'useful_onion_pickup': [[], []], 'onion_drop': [[], []], 'useful_onion_drop': [[], []], 'potting_onion': [[], []], 'dish_pickup': [[], []], 'useful_dish_pickup': [[], []], 'dish_drop': [[], []], 'useful_dish_drop': [[], []], 'soup_pickup': [[], []], 'soup_delivery': [[], []], 'soup_drop': [[], []], 'optimal_onion_potting': [[], []], 'optimal_tomato_potting': [[], []], 'viable_onion_potting': [[], []], 'viable_tomato_potting': [[], []], 'catastrophic_onion_potting': [[], []], 'catastrophic_tomato_potting': [[], []], 'useless_onion_potting': [[], []], 'useless_tomato_potting': [[], []], 'cumulative_sparse_rewards_by_agent': array([0, 0]), 'cumulative_shaped_rewards_by_agent': array([0, 0])}, 'ep_sparse_r': np.int64(0), 'ep_shaped_r': np.int64(0), 'ep_sparse_r_by_agent': array([0, 0]), 'ep_shaped_r_by_agent': array([0, 0]), 'ep_length': 400}",
+        "episode_len": 400,
+        "score-0": 0
+    },
+    {
+        "name": "0",
+        "directory": "logs/Overcooked-VDN/run_2025-03-13_13:16:38.937091_seed=3/test/0/0",
+        "initial_value": -2.7519359588623047,
+        "agent_infos": "[{}, {}]",
+        "sparse_r_by_agent": "[0, 0]",
+        "shaped_r_by_agent": "[0, 0]",
+        "phi_s": 46.80459517977117,
+        "phi_s_prime": 46.80459517977117,
+        "episode": "{'ep_game_stats': {'tomato_pickup': [[], []], 'useful_tomato_pickup': [[], []], 'tomato_drop': [[], []], 'useful_tomato_drop': [[], []], 'potting_tomato': [[], []], 'onion_pickup': [[0], []], 'useful_onion_pickup': [[0], []], 'onion_drop': [[], []], 'useful_onion_drop': [[], []], 'potting_onion': [[], []], 'dish_pickup': [[], [0]], 'useful_dish_pickup': [[], []], 'dish_drop': [[], []], 'useful_dish_drop': [[], []], 'soup_pickup': [[], []], 'soup_delivery': [[], []], 'soup_drop': [[], []], 'optimal_onion_potting': [[], []], 'optimal_tomato_potting': [[], []], 'viable_onion_potting': [[], []], 'viable_tomato_potting': [[], []], 'catastrophic_onion_potting': [[], []], 'catastrophic_tomato_potting': [[], []], 'useless_onion_potting': [[], []], 'useless_tomato_potting': [[], []], 'cumulative_sparse_rewards_by_agent': array([0, 0]), 'cumulative_shaped_rewards_by_agent': array([0, 0])}, 'ep_sparse_r': np.int64(0), 'ep_shaped_r': np.int64(0), 'ep_sparse_r_by_agent': array([0, 0]), 'ep_shaped_r_by_agent': array([0, 0]), 'ep_length': 400}",
+        "episode_len": 400,
+        "score-0": 0
+    },
+    {
+        "name": "0",
+        "directory": "logs/Overcooked-VDN/run_2025-03-13_13:16:23.475842_seed=0/test/0/0",
+        "initial_value": 1.6170750856399536,
+        "agent_infos": "[{}, {}]",
+        "sparse_r_by_agent": "[0, 0]",
+        "shaped_r_by_agent": "[0, 0]",
+        "phi_s": 30.633689117862914,
+        "phi_s_prime": 30.633689117862914,
+        "episode": "{'ep_game_stats': {'tomato_pickup': [[], []], 'useful_tomato_pickup': [[], []], 'tomato_drop': [[], []], 'useful_tomato_drop': [[], []], 'potting_tomato': [[], []], 'onion_pickup': [[], []], 'useful_onion_pickup': [[], []], 'onion_drop': [[], []], 'useful_onion_drop': [[], []], 'potting_onion': [[], []], 'dish_pickup': [[], []], 'useful_dish_pickup': [[], []], 'dish_drop': [[], []], 'useful_dish_drop': [[], []], 'soup_pickup': [[], []], 'soup_delivery': [[], []], 'soup_drop': [[], []], 'optimal_onion_potting': [[], []], 'optimal_tomato_potting': [[], []], 'viable_onion_potting': [[], []], 'viable_tomato_potting': [[], []], 'catastrophic_onion_potting': [[], []], 'catastrophic_tomato_potting': [[], []], 'useless_onion_potting': [[], []], 'useless_tomato_potting': [[], []], 'cumulative_sparse_rewards_by_agent': array([0, 0]), 'cumulative_shaped_rewards_by_agent': array([0, 0])}, 'ep_sparse_r': np.int64(0), 'ep_shaped_r': np.int64(0), 'ep_sparse_r_by_agent': array([0, 0]), 'ep_shaped_r_by_agent': array([0, 0]), 'ep_length': 400}",
+        "episode_len": 400,
+        "score-0": 0
+    },
+    {
+        "name": "0",
+        "directory": "logs/Overcooked-VDN/run_2025-03-13_13:16:44.034103_seed=4/test/0/0",
+        "initial_value": 2.690708637237549,
+        "agent_infos": "[{}, {}]",
+        "sparse_r_by_agent": "[0, 0]",
+        "shaped_r_by_agent": "[0, 0]",
+        "phi_s": 30.633689117862914,
+        "phi_s_prime": 30.633689117862914,
+        "episode": "{'ep_game_stats': {'tomato_pickup': [[], []], 'useful_tomato_pickup': [[], []], 'tomato_drop': [[], []], 'useful_tomato_drop': [[], []], 'potting_tomato': [[], []], 'onion_pickup': [[], []], 'useful_onion_pickup': [[], []], 'onion_drop': [[], []], 'useful_onion_drop': [[], []], 'potting_onion': [[], []], 'dish_pickup': [[], []], 'useful_dish_pickup': [[], []], 'dish_drop': [[], []], 'useful_dish_drop': [[], []], 'soup_pickup': [[], []], 'soup_delivery': [[], []], 'soup_drop': [[], []], 'optimal_onion_potting': [[], []], 'optimal_tomato_potting': [[], []], 'viable_onion_potting': [[], []], 'viable_tomato_potting': [[], []], 'catastrophic_onion_potting': [[], []], 'catastrophic_tomato_potting': [[], []], 'useless_onion_potting': [[], []], 'useless_tomato_potting': [[], []], 'cumulative_sparse_rewards_by_agent': array([0, 0]), 'cumulative_shaped_rewards_by_agent': array([0, 0])}, 'ep_sparse_r': np.int64(0), 'ep_shaped_r': np.int64(0), 'ep_sparse_r_by_agent': array([0, 0]), 'ep_shaped_r_by_agent': array([0, 0]), 'ep_length': 400}",
+        "episode_len": 400,
+        "score-0": 0
+    },
+    {
+        "name": "0",
+        "directory": "logs/Overcooked-VDN/run_2025-03-13_13:16:28.623315_seed=1/test/0/0",
+        "initial_value": 0.26591190695762634,
+        "agent_infos": "[{}, {}]",
+        "sparse_r_by_agent": "[0, 0]",
+        "shaped_r_by_agent": "[0, 0]",
+        "phi_s": 30.633689117862914,
+        "phi_s_prime": 30.633689117862914,
+        "episode": "{'ep_game_stats': {'tomato_pickup': [[], []], 'useful_tomato_pickup': [[], []], 'tomato_drop': [[], []], 'useful_tomato_drop': [[], []], 'potting_tomato': [[], []], 'onion_pickup': [[], []], 'useful_onion_pickup': [[], []], 'onion_drop': [[], []], 'useful_onion_drop': [[], []], 'potting_onion': [[], []], 'dish_pickup': [[], []], 'useful_dish_pickup': [[], []], 'dish_drop': [[], []], 'useful_dish_drop': [[], []], 'soup_pickup': [[], []], 'soup_delivery': [[], []], 'soup_drop': [[], []], 'optimal_onion_potting': [[], []], 'optimal_tomato_potting': [[], []], 'viable_onion_potting': [[], []], 'viable_tomato_potting': [[], []], 'catastrophic_onion_potting': [[], []], 'catastrophic_tomato_potting': [[], []], 'useless_onion_potting': [[], []], 'useless_tomato_potting': [[], []], 'cumulative_sparse_rewards_by_agent': array([0, 0]), 'cumulative_shaped_rewards_by_agent': array([0, 0])}, 'ep_sparse_r': np.int64(0), 'ep_shaped_r': np.int64(0), 'ep_sparse_r_by_agent': array([0, 0]), 'ep_shaped_r_by_agent': array([0, 0]), 'ep_length': 400}",
+        "episode_len": 400,
+        "score-0": 0
+    }
+]

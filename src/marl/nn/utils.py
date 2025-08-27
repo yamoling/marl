@@ -1,7 +1,8 @@
 import torch
+from typing import Sequence
 
 
-def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: list[int], min_output_size=1024):
+def make_cnn(input_shape, filters: Sequence[int], kernel_sizes: Sequence[int], strides: Sequence[int], min_output_size=1024):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
     channels, height, width = input_shape
     paddings = [0 for _ in filters]
@@ -24,7 +25,7 @@ def make_cnn(input_shape, filters: list[int], kernel_sizes: list[int], strides: 
     return torch.nn.Sequential(*modules), output_size
 
 
-def conv2d_size_out(input_width: int, input_height: int, kernel_sizes: list[int], strides: list[int], paddings: list[int]):
+def conv2d_size_out(input_width: int, input_height: int, kernel_sizes: Sequence[int], strides: Sequence[int], paddings: Sequence[int]):
     """
     Compute the output width and height of a sequence of 2D convolutions.
     See shape section on https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html

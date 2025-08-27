@@ -1,11 +1,8 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal
-from marlenv import ActionSpace
 from abc import ABC, abstractmethod
 import torch
-
-from marlenv.models import MARLEnv
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -31,10 +28,14 @@ class NN(torch.nn.Module, ABC):
         self.extras_shape = extras_shape
         self.output_shape = output_shape
         self.name = self.__class__.__name__
-        self.device = torch.device("cpu")
+        self._device = torch.device("cpu")
+
+    @property
+    def device(self):
+        return self._device
 
     @abstractmethod
-    def forward(self, *args) -> torch.Tensor:
+    def forward(self, *args, **kwargs) -> torch.Tensor:
         """Forward pass"""
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -46,21 +47,17 @@ class NN(torch.nn.Module, ABC):
             case _:
                 raise ValueError(f"Unknown initialization method: {method}. Choose between 'xavier' and 'orthogonal'")
 
-    @classmethod
-    def from_env[A, AS: ActionSpace](cls, env: MARLEnv[A, AS]):
-        """Construct a NN from environment specifications"""
-        return cls(input_shape=env.observation_shape, extras_shape=env.extras_shape, output_shape=(env.n_actions,))
-
     def __hash__(self) -> int:
         # Required for deserialization (in torch.nn.module)
         return hash(self.name)
 
-    def to(self, device: torch.device | Literal["cpu", "auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):
-        if isinstance(device, str):
+    def to(self, device: str | int | torch.device | Literal["auto"], dtype: Optional[torch.dtype] = None, non_blocking=True):  # type: ignore
+        if device == "auto":
             from marl.utils import get_device
 
-            device = get_device(device)
-        self.device = device
+            self._device = get_device(device)  # type: ignore
+        else:
+            self._device = torch.device(device)
         return super().to(device, dtype, non_blocking)
 
 

@@ -1,10 +1,10 @@
-
-
-
+from dataclasses import dataclass
 from lle import LLE, Action, World
 
+
+@dataclass
 class PreventActions(LLE):
-    def __init__(self,width: int):
+    def __init__(self, width: int):
         super().__init__(World.from_file("maps/showcase"), name="PreventActions")
         self.b_width = width
 
@@ -24,4 +24,3 @@ class PreventActions(LLE):
             elif i == 4 and self.b_width < 5:
                 available[0, Action.EAST.value] = False
         return available
-            

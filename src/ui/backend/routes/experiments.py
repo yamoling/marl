@@ -1,9 +1,8 @@
-import json
 from http import HTTPStatus
 
 import cv2
 import orjson
-from flask import request
+from flask import request, Response
 
 import marl
 from marl.exceptions import ExperimentVersionMismatch
@@ -16,8 +15,8 @@ from . import app, state
 def replay(path: str):
     try:
         replay_episode = state.replay_episode(path)
-        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY)
-        return serialized, HTTPStatus.OK
+        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
+        return Response(serialized, mimetype="application/json", status=HTTPStatus.OK)
     except ValueError as e:
         return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
 
@@ -81,7 +80,7 @@ def rename_experiment():
 @app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
 def delete_experiment(logdir: str):
     try:
-        exp = state.get_experiment(logdir)
+        exp = state.get_light_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
     except FileNotFoundError as e:

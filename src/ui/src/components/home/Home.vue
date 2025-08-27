@@ -1,7 +1,7 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenu" />
-        <RunHover ref="runHover"/>
+        <RunHover ref="runHover" />
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -58,7 +58,8 @@
                                     </template>
                                 </td>
                                 <td>
-                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]" :icon="['fas', 'person-running']" class="fa-bounce"/>
+                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]"
+                                        :icon="['fas', 'spinner']" class="fa-spin" />
                                 </td>
                                 <td>
                                     <template v-if="experimentProgresses[exp.logdir]">
@@ -69,15 +70,15 @@
                                     {{ exp.logdir.replace("logs/", "") }}
                                 </td>
                                 <td>
-                                    {{exp.env.name}}
+                                    {{ exp.env.name }}
                                 </td>
-                                <td> 
+                                <td>
                                     <template v-if="exp.trainer.mixer">
-                                        {{ exp.trainer.mixer.name }}    
+                                        {{ exp.trainer.mixer.name }}
                                     </template>
                                     <template v-else>
                                         {{ exp.agent.name }}
-                                    </template>    
+                                    </template>
                                 </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
@@ -111,11 +112,12 @@
             </div>
             <template v-else>
                 <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
-                <Plotter v-for=" [label, ds] in  datasetPerLabel " :datasets="ds" :title="label.replaceAll('_', ' ')"
+                <Plotter v-for="[label, ds] in datasetPerLabel" :datasets="ds" :title="label.replaceAll('_', ' ')"
                     :showLegend="true" />
-                <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-for=" [expName, qDs] in  qvaluesDatasets " :datasets="qDs" :title="expName.replace('logs/', ' ')"
-                :showLegend="true" />
+                <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues"
+                    @change-selected-qvalues="(q) => selectedQvalues = q" />
+                <Qvalues v-for="[expName, qDs] in qvaluesDatasets" :datasets="qDs"
+                    :title="expName.replace('logs/', ' ')" :showLegend="true" />
             </template>
 
         </div>
@@ -170,7 +172,7 @@ const qvalues = computed(() => {
 
 
 const experimentProgresses = computed(() => {
-    const res = {} as {[key:string]: number};
+    const res = {} as { [key: string]: number };
     experimentStore.experiments.forEach(exp => {
         const runs = runStore.runs.get(exp.logdir) ?? [];
         const nRuns = runs.length;
@@ -227,7 +229,7 @@ function downloadDatasets(logdir: string) {
     }
     const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
     downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
-    if (!(results.qvaluesDs.length == 0)){
+    if (!(results.qvaluesDs.length == 0)) {
         const csv_q = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
         downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
     }

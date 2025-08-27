@@ -105,9 +105,9 @@ class CNetNN(NN):  # Source : https://github.com/minqi/learning-to-communicate-p
         if not opt.model_dial:
             if opt.model_action_aware:
                 prev_action, prev_message = prev_action
-                prev_action = prev_action.to(self.device)
-                prev_message = prev_message.to(self.device)
-                messages = messages.to(self.device)
+                prev_action = prev_action.to(self._device)
+                prev_message = prev_message.to(self._device)
+                messages = messages.to(self._device)
         # agent_index = Variable(agent_index)
 
         z_a, z_o, z_u, z_m = [0] * 4

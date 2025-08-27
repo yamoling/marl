@@ -1,14 +1,14 @@
-from marlenv import MARLEnv, Observation, ActionSpace
+from marlenv import MARLEnv, Observation
 from .agent import Agent
 
 
-class RandomAgent[A, AS: ActionSpace](Agent[A]):
-    def __init__(self, env: MARLEnv[A, AS]):
+class RandomAgent(Agent):
+    def __init__(self, env: MARLEnv):
         super().__init__()
         self.env = env
 
-    def choose_action(self, obs: Observation) -> A:
-        return self.env.action_space.sample(obs.available_actions)  # type: ignore
+    def choose_action(self, obs: Observation):
+        return self.env.action_space.sample(obs.available_actions)
 
     def value(self, _):
         return 0.0

@@ -44,6 +44,42 @@ export interface Dataset {
     ci95: number[]
 }
 
+export class DatasetTable {
+    public items: { step: number, [key: string]: number }[]
+
+    public constructor(items: { step: number, [key: string]: number }[]) {
+        this.items = items
+    }
+
+    public static fromTestDatasets(datasets: Dataset[]) {
+        return DatasetTable.fromDatasets(datasets.filter(d => d.label.includes("[test]")))
+    }
+
+    public static fromDatasets(datasets: Dataset[]) {
+        const items = [] as { step: number, [key: string]: number }[];
+        datasets.forEach(ds => {
+            for (let i = 0; i < ds.ticks.length; i++) {
+                const step = ds.ticks[i]
+                if (items.length <= i) {
+                    items.push({ step })
+                }
+                items[i].step = step;
+                items[i][ds.label] = ds.mean[i];
+            }
+        })
+        return new DatasetTable(items)
+    }
+
+    public size(): number {
+        return this.items.length;
+    }
+
+    public columns(): string[] {
+        return Object.keys(this.items[0]).filter(key => key !== "step")
+    }
+
+}
+
 
 export function toCSV(datasets: readonly Dataset[], ticks: number[]) {
     const csv = []
