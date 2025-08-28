@@ -6,13 +6,14 @@ import typed_argparse as tap
 from lle import LLE
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
-from marl.env.shaped_doors import ShapedDoors
+from marl.env import StateCounter
 
 import marl
 from marl import Trainer
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.optimism import VBE
 from marl.training import DQN, PPO, SoftUpdate
 from marl.training.haven_trainer import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
@@ -189,6 +190,7 @@ def make_dqn(
     ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
     gamma=0.95,
     noisy: bool = False,
+    use_vbe: bool = False,
 ):
     mixer = make_mixer(env, mixing)
     qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=noisy)
@@ -205,6 +207,10 @@ def make_dqn(
         policy = marl.policy.ArgMax()
     else:
         policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
+    vbe = None
+    if use_vbe:
+        rqf = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(128, 128))
+        vbe = VBE(gamma, rqf, 3, 1e-4)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
@@ -219,6 +225,7 @@ def make_dqn(
         mixer=mixer,
         grad_norm_clipping=10,
         ir_module=ir,
+        vbe=vbe,
     )
 
 
@@ -297,13 +304,10 @@ def make_experiment(
     )
 
 
-def make_lle(delay: int):
-    # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
-    env = ShapedDoors(delay)
-    if delay < 0:
-        env = env.wrapped
-        # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").builder().time_limit(90).build()
-    # env = marlenv.Builder(env).time_limit(90).build()
+def make_lle():
+    env = LLE.level(6).obs_type("layered").state_type("state").build()
+    env = StateCounter(env)
+    env = marlenv.Builder(env).agent_id().time_limit(78).build()
     test_env = None
     return env, test_env
 
@@ -320,10 +324,10 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
-        env, test_env = make_lle(int(args.delay))
+        env, test_env = make_lle()
         # env, test_env = make_overcooked()
 
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
+        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95, use_vbe=True)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
         exp = make_experiment(args, trainer, env, test_env, 200_000)
         print(f"Experiment created in {exp.logdir}")

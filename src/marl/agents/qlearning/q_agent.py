@@ -7,6 +7,7 @@ import torch
 from marlenv import Observation
 
 from marl.models import Policy, QNetwork, RecurrentQNetwork
+from marl.optimism import VBE
 
 from ..agent import Agent
 
@@ -26,6 +27,7 @@ class DQNAgent(Agent):
         qnetwork: QNetwork,
         train_policy: Policy,
         test_policy: Optional[Policy] = None,
+        vbe: Optional[VBE] = None,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -34,6 +36,7 @@ class DQNAgent(Agent):
             test_policy = self.train_policy
         self.test_policy = test_policy
         self.policy = self.train_policy
+        self.vbe = vbe
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
@@ -41,6 +44,9 @@ class DQNAgent(Agent):
         qvalues = qvalues.numpy(force=True)
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
+        if self.vbe is not None:
+            bonus = self.vbe.compute_bonus(obs)
+            qvalues = qvalues + bonus
         action = self.policy.get_action(qvalues, obs.available_actions)
         return action
 
@@ -78,9 +84,7 @@ class RDQNAgent(DQNAgent):
     Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
     """
 
-    def __init__(self, qnetwork: RecurrentQNetwork, train_policy: Policy, test_policy: Policy | None = None):
-        super().__init__(qnetwork, train_policy, test_policy)
-        self.qnetwork: RecurrentQNetwork
+    qnetwork: RecurrentQNetwork
 
     def new_episode(self):
         self.qnetwork.reset_hidden_states()

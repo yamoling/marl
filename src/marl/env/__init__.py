@@ -7,6 +7,7 @@ from .matrix_game import MatrixGame
 from .coordinated_grid import CoordinatedGrid
 from .env_pool import EnvPool
 from .connectn import ConnectN
+from .state_counter import StateCounter
 
 __all__ = [
     "ConnectN",
@@ -15,4 +16,5 @@ __all__ = [
     "MatrixGame",
     "CoordinatedGrid",
     "EnvPool",
+    "StateCounter",
 ]

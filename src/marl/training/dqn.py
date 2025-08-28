@@ -6,10 +6,8 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl.agents import DQNAgent, RDQNAgent, Agent
-from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule
-from marl.models.batch import Batch
-from marl.models.trainer import Trainer
-
+from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule, Batch, Trainer
+from marl.optimism import VBE
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
@@ -25,6 +23,7 @@ class DQN[B: Batch](Trainer):
     mixer: Optional[Mixer]
     ir_module: Optional[IRModule]
     grad_norm_clipping: Optional[float]
+    vbe: Optional[VBE]
 
     def __init__(
         self,
@@ -41,6 +40,7 @@ class DQN[B: Batch](Trainer):
         train_interval: tuple[int, Literal["step", "episode", "both"]] = (5, "step"),
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
+        vbe: Optional[VBE] = None,
     ):
         super().__init__()
         match train_interval:
@@ -62,6 +62,7 @@ class DQN[B: Batch](Trainer):
         self.memory = memory
         self.gamma = gamma
         self.batch_size = batch_size
+        self.vbe = vbe
         if target_updater is None:
             target_updater = SoftUpdate(1e-2)
         self.target_updater = target_updater
@@ -165,6 +166,8 @@ class DQN[B: Batch](Trainer):
         self.optimiser.step()
         if isinstance(self.memory, PrioritizedMemory):
             logs = logs | self.memory.update(td_error)
+        if self.vbe is not None:
+            logs = logs | self.vbe.update(batch)
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
@@ -193,11 +196,13 @@ class DQN[B: Batch](Trainer):
                 qnetwork=self.qnetwork,
                 train_policy=self.policy,
                 test_policy=test_policy,
+                vbe=self.vbe,
             )
         return DQNAgent(
             qnetwork=self.qnetwork,
             train_policy=self.policy,
             test_policy=test_policy,
+            vbe=self.vbe,
         )
 
     def value(self, obs: Observation, state: State) -> float:

@@ -14,12 +14,10 @@ from tqdm import tqdm
 
 from marl import exceptions
 from marl.agents import DQNAgent, Agent, SimpleAgent
-from marl.models.run import Run, Runner
+from marl.models import Run, Runner, ReplayEpisode
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
-from marl.models.replay_episode import ReplayEpisode
-from marl.utils import encode_b64_image
-from marl.utils.gpu import get_device
+from marl.utils import encode_b64_image, get_device
 
 
 from .light_experiment import LightExperiment

@@ -27,16 +27,11 @@ class QNetwork(NN):
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 
-    def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
-        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self._device)
-        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self._device)
-        return obs_tensor, extras
-
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
         Compute the Q-values (one per agent, per action and per objective).
         """
-        obs_tensor, extra_tensor = self.to_tensor(obs)
+        obs_tensor, extra_tensor = obs.as_tensors(self._device)
         qvalues = self.forward(obs_tensor, extra_tensor)
         return qvalues.squeeze(0)
 

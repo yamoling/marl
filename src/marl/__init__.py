@@ -10,6 +10,7 @@ from . import training
 from . import agents
 from . import env
 from . import xmarl
+from . import optimism
 
 from .utils import seed
 
@@ -36,5 +37,6 @@ __all__ = [
     "Trainer",
     "exceptions",
     "agents",
+    "optimism",
     "xmarl",
 ]

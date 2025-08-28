@@ -8,8 +8,7 @@ import torch
 from torch import distributions
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import Space, Observation, MultiDiscreteSpace
-from marlenv.models import MARLEnv
+from marlenv import Space, MultiDiscreteSpace, MARLEnv
 
 from marl.agents.qlearning.maic import MAICParameters
 from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork, MAICNN
@@ -49,15 +48,13 @@ class MLP(QNetwork):
     def from_env[A: Space](
         cls,
         env: MARLEnv[A],
-        hidden_sizes: Optional[Sequence[int]] = None,
+        hidden_sizes: Sequence[int] = (64,),
         last_layer_noisy: bool = False,
     ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        if hidden_sizes is None:
-            hidden_sizes = (64,)
         return MLP(
             env.observation_shape[0],
             env.extras_shape[0],
@@ -345,18 +342,6 @@ class RCNN(RecurrentQNetwork):
         extras = extras.view(*dims, *self.extras_shape)
         res = self.rnn.batch_forward(features, extras)
         return res.view(*dims, *self.output_shape)
-
-    def value(self, obs: Observation) -> torch.Tensor:
-        x, extras = self.to_tensor(obs)
-        *dims, channels, height, width = x.shape
-        x = x.view(-1, channels, height, width)
-        features = self.cnn.forward(x).unsqueeze(0)
-        extras = extras.view(*dims, *self.extras_shape)
-        saved_hidden_states = self.rnn.hidden_states
-        qvalues = self.rnn.forward(features, extras)
-        self.rnn.hidden_states = saved_hidden_states
-        max_qvalues = qvalues.max(dim=-2).values
-        return max_qvalues.mean(dim=-2)
 
 
 class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
