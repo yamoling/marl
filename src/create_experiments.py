@@ -1,4 +1,5 @@
 import shutil
+from copy import deepcopy
 from typing import Literal, Optional
 
 import marlenv
@@ -6,10 +7,10 @@ import typed_argparse as tap
 from lle import LLE
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
-from marl.env import StateCounter
 
 import marl
 from marl import Trainer
+from marl.env import StateCounter
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
@@ -193,7 +194,7 @@ def make_dqn(
     use_vbe: bool = False,
 ):
     mixer = make_mixer(env, mixing)
-    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=noisy)
+    qnetwork = marl.nn.model_bank.MLP.from_env(env, hidden_sizes=(128, 128))
     match ir_method:
         case "rnd":
             ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
@@ -209,8 +210,7 @@ def make_dqn(
         policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     vbe = None
     if use_vbe:
-        rqf = marl.nn.model_bank.CNN.from_env(env, mlp_sizes=(128, 128))
-        vbe = VBE(gamma, rqf, 3, 1e-4)
+        vbe = VBE(gamma, deepcopy(qnetwork), 3, 1e-4)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
@@ -312,10 +312,17 @@ def make_lle():
     return env, test_env
 
 
+def make_deepsea():
+    env = marlenv.catalog.DeepSea(25)
+    env = marl.env.StateCounter(env)
+    env = marl.env.NoReward(env)
+    return env, None
+
+
 def make_overcooked():
-    env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
+    env = marlenv.catalog.Overcooked.from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
     env = marlenv.Builder(env).agent_id().build()
-    test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+    test_env = marlenv.catalog.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
     test_env = marlenv.Builder(test_env).agent_id().build()
     return env, test_env
 
@@ -324,7 +331,8 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
-        env, test_env = make_lle()
+        # env, test_env = make_lle()
+        env, test_env = make_deepsea()
         # env, test_env = make_overcooked()
 
         trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95, use_vbe=True)

@@ -1,10 +1,10 @@
-from marlenv import MARLEnv, RLEnvWrapper
+from marlenv import MARLEnv, RLEnvWrapper, Space
 from dataclasses import dataclass
 
 
 @dataclass
-class NoReward(RLEnvWrapper):
-    def __init__(self, env: MARLEnv):
+class NoReward[S: Space](RLEnvWrapper[S]):
+    def __init__(self, env: MARLEnv[S]):
         super().__init__(env)
         self.name = f"{env.name}-NoReward"
 
