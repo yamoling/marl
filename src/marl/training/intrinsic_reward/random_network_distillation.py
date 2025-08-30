@@ -68,7 +68,10 @@ class RandomNetworkDistillation(IRModule):
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
         next_states = self._running_states.normalise(batch.next_states)
-        next_states_extras = self._running_extras.normalise(batch.next_states_extras)
+        if batch.next_states_extras.numel() > 0:
+            next_states_extras = self._running_extras.normalise(batch.next_states_extras)
+        else:
+            next_states_extras = batch.next_states_extras
         if not self._warmup_done:
             return torch.zeros_like(batch.rewards)
         # Compute the embedding and the squared error

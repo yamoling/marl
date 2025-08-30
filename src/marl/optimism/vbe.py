@@ -34,6 +34,8 @@ class VBE:
         self._target_rqfs = list[QNetwork]()
         self._rqfs = list[QNetwork]()
         self._optimizers = list[torch.optim.Optimizer]()
+        self._bonus_history = []
+        self._device = rqf.device
         rqf.eval()
         for _ in range(n):
             # Create the target RQF
@@ -50,7 +52,7 @@ class VBE:
         The bonus is derived from the difference between the RQF and the target RQFs.
         """
         # We use `as_tensors` instead of `rqf.qvalues` such that the tensor conversion is only called once.
-        data, extras = obs.as_tensors()
+        data, extras = obs.as_tensors(self._device)
         errors = []
         with torch.no_grad():
             for rqf, target in zip(self._rqfs, self._target_rqfs):
@@ -62,8 +64,9 @@ class VBE:
         # Stack according to the 1st dimension to have a shape (n_agents, n, n_actions)
         errors = torch.stack(errors, dim=1).abs()
         # Retrieve the maximal prediction error for each agent and for each action
-        errors = errors.max(dim=1).values
-        return errors.numpy(force=True)
+        bonus = errors.max(dim=1).values.numpy(force=True)
+        self._bonus_history.append(bonus)
+        return bonus
 
     def update(self, batch: Batch):
         i = random.randint(0, len(self._rqfs) - 1)
@@ -76,4 +79,14 @@ class VBE:
         optim.zero_grad()
         loss.backward()
         optim.step()
-        return {"vbe_loss": loss.item()}
+        bonus_hist = np.stack(self._bonus_history)
+        self._bonus_history.clear()
+        return {"vbe_loss": loss.item(), "mean_vbe_bonus": bonus_hist.mean().item()}
+
+    def to(self, device: torch.device):
+        self._device = device
+        for rqf in self._rqfs:
+            rqf.to(device)
+        for target in self._target_rqfs:
+            target.to(device)
+        return self

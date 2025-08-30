@@ -37,6 +37,7 @@ class DQNAgent(Agent):
         self.test_policy = test_policy
         self.policy = self.train_policy
         self.vbe = vbe
+        self._is_training = True
 
     def choose_action(self, obs: Observation):
         with torch.no_grad():
@@ -44,7 +45,7 @@ class DQNAgent(Agent):
         qvalues = qvalues.numpy(force=True)
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
-        if self.vbe is not None:
+        if self._is_training and self.vbe is not None:
             bonus = self.vbe.compute_bonus(obs)
             qvalues = qvalues + bonus
         action = self.policy.get_action(qvalues, obs.available_actions)
@@ -53,10 +54,12 @@ class DQNAgent(Agent):
     def set_testing(self):
         self.policy = self.test_policy
         self.qnetwork.eval()
+        self._is_training = False
 
     def set_training(self):
         self.policy = self.train_policy
         self.qnetwork.train()
+        self._is_training = True
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)

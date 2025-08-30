@@ -210,7 +210,7 @@ def make_dqn(
         policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
     vbe = None
     if use_vbe:
-        vbe = VBE(gamma, deepcopy(qnetwork), 3, 1e-4)
+        vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,

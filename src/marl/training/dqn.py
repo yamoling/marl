@@ -219,6 +219,8 @@ class DQN[B: Batch](Trainer):
     def to(self, device: torch.device):
         if self.ir_module is not None:
             self.ir_module.to(device)
+        if self.vbe is not None:
+            self.vbe.to(device)
         return super().to(device)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
