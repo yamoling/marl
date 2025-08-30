@@ -1,12 +1,18 @@
-from abc import ABC, abstractmethod
-from typing import Any, Optional
-from marlenv import Episode
-import numpy as np
 import os
+import shutil
+from abc import ABC, abstractmethod
+from dataclasses import asdict
+from typing import Any, Optional
+
 import cv2
+import numpy as np
 import orjson
 import polars as pl
-import shutil
+from marlenv import Episode
+
+from marlenv import MARLEnv
+from marl.agents import Agent
+from marl.models.trainer import Trainer
 
 ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"
@@ -49,21 +55,35 @@ class Logger(ABC):
             logdir = os.path.join("logs", logdir)
         self.logdir = logdir
         if os.path.exists(logdir):
-            if os.path.basename(logdir).lower() in ["test", "debug"]:
+            if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
                 shutil.rmtree(logdir)
-        os.makedirs(logdir, exist_ok=True)
 
     def get_logdir(self, time_step: int) -> str:
         return os.path.join(self.logdir, str(time_step))
 
-    @abstractmethod
-    def log_train(self, data: dict[str, Any], time_step: int): ...
+    def log_train(self, data: dict[str, Any], time_step: int):
+        if len(data) == 0:
+            return
+        self.log(data, time_step, prefix="train/")
+
+    def log_training_data(self, data: dict[str, Any], time_step: int):
+        if len(data) == 0:
+            return
+        self.log(data, time_step, prefix="training-data/")
+
+    def log_test(self, data: dict[str, Any], time_step: int):
+        if len(data) == 0:
+            return
+        self.log(data, time_step, prefix="test/")
+
+    def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
+        self.log(asdict(trainer), prefix="params/trainer/", time_step=0)
+        self.log(asdict(agent), prefix="params/agent/", time_step=0)
+        self.log(asdict(env), prefix="params/env/", time_step=0)
+        self.log(asdict(test_env), prefix="params/test_env/", time_step=0)
 
     @abstractmethod
-    def log_training_data(self, data: dict[str, Any], time_step: int): ...
-
-    @abstractmethod
-    def log_test(self, data: dict[str, Any], time_step: int): ...
+    def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
 
     def test_dir(self, time_step: int, test_num: Optional[int] = None):
         test_dir = os.path.join(self.logdir, "test", f"{time_step}")

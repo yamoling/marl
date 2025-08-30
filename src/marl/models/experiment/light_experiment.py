@@ -2,6 +2,7 @@ import os
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Literal
 
 import orjson
 
@@ -13,6 +14,7 @@ from marl.models.replay_episode import LightEpisodeSummary
 @dataclass
 class LightExperiment:
     logdir: str
+    logger: Literal["csv", "wandb", "neptune"]
     test_interval: int
     n_steps: int
     creation_timestamp: int
@@ -117,7 +119,7 @@ class LightExperiment:
         return new_exp
 
     @staticmethod
-    def load(logdir: str):
+    def load(logdir: str, logger: Literal["csv", "wandb"] = "csv"):
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
             data = orjson.loads(f.read())
-        return LightExperiment(logdir, data["test_interval"], data["n_steps"], data["creation_timestamp"])
+        return LightExperiment(logdir, logger, data["test_interval"], data["n_steps"], data["creation_timestamp"])

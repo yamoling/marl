@@ -1,7 +1,9 @@
 from marlenv import MARLEnv, Observation
 from .agent import Agent
+from dataclasses import dataclass
 
 
+@dataclass
 class RandomAgent(Agent):
     def __init__(self, env: MARLEnv):
         super().__init__()

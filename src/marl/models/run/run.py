@@ -32,7 +32,7 @@ class Run:
     n_steps: int
     """The step up to which the run will be executed, i.e. the max step number."""
 
-    def __init__(self, rundir: str, seed: int, n_tests: int, test_interval: int, n_steps: int, reader: LogReader):
+    def __init__(self, rundir: str, seed: int, n_tests: int, test_interval: int, n_steps: int, reader: Optional[LogReader] = None):
         """This constructor is not meant to be called directly. Use static methods `create` and `load` instead."""
         self.rundir = rundir
         self.seed = seed
@@ -122,10 +122,12 @@ class Run:
 
     @property
     def test_metrics(self):
+        assert self._reader is not None
         return self._reader.test_metrics
 
     @property
     def train_metrics(self):
+        assert self._reader is not None
         df = self._reader.train_metrics
         if df.is_empty():
             return df
@@ -137,6 +139,7 @@ class Run:
 
     @property
     def training_data(self):
+        assert self._reader is not None
         df = self._reader.training_data
         if df.is_empty():
             return df

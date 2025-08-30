@@ -118,6 +118,16 @@ class CSVLogger(Logger):
     def log_training_data(self, data: dict[str, float], time_step: int):
         return self.training_data.log(data, time_step)
 
+    def log(self, data: dict[str, Any], time_step: int, prefix: str | None = None):
+        match prefix:
+            case "train/":
+                self.train.log(data, time_step)
+            case "test/":
+                self.test.log(data, time_step)
+            case "training-data/":
+                self.training_data.log(data, time_step)
+        raise ValueError(f"Unknown log prefix: {prefix}")
+
     @staticmethod
     def reader(from_directory: str) -> "CSVLogReader":
         return CSVLogReader(from_directory)

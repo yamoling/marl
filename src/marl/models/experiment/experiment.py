@@ -32,7 +32,7 @@ class Experiment[A: Space](LightExperiment):
     n_steps: int
     creation_timestamp: int
     test_env: MARLEnv[A]
-    log_qvalues: Optional[bool] = False
+    log_qvalues: Optional[bool]
 
     def __init__(
         self,
@@ -45,8 +45,9 @@ class Experiment[A: Space](LightExperiment):
         creation_timestamp: int,
         test_env: MARLEnv[A],
         log_qvalues: Optional[bool],
+        logger: Literal["csv", "wandb", "neptune"],
     ):
-        super().__init__(logdir, test_interval, n_steps, creation_timestamp)
+        super().__init__(logdir, logger, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
@@ -63,38 +64,33 @@ class Experiment[A: Space](LightExperiment):
         test_interval: int = 5_000,
         test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
+        logger: Literal["csv", "wandb", "neptune"] = "csv",
     ):
         """
         Create a new experiment in the specified directory.
 
-        Parameters
-        ----------
         - `trainer` defaults to `NoTrain` trainer if not provided
         - `agent` defaults to `trainer.make_agent()` if not provided
         - `test_env` defaults to a deep copy of `env` if not provided
         """
+        if not logdir.startswith("logs/"):
+            logdir = os.path.join("logs", logdir)
+        if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
+            shutil.rmtree(logdir, ignore_errors=True)
         if test_env is None:
             test_env = deepcopy(env)
         if not env.has_same_inouts(test_env):
             raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
-
-        if not logdir.startswith(os.path.join("logs", "")):
+        if not logdir.startswith("logs"):
             logdir = os.path.join("logs", logdir)
+        if trainer is None:
+            from marl.training import NoTrain
 
-            # Remove the test and debug logs
-        if logdir in [os.path.join("logs", "test"), os.path.join("logs", "debug"), os.path.join("logs", "tests")]:
-            try:
-                shutil.rmtree(logdir)
-            except FileNotFoundError:
-                pass
+            trainer = NoTrain(env)
+        if agent is None:
+            agent = trainer.make_agent()
         try:
             os.makedirs(logdir, exist_ok=False)
-            if trainer is None:
-                from marl.training import NoTrain
-
-                trainer = NoTrain(env)
-            if agent is None:
-                agent = trainer.make_agent()
             experiment = Experiment(
                 logdir,
                 agent=agent,
@@ -105,6 +101,7 @@ class Experiment[A: Space](LightExperiment):
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
                 log_qvalues=log_qvalues,
+                logger=logger,
             )
             experiment.save()
             return experiment

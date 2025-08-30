@@ -200,3 +200,4 @@ qplex/
 !src/marl/env
 myenv/*
 uv.lock
+wandb

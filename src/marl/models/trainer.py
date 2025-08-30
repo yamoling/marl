@@ -1,5 +1,5 @@
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import os
 from typing import Any, Optional
 
@@ -46,6 +46,12 @@ class Trainer(HasDevice, ABC):
         Compute the value of the current state or observation.
         """
         return 0.0
+
+    def config(self) -> dict[str, Any]:
+        """
+        Get the configuration of the trainer, typically used for logging.
+        """
+        return asdict(self)
 
     def save(self, directory_path: str):
         if not os.path.exists(directory_path):
