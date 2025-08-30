@@ -291,6 +291,8 @@ def make_experiment(
                     args.logdir += f"-{trainer.ir_module.name}"
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
                     args.logdir += "-PER"
+                if trainer.vbe is not None:
+                    args.logdir += f"-VBE{trainer.vbe.n}"
             case PPO():
                 if trainer.value_mixer is not None:
                     args.logdir += f"-{trainer.value_mixer.name}"
@@ -313,7 +315,7 @@ def make_lle():
 
 
 def make_deepsea():
-    env = marlenv.catalog.DeepSea(25)
+    env = marlenv.catalog.DeepSea(50)
     env = marl.env.StateCounter(env)
     env = marl.env.NoReward(env)
     return env, None
@@ -335,9 +337,9 @@ def main(args: Arguments):
         env, test_env = make_deepsea()
         # env, test_env = make_overcooked()
 
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95, use_vbe=True)
+        trainer = make_dqn(env, mixing="vdn", ir_method="rnd", noisy=False, gamma=0.99, use_vbe=False)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
-        exp = make_experiment(args, trainer, env, test_env, 200_000)
+        exp = make_experiment(args, trainer, env, test_env, 500_000)
         print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)

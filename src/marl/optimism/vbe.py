@@ -36,6 +36,7 @@ class VBE:
         self._optimizers = list[torch.optim.Optimizer]()
         self._bonus_history = []
         self._device = rqf.device
+        self.n = n
         rqf.eval()
         for _ in range(n):
             # Create the target RQF

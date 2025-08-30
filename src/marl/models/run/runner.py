@@ -98,7 +98,7 @@ class Runner[A: Space](Run):
     def _train_episode(self, step_num: int, episode_num: int, render_tests: bool):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state), "episode_num": episode_num})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
                 self._test_and_log(step_num, render_tests)
