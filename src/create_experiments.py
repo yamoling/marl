@@ -322,9 +322,9 @@ def make_deepsea():
 
 
 def make_overcooked():
-    env = marlenv.catalog.Overcooked.from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
+    env = marlenv.catalog.overcooked().from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
     env = marlenv.Builder(env).agent_id().build()
-    test_env = marlenv.catalog.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+    test_env = marlenv.catalog.overcooked().from_layout("cramped_room", reward_shaping_factor=0)
     test_env = marlenv.Builder(test_env).agent_id().build()
     return env, test_env
 

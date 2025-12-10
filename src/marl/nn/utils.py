@@ -2,7 +2,13 @@ import torch
 from typing import Sequence
 
 
-def make_cnn(input_shape, filters: Sequence[int], kernel_sizes: Sequence[int], strides: Sequence[int], min_output_size=1024):
+def make_cnn(
+    input_shape: tuple[int, int, int],
+    filters: Sequence[int],
+    kernel_sizes: Sequence[int],
+    strides: Sequence[int],
+    min_output_size=1024,
+):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
     channels, height, width = input_shape
     paddings = [0 for _ in filters]

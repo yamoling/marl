@@ -71,7 +71,7 @@ def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
 
     res = res.with_columns(confidence_intervals)
     if replace_inf:
-        for series in res.select(pl.col(pl.FLOAT_DTYPES)):
+        for series in res.select(pl.selectors.float()):
             mask = series.is_infinite() | series.is_nan()
             series[mask] = 1e20
             res = res.with_columns(series)

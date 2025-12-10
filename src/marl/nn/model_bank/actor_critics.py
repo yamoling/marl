@@ -27,6 +27,7 @@ class DDPG_NN_TEST(ActorCritic):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
+        assert len(self.input_shape) == 3
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         input_size = n_features + self.extras_shape[0]
         self.policy_network = torch.nn.Sequential(
@@ -116,6 +117,7 @@ class CNN_ActorCritic(DiscreteActorCritic):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
 
+        assert len(self.input_shape) == 3
         self.cnn_actor, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         self.cnn_critic, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         common_input_size = n_features + self.extras_shape[0]
@@ -244,6 +246,7 @@ class CNNCritic(Critic):
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
+        assert len(self.input_shape) == 3
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         self.mlp = MLP(n_features, n_extras, hidden_sizes=[128, 128, 128], output_shape=(1,))
 
@@ -278,6 +281,7 @@ class CNNContinuousActor(Actor):
         n_means = self.n_actions
         n_stds = self.n_actions
 
+        assert len(self.input_shape) == 3
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         self.mlp = MLP(n_features, n_extras, [128, 128, 128], (n_means + n_stds,))
 

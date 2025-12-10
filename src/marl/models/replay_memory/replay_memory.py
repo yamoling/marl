@@ -69,7 +69,7 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
         super().__init__(max_size, "transition")
 
     def get_batch(self, indices: Iterable[int]):
-        transitions = [self._memory[i] for i in indices]
+        transitions = [self[i] for i in indices]
         return TransitionBatch(transitions)
 
 
@@ -81,5 +81,5 @@ class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
         super().__init__(max_size, "episode")
 
     def get_batch(self, indices: Iterable[int]):
-        episodes = [self._memory[i] for i in indices]
+        episodes = [self[i] for i in indices]
         return EpisodeBatch(episodes)

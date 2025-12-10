@@ -179,6 +179,7 @@ class CNN(QNetwork):
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
+        assert len(self.input_shape) == 3
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
         self.linear = MLP(n_features, extras_size, mlp_sizes, output_shape, last_layer_noisy=mlp_noisy)
 
@@ -217,7 +218,7 @@ class IndependentCNN(QNetwork):
     def __init__(
         self,
         n_agents: int,
-        input_shape: tuple[int, ...],
+        input_shape: tuple[int, int, int],
         extras_size: int,
         output_shape: tuple[int, ...],
         mlp_sizes: tuple[int, ...] = (64, 64),
@@ -227,11 +228,10 @@ class IndependentCNN(QNetwork):
         duelling: bool = True,
         mlp_noisy: bool = False,
     ):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, (extras_size,), output_shape)
         self.n_agents = n_agents
         assert len(strides) == len(filters) == len(kernel_sizes)
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         self.duelling = duelling
         n_outputs = math.prod(output_shape)
         if duelling:
@@ -263,6 +263,7 @@ class IndependentCNN(QNetwork):
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
+        assert len(env.observation_shape) == 3
         return IndependentCNN(
             env.n_agents,
             env.observation_shape,
@@ -311,7 +312,7 @@ class RCNN(RecurrentQNetwork):
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.cnn, self.n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn, self.n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
 
     @classmethod
@@ -467,7 +468,7 @@ class MAICNetworkCNN(MAICNN):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
+    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -506,7 +507,7 @@ class MAICNetworkCNN(MAICNN):
             self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
             self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         cnn_output_dim = n_features + self.extras_shape[0]
 
         self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim)  # TODO: rename the parameter
@@ -572,7 +573,8 @@ class MAICNetworkCNN(MAICNN):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
+        assert len(env.observation_shape) == 3
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -581,7 +583,7 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
+    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, (output_size,))
 
@@ -620,7 +622,7 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
             self.w_query = nn.Linear(args.rnn_hidden_dim, args.attention_dim)
             self.w_key = nn.Linear(args.latent_dim, args.attention_dim)
 
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         cnn_output_dim = n_features + self.extras_shape[0]
 
         self.fc1 = nn.Linear(cnn_output_dim, args.rnn_hidden_dim)
@@ -698,5 +700,6 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):
+        assert len(env.observation_shape) == 3
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
