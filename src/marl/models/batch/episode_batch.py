@@ -35,6 +35,9 @@ class EpisodeBatch(Batch):
         indices = np.random.choice(self.size, minibatch_size, replace=False)
         return EpisodeBatch([self.episodes[i] for i in indices], self.device)
 
+    def extend(self, data: list[Episode]) -> Batch:
+        return EpisodeBatch(self.episodes + data, self.device)
+
     def multi_objective(self):
         raise NotImplementedError()
         self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)

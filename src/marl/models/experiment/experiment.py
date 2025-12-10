@@ -17,6 +17,7 @@ from marl.agents import DQNAgent, Agent, SimpleAgent
 from marl.models import Run, Runner, ReplayEpisode
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
+from marl.logging import LogSpecs
 from marl.utils import encode_b64_image, get_device
 
 
@@ -45,7 +46,7 @@ class Experiment[A: Space](LightExperiment):
         creation_timestamp: int,
         test_env: MARLEnv[A],
         log_qvalues: Optional[bool],
-        logger: Literal["csv", "wandb", "neptune"],
+        logger: LogSpecs = "csv",
     ):
         super().__init__(logdir, logger, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
@@ -64,7 +65,7 @@ class Experiment[A: Space](LightExperiment):
         test_interval: int = 5_000,
         test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
-        logger: Literal["csv", "wandb", "neptune"] = "csv",
+        logger: LogSpecs = "csv",
     ):
         """
         Create a new experiment in the specified directory.

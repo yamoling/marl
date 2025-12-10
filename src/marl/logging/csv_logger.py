@@ -39,6 +39,7 @@ class CSVWriter:
             if os.path.exists(self.filename):
                 self._file = open(self.filename, "a")
             else:
+                os.makedirs(os.path.dirname(self.filename), exist_ok=True)
                 self._file = open(self.filename, "w")
             self._writer = csv.DictWriter(self._file, fieldnames=data.keys())
             self._writer.writeheader()
@@ -108,6 +109,7 @@ class CSVLogger(Logger):
         self.test = CSVWriter(os.path.join(logdir, TEST), flush_interval_sec)
         self.train = CSVWriter(os.path.join(logdir, TRAIN), flush_interval_sec)
         self.training_data = CSVWriter(os.path.join(logdir, TRAINING_DATA), flush_interval_sec)
+        self.other_loggers = dict(default=CSVWriter(os.path.join(logdir, "other.csv"), flush_interval_sec))
 
     def log_test(self, data: dict[str, float], time_step: int):
         return self.test.log(data, time_step)
@@ -126,7 +128,13 @@ class CSVLogger(Logger):
                 self.test.log(data, time_step)
             case "training-data/":
                 self.training_data.log(data, time_step)
-        raise ValueError(f"Unknown log prefix: {prefix}")
+            case None:
+                self.other_loggers["default"].log(data, time_step)
+            case other:
+                if other not in self.other_loggers:
+                    filename = os.path.join(self.logdir, f"{other.strip('/')}.csv")
+                    self.other_loggers[other] = CSVWriter(filename)
+                self.other_loggers[other].log(data, time_step)
 
     @staticmethod
     def reader(from_directory: str) -> "CSVLogReader":

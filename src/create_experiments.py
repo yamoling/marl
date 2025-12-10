@@ -1,6 +1,7 @@
 import shutil
 from copy import deepcopy
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Sequence
+import orjson
 
 import marlenv
 import typed_argparse as tap
@@ -9,8 +10,7 @@ from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
 import marl
-from marl import Trainer
-from marl.env import StateCounter
+from marl import Trainer, ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
@@ -18,6 +18,7 @@ from marl.optimism import VBE
 from marl.training import DQN, PPO, SoftUpdate
 from marl.training.haven_trainer import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
+from marl.logging import LogSpecs
 from run import Arguments as RunArguments
 from run import main as run_experiment
 
@@ -189,12 +190,18 @@ def make_dqn(
     env: MARLEnv[MultiDiscreteSpace],
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
     ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
-    gamma=0.95,
+    gamma: float = 0.95,
     noisy: bool = False,
     use_vbe: bool = False,
+    memory: Optional[ReplayMemory[Any, Any]] = None,
 ):
     mixer = make_mixer(env, mixing)
-    qnetwork = marl.nn.model_bank.MLP.from_env(env, hidden_sizes=(128, 128))
+    if len(env.observation_shape) == 1:
+        qnetwork = marl.nn.model_bank.MLP.from_env(env, hidden_sizes=(128, 128))
+    elif len(env.observation_shape) == 3:
+        qnetwork = marl.nn.model_bank.CNN.from_env(env)
+    else:
+        raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
     match ir_method:
         case "rnd":
             ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
@@ -211,10 +218,12 @@ def make_dqn(
     vbe = None
     if use_vbe:
         vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
+    if memory is None:
+        memory = marl.models.TransitionMemory(50_000)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
-        memory=marl.models.TransitionMemory(50_000),
+        memory=memory,
         optimiser="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -273,6 +282,7 @@ def make_experiment(
     env: MARLEnv,
     test_env: Optional[MARLEnv],
     n_steps: int,
+    logger: LogSpecs = "csv",
 ):
     if args.logdir is not None:
         if not args.logdir.startswith("logs/"):
@@ -291,24 +301,20 @@ def make_experiment(
                     args.logdir += f"-{trainer.ir_module.name}"
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
                     args.logdir += "-PER"
+                elif isinstance(trainer.memory, marl.models.BiasedMemory):
+                    args.logdir += "-Biased"
                 if trainer.vbe is not None:
                     args.logdir += f"-VBE{trainer.vbe.n}"
             case PPO():
                 if trainer.value_mixer is not None:
                     args.logdir += f"-{trainer.value_mixer.name}"
     return marl.Experiment.create(
-        logdir=args.logdir,
-        trainer=trainer,
-        env=env,
-        test_interval=5000,
-        n_steps=n_steps,
-        test_env=test_env,
+        logdir=args.logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps, test_env=test_env, logger=logger
     )
 
 
 def make_lle():
     env = LLE.level(6).obs_type("layered").state_type("state").build()
-    env = StateCounter(env)
     env = marlenv.Builder(env).agent_id().time_limit(78).build()
     test_env = None
     return env, test_env
@@ -333,14 +339,19 @@ def main(args: Arguments):
     try:
         # exp = create_smac(args)
         # env, test_env = make_smac("3m")
-        # env, test_env = make_lle()
-        env, test_env = make_deepsea()
+        env, test_env = make_lle()
+        # env, test_env = make_deepsea()
         # env, test_env = make_overcooked()
+        from marl.models.replay_memory import BiasedMemory
 
-        trainer = make_dqn(env, mixing="vdn", ir_method="rnd", noisy=False, gamma=0.99, use_vbe=False)
+        with open("data/lvl6-best-actions.json", "r") as f:
+            actions = orjson.loads(f.read())
+            episode = env.replay(actions)
+        memory = BiasedMemory(episode.transitions(), marl.models.TransitionMemory(1_000))
+
+        trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=memory)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
-        exp = make_experiment(args, trainer, env, test_env, 500_000)
-        print(f"Experiment created in {exp.logdir}")
+        exp = make_experiment(args, trainer, env, test_env, 1_000_000, logger=["tensorboard", "csv"])
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         if args.run:

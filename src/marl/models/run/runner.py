@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
-from marl.logging import CSVLogger, Logger, WABLogger, NeptuneLogger
+from marl.logging import CSVLogger, Logger, WABLogger, NeptuneLogger, TBLogger, LogSpecs, get_logger
 from marl.models.trainer import Trainer
 from marl.utils import get_device
 
@@ -36,20 +36,13 @@ class Runner[A: Space](Run):
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
         test_env: Optional[MARLEnv[A]] = None,
-        log_type: Literal["csv", "wandb", "neptune"] = "csv",
+        log_type: LogSpecs = "csv",
     ):
         if trainer is None:
             from marl.training import NoTrain
 
             trainer = NoTrain(env)
-        if log_type == "csv":
-            self._logger = CSVLogger(rundir)
-        elif log_type == "wandb":
-            self._logger = WABLogger(rundir, trainer.config())
-        elif log_type == "neptune":
-            self._logger = NeptuneLogger(rundir)
-        else:
-            raise ValueError(f"Unknown log type: {log_type}")
+        self._logger = get_logger(rundir, log_type)
         super().__init__(rundir, seed, n_tests, test_interval, n_steps)
         self._trainer = trainer
         self._env = env
@@ -89,7 +82,7 @@ class Runner[A: Space](Run):
         env: MARLEnv[A],
         agent: Agent,
         trainer: Trainer,
-        logger: Literal["csv", "wandb", "neptune"] = "csv",
+        logger: LogSpecs = "csv",
         quiet: bool = False,
         test_env: Optional[MARLEnv[A]] = None,
     ):

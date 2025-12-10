@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable, Optional, overload
+from typing import Iterable, Optional, overload, Self
 
 import torch
 
@@ -18,6 +18,12 @@ class Batch(ABC):
             device = torch.device("cpu")
         self.device = device
         self.importance_sampling_weights: Optional[torch.Tensor] = None
+
+    @abstractmethod
+    def extend(self, data) -> Self:
+        """
+        Extend the current batch with some data.
+        """
 
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones such that each agent has its own (identical) signal."""

@@ -37,6 +37,9 @@ class TransitionBatch(Batch):
             indices = indices_or_size
         return TransitionBatch([self.transitions[i] for i in indices], self.device)
 
+    def extend(self, data: list[Transition]) -> Batch:
+        return TransitionBatch(self.transitions + data, self.device)
+
     @cached_property
     def obs(self):
         return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)

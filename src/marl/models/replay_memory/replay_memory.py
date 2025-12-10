@@ -60,6 +60,12 @@ class ReplayMemory(Generic[T, B], ABC):
     def __getitem__(self, index: int) -> T:
         return self._memory[index]
 
+    @property
+    def updates_on(self):
+        if self.update_on_transitions:
+            return "transition"
+        return "episode"
+
 
 @dataclass
 class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):

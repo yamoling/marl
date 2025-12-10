@@ -9,12 +9,13 @@ import orjson
 from marl.utils import default_serialization, stats
 from marl.models.run import Run
 from marl.models.replay_episode import LightEpisodeSummary
+from marl.logging import LogSpecs
 
 
 @dataclass
 class LightExperiment:
     logdir: str
-    logger: Literal["csv", "wandb", "neptune"]
+    logger: LogSpecs
     test_interval: int
     n_steps: int
     creation_timestamp: int
