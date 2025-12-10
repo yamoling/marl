@@ -37,6 +37,7 @@ class VBE:
         self._bonus_history = []
         self._device = rqf.device
         self.n = n
+        self.lr = lr
         rqf.eval()
         for _ in range(n):
             # Create the target RQF

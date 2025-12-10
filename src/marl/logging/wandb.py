@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Any
 import os
 import dotenv
 from marlenv import Episode, MARLEnv
@@ -11,13 +11,12 @@ import wandb
 
 
 class WABLogger(Logger):
-    def __init__(self, logdir: str, config: Optional[dict] = None):
+    def __init__(self, logdir: str):
         super().__init__(logdir)
         dotenv.load_dotenv()
         wandb.login()
-        self.config = config
         project = os.getenv("WANDB_PROJECT", "marl")
-        self._run = wandb.init(project=project, config=config, name=self.run_name)
+        self._run = wandb.init(project=project, name=self.run_name)
 
     def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
         self._run.config.update({"trainer": asdict(trainer)})

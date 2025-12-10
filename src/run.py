@@ -10,7 +10,7 @@ class Arguments(tap.TypedArgs):
     debug: bool = tap.arg(help="Enable debug mode")
     logdir: str = tap.arg(positional=True, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
-    _n_processes: Optional[int] = tap.arg("--n-processes", default=None, help="Maximal number of simultaneous processes to use")
+    _n_jobs: Optional[int] = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
@@ -31,13 +31,13 @@ class Arguments(tap.TypedArgs):
         raise ValueError(f"Invalid device: {self._device}. It should be 'auto', 'cpu' or 'cuda:<gpu_id>'")
 
     @property
-    def n_processes(self):
+    def n_jobs(self):
         """
         If no value is provided, there are as many processes as there are GPUs.
         If there is no GPU available, then only one process is started.
         """
-        if self._n_processes is not None:
-            return min(self._n_processes, self.n_runs)
+        if self._n_jobs is not None:
+            return min(self._n_jobs, self.n_runs)
 
         import subprocess
 
@@ -85,8 +85,8 @@ def main(args: Arguments):
     n_gpus = torch.cuda.device_count() if args.device != "cpu" else 0
     initial_pids = get_gpu_processes()
     estimated_gpu_memory = 0
-    print(f"Running on {args.n_processes} processes")
-    with Pool(args.n_processes) as pool:
+    print(f"Running on {args.n_jobs} processes")
+    with Pool(args.n_jobs) as pool:
         handles = list[AsyncResult]()
         for run_num in range(args.n_runs):
             h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))

@@ -1,6 +1,6 @@
 import shutil
 from copy import deepcopy
-from typing import Any, Literal, Optional, Sequence
+from typing import Any, Literal, Optional
 import orjson
 
 import marlenv
@@ -204,7 +204,7 @@ def make_dqn(
         raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
     match ir_method:
         case "rnd":
-            ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+            ir = marl.training.intrinsic_reward.RND.from_env(env)
         case "tomir":
             ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
         case "icm":
@@ -352,6 +352,7 @@ def main(args: Arguments):
         trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=memory)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
         exp = make_experiment(args, trainer, env, test_env, 1_000_000, logger=["tensorboard", "csv"])
+        print(f"Experiment created in {exp.logdir}")
         # exp = create_overcooked(args)
         # exp = make_haven("dqn", ir=True)
         if args.run:
@@ -368,7 +369,5 @@ def main(args: Arguments):
         return main(args)
 
 
-if __name__ == "__main__":
-    tap.Parser(Arguments).bind(main).run()
 if __name__ == "__main__":
     tap.Parser(Arguments).bind(main).run()

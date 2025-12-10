@@ -15,7 +15,9 @@ from marl.nn import model_bank
 
 
 @dataclass
-class RandomNetworkDistillation(IRModule):
+class RND(IRModule):
+    """Random Network Distillation (RND)."""
+
     update_ratio: float
     normalise_rewards: bool
     ir_weight: Schedule
@@ -137,7 +139,7 @@ class RandomNetworkDistillation(IRModule):
                 )
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
-        return RandomNetworkDistillation(target=nn, n_warmup_steps=n_warmup_steps)
+        return RND(target=nn, n_warmup_steps=n_warmup_steps)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         nn_randomize(torch.nn.init.xavier_uniform_, self._predictor_tail)

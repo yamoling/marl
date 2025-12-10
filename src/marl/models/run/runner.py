@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
-from marl.logging import CSVLogger, Logger, WABLogger, NeptuneLogger, TBLogger, LogSpecs, get_logger
+from marl.logging import Logger, LogSpecs, get_logger
 from marl.models.trainer import Trainer
 from marl.utils import get_device
 

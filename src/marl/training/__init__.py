@@ -1,4 +1,4 @@
-from .intrinsic_reward import RandomNetworkDistillation
+from .intrinsic_reward import RND
 from .no_train import NoTrain
 from .dqn import DQN
 from .cnet_trainer import CNetTrainer
@@ -18,6 +18,6 @@ __all__ = [
     "TargetParametersUpdater",
     "SoftUpdate",
     "HardUpdate",
-    "RandomNetworkDistillation",
+    "RND",
     "intrinsic_reward",
 ]
