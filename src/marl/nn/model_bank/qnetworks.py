@@ -414,7 +414,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
 
         query = self.w_query(x).unsqueeze(1)
         key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key, torch.float32).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
             alpha[:, i, i] = -1e9
         alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
@@ -535,7 +535,7 @@ class MAICNetworkCNN(MAICNN):
 
         query = self.w_query(x).unsqueeze(1)
         key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key, torch.float32).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
             alpha[:, i, i] = -1e9
         alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
@@ -651,7 +651,7 @@ class MAICNetworkCNNRDQN(RecurrentQNetwork, MAIC):
 
         query = self.w_query(x).unsqueeze(1)
         key = self.w_key(latent).reshape(bs * self.n_agents, self.n_agents, -1).transpose(1, 2)
-        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key).view(bs, self.n_agents, self.n_agents)
+        alpha = torch.bmm(query / (self.args.attention_dim ** (1 / 2)), key, torch.float32).view(bs, self.n_agents, self.n_agents)
         for i in range(self.n_agents):
             alpha[:, i, i] = -1e9
         alpha = F.softmax(alpha, dim=-1).reshape(bs, self.n_agents, self.n_agents, 1)
