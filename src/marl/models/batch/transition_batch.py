@@ -11,7 +11,7 @@ from .batch import Batch
 class TransitionBatch(Batch):
     def __init__(self, transitions: list[Transition], device: Optional[torch.device] = None):
         self.transitions = transitions
-        self.is_continuous = transitions[0].action.dtype in (np.float32, np.float64)
+        self.is_continuous = np.issubdtype(transitions[0].action.dtype, np.floating)
         self.is_discrete = not self.is_continuous
         self.actions_dtype = transitions[0].action.dtype
         super().__init__(len(transitions), transitions[0].n_agents, device)

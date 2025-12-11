@@ -26,7 +26,7 @@ dependencies = [
     "swig>=4.3.0",
     "textual>=4.0.0",
     "mplcursors>=0.6",
-    "torch==2.7.0",
+    "torch<2.8",
     "laser-learning-environment>=2.6",
     "wandb>=0.21.2",
     "neptune>=1.14.0",

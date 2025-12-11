@@ -302,7 +302,7 @@ def make_experiment(
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
                     args.logdir += "-PER"
                 elif isinstance(trainer.memory, marl.models.BiasedMemory):
-                    args.logdir += "-Biased"
+                    args.logdir += "-BM"
                 if trainer.vbe is not None:
                     args.logdir += f"-VBE{trainer.vbe.n}"
             case PPO():
@@ -347,7 +347,7 @@ def main(args: Arguments):
         with open("data/lvl6-best-actions.json", "r") as f:
             actions = orjson.loads(f.read())
             episode = env.replay(actions)
-        memory = BiasedMemory(episode.transitions(), marl.models.TransitionMemory(1_000))
+        memory = BiasedMemory.from_transitions(episode.transitions(), 1_000)
 
         trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=memory)
         # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
