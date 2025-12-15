@@ -57,7 +57,7 @@ class Run:
 
     @staticmethod
     def create(logdir: str, seed: int, n_tests: int, test_interval: int, n_steps: int):
-        now = datetime.now().strftime("%Y-%m-%d_%H:%M:%S.%f")
+        now = datetime.now().isoformat().replace(":", "-")
         rundir = os.path.join(logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
         reader = CSVLogger.reader(rundir)

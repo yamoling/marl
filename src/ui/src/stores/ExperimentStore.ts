@@ -10,7 +10,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
     const isRunning = computed(() => {
-        const res = {} as {[logdir: string]: boolean};
+        const res = {} as { [logdir: string]: boolean };
         runStore.runs.forEach((runs, logdir) => {
             res[logdir] = runs.some(run => run.pid != null);
         });
@@ -23,7 +23,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     async function refresh() {
         try {
             loading.value = true;
-            const resp = await fetch(`${HTTP_URL}/experiment/list`);
+            const resp = await fetch(`${HTTP_URL}/experiment/list`, { headers: { "Access-Control-Allow-Origin": "*" } });
             if (!resp.ok) {
                 throw new Error("Failed to load experiments: " + await resp.text());
             }

@@ -1,7 +1,6 @@
 import shutil
 from copy import deepcopy
 from typing import Any, Literal, Optional
-import orjson
 
 import marlenv
 import typed_argparse as tap
@@ -199,7 +198,7 @@ def make_dqn(
     if len(env.observation_shape) == 1:
         qnetwork = marl.nn.model_bank.MLP.from_env(env, hidden_sizes=(128, 128))
     elif len(env.observation_shape) == 3:
-        qnetwork = marl.nn.model_bank.CNN.from_env(env)
+        qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_sizes=(128, 64))
     else:
         raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
     match ir_method:
@@ -214,7 +213,7 @@ def make_dqn(
     if noisy:
         policy = marl.policy.ArgMax()
     else:
-        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
     vbe = None
     if use_vbe:
         vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
@@ -290,7 +289,7 @@ def make_experiment(
     elif args.debug:
         args.logdir = "logs/debug"
     else:
-        args.logdir = f"logs/{env.name}-{trainer.name}"
+        args.logdir = f"logs/{env.name}"
         match trainer:
             case DQN():
                 if trainer.mixer is not None:
@@ -302,10 +301,11 @@ def make_experiment(
                 if isinstance(trainer.memory, marl.models.PrioritizedMemory):
                     args.logdir += "-PER"
                 elif isinstance(trainer.memory, marl.models.BiasedMemory):
-                    args.logdir += "-BM"
+                    args.logdir += f"-BM-{trainer.memory.max_size}-f{trainer.memory.factor}"
                 if trainer.vbe is not None:
                     args.logdir += f"-VBE{trainer.vbe.n}"
             case PPO():
+                args.logdir += "-PPO"
                 if trainer.value_mixer is not None:
                     args.logdir += f"-{trainer.value_mixer.name}"
     return marl.Experiment.create(
@@ -314,7 +314,10 @@ def make_experiment(
 
 
 def make_lle():
-    env = LLE.level(6).obs_type("layered").state_type("state").build()
+    builder = LLE.level(6).obs_type("layered").state_type("state")
+    world = builder._world
+    to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
+    env = builder.pbrs(lasers_to_reward=to_reward).build()
     env = marlenv.Builder(env).agent_id().time_limit(78).build()
     test_env = None
     return env, test_env
@@ -337,27 +340,14 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        # exp = create_smac(args)
-        # env, test_env = make_smac("3m")
         env, test_env = make_lle()
-        # env, test_env = make_deepsea()
-        # env, test_env = make_overcooked()
-        from marl.models.replay_memory import BiasedMemory
-
-        with open("data/lvl6-best-actions.json", "r") as f:
-            actions = orjson.loads(f.read())
-            episode = env.replay(actions)
-        memory = BiasedMemory.from_transitions(episode.transitions(), 1_000)
-
-        trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=memory)
-        # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
+        trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = make_experiment(args, trainer, env, test_env, 1_000_000, logger=["tensorboard", "csv"])
         print(f"Experiment created in {exp.logdir}")
-        # exp = create_overcooked(args)
-        # exp = make_haven("dqn", ir=True)
         if args.run:
             args.logdir = exp.logdir
             run_experiment(args)
+        args.logdir = None
     except ExperimentAlreadyExistsException as e:
         if not args.overwrite:
             response = ""

@@ -194,6 +194,8 @@ saved/
 src/ui/bun.lockb
 poetry.lock
 qplex/
+.zed
+.github/copilot-instructions.md
 
 
 # Include the marl/env package (excluded by 'env' above in this file)

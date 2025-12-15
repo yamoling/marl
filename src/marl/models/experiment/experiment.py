@@ -191,7 +191,9 @@ class Experiment[A: Space](LightExperiment):
                 path = pathlib.Path(episode_folder)
                 test_num = int(path.name)
                 time_step = int(path.parent.name)
-                return self._replay_episode(test_num, time_step, test_num)
+                rundir = str(path.parent.parent.parent)
+                run_num = self.rundirs.index(rundir)
+                return self._replay_episode(run_num, time_step, test_num)
             case _:
                 raise ValueError("Invalid arguments")
 

@@ -40,12 +40,13 @@ class LightExperiment:
 
     @property
     def runs(self):
-        for run in os.listdir(self.logdir):
-            if run.startswith("run_"):
-                try:
-                    yield Run.load(os.path.join(self.logdir, run))
-                except Exception:
-                    pass
+        for rundir in self.rundirs:
+            yield Run.load(rundir)
+
+    @property
+    def rundirs(self):
+        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
+        return [os.path.join(self.logdir, run) for run in ls]
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:

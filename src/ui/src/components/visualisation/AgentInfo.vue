@@ -14,9 +14,8 @@
                     <th scope="col" :style="{
                         opacity: (availableActions[action] == 1) ? 1 : 0.5,
                         backgroundColor: (action == takenAction) ? 'yellow' : 'transparent'
-                    }" v-for="(meaning, action) in experiment.env.action_space.action_names">
+                    }" v-for="(meaning, action) in experiment.env.action_space.labels">
                         {{ meaning }}
-
                     </th>
                 </tr>
             </thead>
