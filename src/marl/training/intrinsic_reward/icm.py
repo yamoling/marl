@@ -21,8 +21,8 @@ class ICM(IRModule, NN):
 
     def __init__(self, feature_encoder: NN, n_agents: int, n_actions: int, weight: float | Schedule = 0.01, n_features: int = 256):
         IRModule.__init__(self)
-        NN.__init__(self, feature_encoder.input_shape, feature_encoder.extras_shape, (n_features,))
-
+        NN.__init__(self, 1)
+        self.output_shape = (n_features,)
         features_shape = feature_encoder.output_shape
         assert len(features_shape) == 1, "Feature encoder must output a single feature vector"
         self.n_features = features_shape[0]
@@ -57,7 +57,7 @@ class ICM(IRModule, NN):
         self._cross_entropy = torch.nn.CrossEntropyLoss()
         self._mse_loss = torch.nn.MSELoss()
 
-    def to(self, device: torch.device):
+    def to(self, device: torch.device, *args, **kwargs):
         self._feature.to(device)
         self._inverse_model.to(device)
         self._forward_model.to(device)

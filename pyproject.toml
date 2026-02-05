@@ -31,6 +31,7 @@ dependencies = [
     "wandb>=0.21.2",
     "neptune>=1.14.0",
     "tensorboard>=2.20.0",
+    "smac",
 ]
 
 
@@ -44,3 +45,6 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 140
+
+[tool.uv.sources]
+smac = { git = "https://github.com/oxwhirl/smac.git" }

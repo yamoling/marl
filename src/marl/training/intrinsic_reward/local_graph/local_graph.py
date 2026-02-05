@@ -130,12 +130,6 @@ class LocalGraphTrainer(Trainer):
         self.states.clear()
         return {}
 
-    def to(self, _):
-        return self
-
-    def randomize(self):
-        return
-
 
 def draw_graph(g: nx.Graph, bottleneck: set, labels: np.ndarray):
     import matplotlib.pyplot as plt

@@ -114,7 +114,7 @@ class Experiment[A: Space](LightExperiment):
             raise e
 
     @staticmethod
-    def load(logdir: str) -> "Experiment":
+    def load(logdir: str) -> "Experiment":  # type: ignore
         """Load an experiment from disk."""
         with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
             experiment: Experiment = pickle.load(f)
@@ -219,7 +219,7 @@ class Experiment[A: Space](LightExperiment):
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()
             replay.probs = torch.exp(logits).tolist()
-            replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
+            replay.state_values = None  # self.agent.actor_network.value(obs, extras).tolist()
         elif isinstance(self.agent, DQNAgent):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()

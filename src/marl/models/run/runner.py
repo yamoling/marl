@@ -60,7 +60,12 @@ class Runner[A: Space](Run):
         self._logger.log_params(trainer, agent, env, test_env)
 
     @staticmethod
-    def from_experiment(experiment, seed: int, quiet: bool = False, n_tests: int = 1):
+    def from_experiment(
+        experiment,
+        seed: int,
+        n_tests: int = 1,
+        quiet: bool = False,
+    ):
         from marl import Experiment
 
         # Type hinting

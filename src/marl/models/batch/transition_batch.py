@@ -75,7 +75,7 @@ class TransitionBatch(Batch):
         dones = torch.from_numpy(dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return dones
+        return torch.BoolTensor(dones)
 
     @cached_property
     def available_actions(self):

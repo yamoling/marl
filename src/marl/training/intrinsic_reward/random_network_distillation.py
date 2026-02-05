@@ -27,6 +27,8 @@ class RND(IRModule):
     def __init__(
         self,
         target: NN,
+        input_shape: tuple[int, ...],
+        extras_shape: tuple[int, ...],
         update_ratio: float = 0.25,
         normalise_rewards=False,
         ir_weight: Schedule | float = 1.0,
@@ -64,8 +66,8 @@ class RND(IRModule):
 
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_returns = RunningMeanStd((1,))
-        self._running_states = RunningMeanStd(target.input_shape)
-        self._running_extras = RunningMeanStd(target.extras_shape)
+        self._running_states = RunningMeanStd(input_shape)
+        self._running_extras = RunningMeanStd(extras_shape)
 
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
@@ -139,7 +141,7 @@ class RND(IRModule):
                 )
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
-        return RND(target=nn, n_warmup_steps=n_warmup_steps)
+        return RND(nn, env.observation_shape, env.extras_shape, n_warmup_steps)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         nn_randomize(torch.nn.init.xavier_uniform_, self._predictor_tail)
@@ -169,3 +171,4 @@ class RND(IRModule):
         self._running_states.to(device)
         self._running_returns.to(device)
         self._running_extras.to(device)
+        return self

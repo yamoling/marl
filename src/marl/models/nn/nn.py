@@ -1,6 +1,6 @@
 from typing import Optional
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Any
 from abc import ABC, abstractmethod
 import torch
 
@@ -17,25 +17,24 @@ def randomize(init_fn, nn: torch.nn.Module):
 class NN(torch.nn.Module, ABC):
     """Parent class of all neural networks"""
 
-    input_shape: tuple[int, ...]
-    extras_shape: tuple[int, ...]
-    output_shape: tuple[int, ...]
     name: str
+    output_shape: tuple[int, ...]
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
+    def __init__(self, output_shape: int | tuple[int, ...]):
         torch.nn.Module.__init__(self)
-        self.input_shape = input_shape
-        self.extras_shape = extras_shape
-        self.output_shape = output_shape
         self.name = self.__class__.__name__
         self._device = torch.device("cpu")
+        if isinstance(output_shape, int):
+            self.output_shape = (output_shape,)
+        else:
+            self.output_shape = output_shape
 
     @property
     def device(self):
         return self._device
 
     @abstractmethod
-    def forward(self, *args, **kwargs) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *args, **kwargs) -> Any:
         """Forward pass"""
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -63,8 +62,8 @@ class NN(torch.nn.Module, ABC):
 
 @dataclass
 class RecurrentNN(NN):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, output_shape)
+    def __init__(self, output_shape: int | tuple[int, ...]):
+        super().__init__(output_shape)
         self.hidden_states: Optional[torch.Tensor] = None
         self.saved_hidden_states = None
 

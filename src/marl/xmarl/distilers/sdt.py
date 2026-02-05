@@ -389,6 +389,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             agent_pos = get_agent_pos(np.array(episode.all_observations))
         else:
             agent_pos = get_agent_pos(np.array(episode.all_observations))[:, self.agent_id]
+            fix_ft = "bound"
 
         ep_acts = np.array(episode.actions)[:, self.agent_id]
 
@@ -443,13 +444,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
         paths_taken_weights = np.array(paths_taken_weights)
         paths_taken_biases = np.array(paths_taken_biases)
         # If applicable separate extras from board
+        extras_f = None
         if not self.abstract:
             if self.extras:
                 obs_f = paths_taken_weights[:, :, : obs_w * obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
                 extras_f = paths_taken_weights[:, :, obs_w * obs_h :]
             else:
                 obs_f = paths_taken_weights.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-                extras_f = None
             obs_b = paths_taken_biases.reshape(episode.episode_len, self.max_depth)
         else:
             obs_f = paths_taken_weights

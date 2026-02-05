@@ -9,13 +9,13 @@ class RandomAgent(Agent):
         super().__init__()
         self.env = env
 
-    def choose_action(self, obs: Observation):
-        return self.env.action_space.sample(obs.available_actions)
+    def choose_action(self, observation: Observation):
+        return self.env.action_space.sample(observation.available_actions)
 
     def value(self, _):
         return 0.0
 
-    def to(self, _):
+    def to(self, *args, **kwargs):
         return self
 
     def set_training(self):
@@ -24,11 +24,11 @@ class RandomAgent(Agent):
     def set_testing(self):
         return
 
-    def save(self, _):
+    def save(self, *args, **kwargs):
         return
 
-    def load(self, _):
+    def load(self, *args, **kwargs):
         return
 
-    def randomize(self):
+    def randomize(self, *args, **kwargs):
         return

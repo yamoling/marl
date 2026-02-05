@@ -48,7 +48,7 @@ class Haven(Agent):
         self._all_meta_actions_avaiable = np.full((n_workers, self.n_subgoals), True)
         self.n_workers = n_workers
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation):  # pyright: ignore[reportIncompatibleMethodOverride]
         """
         In HAVEN, the workers take an action at each step, but the meta-agent takes an action every k steps.
 

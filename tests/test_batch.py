@@ -104,8 +104,10 @@ def test_gae0_is_td1():
     batch = _make_batch(EP_LENGTH, step_reward=REWARD_STEP)
 
     all_values = torch.rand(EP_LENGTH + 1, dtype=torch.float32)
+    values = all_values[:-1]
+    next_values = all_values[1:]
 
-    gae_0 = batch.compute_gae(GAMMA, all_values, trace_decay=0, normalize=False)
+    gae_0 = batch.compute_gae(GAMMA, values, next_values, trace_decay=0, normalize=False)
     td1 = batch.compute_td1_advantages(GAMMA, all_values, normalize=False)
 
     assert torch.allclose(gae_0, td1)
@@ -118,8 +120,10 @@ def test_gae1_is_mc():
     batch = _make_batch(EP_LENGTH, step_reward=REWARD_STEP)
 
     all_values = torch.rand(EP_LENGTH + 1, dtype=torch.float32)
+    values = all_values[:-1]
+    next_values = all_values[1:]
 
-    gae_1 = batch.compute_gae(GAMMA, all_values, trace_decay=1.0, normalize=False)
+    gae_1 = batch.compute_gae(GAMMA, values, next_values, trace_decay=1.0, normalize=False)
     mc = batch.compute_mc_advantages(GAMMA, all_values, normalize=False)
 
     assert torch.allclose(gae_1, mc)

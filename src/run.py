@@ -7,7 +7,6 @@ from multiprocessing.pool import Pool, AsyncResult
 
 
 class Arguments(tap.TypedArgs):
-    debug: bool = tap.arg(help="Enable debug mode")
     logdir: str = tap.arg(positional=True, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
     _n_jobs: Optional[int] = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
@@ -75,7 +74,7 @@ def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
 
 
 def main(args: Arguments):
-    if args.debug or args.n_runs == 1:
+    if args.n_runs == 1:
         start_run(args, 0, 0)
         return
 

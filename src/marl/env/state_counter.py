@@ -19,8 +19,8 @@ class StateCounter[S: Space](RLEnvWrapper[S]):
             h = hash((agent_data.tobytes(), eh))
             self._per_agent[i].add(h)
 
-    def step(self, actions: np.ndarray | Sequence):
-        step = super().step(actions)
+    def step(self, action: np.ndarray | Sequence):
+        step = super().step(action)
         self._register(step.state)
         if step.is_terminal:
             step.info = step.info | {

@@ -25,7 +25,7 @@ class SoftmaxPolicy(Policy):
         chosen_actions = [np.random.choice(self.actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)
 
-    def update(self, _: int) -> dict[str, float]:
+    def update(self, time_step: int) -> dict[str, float]:
         return {"softmax-tau": self.tau}
 
 
@@ -60,8 +60,8 @@ class EpsilonGreedy(Policy):
         chosen_actions[mask] = replacements[mask]
         return chosen_actions
 
-    def update(self, step_num: int):
-        self.epsilon.update(step_num)
+    def update(self, time_step: int):
+        self.epsilon.update(time_step)
         return {"epsilon": self.epsilon.value}
 
 
@@ -77,5 +77,5 @@ class ArgMax(Policy):
         actions = qvalues.argmax(-1)
         return actions
 
-    def update(self, step_num: int):
+    def update(self, time_step: int):
         return {}

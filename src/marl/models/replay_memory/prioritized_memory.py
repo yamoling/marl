@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Iterable, Optional
 from sumtree import SumTree
 import torch
 from dataclasses import dataclass
@@ -93,7 +93,7 @@ class PrioritizedMemory(ReplayMemory[T, B]):
         batch.importance_sampling_weights = weights / torch.max(weights)
         return batch
 
-    def get_batch(self, indices: list[int]):
+    def get_batch(self, indices: Iterable[int]):
         return self.memory.get_batch(indices)
 
     def __len__(self) -> int:

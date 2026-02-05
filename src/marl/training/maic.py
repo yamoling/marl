@@ -174,20 +174,3 @@ class MAICTrainer(Trainer):
         if not self.memory.update_on_transitions:
             self.memory.add(episode)
         return self._update(episode_num, time_step)
-
-    def to(self, device: torch.device):
-        if self.mixer is not None:
-            self.mixer.to(device)
-        if self.target_mixer is not None:
-            self.target_mixer.to(device)
-        self.maic_network.to(device)
-        self.target_network.to(device)
-        return self
-
-    def randomize(self):
-        self.maic_network.randomize()
-        self.target_network.randomize()
-        if self.mixer is not None:
-            self.mixer.randomize()
-        if self.target_mixer is not None:
-            self.target_mixer.randomize()

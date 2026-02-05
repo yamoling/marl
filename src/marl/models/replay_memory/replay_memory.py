@@ -59,6 +59,9 @@ class ReplayMemory(Generic[T, B], ABC):
         items = [self[i] for i in indices]
         return self.make_batch(items)
 
+    def as_batch(self) -> B:
+        return self.get_batch(range(len(self)))
+
     def __len__(self) -> int:
         return len(self._memory)
 

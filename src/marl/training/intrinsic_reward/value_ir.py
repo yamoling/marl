@@ -51,9 +51,9 @@ class ValuePotentialIntrinsicReward(IRModule):
         if not self.memory.can_sample(self.batch_size):
             return {}
         batch = self.memory.sample(self.batch_size).to(self._device)
-        return self.update(time_step, batch)
+        return self.update(batch, time_step)
 
-    def update(self, time_step: int, batch: Batch) -> dict[str, float]:
+    def update(self, batch: Batch, time_step: int) -> dict[str, float]:
         values = self.network.value(batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
@@ -78,4 +78,3 @@ class ValuePotentialIntrinsicReward(IRModule):
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         self.network.randomize(method)
         self.target_network.randomize(method)
-        return self

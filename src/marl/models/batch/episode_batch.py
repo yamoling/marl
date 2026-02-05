@@ -29,10 +29,14 @@ class EpisodeBatch(Batch):
             result[step] = next_step_returns
         return result
 
-    def get_minibatch(self, minibatch_size: int) -> Batch:
-        if minibatch_size > self.size:
-            raise ValueError(f"Minibatch size {minibatch_size} is greater than the batch size {self.size}")
-        indices = np.random.choice(self.size, minibatch_size, replace=False)
+    def get_minibatch(self, arg, /) -> Batch:
+        match arg:
+            case int(minibatch_size):
+                if minibatch_size > self.size:
+                    raise ValueError(f"Minibatch size {minibatch_size} is greater than the batch size {self.size}")
+                indices = np.random.choice(self.size, minibatch_size, replace=False)
+            case indices:
+                pass
         return EpisodeBatch([self.episodes[i] for i in indices], self.device)
 
     def extend(self, data: list[Episode]) -> Batch:
@@ -131,7 +135,7 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def dones(self):
-        return torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device)
+        return torch.BoolTensor(torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device))
 
     @cached_property
     def masks(self):

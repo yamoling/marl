@@ -1,7 +1,7 @@
 from abc import ABC
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import os
-from typing import Any, Optional
+from typing import Any, Optional, Sequence
 
 import torch
 from marlenv import Episode, Transition, Observation, State
@@ -14,7 +14,7 @@ from marl.utils import HasDevice
 class Trainer(HasDevice, ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
-    name: str
+    name: str = field(init=False)
 
     def __init__(self, device: Optional[torch.device] = None):
         super().__init__(device)
@@ -41,7 +41,7 @@ class Trainer(HasDevice, ABC):
         """
         return {}
 
-    def value(self, obs: Observation, state: State) -> float:
+    def value(self, obs: Observation, state: State) -> float | Sequence:
         """
         Compute the value of the current state or observation.
         """

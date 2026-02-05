@@ -14,13 +14,13 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
-        super().__init__(input_shape, extras_shape, output_shape)
+    def __init__(self, output_shape: int | tuple[int, int]):
+        super().__init__(output_shape)
         match output_shape:
-            case (_,):
+            case int(n_actions):
                 self.action_dim = -1
                 self.is_multi_objective = False
-                """The action dimention when predicting qvalues. The value is -1 for single objective RL and -2 for multi-objective RL."""
+                self.output_shape = (n_actions,)
             case (_, _):
                 self.action_dim = -2
                 self.is_multi_objective = True
@@ -55,23 +55,19 @@ class QNetwork(NN):
         return self.forward(obs, extras)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace]):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
-            output_shape = (env.n_actions,)
+            output_shape = env.n_actions
         else:
             output_shape = (env.n_actions, env.reward_space.size)
-        return cls(
-            input_shape=env.observation_shape,
-            extras_shape=env.extras_shape,
-            output_shape=output_shape,
-        )
+        return cls(output_shape=output_shape)
 
 
 @dataclass
 class RecurrentQNetwork(QNetwork, RecurrentNN):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: tuple[int, ...]):
-        QNetwork.__init__(self, input_shape, extras_shape, output_shape)
-        RecurrentNN.__init__(self, input_shape, extras_shape, output_shape)
+    def __init__(self, output_shape: int | tuple[int, int]):
+        QNetwork.__init__(self, output_shape)
+        RecurrentNN.__init__(self, output_shape)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function. Does not update the hidden states."""

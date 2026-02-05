@@ -9,14 +9,13 @@ from .nn import NN
 
 @dataclass
 class Actor(NN, ABC):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], action_output_shape: tuple[int, ...]):
-        NN.__init__(self, input_shape, extras_shape, action_output_shape)
-        self.action_shape = action_output_shape
+    def __init__(self, action_shape: int | tuple[int, ...]):
+        NN.__init__(self, action_shape)
 
     @abstractmethod
     def policy(
         self,
-        data: torch.Tensor,
+        obs: torch.Tensor,
         extras: torch.Tensor,
         available_actions: torch.Tensor,
     ) -> torch.distributions.Distribution:
@@ -38,9 +37,8 @@ class Actor(NN, ABC):
 class Critic(NN, ABC):
     """Critic neural network"""
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...]):
-        NN.__init__(self, input_shape, extras_shape, (1,))
-        self.value_output_shape = (1,)
+    def __init__(self):
+        NN.__init__(self, 1)
 
     @abstractmethod
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -51,9 +49,9 @@ class Critic(NN, ABC):
 
 @dataclass
 class ActorCritic(Actor, Critic):
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], action_output_shape: tuple[int, ...]):
-        Actor.__init__(self, input_shape, extras_shape, action_output_shape)
-        Critic.__init__(self, input_shape, extras_shape)
+    def __init__(self, action_shape: int | tuple[int, ...]):
+        Actor.__init__(self, action_shape)
+        Critic.__init__(self)
 
     @property
     @abstractmethod
@@ -68,6 +66,11 @@ class ActorCritic(Actor, Critic):
     @property
     def shared_parameters(self) -> list[torch.nn.Parameter]:
         return []
+
+    @property
+    def actor(self) -> Actor:
+        """The actor component of the AC."""
+        return self
 
     def forward(
         self,
@@ -88,14 +91,11 @@ class DiscreteActor(Actor, ABC):
 
     def __init__(
         self,
-        input_shape: tuple[int, ...],
-        extras_shape: tuple[int, ...],
-        action_output_shape: tuple[int, ...],
+        action_shape: int | tuple[int, ...],
         clip_logits_low: Optional[float] = None,
         clip_logits_high: Optional[float] = None,
     ):
-        Actor.__init__(self, input_shape, extras_shape, action_output_shape)
-        self.action_output_shape = action_output_shape
+        Actor.__init__(self, action_shape)
         self.clip_logits_low = clip_logits_low
         self.clip_logits_high = clip_logits_high
 
@@ -103,13 +103,13 @@ class DiscreteActor(Actor, ABC):
     def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
         """Returns the logits of the policy distribution (clipped if necessary)"""
 
-    def mask(self, t: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
+    def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
         """Masks the tensor `t` with the boolean tensor `mask`"""
-        t[~mask] = replacement
-        return t
+        x[~mask] = replacement
+        return x
 
-    def policy(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
-        logits = self.logits(data, extras, available_actions)
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
+        logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 
 
@@ -117,11 +117,9 @@ class DiscreteActor(Actor, ABC):
 class DiscreteActorCritic(ActorCritic, DiscreteActor):
     def __init__(
         self,
-        input_shape: tuple[int, ...],
-        extras_shape: tuple[int, ...],
-        action_output_shape: tuple[int, ...],
+        action_shape: int | tuple[int, ...],
         clip_logits_low: Optional[float] = None,
         clip_logits_high: Optional[float] = None,
     ):
-        ActorCritic.__init__(self, input_shape, extras_shape, action_output_shape)
-        DiscreteActor.__init__(self, input_shape, extras_shape, action_output_shape, clip_logits_low, clip_logits_high)
+        ActorCritic.__init__(self, action_shape)
+        DiscreteActor.__init__(self, action_shape, clip_logits_low, clip_logits_high)

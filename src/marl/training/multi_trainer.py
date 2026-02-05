@@ -32,10 +32,9 @@ class MultiTrainer(Trainer):
             trainer.to(device)
         return self
 
-    def randomize(self):
+    def randomize(self, method="xavier"):
         for trainer in self.trainers:
-            trainer.randomize()
-        return self
+            trainer.randomize(method)
 
     def value(self, obs: Observation, state: State):
         return [t.value(obs, state) for t in self.trainers]
