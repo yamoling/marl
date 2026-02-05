@@ -11,7 +11,7 @@ from .batch import Batch
 class TransitionBatch(Batch):
     def __init__(self, transitions: list[Transition], device: Optional[torch.device] = None):
         self.transitions = transitions
-        self.is_continuous = transitions[0].action.dtype in (np.float32, np.float64)
+        self.is_continuous = np.issubdtype(transitions[0].action.dtype, np.floating)
         self.is_discrete = not self.is_continuous
         self.actions_dtype = transitions[0].action.dtype
         super().__init__(len(transitions), transitions[0].n_agents, device)
@@ -36,6 +36,9 @@ class TransitionBatch(Batch):
         else:
             indices = indices_or_size
         return TransitionBatch([self.transitions[i] for i in indices], self.device)
+
+    def extend(self, data: list[Transition]) -> Batch:
+        return TransitionBatch(self.transitions + data, self.device)
 
     @cached_property
     def obs(self):
@@ -72,7 +75,7 @@ class TransitionBatch(Batch):
         dones = torch.from_numpy(dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return dones
+        return torch.BoolTensor(dones)
 
     @cached_property
     def available_actions(self):

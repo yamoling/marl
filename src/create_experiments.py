@@ -1,30 +1,62 @@
 import shutil
-from typing import Literal, Optional
+from copy import deepcopy
+from typing import Any, Literal, Optional
+from datetime import datetime
+import os
+from functools import cached_property
 
 import marlenv
 import typed_argparse as tap
 from lle import LLE
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
-from marl.env.shaped_doors import ShapedDoors
 
 import marl
-from marl import Trainer
+from marl import ReplayMemory, Trainer
 from marl.exceptions import ExperimentAlreadyExistsException
+from marl.logging import LogSpecs
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.optimism import VBE
 from marl.training import DQN, PPO, SoftUpdate
-from marl.training.haven_trainer import HavenTrainer
+from marl.training.haven import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from run import Arguments as RunArguments
 from run import main as run_experiment
 
 
-class Arguments(RunArguments):
-    logdir: Optional[str] = tap.arg(default=None, help="The experiment directory")
+class Arguments(tap.TypedArgs):
     overwrite: bool = tap.arg(default=False, help="Override the existing experiment directory")
     run: bool = tap.arg(default=False, help="Run the experiment directly after creating it")
     debug: bool = tap.arg(default=False, help="Create the experiment with name 'debug' (overwritten after each run)")
+    _logdir: str | None = tap.arg("--logdir", default=None, help="The experiment directory")
+    n_runs: int = tap.arg(default=1, help="Number of runs to create")
+    _n_jobs: int | None = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
+    n_tests: int = tap.arg(default=1, help="Number of tests to run")
+    _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
+
+    @cached_property
+    def logdir(self) -> str:
+        if self._logdir is None:
+            if self.debug:
+                logdir = os.path.join("logs", "debug")
+            else:
+                logdir = os.path.join("logs", datetime.now().isoformat().replace(":", "-"))
+        else:
+            logdir = self._logdir
+        if not logdir.startswith("logs/"):
+            logdir = os.path.join("logs", logdir)
+        return logdir
+
+    def as_run_args(self):
+        return RunArguments(
+            logdir=self.logdir,
+            n_runs=self.n_runs,
+            _n_jobs=self._n_jobs,
+            seed=0,
+            n_tests=self.n_tests,
+            _device=self._device,
+        )
 
 
 def make_smac(map_name: str):
@@ -33,27 +65,15 @@ def make_smac(map_name: str):
     return env, None
 
 
-def create_smac(args: Arguments):
-    n_steps = 2_000_000
+def create_smac_experiment(args: Arguments):
+    n_steps = 1_000_000
     # env = marlenv.adapters.SMAC("3s_vs_5z")
     env = marlenv.adapters.SMAC("3m")
     env = marlenv.Builder(env).agent_id().last_action().build()
-    qnetwork = marl.nn.model_bank.RNNQMix.from_env(env)
-    memory = marl.models.TransitionMemory(50_000)
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
-    trainer = DQN(
-        qnetwork,
-        train_policy=train_policy,
-        memory=memory,
-        double_qlearning=True,
-        target_updater=SoftUpdate(),
-        lr=5e-4,
-        optimiser="adam",
-        batch_size=32,
-        train_interval=(1, "step"),
-        gamma=0.99,
-        mixer=VDN.from_env(env),
-        grad_norm_clipping=10,
+    trainer = marl.training.MAPPO(
+        marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
+        marl.models.EpisodeMemory(5_000),
+        VDN(env.n_agents),
     )
 
     if args.debug:
@@ -109,10 +129,10 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
             )
         case "dqn":
             meta_agent = DQN(
-                qnetwork=marl.nn.model_bank.qnetworks.CNN(
+                qnetwork=marl.nn.model_bank.qnetworks.QCNN(
                     input_shape=meta_env.observation_shape,
                     extras_size=meta_env.extras_shape[0],
-                    output_shape=(N_SUBGOALS,),
+                    output_shape=N_SUBGOALS,
                 ),
                 train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 200_000),
                 memory=marl.models.TransitionMemory(5_000),
@@ -130,7 +150,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     worker_trainer = DQN(
-        qnetwork=marl.nn.model_bank.qnetworks.CNN.from_env(env),
+        qnetwork=marl.nn.model_bank.qnetworks.QCNN.qnetwork(env),
         train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
             0.05,
@@ -187,14 +207,21 @@ def make_dqn(
     env: MARLEnv[MultiDiscreteSpace],
     mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
     ir_method: Optional[Literal["rnd", "tomir", "icm"]] = None,
-    gamma=0.95,
+    gamma: float = 0.95,
     noisy: bool = False,
+    use_vbe: bool = False,
+    memory: Optional[ReplayMemory[Any, Any]] = None,
 ):
     mixer = make_mixer(env, mixing)
-    qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_noisy=noisy)
+    if len(env.observation_shape) == 1:
+        qnetwork = marl.nn.model_bank.QMLP.qnetwork(env, hidden_sizes=(128, 128))
+    elif len(env.observation_shape) == 3:
+        qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_sizes=(128, 64))
+    else:
+        raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
     match ir_method:
         case "rnd":
-            ir = marl.training.intrinsic_reward.RandomNetworkDistillation.from_env(env)
+            ir = marl.training.intrinsic_reward.RND.from_env(env)
         case "tomir":
             ir = marl.training.intrinsic_reward.ToMIR.from_env(env, qnetwork, ir_weight=0.05, is_individual=mixer is None)
         case "icm":
@@ -204,11 +231,16 @@ def make_dqn(
     if noisy:
         policy = marl.policy.ArgMax()
     else:
-        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=50_000)
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+    vbe = None
+    if use_vbe:
+        vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
+    if memory is None:
+        memory = marl.models.TransitionMemory(50_000)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
-        memory=marl.models.TransitionMemory(50_000),
+        memory=memory,
         optimiser="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
@@ -219,6 +251,15 @@ def make_dqn(
         mixer=mixer,
         grad_norm_clipping=10,
         ir_module=ir,
+        vbe=vbe,
+    )
+
+
+def make_mappo(env: MARLEnv):
+    return marl.training.MAPPO(
+        marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
+        marl.models.EpisodeMemory(5_000),
+        VDN(env.n_agents),
     )
 
 
@@ -266,72 +307,56 @@ def make_experiment(
     env: MARLEnv,
     test_env: Optional[MARLEnv],
     n_steps: int,
+    logger: LogSpecs = "csv",
 ):
-    if args.logdir is not None:
-        if not args.logdir.startswith("logs/"):
-            args.logdir = "logs/" + args.logdir
-    elif args.debug:
-        args.logdir = "logs/debug"
-    else:
-        args.logdir = f"logs/{env.name}-{trainer.name}"
-        match trainer:
-            case DQN():
-                if trainer.mixer is not None:
-                    args.logdir += f"-{trainer.mixer.name}"
-                else:
-                    args.logdir += "-IQL"
-                if trainer.ir_module is not None:
-                    args.logdir += f"-{trainer.ir_module.name}"
-                if isinstance(trainer.memory, marl.models.PrioritizedMemory):
-                    args.logdir += "-PER"
-            case PPO():
-                if trainer.value_mixer is not None:
-                    args.logdir += f"-{trainer.value_mixer.name}"
     return marl.Experiment.create(
-        logdir=args.logdir,
-        trainer=trainer,
-        env=env,
-        test_interval=5000,
-        n_steps=n_steps,
-        test_env=test_env,
+        logdir=args.logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps, test_env=test_env, logger=logger
     )
 
 
-def make_lle(delay: int):
-    # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").build()
-    env = ShapedDoors(delay)
-    if delay < 0:
-        env = env.wrapped
-        # env = LLE.from_file("maps/tmp").obs_type("layered").state_type("state").builder().time_limit(90).build()
-    # env = marlenv.Builder(env).time_limit(90).build()
+def make_lle():
+    builder = LLE.level(6).obs_type("layered").state_type("state")
+    world = builder._world
+    to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
+    env = builder.pbrs(lasers_to_reward=to_reward).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78).build()
     test_env = None
     return env, test_env
 
 
+def make_deepsea():
+    env = marlenv.catalog.DeepSea(50)
+    env = marl.env.StateCounter(env)
+    env = marl.env.NoReward(env)
+    return env, None
+
+
 def make_overcooked():
-    env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
+    env = marlenv.catalog.overcooked().from_layout("cramped_room", reward_shaping_factor=Schedule.linear(1.0, 0, 1_000_000))
     env = marlenv.Builder(env).agent_id().build()
-    test_env = marlenv.adapters.Overcooked.from_layout("cramped_room", reward_shaping_factor=0)
+    test_env = marlenv.catalog.overcooked().from_layout("cramped_room", reward_shaping_factor=0)
     test_env = marlenv.Builder(test_env).agent_id().build()
     return env, test_env
 
 
 def main(args: Arguments):
     try:
-        # exp = create_smac(args)
-        # env, test_env = make_smac("3m")
-        env, test_env = make_lle(int(args.delay))
-        # env, test_env = make_overcooked()
-
-        trainer = make_dqn(env, mixing="vdn", ir_method=None, noisy=False, gamma=0.95)
-        # trainer = make_ppo(env, mixing=None, minibatch_size=128, train_interval=1_000, k=40)
-        exp = make_experiment(args, trainer, env, test_env, 200_000)
+        # env, test_env = make_lle()
+        env, test_env = make_smac("3m")
+        trainer = make_mappo(env)
+        # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
+        exp = marl.Experiment.create(
+            logdir=args.logdir,
+            trainer=trainer,
+            env=env,
+            test_interval=5000,
+            n_steps=1_000_000,
+            test_env=test_env,
+            logger=["tensorboard", "csv"],
+        )
         print(f"Experiment created in {exp.logdir}")
-        # exp = create_overcooked(args)
-        # exp = make_haven("dqn", ir=True)
         if args.run:
-            args.logdir = exp.logdir
-            run_experiment(args)
+            run_experiment(args.as_run_args())
     except ExperimentAlreadyExistsException as e:
         if not args.overwrite:
             response = ""
@@ -343,7 +368,5 @@ def main(args: Arguments):
         return main(args)
 
 
-if __name__ == "__main__":
-    tap.Parser(Arguments).bind(main).run()
 if __name__ == "__main__":
     tap.Parser(Arguments).bind(main).run()

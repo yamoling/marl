@@ -12,19 +12,19 @@ class CategoricalPolicy(Policy):
     def __init__(self):
         super().__init__()
 
-    def get_action(self, values, available_actions):
-        values[available_actions == 0] = -np.inf
-        values = torch.from_numpy(values)
+    def get_action(self, qvalues, available_actions):
+        qvalues[available_actions == 0] = -np.inf
+        qvalues = torch.from_numpy(qvalues)
 
         # probs= torch.nn.functional.softmax(values, dim=1)
         # dist = torch.distributions.Categorical(probs=probs)
 
-        dist = torch.distributions.Categorical(logits=values)
+        dist = torch.distributions.Categorical(logits=qvalues)
 
         actions = dist.sample()
         return actions.numpy(force=True)
 
-    def update(self, _):
+    def update(self, time_step):
         return {}
 
 
@@ -35,47 +35,21 @@ class NoisyCategoricalPolicy(Policy):
     def __init__(self):
         super().__init__()
 
-    def get_action(self, values, available_actions):
+    def get_action(self, qvalues, available_actions):
         # add noise to logits
-        noise = np.random.normal(0, 1, values.shape)
-        values = values + noise
+        noise = np.random.normal(0, 1, qvalues.shape)
+        qvalues = qvalues + noise
 
-        values[available_actions == 0] = -np.inf
-        values = torch.from_numpy(values)
+        qvalues[available_actions == 0] = -np.inf
+        qvalues = torch.from_numpy(qvalues)
 
         # probs= torch.nn.functional.softmax(values, dim=1)
         # dist = torch.distributions.Categorical(probs=probs)
 
-        dist = torch.distributions.Categorical(logits=values)
+        dist = torch.distributions.Categorical(logits=qvalues)
 
         actions = dist.sample()
         return actions.numpy(force=True)
 
-    def update(self, _):
+    def update(self, time_step):
         return {}
-
-
-class ExtraPolicy(Policy):
-    """Don't know how to name it"""
-
-    def __init__(self, agent_number):
-        super().__init__()
-        self.agent_number = agent_number
-        self.agent_counter = -1
-
-    def get_action(self, values, available_actions):
-        values[available_actions == 0] = -np.inf
-        values = torch.from_numpy(values)
-        actions = torch.argmax(values, dim=1)
-
-        possible_actions = available_actions[self.agent_counter].nonzero()
-        # random_action = possible_actions[0][torch.randint(0, len(possible_actions[0]), (1,)).item()]
-        # actions[self.agent_counter] = random_action
-
-        random_action = np.random.choice(possible_actions[0])
-        actions[self.agent_counter] = random_action
-
-        return actions.numpy(force=True)
-
-    def update(self, _):
-        self.agent_counter = (self.agent_counter + 1) % self.agent_number

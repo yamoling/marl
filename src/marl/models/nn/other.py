@@ -1,3 +1,4 @@
+# type:ignore
 from typing import Optional
 from marlenv import Observation
 from abc import ABC, abstractmethod
@@ -9,7 +10,9 @@ from .qnetwork import QNetwork
 class MAIC(ABC):
     @abstractmethod
     def get_values_and_comms(
-        self, obs: torch.Tensor, extras: torch.Tensor
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute the Q-values and return Q-values and Computed messages"""
 

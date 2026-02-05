@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
-from marl.logging import CSVLogger
+from marl.logging import Logger, LogSpecs, get_logger
 from marl.models.trainer import Trainer
 from marl.utils import get_device
 
@@ -22,6 +22,7 @@ class Runner[A: Space](Run):
     _agent: Agent
     _trainer: Trainer
     _test_env: MARLEnv[A]
+    _logger: Logger
 
     def __init__(
         self,
@@ -35,13 +36,14 @@ class Runner[A: Space](Run):
         agent: Optional[Agent] = None,
         trainer: Optional[Trainer] = None,
         test_env: Optional[MARLEnv[A]] = None,
+        log_type: LogSpecs = "csv",
     ):
-        self.logger = CSVLogger(rundir)
-        super().__init__(rundir, seed, n_tests, test_interval, n_steps, self.logger.reader(rundir))
         if trainer is None:
             from marl.training import NoTrain
 
             trainer = NoTrain(env)
+        self._logger = get_logger(rundir, log_type)
+        super().__init__(rundir, seed, n_tests, test_interval, n_steps)
         self._trainer = trainer
         self._env = env
         if agent is None:
@@ -55,50 +57,58 @@ class Runner[A: Space](Run):
             test_env = deepcopy(env)
         self._test_env = test_env
         self._quiet = quiet
-        self.envs = set[str]()
+        self._logger.log_params(trainer, agent, env, test_env)
 
     @staticmethod
-    def from_experiment(experiment, seed: int, quiet: bool = False, n_tests: int = 1):
+    def from_experiment(
+        experiment,
+        seed: int,
+        n_tests: int = 1,
+        quiet: bool = False,
+    ):
         from marl import Experiment
 
         # Type hinting
         assert isinstance(experiment, Experiment)
         run = Run.from_experiment(experiment, seed, n_tests=n_tests)
         return Runner.from_run(
-            run,
-            experiment.env,
-            experiment.agent,
-            experiment.trainer,
+            run=run,
+            env=experiment.env,
+            agent=experiment.agent,
+            trainer=experiment.trainer,
             test_env=experiment.test_env,
             quiet=quiet,
+            logger=experiment.logger,
         )
 
     @staticmethod
     def from_run(
-        dead_run: Run,
+        run: Run,
         env: MARLEnv[A],
         agent: Agent,
         trainer: Trainer,
+        logger: LogSpecs = "csv",
         quiet: bool = False,
         test_env: Optional[MARLEnv[A]] = None,
     ):
         return Runner(
-            rundir=dead_run.rundir,
-            seed=dead_run.seed,
-            n_tests=dead_run.n_tests,
+            rundir=run.rundir,
+            seed=run.seed,
+            n_tests=run.n_tests,
             quiet=quiet,
-            test_interval=dead_run.test_interval,
-            n_steps=dead_run.n_steps,
+            test_interval=run.test_interval,
+            n_steps=run.n_steps,
             env=env,
             agent=agent,
             trainer=trainer,
             test_env=test_env,
+            log_type=logger,
         )
 
     def _train_episode(self, step_num: int, episode_num: int, render_tests: bool):
         obs, state = self._env.reset()
         self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state)})
+        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state), "episode_num": episode_num})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
                 self._test_and_log(step_num, render_tests)
@@ -108,14 +118,14 @@ class Runner[A: Space](Run):
                 step.truncated = True
             transition = Transition.from_step(obs, state, action, step)
             training_metrics = self._trainer.update_step(transition, step_num)
-            self.logger.training_data.log(training_metrics, step_num)
+            self._logger.log_train(training_metrics, step_num)
             episode.add(transition)
             obs = step.obs
             state = step.state
             step_num += 1
-        self.logger.train.log(episode.metrics, step_num)
+        self._logger.log_train(episode.metrics, step_num)
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
-        self.logger.training_data.log(training_logs, step_num)
+        self._logger.log_train(training_logs, step_num)
         return episode
 
     def run(self, render_tests: bool = False):
@@ -133,8 +143,6 @@ class Runner[A: Space](Run):
         step = 0
         pbar = tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet)
         while step < self.n_steps:
-            if step == 530:
-                print()
             episode = self._train_episode(step, episode_num, render_tests)
             episode_num += 1
             step += len(episode)
@@ -149,7 +157,7 @@ class Runner[A: Space](Run):
         self._agent.save(self.get_saved_algo_dir(time_step))
         self._trainer.save(self.get_saved_algo_dir(time_step))
         episodes = self.tests(time_step, render)
-        self.logger.log_test_episodes(episodes, time_step)
+        self._logger.log_test_episodes(episodes, time_step)
 
     def perform_one_test(self, time_step: int, test_num: int, render: bool = False):
         """

@@ -18,14 +18,14 @@ import numpy as np
 from typing import Optional
 
 
-def decode_b64_image(base64_str: str) -> np.ndarray:
+def decode_b64_image(base64_str: str):
     if base64_str is None:
         return ""
     base64_str = base64_str.split(",")[-1]
     image_data = base64.b64decode(base64_str)
     nparr = np.frombuffer(image_data, np.uint8)
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    return image
+    return np.array(image)
 
 
 class FrameViewer:
@@ -528,15 +528,12 @@ class AbstractActFrameViewer(ActFrameViewer):
                 colors = self.cmap(norm(filters))
                 self.ax_abstract.barh(np.arange(len(filters), 0, -1), filters, color=colors, height=0.6)
                 self.ax_abstract.set_yticks(np.arange(len(filters), 0, -1))
-
                 self.ax_abstract_vals.barh(np.arange(len(filters), 0, -1), filters, alpha=0)
                 self.ax_abstract_vals.set_yticks(self.ax_abstract.get_yticks())
-
                 self.ax_abstract.relim()
                 self.ax_abstract.autoscale_view()
                 self.ax_abstract_vals.relim()
                 self.ax_abstract_vals.autoscale_view()
-
                 if self.extras:
                     self.ax_abstract.set_yticklabels(self.abstract_obs_meanings[self.selected_agent_id] + self.extras_meaning)
                 else:
@@ -551,28 +548,25 @@ class AbstractActFrameViewer(ActFrameViewer):
                     color="gray",
                     alpha=0.5,
                 )
-
                 if not self.combine_layers:
                     self.ax_abstract.set_title(
                         f"Barplot: {self.selected_agent} - Filter Layer: {self.filters_idx + 1}/{self.filters_layer}"
                     )
                 else:
                     self.ax_abstract.set_title(f"Barplot: {self.selected_agent} - Filter Layer: combined")
-
                 self.ax_abstract.xaxis.grid(True, linestyle="--", linewidth=0.5, color="gray", alpha=0.5)
                 self.ax_abstract.axvline(0, color="black", linewidth=1)
-
                 if self.filters_layered:
                     sm = self.sm_layers[self.selected_agent_id][self.filters_idx]
                 else:
                     sm = self.sm_layers[self.selected_agent_id]
                 self.colorbar.mappable = sm
                 self.colorbar.update_normal(sm)
-
             if self.agent_pos is not None:
                 self.highlight_agent(H_img, W_img)
 
         self.ax_img.set_title(f"Frame {self.frame_idx + 1}/{len(self.frames)}")
+        return H_img, W_img
 
     def clear_canvas(self):
         super().clear_canvas()
@@ -586,6 +580,7 @@ class AbstractActFrameViewer(ActFrameViewer):
             return [vals]
         elif vals.ndim == 2:
             return [vals[0], vals[1]]
+        raise NotImplementedError()
 
     def get_filters_data(self):
         """Returns the arrays to plot the filters in function of the current frame idx, current selected agent and if applicable current layer of the filters."""
@@ -762,6 +757,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
                         vmax = np.max(layer_data)
                         self.init_bar_colours(vmin, vmax, j)
         else:
+            vmin, vmax = float("inf"), -float("inf")
             for j in range(self.n_agents):
                 if self.extras:
                     vmin = min(np.min(self.heatmap_dat[:, j]), np.min(self.extras_filter[:, j]))
@@ -883,6 +879,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
 
         else:
             self.ax_img.set_title(f"Frame {len(self.frames)}/{len(self.frames)}")
+        return H_img, W_img
 
     def clear_canvas(self):
         super().clear_canvas()
@@ -897,6 +894,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
             return [vals]
         elif vals.ndim == 2:
             return [vals[0], vals[1]]
+        raise NotImplementedError()
 
     def get_heatmap_data(self):
         """Returns the arrays to plot the heatmap in function of the current frame idx, current selected agent and if applicable current layer of the heatmap."""

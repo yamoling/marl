@@ -2,17 +2,20 @@ import os
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Literal
 
 import orjson
 
 from marl.utils import default_serialization, stats
 from marl.models.run import Run
 from marl.models.replay_episode import LightEpisodeSummary
+from marl.logging import LogSpecs
 
 
 @dataclass
 class LightExperiment:
     logdir: str
+    logger: LogSpecs
     test_interval: int
     n_steps: int
     creation_timestamp: int
@@ -37,12 +40,13 @@ class LightExperiment:
 
     @property
     def runs(self):
-        for run in os.listdir(self.logdir):
-            if run.startswith("run_"):
-                try:
-                    yield Run.load(os.path.join(self.logdir, run))
-                except Exception:
-                    pass
+        for rundir in self.rundirs:
+            yield Run.load(rundir)
+
+    @property
+    def rundirs(self):
+        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
+        return [os.path.join(self.logdir, run) for run in ls]
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -117,7 +121,7 @@ class LightExperiment:
         return new_exp
 
     @staticmethod
-    def load(logdir: str):
+    def load(logdir: str, logger: Literal["csv", "wandb"] = "csv"):
         with open(os.path.join(logdir, "experiment.json"), "r") as f:
             data = orjson.loads(f.read())
-        return LightExperiment(logdir, data["test_interval"], data["n_steps"], data["creation_timestamp"])
+        return LightExperiment(logdir, logger, data["test_interval"], data["n_steps"], data["creation_timestamp"])

@@ -15,12 +15,12 @@ class VDN(Mixer):
         # Sum across the agent dimension
         return torch.sum(qvalues, dim=self.agent_dim)
 
-    def save(self, directory: str):
+    def save(self, to_directory: str):
         return
 
-    def load(self, directory: str):
+    def load(self, from_directory: str):
         return
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace]):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
         return VDN(env.n_agents, env.reward_space.size)

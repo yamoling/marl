@@ -34,8 +34,8 @@ class ShapedDoors(RLEnvWrapper[MultiDiscreteSpace]):
         obs.add_extra(extra)
         return obs
 
-    def step(self, actions: np.ndarray | Sequence):
-        step = super().step(actions)
+    def step(self, action: np.ndarray | Sequence):
+        step = super().step(action)
         agent_pos = self._world.agents_positions[0]
         if agent_pos in self._reward_countdown:
             countdown = self._reward_countdown[agent_pos]

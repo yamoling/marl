@@ -1,3 +1,4 @@
+# type: ignore
 import copy
 from types import SimpleNamespace
 import numpy as np
@@ -10,7 +11,6 @@ from marlenv import Episode
 from marl.utils.dotdic import DotDic
 
 from marl.models import Policy, DRU
-from marl.nn.model_bank import CNetNN
 
 
 from ..agent import Agent
@@ -162,7 +162,7 @@ class CNet(Agent):
     STEP_ID = -2
     STEP_PLUS_1_ID = -1
 
-    def __init__(self, opt, model: CNetNN, target: CNetNN, train_policy: Policy, test_policy: Policy):
+    def __init__(self, opt, model, target, train_policy: Policy, test_policy: Policy):
         super().__init__()
         self.opt = opt
         self.model = model
@@ -536,12 +536,3 @@ class CNet(Agent):
         #     self.test_policy = pickle.load(g)
         # self.policy = self.train_policy
         pass
-
-    def randomize(self):
-        self.model.randomize()
-        self.model_target.randomize()
-
-    def to(self, device: torch.device):
-        self.model.to(device)
-        self.model_target.to(device)
-        self.device = device

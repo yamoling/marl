@@ -1,3 +1,4 @@
+# type: ignore
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -100,12 +101,14 @@ class PPO(Trainer):
         self.grad_norm_clipping = grad_norm_clipping
         self.ir_module = ir_module
 
-    def _compute_param_groups(self, lr_actor: float, lr_critic: float):
+    def _compute_param_groups(self, lr_actor: float, lr_critic: float, lr_shared: float | None = None):
         all_parameters = list(self.actor_critic.parameters())
+        if lr_shared is None:
+            lr_shared = min(lr_critic, lr_actor)
         params = [
             {"params": self.actor_critic.policy_parameters, "lr": lr_actor, "name": "actor parameters"},
             {"params": self.value_parameters, "lr": lr_critic, "name": "critic parameters"},
-            {"params": self.actor_critic.shared_parameters, "lr": min(lr_actor, lr_critic), "name": "shared parameters"},
+            {"params": self.actor_critic.shared_parameters, "lr": lr_shared, "name": "shared parameters"},
         ]
         if self.value_mixer is not None:
             params += [{"params": self.value_mixer.parameters(), "lr": lr_critic, "name": "mixer parameters"}]

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from marlenv import MARLEnv, Transition
+from marlenv import MARLEnv
 
 import torch
 
@@ -90,7 +90,7 @@ class ToMIR(IRModule):
         extras[:, self.agent_id_indices] = one_hot
         return extras
 
-    def update(self, _, time_step: int) -> dict[str, float]:
+    def update(self, batch, time_step: int) -> dict[str, float]:
         self.ir_weight.update(time_step)
         return {"ir_weight": self.ir_weight.value}
 

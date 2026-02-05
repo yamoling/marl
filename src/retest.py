@@ -3,6 +3,7 @@ This script allows to test a trained Agent on an other environment.
 """
 
 from typing import Literal
+
 import typed_argparse as tap
 
 

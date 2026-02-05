@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from marlenv.models import Observation
 
-from marl.models.nn import NN, ActorCritic, RecurrentNN
+from marl.models.nn import NN, ActorCritic, RecurrentNN, Actor
 
 
 @dataclass
@@ -110,9 +110,9 @@ class Agent(ABC):
 
 @dataclass
 class SimpleAgent(Agent):
-    actor_network: ActorCritic
+    actor_network: Actor
 
-    def __init__(self, actor_network: ActorCritic):
+    def __init__(self, actor_network: Actor):
         super().__init__()
         self.actor_network = actor_network
 
@@ -124,10 +124,3 @@ class SimpleAgent(Agent):
             distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
         actions = distribution.sample().squeeze(0)
         return actions.numpy(force=True)
-
-    def value(self, observation: Observation) -> float:
-        with torch.no_grad():
-            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
-            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
-            values = self.actor_network.value(obs_data, obs_extras)
-            return torch.mean(values).item()

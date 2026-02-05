@@ -43,22 +43,30 @@ class QMix(Mixer):
             AbsLayer(),
         )
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size), nn.ReLU(), nn.Linear(hypernet_embed_size, self.embed_size), AbsLayer()
+            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.ReLU(),
+            nn.Linear(hypernet_embed_size, self.embed_size),
+            AbsLayer(),
         )
 
         # State dependent bias for hidden layer
-        self.hyper_b_1 = nn.Linear(self.state_dim, self.embed_size)
+        self.hyper_b_1 = nn.Linear(
+            self.state_dim,
+            self.embed_size,
+        )
 
         # V(s) instead of a bias for the last layers
-        self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_size), nn.ReLU(), nn.Linear(self.embed_size, 1))
+        self.V = nn.Sequential(
+            nn.Linear(self.state_dim, self.embed_size),
+            nn.ReLU(),
+            nn.Linear(self.embed_size, 1),
+        )
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, device: torch.device, *_args, **_kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, device: torch.device, *args, **kwargs) -> torch.Tensor:
         batch_size = qvalues.size(0)
         q_totals = torch.zeros(batch_size, self.n_objectives, device=device)
-
+        states = states.reshape(-1, self.state_dim)
         for i in range(self.n_objectives):
-            states = states.reshape(-1, self.state_dim)
-
             if self.n_objectives == 1:
                 qvalues_obj = qvalues.view(-1, 1, self.n_agents)
             else:
@@ -90,4 +98,4 @@ class QMix(Mixer):
 
     def load(self, from_directory: str):
         filename = f"{from_directory}/qmix.weights"
-        return self.load_state_dict(torch.load(filename, weights_only=True))
+        self.load_state_dict(torch.load(filename, weights_only=True))

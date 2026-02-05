@@ -54,7 +54,7 @@
                             <tr>
                                 <th class="align-middle"> Actions</th>
                                 <td>
-                                    <template v-for="(action, i) in env.action_space.action_names">
+                                    <template v-for="(action, i) in env.action_space.labels">
                                         {{ i }} <font-awesome-icon :icon="['fas', 'arrow-right']" /> {{ action }}
                                         <br>
                                     </template>

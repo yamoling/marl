@@ -49,15 +49,5 @@ class CNetTrainer(Trainer):
         self.memory.add_episode(self.fill_episode(episode, episode_from_agent))  # type: ignore
 
         if (episode_num + 1) % self.step_update_interval == 0:
-            self._update(time_step)
-
+            return self._update(time_step)
         return {}
-
-    def to(self, device: torch.device):
-        """Send the tensors to the given device."""
-        self.agents.to(device)
-        self._device = device
-
-    def randomize(self):
-        """Randomize the state of the trainer."""
-        pass

@@ -1,0 +1,93 @@
+import os
+import pickle
+from dataclasses import dataclass
+from typing import Optional
+
+import torch
+from marlenv import Observation
+
+from marl.models import Policy, QNetwork, RecurrentQNetwork
+from marl.optimism import VBE
+
+from ..agent import Agent
+
+
+@dataclass
+class DQNAgent(Agent):
+    """
+    Deep Q-Network Interface with shared QNetwork.
+    """
+
+    qnetwork: QNetwork
+    train_policy: Policy
+    test_policy: Policy
+
+    def __init__(
+        self,
+        qnetwork: QNetwork,
+        train_policy: Policy,
+        test_policy: Optional[Policy] = None,
+        vbe: Optional[VBE] = None,
+    ):
+        super().__init__()
+        self.qnetwork = qnetwork
+        self.train_policy = train_policy
+        if test_policy is None:
+            test_policy = self.train_policy
+        self.test_policy = test_policy
+        self.policy = self.train_policy
+        self.vbe = vbe
+        self._is_training = True
+
+    def choose_action(self, observation: Observation):
+        with torch.no_grad():
+            qvalues = self.qnetwork.qvalues(observation)
+        qvalues = qvalues.numpy(force=True)
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        if self._is_training and self.vbe is not None:
+            bonus = self.vbe.compute_bonus(observation)
+            qvalues = qvalues + bonus
+        action = self.policy.get_action(qvalues, observation.available_actions)
+        return action
+
+    def set_testing(self):
+        self.policy = self.test_policy
+        self.qnetwork.eval()
+        self._is_training = False
+
+    def set_training(self):
+        self.policy = self.train_policy
+        self.qnetwork.train()
+        self._is_training = True
+
+    def save(self, to_directory: str):
+        os.makedirs(to_directory, exist_ok=True)
+        torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.weights")
+        train_policy_path = os.path.join(to_directory, "train_policy")
+        test_policy_path = os.path.join(to_directory, "test_policy")
+        with open(train_policy_path, "wb") as f, open(test_policy_path, "wb") as g:
+            pickle.dump(self.train_policy, f)
+            pickle.dump(self.test_policy, g)
+
+    def load(self, from_directory: str):
+        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights", weights_only=True, map_location="cpu"))
+        train_policy_path = os.path.join(from_directory, "train_policy")
+        test_policy_path = os.path.join(from_directory, "test_policy")
+        with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:
+            self.train_policy = pickle.load(f)
+            self.test_policy = pickle.load(g)
+        self.policy = self.train_policy
+
+
+class RDQNAgent(DQNAgent):
+    """
+    Recurrent DQN agent.
+
+    Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
+    """
+
+    qnetwork: RecurrentQNetwork  # type: ignore
+
+    def new_episode(self):
+        self.qnetwork.reset_hidden_states()

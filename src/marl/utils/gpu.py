@@ -49,7 +49,7 @@ def list_gpus() -> list[GPU]:
     return res
 
 
-def get_gpu_processes():
+def get_gpu_processes() -> set[int]:
     try:
         cmd = "nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits"
         csv = subprocess.check_output(cmd, shell=True).decode().strip()

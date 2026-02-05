@@ -45,11 +45,7 @@ class Qatten(Mixer):
             )
             self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
 
-    def forward(
-        self,
-        qvalues: torch.Tensor,
-        states: torch.Tensor,
-    ):
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, **kwargs):
         *dims, state_size = states.shape
         states = states.reshape(-1, state_size)
         unit_states = states[:, : self.unit_dim * self.n_agents]  # get agent own features from state

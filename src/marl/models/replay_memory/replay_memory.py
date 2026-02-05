@@ -36,8 +36,12 @@ class ReplayMemory(Generic[T, B], ABC):
 
     def sample(self, batch_size: int) -> B:
         """Sample the memory to retrieve a `Batch`"""
-        indices = np.random.randint(0, len(self), batch_size)
+        indices = np.random.choice(range(len(self)), batch_size, replace=False)
         return self.get_batch(indices)
+
+    @abstractmethod
+    def make_batch(self, items: Iterable[T]) -> B:
+        """Create a `Batch` from the given items"""
 
     def can_sample(self, batch_size: int) -> bool:
         """Return whether the memory contains enough items to sample a batch of the given size"""
@@ -50,15 +54,25 @@ class ReplayMemory(Generic[T, B], ABC):
     def is_full(self):
         return len(self) == self.max_size
 
-    @abstractmethod
     def get_batch(self, indices: Iterable[int]) -> B:
         """Create a `Batch` from the given indices"""
+        items = [self[i] for i in indices]
+        return self.make_batch(items)
+
+    def as_batch(self) -> B:
+        return self.get_batch(range(len(self)))
 
     def __len__(self) -> int:
         return len(self._memory)
 
     def __getitem__(self, index: int) -> T:
         return self._memory[index]
+
+    @property
+    def updates_on(self):
+        if self.update_on_transitions:
+            return "transition"
+        return "episode"
 
 
 @dataclass
@@ -68,9 +82,8 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
     def __init__(self, max_size: int):
         super().__init__(max_size, "transition")
 
-    def get_batch(self, indices: Iterable[int]):
-        transitions = [self._memory[i] for i in indices]
-        return TransitionBatch(transitions)
+    def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
+        return TransitionBatch(list(items))
 
 
 @dataclass
@@ -80,6 +93,5 @@ class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
     def __init__(self, max_size: int):
         super().__init__(max_size, "episode")
 
-    def get_batch(self, indices: Iterable[int]):
-        episodes = [self._memory[i] for i in indices]
-        return EpisodeBatch(episodes)
+    def make_batch(self, items: Iterable[Episode]) -> EpisodeBatch:
+        return EpisodeBatch(list(items))

@@ -1,4 +1,4 @@
-export const HOST = "0.0.0.0" as const;
+export const HOST = "localhost" as const;
 export const HTTP_PORT = 5000 as const;
 export const HTTP_URL = `http://${HOST}:${HTTP_PORT}` as const;
 export function wsURL(port: number) {

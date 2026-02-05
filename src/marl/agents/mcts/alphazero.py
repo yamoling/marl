@@ -3,9 +3,7 @@ import torch
 from marlenv import MARLEnv, State, MultiDiscreteSpace
 from marl.nn.model_bank import CNN_ActorCritic
 from collections import deque
-from marl.logging import CSVLogger
 from .alpha_node import AlphaNode
-from datetime import datetime
 from copy import deepcopy
 
 
@@ -109,8 +107,7 @@ class AlphaZero:
         self.optimizer.step()
         return loss.item()
 
-    def train(self, n_epochs: int, buffer_size: int = 50_000):
-        logger = CSVLogger(f"{datetime.now()}-alphazero-{self.env.name}.csv")
+    def train(self, n_epochs: int, logger, buffer_size: int = 50_000):
         all_states = deque(maxlen=buffer_size)
         all_qvalues = deque(maxlen=buffer_size)
         all_target_probs = deque(maxlen=buffer_size)

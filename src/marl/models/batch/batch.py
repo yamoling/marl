@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable, Optional, overload
+from typing import Iterable, Optional, overload, Self
 
 import torch
 
@@ -19,19 +19,25 @@ class Batch(ABC):
         self.device = device
         self.importance_sampling_weights: Optional[torch.Tensor] = None
 
+    @abstractmethod
+    def extend(self, data) -> Self:
+        """
+        Extend the current batch with some data.
+        """
+
     def for_individual_learners(self) -> "Batch":
         """Reshape rewards, dones such that each agent has its own (identical) signal."""
         if (
             self.reward_size > 1
         ):  # Need to consider this case, because multiple rewards should be at the end and dones/masks are expanded when called (so rewards needs to be as is until then)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])  # type: ignore
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])  # pyright: ignore[reportAttributeAccessIssue]
             self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape[:-1], self.n_agents, self.masks.shape[-1])
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(
                 *self.rewards.shape[:-1], self.n_agents, self.rewards.shape[-1]
             )
         else:
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # type: ignore
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # pyright: ignore[reportAttributeAccessIssue]
             self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
@@ -50,10 +56,12 @@ class Batch(ABC):
         """Normalize the tensor such that it has a mean of 0 and a std of 1."""
         return (tensor - tensor.mean()) / (tensor.std() + 1e-8)
 
-    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor, normalize: bool = True):
+    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0, normalize: bool = True):
         """
         Compute the advantages using the Monte Carlo method, i.e. the discounted sum of rewards until the end of the episode.
         """
+        if isinstance(next_value, (float, int)):
+            next_value = torch.full_like(self.rewards[0], next_value)
         returns = torch.empty_like(self.rewards, dtype=torch.float32)
         for t in range(self.size - 1, -1, -1):
             next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
@@ -111,7 +119,8 @@ class Batch(ABC):
     def compute_gae(
         self,
         gamma: float,
-        all_values: torch.Tensor,
+        values: torch.Tensor,
+        next_values: torch.Tensor,
         trace_decay: float = 0.95,
         normalize: bool = False,
     ):
@@ -133,13 +142,14 @@ class Batch(ABC):
         Returns:
             Advantage estimates (batch_size,).
         """
-        values = all_values[:-1]
-        next_values = all_values[1:]
         deltas = self.rewards + gamma * next_values * self.not_dones - values
         gae = torch.zeros(self.reward_size, dtype=torch.float32, device=self.device)
+        # Transitions: torch.zeros(self.reward_size, dtype=torch.float32).to(device=self.device)
+        # Episodes:  torch.zeros(self.size, dtype=torch.float32).to(device=self.device)
         advantages = torch.empty_like(self.rewards, dtype=torch.float32)
         for t in range(self.size - 1, -1, -1):
-            gae = deltas[t] + gamma * trace_decay * gae
+            not_done = self.not_dones[t]
+            gae = deltas[t] + not_done * gamma * trace_decay * gae
             advantages[t] = gae
         if normalize:
             advantages = self._normalize(advantages)
@@ -219,67 +229,72 @@ class Batch(ABC):
         first_states = self.states[0].unsqueeze(0)
         return torch.cat([first_states, self.next_states])
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def obs(self) -> torch.Tensor:
         """Observations"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def next_obs(self) -> torch.Tensor:
         """Next observations"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def extras(self) -> torch.Tensor:
         """Extra information"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def next_extras(self) -> torch.Tensor:
         """Next extra information"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def states_extras(self) -> torch.Tensor:
         """State extra information"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def next_states_extras(self) -> torch.Tensor:
         """Next state extra information"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def available_actions(self) -> torch.Tensor:
         """Available actions"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def next_available_actions(self) -> torch.Tensor:
         """Next available actions"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def states(self) -> torch.Tensor:
         """Environment states"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def next_states(self) -> torch.Tensor:
         """Next environment states"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def actions(self) -> torch.Tensor:
         """Actions"""
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def rewards(self) -> torch.Tensor:
         """Rewards"""
 
-    @abstractmethod  # type: ignore
+    @cached_property
+    def masked_rewards(self):
+        """Rewards masked by the masks"""
+        return self.rewards * self.masks
+
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def dones(self) -> torch.BoolTensor:
         """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
@@ -287,14 +302,23 @@ class Batch(ABC):
     @property
     def not_dones(self) -> torch.BoolTensor:
         """Whether the corresponding transition lead to a non-terminal state. True for "continued" states, False for terminal states."""
-        return ~self.dones  # type: ignore
+        return ~self.dones  # pyright: ignore[reportReturnType]
 
-    @abstractmethod  # type: ignore
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def masks(self) -> torch.Tensor:
         """Masks (for padded episodes)"""
 
-    @abstractmethod  # type: ignore
+    @cached_property
+    def masks_sum(self):
+        return self.masks.sum()
+
+    @cached_property
+    def masked_indices(self) -> torch.BoolTensor:
+        """Boolean masks for padded episodes. True at indices that are masked."""
+        return self.masks == 0  # pyright: ignore[reportReturnType][return-type]
+
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def probs(self) -> torch.Tensor:
         """Probabilities"""

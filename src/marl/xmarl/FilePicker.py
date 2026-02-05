@@ -49,7 +49,7 @@ class FilePickerScreen(Screen):
 
     def on_list_view_selected(self, event: ListView.Selected):
         label: Label = event.item.query_one(Label)
-        text = str(label.renderable)
+        text = str(label.renderable)  # type: ignore
 
         # Handle "cancel" (exit picker)
         if text == "[❌ Cancel]":

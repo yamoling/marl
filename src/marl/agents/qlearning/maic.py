@@ -43,15 +43,15 @@ class MAIC(Agent):
         self.hidden_states = None
 
     def to_tensor(self, obs: Observation) -> tuple[torch.Tensor, torch.Tensor]:
-        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self.device)
-        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self.device)
+        extras = torch.from_numpy(obs.extras).unsqueeze(0).to(self._device)
+        obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self._device)
         return obs_tensor, extras
 
-    def choose_action(self, obs: Observation) -> np.ndarray:
+    def choose_action(self, observation: Observation) -> np.ndarray:
         with torch.no_grad():
-            qvalues = self.compute_qvalues(obs)
+            qvalues = self.compute_qvalues(observation)
         qvalues = qvalues.cpu().numpy()
-        return self.policy.get_action(qvalues, obs.available_actions)
+        return self.policy.get_action(qvalues, observation.available_actions)
 
     def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""
@@ -91,10 +91,3 @@ class MAIC(Agent):
             self.train_policy = pickle.load(f)
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
-
-    def randomize(self):
-        self.maic_network.randomize()
-
-    def to(self, device: torch.device):
-        self.maic_network.to(device)
-        self.device = device

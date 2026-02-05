@@ -58,9 +58,3 @@ class IndividualLocalGraphTrainer(Trainer):
                 graph.clear()
             self.n_states_visited = 0
         return logs
-
-    def to(self, _):
-        return self
-
-    def randomize(self):
-        return

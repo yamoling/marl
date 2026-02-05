@@ -7,7 +7,8 @@ export interface Env {
     extra_feature_shape: number[]
     extras_meanings: string[]
     action_space: {
-        action_names: string[]
+        shape: number[]
+        labels: string[]
     }
     reward_space: {
         size: number,

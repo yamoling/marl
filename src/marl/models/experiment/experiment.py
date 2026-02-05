@@ -14,12 +14,11 @@ from tqdm import tqdm
 
 from marl import exceptions
 from marl.agents import DQNAgent, Agent, SimpleAgent
-from marl.models.run import Run, Runner
+from marl.models import Run, Runner, ReplayEpisode
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
-from marl.models.replay_episode import ReplayEpisode
-from marl.utils import encode_b64_image
-from marl.utils.gpu import get_device
+from marl.logging import LogSpecs
+from marl.utils import encode_b64_image, get_device
 
 
 from .light_experiment import LightExperiment
@@ -34,7 +33,7 @@ class Experiment[A: Space](LightExperiment):
     n_steps: int
     creation_timestamp: int
     test_env: MARLEnv[A]
-    log_qvalues: Optional[bool] = False
+    log_qvalues: Optional[bool]
 
     def __init__(
         self,
@@ -47,8 +46,9 @@ class Experiment[A: Space](LightExperiment):
         creation_timestamp: int,
         test_env: MARLEnv[A],
         log_qvalues: Optional[bool],
+        logger: LogSpecs = "csv",
     ):
-        super().__init__(logdir, test_interval, n_steps, creation_timestamp)
+        super().__init__(logdir, logger, test_interval, n_steps, creation_timestamp)
         self.trainer = trainer
         self.agent = agent
         self.env = env
@@ -65,38 +65,33 @@ class Experiment[A: Space](LightExperiment):
         test_interval: int = 5_000,
         test_env: Optional[MARLEnv[A]] = None,
         log_qvalues: Optional[bool] = False,
+        logger: LogSpecs = "csv",
     ):
         """
         Create a new experiment in the specified directory.
 
-        Parameters
-        ----------
         - `trainer` defaults to `NoTrain` trainer if not provided
         - `agent` defaults to `trainer.make_agent()` if not provided
         - `test_env` defaults to a deep copy of `env` if not provided
         """
+        if not logdir.startswith("logs/"):
+            logdir = os.path.join("logs", logdir)
+        if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
+            shutil.rmtree(logdir, ignore_errors=True)
         if test_env is None:
             test_env = deepcopy(env)
         if not env.has_same_inouts(test_env):
             raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
-
-        if not logdir.startswith(os.path.join("logs", "")):
+        if not logdir.startswith("logs"):
             logdir = os.path.join("logs", logdir)
+        if trainer is None:
+            from marl.training import NoTrain
 
-            # Remove the test and debug logs
-        if logdir in [os.path.join("logs", "test"), os.path.join("logs", "debug"), os.path.join("logs", "tests")]:
-            try:
-                shutil.rmtree(logdir)
-            except FileNotFoundError:
-                pass
+            trainer = NoTrain(env)
+        if agent is None:
+            agent = trainer.make_agent()
         try:
             os.makedirs(logdir, exist_ok=False)
-            if trainer is None:
-                from marl.training import NoTrain
-
-                trainer = NoTrain(env)
-            if agent is None:
-                agent = trainer.make_agent()
             experiment = Experiment(
                 logdir,
                 agent=agent,
@@ -107,6 +102,7 @@ class Experiment[A: Space](LightExperiment):
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
                 log_qvalues=log_qvalues,
+                logger=logger,
             )
             experiment.save()
             return experiment
@@ -118,7 +114,7 @@ class Experiment[A: Space](LightExperiment):
             raise e
 
     @staticmethod
-    def load(logdir: str) -> "Experiment":
+    def load(logdir: str) -> "Experiment":  # type: ignore
         """Load an experiment from disk."""
         with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
             experiment: Experiment = pickle.load(f)
@@ -195,7 +191,9 @@ class Experiment[A: Space](LightExperiment):
                 path = pathlib.Path(episode_folder)
                 test_num = int(path.name)
                 time_step = int(path.parent.name)
-                return self._replay_episode(test_num, time_step, test_num)
+                rundir = str(path.parent.parent.parent)
+                run_num = self.rundirs.index(rundir)
+                return self._replay_episode(run_num, time_step, test_num)
             case _:
                 raise ValueError("Invalid arguments")
 
@@ -221,7 +219,7 @@ class Experiment[A: Space](LightExperiment):
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()
             replay.probs = torch.exp(logits).tolist()
-            replay.state_values = self.agent.actor_network.value(obs, extras).tolist()
+            replay.state_values = None  # self.agent.actor_network.value(obs, extras).tolist()
         elif isinstance(self.agent, DQNAgent):
             batch = TransitionBatch(list(episode.transitions()))
             replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()

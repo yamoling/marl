@@ -45,5 +45,5 @@ class AgentDistanceShaping[A: Space](PotentialShaping[A]):
             case "sum":
                 return np.sum(distances)
             case "mean":
-                return np.mean(distances)
+                return np.mean(distances).item()
         raise ValueError(f"Unknown aggregation method: {self.aggregation}")

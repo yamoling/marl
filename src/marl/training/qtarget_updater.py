@@ -37,7 +37,7 @@ class HardUpdate(TargetParametersUpdater):
         self.update_period = update_period
         self.update_num = 0
 
-    def update(self, step_num: int) -> dict[str, float]:
+    def update(self, time_step: int) -> dict[str, float]:
         self.update_num += 1
         if self.update_num % self.update_period == 0:
             for param, target in zip(self.parameters, self.target_params):

@@ -218,7 +218,9 @@ class SoftDecisionTree[B: Batch](nn.Module):
             if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
                 print("Q: NaN or Inf detected!")
             log_Q = torch.log(Q.clamp(min=EPS))
-            TQ = torch.bmm(y.view(self.batch_size, 1, self.output_shape), log_Q.view(self.batch_size, self.output_shape, 1)).view(-1, 1)
+            TQ = torch.bmm(
+                y.view(self.batch_size, 1, self.output_shape, torch.float32), log_Q.view(self.batch_size, self.output_shape, 1)
+            ).view(-1, 1)
             if torch.any(torch.isnan(TQ)) or torch.any(torch.isinf(TQ)):
                 print("TQ: NaN or Inf detected!")
             loss += path_prob * TQ
@@ -387,6 +389,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             agent_pos = get_agent_pos(np.array(episode.all_observations))
         else:
             agent_pos = get_agent_pos(np.array(episode.all_observations))[:, self.agent_id]
+            fix_ft = "bound"
 
         ep_acts = np.array(episode.actions)[:, self.agent_id]
 
@@ -412,7 +415,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
                         leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
                     else:
                         leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id])
-                pred_actions[i] = leaf.forward().data.numpy().flatten() # type: ignore
+                pred_actions[i] = leaf.forward().data.numpy().flatten()  # type: ignore
                 paths_taken_weights.append(path_w)
                 paths_taken_biases.append(path_b)
             og_acts = np.zeros_like(pred_actions, dtype=int)
@@ -441,13 +444,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
         paths_taken_weights = np.array(paths_taken_weights)
         paths_taken_biases = np.array(paths_taken_biases)
         # If applicable separate extras from board
+        extras_f = None
         if not self.abstract:
             if self.extras:
                 obs_f = paths_taken_weights[:, :, : obs_w * obs_h].reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
                 extras_f = paths_taken_weights[:, :, obs_w * obs_h :]
             else:
                 obs_f = paths_taken_weights.reshape(episode.episode_len, self.max_depth, obs_h, obs_w)
-                extras_f = None
             obs_b = paths_taken_biases.reshape(episode.episode_len, self.max_depth)
         else:
             obs_f = paths_taken_weights

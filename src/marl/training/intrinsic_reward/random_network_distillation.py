@@ -15,7 +15,9 @@ from marl.nn import model_bank
 
 
 @dataclass
-class RandomNetworkDistillation(IRModule):
+class RND(IRModule):
+    """Random Network Distillation (RND)."""
+
     update_ratio: float
     normalise_rewards: bool
     ir_weight: Schedule
@@ -25,6 +27,8 @@ class RandomNetworkDistillation(IRModule):
     def __init__(
         self,
         target: NN,
+        input_shape: tuple[int, ...],
+        extras_shape: tuple[int, ...],
         update_ratio: float = 0.25,
         normalise_rewards=False,
         ir_weight: Schedule | float = 1.0,
@@ -62,13 +66,16 @@ class RandomNetworkDistillation(IRModule):
 
         # Initialize the running mean and std (section 2.4 of the article)
         self._running_returns = RunningMeanStd((1,))
-        self._running_states = RunningMeanStd(target.input_shape)
-        self._running_extras = RunningMeanStd(target.extras_shape)
+        self._running_states = RunningMeanStd(input_shape)
+        self._running_extras = RunningMeanStd(extras_shape)
 
     def compute(self, batch: Batch) -> torch.Tensor:
         # Normalize the observations and extras
         next_states = self._running_states.normalise(batch.next_states)
-        next_states_extras = self._running_extras.normalise(batch.next_states_extras)
+        if batch.next_states_extras.numel() > 0:
+            next_states_extras = self._running_extras.normalise(batch.next_states_extras)
+        else:
+            next_states_extras = batch.next_states_extras
         if not self._warmup_done:
             return torch.zeros_like(batch.rewards)
         # Compute the embedding and the squared error
@@ -134,7 +141,7 @@ class RandomNetworkDistillation(IRModule):
                 )
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
-        return RandomNetworkDistillation(target=nn, n_warmup_steps=n_warmup_steps)
+        return RND(nn, env.observation_shape, env.extras_shape, n_warmup_steps)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         nn_randomize(torch.nn.init.xavier_uniform_, self._predictor_tail)
@@ -164,3 +171,4 @@ class RandomNetworkDistillation(IRModule):
         self._running_states.to(device)
         self._running_returns.to(device)
         self._running_extras.to(device)
+        return self
