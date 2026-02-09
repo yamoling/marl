@@ -27,8 +27,10 @@ class GPU:
         self.utilization = utilization / 100
 
 
-def list_gpus() -> list[GPU]:
-    """List all available GPU devices"""
+def list_gpus(disabled_devices: list[int] | None = None) -> list[GPU]:
+    """List all available GPU devices except disabled ones"""
+    if disabled_devices is None:
+        disabled_devices = []
     try:
         cmd = "nvidia-smi  --format=csv,noheader,nounits --query-gpu=memory.total,memory.used,memory.free,utilization.gpu"
         csv = subprocess.check_output(cmd, shell=True).decode().strip()
@@ -36,6 +38,8 @@ def list_gpus() -> list[GPU]:
         return []
     res = []
     for i, line in enumerate(csv.split("\n")):
+        if i in disabled_devices:
+            continue
         total_memory, used_memory, free_memory, utilization = map(int, line.split(","))
         res.append(
             GPU(
@@ -83,6 +87,7 @@ def get_device(
     device: Literal["auto", "cpu"] | int = "auto",
     fit_strategy: Literal["scatter", "group"] = "scatter",
     estimated_memory_MB: int = 0,
+    disabled_devices: list[int] | None = None,
 ):
     """
     Get the given (GPU) device that fits the requirements.
@@ -114,7 +119,7 @@ def get_device(
 
     if not torch.cuda.is_available():
         return torch.device("cpu")
-    devices = list_gpus()
+    devices = list_gpus(disabled_devices)
     match fit_strategy:
         case "group":
             gpu = grouped_fit(devices, estimated_memory_MB)

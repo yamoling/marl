@@ -11,12 +11,11 @@ from marlenv.utils import Schedule
 from marl.models import Mixer
 from marl.agents import Agent
 from marl.models import Batch, ReplayMemory, Trainer
-from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic, IRModule
 
 
 @dataclass
-class MAPPO(Trainer):
+class MAPPO[B: Batch](Trainer):
     """Multi-Agent Proximal Policy Optimization"""
 
     actor_critic: ActorCritic
@@ -38,7 +37,7 @@ class MAPPO(Trainer):
     normalize_advantages: bool = True
     optimizer: torch.optim.Optimizer = field(init=False)
     train_on: Literal["episode", "transition"] = "transition"
-    memory: ReplayMemory[Any, Any] = field(init=False)
+    memory: ReplayMemory[Any, B] = field(init=False)
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
         super().__init__(torch.device("cpu"))
@@ -58,11 +57,13 @@ class MAPPO(Trainer):
         if self.train_on == "transition":
             from marl.models.replay_memory import TransitionMemory
 
-            self.memory = TransitionMemory(self.train_interval)
+            self.memory = TransitionMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
         else:
             from marl.models.replay_memory import EpisodeMemory
 
-            self.memory = EpisodeMemory(self.train_interval)
+            self.memory = EpisodeMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
+        if self.actor_critic.is_recurrent and not self.train_on == "episode":
+            raise ValueError("Recurrent neural networks should train on full episodes, not on transaitions !")
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
@@ -175,24 +176,24 @@ class MAPPO(Trainer):
         }
 
     def update_step(self, transition: Transition, time_step: int):
-        logs = {}
-        if self.memory.update_on_transitions:
-            self.memory.add(transition)
-            if self.memory.is_full:
-                batch = self.memory.as_batch().to(self.device)
-                logs = self.train(batch, time_step)
-                self.memory.clear()
-        return logs
+        if not self.memory.update_on_transitions:
+            return {}
+        self.memory.add(transition)
+        if not self.memory.is_full:
+            return {}
+        batch = self.memory.as_batch().to(self.device)
+        self.memory.clear()
+        return self.train(batch, time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        logs = {}
-        if self.memory.update_on_episodes:
-            self.memory.add(episode)
-            if self.memory.is_full:
-                batch = self.memory.as_batch().to(self.device)
-                logs = self.train(batch, time_step)
-                self.memory.clear()
-        return logs
+        if not self.memory.update_on_episodes:
+            return {}
+        self.memory.add(episode)
+        if not self.memory.is_full:
+            return {}
+        batch = self.memory.as_batch().to(self.device)
+        self.memory.clear()
+        return self.train(batch, time_step)
 
     def make_agent(self) -> Agent:
         from marl.agents import SimpleAgent

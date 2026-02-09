@@ -52,7 +52,7 @@ class TransitionBatch(Batch):
         rewards = self.rewards.tolist()
         for t in range(self.size - 2, -1, -1):
             returns[t] = rewards[t] + gamma * not_dones[t] * returns[t + 1]
-        return torch.tensor(returns)
+        return torch.tensor(returns, device=self.device)
 
     @cached_property
     def obs(self):
@@ -85,11 +85,11 @@ class TransitionBatch(Batch):
 
     @cached_property
     def dones(self):
-        dones = np.array([t.done for t in self.transitions], dtype=np.bool)
-        dones = torch.from_numpy(dones).to(self.device)
+        np_dones = np.array([t.done for t in self.transitions], dtype=np.bool)
+        dones: torch.BoolTensor = torch.from_numpy(np_dones).to(self.device)  # pyright: ignore[reportAssignmentType]
         if self.reward_size > 1:
-            dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return torch.BoolTensor(dones)
+            dones: torch.BoolTensor = dones.unsqueeze(-1).expand_as(self.rewards)  # pyright: ignore[reportAssignmentType]
+        return dones
 
     @cached_property
     def available_actions(self):

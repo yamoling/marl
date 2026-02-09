@@ -34,6 +34,7 @@ class Arguments(tap.TypedArgs):
     _n_jobs: int | None = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
+    disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
 
     @cached_property
     def logdir(self) -> str:
@@ -56,6 +57,7 @@ class Arguments(tap.TypedArgs):
             seed=0,
             n_tests=self.n_tests,
             _device=self._device,
+            disabled_devices=self.disabled_devices,
         )
 
 
@@ -266,7 +268,7 @@ def make_mappo(env: MARLEnv):
             ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
         case _:
             raise NotImplementedError()
-    return marl.training.MAPPO(ac, VDN(env.n_agents))
+    return marl.training.MAPPO(ac, VDN(env.n_agents), train_on="episode", train_interval=32)
 
 
 def make_ppo(
@@ -322,13 +324,12 @@ def make_experiment(
 
 def make_lle():
     builder = LLE.level(6).obs_type("layered").state_type("state")
-    return marlenv.Builder(builder.build()).agent_id().time_limit(78).build(), None
-    # world = builder._world
-    # to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
-    # env = builder.pbrs(lasers_to_reward=to_reward).build()
-    # env = marlenv.Builder(env).agent_id().time_limit(78).build()
-    # test_env = None
-    # return env, test_env
+    world = builder._world
+    to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
+    env = builder.pbrs(lasers_to_reward=to_reward, reward_value=1.0).build()
+    env = marlenv.Builder(env).agent_id().time_limit(78).build()
+    test_env = None
+    return env, test_env
 
 
 def make_deepsea():
@@ -348,8 +349,8 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        # env, test_env = make_lle()
-        env, test_env = make_smac("3m")
+        env, test_env = make_lle()
+        # env, test_env = make_smac("3m")
         trainer = make_mappo(env)
         # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(

@@ -16,18 +16,22 @@ class Arguments(tap.TypedArgs):
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
     render: bool = tap.arg(default=False, help="Render the tests")
+    disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices")
 
     @property
     def device(self) -> Literal["auto", "cpu"] | int:
         if self._device in ("auto", "cpu"):
             return self._device
-        try:
-            return int(self._device)
-        except ValueError:
-            pass
         if self._device.startswith("cuda:"):
-            return int(self._device.split(":")[1])
-        raise ValueError(f"Invalid device: {self._device}. It should be 'auto', 'cpu' or 'cuda:<gpu_id>'")
+            dev_num = int(self._device.split(":")[1])
+        else:
+            try:
+                dev_num = int(self._device)
+            except ValueError:
+                raise ValueError(f"Invalid device: {self._device}. It should be 'auto', 'cpu' or 'cuda:<gpu_id>'")
+        if dev_num in self.disabled_devices:
+            raise ValueError(f"Requested device number is {dev_num} but it is present in disabled devices: {self.disabled_devices}")
+        return dev_num
 
     @property
     def n_jobs(self):

@@ -135,7 +135,9 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def dones(self):
-        return torch.BoolTensor(torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device))
+        np_dones = np.array([e.dones for e in self.episodes], dtype=np.bool).squeeze(-1)
+        dones: torch.BoolTensor = torch.from_numpy(np_dones).transpose(1, 0).to(self.device)  # pyright: ignore[reportAssignmentType]
+        return dones
 
     @cached_property
     def masks(self):
