@@ -1,9 +1,9 @@
+import os
 import shutil
 from copy import deepcopy
-from typing import Any, Literal, Optional
 from datetime import datetime
-import os
 from functools import cached_property
+from typing import Any, Literal, Optional
 
 import marlenv
 import typed_argparse as tap
@@ -60,7 +60,10 @@ class Arguments(tap.TypedArgs):
 
 
 def make_smac(map_name: str):
-    env = marlenv.adapters.SMAC(map_name)
+    from absl import logging
+
+    logging.set_verbosity(logging.WARNING)
+    env = marlenv.adapters.SMAC(map_name, debug=False)
     env = marlenv.Builder(env).agent_id().build()
     return env, None
 
@@ -72,7 +75,6 @@ def create_smac_experiment(args: Arguments):
     env = marlenv.Builder(env).agent_id().last_action().build()
     trainer = marl.training.MAPPO(
         marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
-        marl.models.EpisodeMemory(5_000),
         VDN(env.n_agents),
     )
 
@@ -128,6 +130,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 # grad_norm_clipping=10.0,
             )
         case "dqn":
+            assert len(meta_env.observation_shape) == 3
             meta_agent = DQN(
                 qnetwork=marl.nn.model_bank.qnetworks.QCNN(
                     input_shape=meta_env.observation_shape,
@@ -256,11 +259,14 @@ def make_dqn(
 
 
 def make_mappo(env: MARLEnv):
-    return marl.training.MAPPO(
-        marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
-        marl.models.EpisodeMemory(5_000),
-        VDN(env.n_agents),
-    )
+    match env.observation_shape:
+        case (_, _, _):
+            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC(env.observation_shape, env.extras_shape[0], env.n_actions)
+        case (_,):
+            ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
+        case _:
+            raise NotImplementedError()
+    return marl.training.MAPPO(ac, VDN(env.n_agents))
 
 
 def make_ppo(
@@ -316,12 +322,13 @@ def make_experiment(
 
 def make_lle():
     builder = LLE.level(6).obs_type("layered").state_type("state")
-    world = builder._world
-    to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
-    env = builder.pbrs(lasers_to_reward=to_reward).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78).build()
-    test_env = None
-    return env, test_env
+    return marlenv.Builder(builder.build()).agent_id().time_limit(78).build(), None
+    # world = builder._world
+    # to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
+    # env = builder.pbrs(lasers_to_reward=to_reward).build()
+    # env = marlenv.Builder(env).agent_id().time_limit(78).build()
+    # test_env = None
+    # return env, test_env
 
 
 def make_deepsea():

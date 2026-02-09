@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from marlenv.models import Observation
 
-from marl.models.nn import NN, ActorCritic, RecurrentNN, Actor
+from marl.models.nn import NN, RecurrentNN, Actor
 
 
 @dataclass

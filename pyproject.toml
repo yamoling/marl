@@ -17,7 +17,7 @@ dependencies = [
     "typed-argparse>=0.3.1",
     "flask-cors>=4.0.1",
     "seaborn>=0.13.2",
-    "multi-agent-rlenv>=3.6.0",
+    "multi-agent-rlenv>=3.7.4",
     "jupyterlab>=4.3.4",
     "scikit-learn>=1.5.2",
     "pygame>=2.6.1",
@@ -32,6 +32,7 @@ dependencies = [
     "neptune>=1.14.0",
     "tensorboard>=2.20.0",
     "smac",
+    "pysc2>=4.0.0",
 ]
 
 
@@ -47,4 +48,6 @@ build-backend = "hatchling.build"
 line-length = 140
 
 [tool.uv.sources]
+smacv2 = { git = "https://github.com/oxwhirl/smacv2.git" }
 smac = { git = "https://github.com/oxwhirl/smac.git" }
+pysc2 = { git = "https://github.com/google-deepmind/pysc2.git", rev = "0df53d3" }

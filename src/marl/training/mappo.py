@@ -1,7 +1,7 @@
 import os
 from copy import deepcopy
 from dataclasses import dataclass, InitVar, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -20,7 +20,6 @@ class MAPPO(Trainer):
     """Multi-Agent Proximal Policy Optimization"""
 
     actor_critic: ActorCritic
-    memory: ReplayMemory[Any, Any]
     mixer: Mixer
     ir_module: IRModule | None = None
     gamma: float = 0.99
@@ -38,6 +37,8 @@ class MAPPO(Trainer):
     minibatch_size: int = 32
     normalize_advantages: bool = True
     optimizer: torch.optim.Optimizer = field(init=False)
+    train_on: Literal["episode", "transition"] = "transition"
+    memory: ReplayMemory[Any, Any] = field(init=False)
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
         super().__init__(torch.device("cpu"))
@@ -54,6 +55,14 @@ class MAPPO(Trainer):
         if isinstance(entropy_c2, (float, int)):
             entropy_c2 = Schedule.constant(entropy_c2)
         self.c2 = entropy_c2
+        if self.train_on == "transition":
+            from marl.models.replay_memory import TransitionMemory
+
+            self.memory = TransitionMemory(self.train_interval)
+        else:
+            from marl.models.replay_memory import EpisodeMemory
+
+            self.memory = EpisodeMemory(self.train_interval)
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
@@ -67,15 +76,14 @@ class MAPPO(Trainer):
         values = self.actor_critic.value(batch.obs, batch.extras)
         values = self.mixer.forward(values, batch.states)
         next_values = self.actor_critic.value(batch.next_obs, batch.extras)
-        next_values = self.mixer.forward(next_values, batch.next_states)
+        next_values = self.mixer.forward(next_values, batch.next_states) * batch.not_dones
         values[batch.masked_indices] = 0.0
-        next_values[batch.dones == 1] = 0.0
+        next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
         advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
-        returns = batch.compute_mc_returns(self.gamma, 0.0)
+        returns = batch.compute_mc_returns(self.gamma, next_values)
         advantages[batch.masked_indices] = 0.0
         assert torch.all(advantages[batch.masked_indices] == 0)
-        assert torch.all(returns[batch.dones == 1] == 0.0)
         assert torch.all(returns[batch.masked_indices] == 0.0)
         return returns, advantages
 
@@ -88,17 +96,15 @@ class MAPPO(Trainer):
         old_ac = deepcopy(self.actor_critic)
         with torch.no_grad():
             returns, advantages = self._compute_training_data(batch)
+        advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
         critic_losses, actor_losses, entropy_losses, losses, ratios, entropies, norms = [], [], [], [], [], [], []
         for e in range(self.n_epochs):
-            if self.minibatch_size == batch.size:
-                minibatch = batch
-                indices = slice(None)
-            else:
-                indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
-                minibatch = batch.get_minibatch(indices)
-            if isinstance(minibatch, EpisodeBatch):
-                indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
-            mini_returns, mini_advantages = returns[indices], advantages[indices]
+            indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
+            minibatch = batch.get_minibatch(indices)
+            # if isinstance(minibatch, EpisodeBatch):
+            #    indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
+            mini_returns = returns[indices]
+            mini_advantages = advantages[indices, :]
             with torch.no_grad():
                 mini_log_probs = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions).log_prob(minibatch.actions)
                 mini_log_probs[minibatch.masked_indices] = 0.0
@@ -106,6 +112,7 @@ class MAPPO(Trainer):
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
             mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
+            mini_values = self.mixer.forward(mini_values, batch.states)
             mini_values[minibatch.masked_indices] = 0.0
             td_error = mini_values - mini_returns
             critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
@@ -127,7 +134,7 @@ class MAPPO(Trainer):
 
             # S[\pi_0](s_t) in the paper (equation (9))
             entropy = mini_policy.entropy()
-            masked_entropy = entropy * minibatch.masks
+            masked_entropy = entropy * minibatch.masks.repeat_interleave(batch.n_agents).view(minibatch.size, batch.n_agents)
             entropy_loss = -torch.sum(masked_entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
             self.optimizer.zero_grad()
@@ -147,22 +154,22 @@ class MAPPO(Trainer):
         return {
             "ppo/min_critic_loss": min(critic_losses),
             "ppo/max_critic_loss": max(critic_losses),
-            "ppo/mean_critic_loss": np.mean(critic_losses),
+            "ppo/mean_critic_loss": np.mean(critic_losses).item(),
             "ppo/min_actor_loss": min(actor_losses),
             "ppo/max_actor_loss": max(actor_losses),
-            "ppo/mean_actor_loss": np.mean(actor_losses),
+            "ppo/mean_actor_loss": np.mean(actor_losses).item(),
             "ppo/min_entropy_loss": min(entropy_losses),
             "ppo/max_entropy_loss": max(entropy_losses),
-            "ppo/mean_entropy_loss": np.mean(entropy_losses),
+            "ppo/mean_entropy_loss": np.mean(entropy_losses).item(),
             "ppo/min_loss": min(losses),
             "ppo/max_loss": max(losses),
-            "ppo/mean_loss": np.mean(losses),
-            "ppo/min_ratio": min(ratios),
-            "ppo/max_ratio": max(ratios),
-            "ppo/mean_ratio": np.mean(ratios),
-            "ppo/mean_entropy": np.mean(entropies),
-            "ppo/min_entropy": min(entropies),
-            "ppo/max_entropy": max(entropies),
+            "ppo/mean_loss": np.mean(losses).item(),
+            "ppo/min_ratio": np.min(ratios).item(),
+            "ppo/max_ratio": np.max(ratios).item(),
+            "ppo/mean_ratio": np.mean(ratios).item(),
+            "ppo/mean_entropy": np.mean(entropies).item(),
+            "ppo/min_entropy": np.min(entropies).item(),
+            "ppo/max_entropy": np.max(entropies).item(),
             "ppo/c1": self.c1.value,
             "ppo/c2": self.c2.value,
         }
@@ -197,11 +204,12 @@ class MAPPO(Trainer):
         return self._device
 
     def save(self, directory_path: str):
-        directory = os.path.dirname(directory_path)
-        os.makedirs(directory, exist_ok=True)
-        with open(directory_path, "wb") as f:
+        os.makedirs(directory_path, exist_ok=True)
+        filename = os.path.join(directory_path, "actor_critic.weights")
+        with open(filename, "wb") as f:
             torch.save(self.actor_critic.state_dict(), f)
 
     def load(self, directory_path: str):
-        with open(directory_path, "rb") as f:
+        filename = os.path.join(directory_path, "actor_critic.weights")
+        with open(filename, "rb") as f:
             self.actor_critic.load_state_dict(torch.load(f))
