@@ -11,6 +11,7 @@ from marlenv.utils import Schedule
 from marl.models import Mixer
 from marl.agents import Agent
 from marl.models import Batch, ReplayMemory, Trainer
+from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic, IRModule
 
 
@@ -41,6 +42,7 @@ class MAPPO[B: Batch](Trainer):
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
         super().__init__(torch.device("cpu"))
+        assert self.minibatch_size <= self.train_interval
         self.actor_critic = self.actor_critic.to(self.device)
         self.mixer = self.mixer.to(self.device)
         self._ratio_min = 1 - self.eps_clip
@@ -102,12 +104,15 @@ class MAPPO[B: Batch](Trainer):
         for e in range(self.n_epochs):
             indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
-            # if isinstance(minibatch, EpisodeBatch):
-            #    indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
-            mini_returns = returns[indices]
-            mini_advantages = advantages[indices, :]
+            if isinstance(minibatch, EpisodeBatch):
+                indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
+            else:
+                indices = (indices,)
+            mini_returns = returns[*indices]
+            mini_advantages = advantages[*indices, :]
             with torch.no_grad():
-                mini_log_probs = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions).log_prob(minibatch.actions)
+                dist = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
+                mini_log_probs = dist.log_prob(minibatch.actions)
                 mini_log_probs[minibatch.masked_indices] = 0.0
 
             # Use the Monte Carlo estimate of returns as target values
@@ -135,8 +140,9 @@ class MAPPO[B: Batch](Trainer):
 
             # S[\pi_0](s_t) in the paper (equation (9))
             entropy = mini_policy.entropy()
-            masked_entropy = entropy * minibatch.masks.repeat_interleave(batch.n_agents).view(minibatch.size, batch.n_agents)
-            entropy_loss = -torch.sum(masked_entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
+            entropy = entropy.sum(-1)  # Sum the agent dimension for the masking on the next line
+            entropy = entropy * minibatch.masks
+            entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
             self.optimizer.zero_grad()
             # Equation (9) in the paper

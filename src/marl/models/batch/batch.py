@@ -62,8 +62,10 @@ class Batch(ABC):
         """
         if isinstance(next_value, (float, int)):
             next_value = torch.full_like(self.rewards[0], next_value)
+        elif len(next_value.shape) > 1:
+            next_value = next_value[-1]
         returns = torch.empty_like(self.rewards, dtype=torch.float32)
-        for t in range(self.size - 1, -1, -1):
+        for t in range(self.dones.shape[0] - 1, -1, -1):
             next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
             returns[t] = next_value
         return returns
@@ -145,7 +147,7 @@ class Batch(ABC):
         # Transitions: torch.zeros(self.reward_size, dtype=torch.float32).to(device=self.device)
         # Episodes:  torch.zeros(self.size, dtype=torch.float32).to(device=self.device)
         advantages = torch.empty_like(self.rewards, dtype=torch.float32)
-        for t in range(self.size - 1, -1, -1):
+        for t in range(self.dones.shape[0] - 1, -1, -1):
             not_done = self.not_dones[t]
             gae = deltas[t] + not_done * gamma * trace_decay * gae
             advantages[t] = gae
