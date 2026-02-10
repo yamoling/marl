@@ -26,34 +26,21 @@ from .light_experiment import LightExperiment
 
 @dataclass
 class Experiment[A: Space](LightExperiment):
-    agent: Agent
-    trainer: Trainer
-    env: MARLEnv[A]
+    logdir: str
     test_interval: int
     n_steps: int
     creation_timestamp: int
+    agent: Agent
+    trainer: Trainer
+    env: MARLEnv[A]
+    n_steps: int
     test_env: MARLEnv[A]
     log_qvalues: Optional[bool]
+    logger: LogSpecs = "csv"
+    seed_test_env: bool = False
 
-    def __init__(
-        self,
-        logdir: str,
-        agent: Agent,
-        trainer: Trainer,
-        env: MARLEnv[A],
-        test_interval: int,
-        n_steps: int,
-        creation_timestamp: int,
-        test_env: MARLEnv[A],
-        log_qvalues: Optional[bool],
-        logger: LogSpecs = "csv",
-    ):
-        super().__init__(logdir, logger, test_interval, n_steps, creation_timestamp)
-        self.trainer = trainer
-        self.agent = agent
-        self.env = env
-        self.test_env = test_env
-        self.log_qvalues = log_qvalues
+    def __post_init__(self):
+        super().__init__(self.logdir, self.logger, self.test_interval, self.n_steps, self.creation_timestamp, self.seed_test_env)
 
     @staticmethod
     def create(

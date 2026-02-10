@@ -32,7 +32,7 @@ class Arguments(tap.TypedArgs):
     _logdir: str | None = tap.arg("--logdir", default=None, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
     _n_jobs: int | None = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
-    n_tests: int = tap.arg(default=1, help="Number of tests to run")
+    n_tests: int = tap.arg(default=1, help="Number of tests to perform ")
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
 
@@ -268,7 +268,7 @@ def make_mappo(env: MARLEnv):
             ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
         case _:
             raise NotImplementedError()
-    return marl.training.MAPPO(ac, VDN(env.n_agents), train_on="episode", train_interval=128, minibatch_size=16, n_epochs=5)
+    return marl.training.MAPPO(ac, VDN(env.n_agents), train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
 
 
 def make_ppo(
@@ -349,8 +349,8 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        env, test_env = make_lle()
-        # env, test_env = make_smac("3m")
+        # env, test_env = make_lle()
+        env, test_env = make_smac("8m_vs_9m")
         trainer = make_mappo(env)
         # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(

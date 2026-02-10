@@ -2,7 +2,6 @@ import os
 import shutil
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Literal
 
 import orjson
 
@@ -19,6 +18,8 @@ class LightExperiment:
     test_interval: int
     n_steps: int
     creation_timestamp: int
+    seed_test_env: bool
+    """Whether the test environment has to be seeded for each test"""
 
     @staticmethod
     def get_parameters(logdir: str) -> dict:
@@ -119,9 +120,3 @@ class LightExperiment:
                 new_rundir = run.rundir.replace(self.logdir, new_logdir)
                 shutil.copytree(run.rundir, new_rundir)
         return new_exp
-
-    @staticmethod
-    def load(logdir: str, logger: Literal["csv", "wandb"] = "csv"):
-        with open(os.path.join(logdir, "experiment.json"), "r") as f:
-            data = orjson.loads(f.read())
-        return LightExperiment(logdir, logger, data["test_interval"], data["n_steps"], data["creation_timestamp"])
