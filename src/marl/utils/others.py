@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from typing import Callable, Optional, TypeVar
 import re
-from marlenv import MARLEnv
+from marlenv import MARLEnv, Observation
 
 
 def seed(seed_value: int, env: Optional[MARLEnv] = None):
@@ -42,3 +42,12 @@ def encode_b64_image(image: np.ndarray) -> str:
     if image is None:
         return ""
     return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")  # type: ignore
+
+
+def hash_ndarray(data: np.ndarray) -> int:
+    return hash(data.tobytes())
+
+
+def obs_to_hashes(obs: Observation):
+    obs_data = np.concatenate((obs.data, obs.extras), axis=-1)
+    return [hash_ndarray(o) for o in obs_data]

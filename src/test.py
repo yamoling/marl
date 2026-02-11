@@ -1,15 +1,14 @@
 import marl
+import marlenv
 from lle import LLE
-from marl.utils import serialization
-import orjson
 
 
 def main():
-    env = LLE.level(6).build()
-    print(env)
-    data = orjson.dumps(env, option=orjson.OPT_SERIALIZE_NUMPY)
-    env2 = serialization.structure(data, LLE)
-    print(env2)
+    env = LLE.level(2).obs_type("state").build()
+    env = marlenv.Builder(env).agent_id().time_limit(50, add_extra=False).build()
+    trainer = marl.training.QLearning(env.n_actions, env.n_agents)
+    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer)
+    exp.run()
 
 
 if __name__ == "__main__":
