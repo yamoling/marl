@@ -323,11 +323,11 @@ def make_experiment(
 
 
 def make_lle():
-    env = LLE.level(6).obs_type("layered").state_type("state").build()
-    # world = builder._world
-    # to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
-    # env = builder.pbrs(lasers_to_reward=to_reward, reward_value=1.0).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78).build()
+    builder = LLE.level(6).obs_type("layered").state_type("state")
+    world = builder._world
+    to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
+    env = builder.pbrs(lasers_to_reward=to_reward, reward_value=1.0, gamma=1).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2).build()
     test_env = None
     return env, test_env
 
@@ -349,8 +349,8 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        # env, test_env = make_lle()
-        env, test_env = make_smac("8m_vs_9m")
+        env, test_env = make_lle()
+        # env, test_env = make_smac("8m_vs_9m")
         trainer = make_mappo(env)
         # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(

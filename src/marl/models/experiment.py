@@ -14,13 +14,12 @@ from marlenv.models import Space, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marlenv import MultiDiscreteSpace
 from marl.agents import DQNAgent, SimpleActor
 from marl.models import Run, Runner, ReplayEpisode
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
 from marl.logging import LogSpecs
-from marl.utils import default_serialization, stats, serialization
+from marl.utils import default_serialization, stats
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.utils import encode_b64_image, get_device
 
@@ -117,7 +116,8 @@ class Experiment[A: Space]:
 
     def save(self):
         """Save the experiment to disk."""
-        data = orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY)
+        with open(self.json_file(self.logdir), "wb") as f:
+            f.write(orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY))
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
 

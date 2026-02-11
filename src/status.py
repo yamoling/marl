@@ -1,5 +1,7 @@
 import os
 import typed_argparse as tap
+from marl import exceptions
+from marl import Experiment, Run
 
 
 class ListArguments(tap.TypedArgs):
@@ -16,17 +18,13 @@ class KillArguments(tap.TypedArgs):
 
     @property
     def experiments(self):
-        import marl
 
         if self.logdir == "all":
             return _list("logs")
-        yield marl.LightExperiment.load(self.logdir)
+        yield Experiment.load(self.logdir)
 
 
-def print_status(exp):
-    from marl import LightExperiment
-
-    assert isinstance(exp, LightExperiment)
+def print_status(exp: Experiment):
     runs = list(exp.runs)
     print(f"Experiment {exp.logdir} has {len(runs)} runs")
     if len(runs) == 0:
@@ -43,11 +41,8 @@ def print_status(exp):
     print(f"{actives}/{len(runs)} active runs")
 
 
-def interrupt_runs(experiment):
-    from marl import exceptions
-    from marl import LightExperiment, Run
-
-    exp: LightExperiment = experiment
+def interrupt_runs(experiment: Experiment):
+    exp: Experiment = experiment
 
     runs_to_cleanup = list[Run]()
     for run in exp.runs:
@@ -70,12 +65,10 @@ def interrupt_runs(experiment):
 
 
 def _list(root: str):
-    import marl
-
     for directory in os.listdir(root):
         directory = os.path.join(root, directory)
         try:
-            yield marl.LightExperiment.load(directory)
+            yield Experiment.load(directory)
         except FileNotFoundError:
             continue
         except Exception:
