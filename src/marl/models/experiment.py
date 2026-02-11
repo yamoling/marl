@@ -1,10 +1,11 @@
 import os
 import pickle
+import orjson
 import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Literal, Optional, overload
+from typing import Any, Literal, overload
 import pathlib
 
 import numpy as np
@@ -13,46 +14,47 @@ from marlenv.models import Space, MARLEnv
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQNAgent, Agent, SimpleAgent
+from marlenv import MultiDiscreteSpace
+from marl.agents import DQNAgent, SimpleActor
 from marl.models import Run, Runner, ReplayEpisode
 from marl.models.trainer import Trainer
 from marl.models.batch import TransitionBatch
 from marl.logging import LogSpecs
+from marl.utils import default_serialization, stats, serialization
+from marl.models.replay_episode import LightEpisodeSummary
 from marl.utils import encode_b64_image, get_device
 
 
-from .light_experiment import LightExperiment
+from .agent import Agent
 
 
 @dataclass
-class Experiment[A: Space](LightExperiment):
+class Experiment[A: Space]:
     logdir: str
     test_interval: int
-    n_steps: int
     creation_timestamp: int
     agent: Agent
     trainer: Trainer
     env: MARLEnv[A]
     n_steps: int
     test_env: MARLEnv[A]
-    log_qvalues: Optional[bool]
+    log_qvalues: bool
+    seed_test_env: bool
+    """Whether the test environment has to be seeded for each test"""
     logger: LogSpecs = "csv"
-    seed_test_env: bool = False
-
-    def __post_init__(self):
-        super().__init__(self.logdir, self.logger, self.test_interval, self.n_steps, self.creation_timestamp, self.seed_test_env)
 
     @staticmethod
     def create(
         env: MARLEnv[A],
         n_steps: int,
         logdir: str = "logs/tests",
-        trainer: Optional[Trainer] = None,
-        agent: Optional[Agent] = None,
+        trainer: Trainer | None = None,
+        agent: Agent | None = None,
         test_interval: int = 5_000,
-        test_env: Optional[MARLEnv[A]] = None,
-        log_qvalues: Optional[bool] = False,
+        test_env: MARLEnv[A] | None = None,
+        log_qvalues: bool = False,
         logger: LogSpecs = "csv",
+        seed_test_env: bool = False,
     ):
         """
         Create a new experiment in the specified directory.
@@ -90,6 +92,7 @@ class Experiment[A: Space](LightExperiment):
                 test_env=test_env,
                 log_qvalues=log_qvalues,
                 logger=logger,
+                seed_test_env=seed_test_env,
             )
             experiment.save()
             return experiment
@@ -100,8 +103,13 @@ class Experiment[A: Space](LightExperiment):
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
 
-    @staticmethod
-    def load(logdir: str) -> "Experiment":  # type: ignore
+    # @classmethod
+    # def load(cls, logdir: str):
+    #     json_path = cls.json_file(logdir)
+    #     return serialization.structure(json_path, Experiment[MultiDiscreteSpace])
+
+    @classmethod
+    def load(cls, logdir: str):
         """Load an experiment from disk."""
         with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
             experiment: Experiment = pickle.load(f)
@@ -109,7 +117,7 @@ class Experiment[A: Space](LightExperiment):
 
     def save(self):
         """Save the experiment to disk."""
-        super().save()
+        data = orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY)
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
 
@@ -133,7 +141,6 @@ class Experiment[A: Space](LightExperiment):
         self,
         other_env: MARLEnv[A],
         new_logdir: str,
-        n_tests: int,
         quiet: bool = False,
         device: Literal["auto", "cpu"] = "auto",
     ):
@@ -201,7 +208,7 @@ class Experiment[A: Space](LightExperiment):
         extras = torch.from_numpy(np.array(episode.extras))
         actions = torch.from_numpy(np.array(episode.actions))
         available_actions = torch.from_numpy(np.array(episode.available_actions))
-        if isinstance(self.agent, SimpleAgent):
+        if isinstance(self.agent, SimpleActor):
             dist = self.agent.actor_network.policy(obs, extras, available_actions)
             logits = dist.log_prob(actions)
             replay.logits = logits.tolist()
@@ -221,3 +228,97 @@ class Experiment[A: Space](LightExperiment):
                 self.agent.load(run.get_saved_algo_dir(time_step))
                 return self.agent
         raise ValueError(f"No run with seed {run_seed} found in the experiment.")
+
+    def move(self, new_logdir: str):
+        """Move an experiment to a new directory."""
+        shutil.move(self.logdir, new_logdir)
+        self.logdir = new_logdir
+        self.save()
+
+    @staticmethod
+    def json_file(logdir: str):
+        return os.path.join(logdir, "experiment.json")
+
+    @property
+    def runs(self):
+        for rundir in self.rundirs:
+            yield Run.load(rundir)
+
+    @property
+    def rundirs(self):
+        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
+        return [os.path.join(self.logdir, run) for run in ls]
+
+    @staticmethod
+    def is_experiment_directory(logdir: str) -> bool:
+        """Check if a directory is an experiment directory."""
+        try:
+            return os.path.exists(os.path.join(logdir, "experiment.json"))
+        except FileNotFoundError:
+            return False
+
+    @classmethod
+    def find_experiment_directory(cls, subdir: str) -> str | None:
+        """Find the experiment directory containing a given subdirectory."""
+        if cls.is_experiment_directory(subdir):
+            return subdir
+        parent = os.path.dirname(subdir)
+        if parent == subdir:
+            return None
+        return cls.find_experiment_directory(parent)
+
+    @property
+    def is_running(self):
+        """Check if an experiment is running."""
+        for run in self.runs:
+            if run.is_running:
+                return True
+        return False
+
+    def delete(self):
+        shutil.rmtree(self.logdir)
+
+    def get_tests_at(self, time_step: int):
+        summary = list[LightEpisodeSummary]()
+        for run in self.runs:
+            summary += run.get_test_episodes(time_step)
+        return summary
+
+    @property
+    def train_dir(self):
+        return os.path.join(self.logdir, "train")
+
+    @property
+    def test_dir(self):
+        return os.path.join(self.logdir, "test")
+
+    @property
+    def qvalue_infos(self):
+        return (self.env.reward_space.labels, self.env.n_agents)
+
+    def n_active_runs(self):
+        return len([run for run in self.runs if run.is_running])
+
+    def get_experiment_results(self, replace_inf=False):
+        """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
+        runs = list(self.runs)
+        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, suffix=" [test]")
+        datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf)
+        # qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
+        return datasets, []
+
+    def copy(self, new_logdir: str, copy_runs: bool = True):
+        new_exp = deepcopy(self)
+        new_exp.logdir = new_logdir
+        new_exp.save()
+        if copy_runs:
+            for run in self.runs:
+                new_rundir = run.rundir.replace(self.logdir, new_logdir)
+                shutil.copytree(run.rundir, new_rundir)
+        return new_exp
+
+    @staticmethod
+    def get_parameters(logdir: str) -> dict[str, Any]:
+        with open(Experiment.json_file(logdir), "rb") as f:
+            return orjson.loads(f.read())

@@ -1,5 +1,5 @@
 from marlenv import MARLEnv, Observation
-from .agent import Agent
+from marl.models.agent import Agent
 from dataclasses import dataclass
 
 

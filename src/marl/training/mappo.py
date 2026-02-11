@@ -9,7 +9,6 @@ from marlenv import Episode, Transition
 from marlenv.utils import Schedule
 
 from marl.models import Mixer
-from marl.agents import Agent
 from marl.models import Batch, ReplayMemory, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic, IRModule
@@ -201,10 +200,10 @@ class MAPPO[B: Batch](Trainer):
         self.memory.clear()
         return self.train(batch, time_step)
 
-    def make_agent(self) -> Agent:
-        from marl.agents import SimpleAgent
+    def make_agent(self):
+        from marl.agents import SimpleActor
 
-        return SimpleAgent(self.actor_critic)
+        return SimpleActor(self.actor_critic)
 
     @property
     def device(self):

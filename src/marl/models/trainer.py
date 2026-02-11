@@ -6,7 +6,7 @@ from typing import Any, Optional, Sequence
 import torch
 from marlenv import Episode, Transition, Observation, State
 
-from marl.agents import Agent
+from .agent import Agent
 from marl.utils import HasDevice
 
 

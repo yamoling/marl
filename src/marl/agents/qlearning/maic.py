@@ -6,7 +6,7 @@ from marlenv.models import Observation
 from marl.models import Policy, MAICNN
 
 import numpy as np
-from ..agent import Agent
+from marl.models.agent import Agent
 
 
 @dataclass

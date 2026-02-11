@@ -1,4 +1,5 @@
-from marl.agents import Agent, RandomAgent
+from marl.models.agent import Agent
+from marl.agents import RandomAgent
 from marl.models.trainer import Trainer
 from marlenv import MARLEnv, Space
 from dataclasses import dataclass

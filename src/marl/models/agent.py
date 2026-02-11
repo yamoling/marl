@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from marlenv.models import Observation
 
-from marl.models.nn import NN, RecurrentNN, Actor
+from .nn import NN, RecurrentNN
 
 
 @dataclass
@@ -106,21 +106,3 @@ class Agent(ABC):
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
         for nn in self.networks:
             nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt")))
-
-
-@dataclass
-class SimpleAgent(Agent):
-    actor_network: Actor
-
-    def __init__(self, actor_network: Actor):
-        super().__init__()
-        self.actor_network = actor_network
-
-    def choose_action(self, observation: Observation):
-        with torch.no_grad():
-            obs_data = torch.from_numpy(observation.data).unsqueeze(0).to(self._device, non_blocking=True)
-            obs_extras = torch.from_numpy(observation.extras).unsqueeze(0).to(self._device, non_blocking=True)
-            available_actions = torch.from_numpy(observation.available_actions).unsqueeze(0).to(self._device, non_blocking=True)
-            distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
-        actions = distribution.sample().squeeze(0)
-        return actions.numpy(force=True)

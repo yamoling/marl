@@ -9,7 +9,7 @@ from marlenv import Observation
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 from marl.optimism import VBE
 
-from ..agent import Agent
+from marl.models.agent import Agent
 
 
 @dataclass

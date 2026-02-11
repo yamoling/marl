@@ -6,7 +6,7 @@ import dotenv
 import neptune
 from marlenv import MARLEnv
 
-from marl.agents.agent import Agent
+from marl.models.agent import Agent
 from marl.logging.logger import LogReader
 from marl.models.trainer import Trainer
 

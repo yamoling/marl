@@ -1,7 +1,7 @@
 from marlenv import Observation
 import numpy as np
 from marl.models import Policy
-from ..agent import Agent
+from marl.models.agent import Agent
 
 
 class QAgent(Agent):

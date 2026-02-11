@@ -8,13 +8,13 @@ import torch
 from marlenv import Space, Episode, MARLEnv, Transition
 from tqdm import tqdm
 
-from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
 from marl.logging import Logger, LogSpecs, get_logger
-from marl.models.trainer import Trainer
 from marl.utils import get_device
 
 from .run import Run
+from ..agent import Agent
+from ..trainer import Trainer
 
 
 class Runner[A: Space](Run):

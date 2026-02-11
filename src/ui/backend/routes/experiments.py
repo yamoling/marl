@@ -80,7 +80,7 @@ def rename_experiment():
 @app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
 def delete_experiment(logdir: str):
     try:
-        exp = state.get_light_experiment(logdir)
+        exp = state.get_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
     except FileNotFoundError as e:
@@ -110,14 +110,13 @@ def test_on_other_env():
     logdir = json_data["logdir"]
     new_logdir = json_data["newLogdir"]
     env_logdir = json_data["envLogdir"]
-    n_tests = json_data["nTests"]
     exp = state.get_experiment(logdir)
     test_env = state.get_experiment(env_logdir).test_env
 
     import threading
 
     def start():
-        exp.test_on_other_env(test_env, new_logdir, n_tests, quiet=True)
+        exp.test_on_other_env(test_env, new_logdir, quiet=True)
 
     threading.Thread(target=start).start()
 

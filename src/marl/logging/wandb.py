@@ -3,7 +3,7 @@ import os
 import dotenv
 from marlenv import Episode, MARLEnv
 from dataclasses import asdict
-from marl.agents.agent import Agent
+from marl.models.agent import Agent
 from marl.logging.logger import LogReader
 from marl.models.trainer import Trainer
 from .logger import Logger

@@ -33,6 +33,7 @@ dependencies = [
     "tensorboard>=2.20.0",
     "smac",
     "pysc2>=4.0.0",
+    "cattrs>=25.3.0",
 ]
 
 
