@@ -11,15 +11,15 @@ class HasDevice(ABC):
         self._device = device
 
     @property
+    def device(self):
+        return self._device
+
+    @property
     def networks(self):
         """Dynamic list of neural networks attributes in the trainer"""
         from marl.models.nn import NN
 
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
-
-    @property
-    def device(self):
-        return self._device
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the state of the trainer."""

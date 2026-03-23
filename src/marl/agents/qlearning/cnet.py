@@ -13,7 +13,7 @@ from marl.utils.dotdic import DotDic
 from marl.models import Policy, DRU
 
 
-from ..agent import Agent
+from marl.models.agent import Agent
 
 
 class EpisodeCommWrapper:

@@ -9,7 +9,7 @@ from marlenv import Observation
 from marl.models import Policy, QNetwork, RecurrentQNetwork
 from marl.optimism import VBE
 
-from ..agent import Agent
+from marl.models.agent import Agent
 
 
 @dataclass
@@ -55,11 +55,13 @@ class DQNAgent(Agent):
         self.policy = self.test_policy
         self.qnetwork.eval()
         self._is_training = False
+        super().set_testing()
 
     def set_training(self):
         self.policy = self.train_policy
         self.qnetwork.train()
         self._is_training = True
+        super().set_training()
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)

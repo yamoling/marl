@@ -67,11 +67,6 @@ class ActorCritic(Actor, Critic):
     def shared_parameters(self) -> list[torch.nn.Parameter]:
         return []
 
-    @property
-    def actor(self) -> Actor:
-        """The actor component of the AC."""
-        return self
-
     def forward(
         self,
         obs: torch.Tensor,

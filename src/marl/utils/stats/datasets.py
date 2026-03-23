@@ -80,6 +80,22 @@ def stats_by(col_name: str, df: pl.DataFrame, replace_inf: bool):
     return res
 
 
+def compute_dataframe(dfs: list[pl.DataFrame], replace_inf: bool) -> pl.DataFrame:
+    dfs = [d for d in dfs if not d.is_empty()]
+    if len(dfs) == 0:
+        return pl.DataFrame()
+    df = pl.concat(dfs).drop("timestamp_sec")
+    to_drop = list[str]()
+    for col, dtype in zip(df.columns, df.dtypes):
+        if not dtype.is_numeric():
+            to_drop.append(col)
+    df = df.drop(to_drop)
+    score_cols = [col for col in df.columns if col.startswith("score")]
+    if len(score_cols) != 0:
+        df = df.with_columns(score=pl.sum_horizontal(score_cols))
+    return stats_by("time_step", df, replace_inf)
+
+
 def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suffix: Optional[str] = None) -> list[Dataset]:
     """
     Aggregates dataframes and computes the stats (mean, std, etc) for each column.

@@ -7,7 +7,7 @@ from torch.distributions.distribution import Distribution
 
 from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic, RecurrentNN
 from ..utils import make_cnn
-from .generic import SimpleRNN, MLP
+from .generic import SimpleRNN, MLP, CNN
 
 
 @dataclass(unsafe_hash=True)
@@ -60,7 +60,7 @@ class CNN_ActorCritic(DiscreteActorCritic):
         features = self.cnn_actor.forward(data)
         features = torch.cat((features, extras), dim=-1)
         features = features.view(*dims, -1)
-        logits = self.actor(features)
+        logits = self.actor_nn(features)
         return self.mask(logits, available_actions)
 
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -153,8 +153,7 @@ class SimpleRecurrentActorCritic(ActorCritic, RecurrentNN):
         self.value_network = SimpleRNN(input_size + extras_size, 1)
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
-        x = torch.cat((obs, extras), dim=-1)
-        logits = self.policy_network(x)
+        logits = self.policy_network.forward(obs, extras)
         logits = self.mask(logits, available_actions, replacement=-torch.inf)
         return torch.distributions.Categorical(logits=logits)
 
@@ -163,7 +162,7 @@ class SimpleRecurrentActorCritic(ActorCritic, RecurrentNN):
 
     def value(self, obs: torch.Tensor, extras: torch.Tensor):
         obs = torch.cat((obs, extras), dim=-1)
-        return torch.squeeze(self.value_network(obs), -1)
+        return torch.squeeze(self.value_network.forward(obs, extras), -1)
 
     @property
     def value_parameters(self):
@@ -210,6 +209,32 @@ class CNNCritic(Critic):
         value = self.mlp.forward(features, extras)
         value = value.reshape(*dims)
         return value
+
+
+@dataclass(unsafe_hash=True)
+class CNNDiscreteAC(ActorCritic):
+    def __init__(self, input_shape: tuple[int, int, int], n_extras: int, n_actions: int):
+        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
+        super().__init__(n_actions)
+        self.actor = CNN(input_shape, n_extras, (n_actions,))
+        self.critic = CNN(input_shape, n_extras, (1,))
+
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
+        logits = self.actor.forward(obs, extras)
+        logits[~available_actions] = -torch.inf
+        return torch.distributions.Categorical(logits=logits)
+
+    def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+        values = self.critic.forward(obs, extras)
+        return values.squeeze(-1)
+
+    @property
+    def policy_parameters(self):
+        return list(self.actor.parameters())
+
+    @property
+    def value_parameters(self):
+        return list(self.critic.parameters())
 
 
 @dataclass(unsafe_hash=True)
@@ -273,7 +298,7 @@ class CNNContinuousActorCritic(ActorCritic):
         return self.actor_network.forward(obs, extras)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
-        dist = self.actor.forward(obs, extras)
+        dist = self.actor_network.forward(obs, extras)
         values = self.critic.forward(obs, extras)
         return dist, values
 
@@ -283,7 +308,7 @@ class CNNContinuousActorCritic(ActorCritic):
 
     @property
     def policy_parameters(self):
-        return list(self.actor.parameters())
+        return list(self.actor_network.parameters())
 
 
 @dataclass(unsafe_hash=True)

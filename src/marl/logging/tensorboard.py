@@ -5,7 +5,7 @@ from tensorboard.backend.event_processing import event_accumulator
 import polars as pl
 import numpy as np
 
-from marl.agents.agent import Agent
+from marl.models.agent import Agent
 from marl.models.trainer import Trainer
 from .logger import Logger, LogReader
 

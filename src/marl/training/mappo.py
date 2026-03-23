@@ -1,7 +1,7 @@
 import os
 from copy import deepcopy
 from dataclasses import dataclass, InitVar, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -9,18 +9,16 @@ from marlenv import Episode, Transition
 from marlenv.utils import Schedule
 
 from marl.models import Mixer
-from marl.agents import Agent
 from marl.models import Batch, ReplayMemory, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic, IRModule
 
 
 @dataclass
-class MAPPO(Trainer):
+class MAPPO[B: Batch](Trainer):
     """Multi-Agent Proximal Policy Optimization"""
 
     actor_critic: ActorCritic
-    memory: ReplayMemory[Any, Any]
     mixer: Mixer
     ir_module: IRModule | None = None
     gamma: float = 0.99
@@ -38,9 +36,12 @@ class MAPPO(Trainer):
     minibatch_size: int = 32
     normalize_advantages: bool = True
     optimizer: torch.optim.Optimizer = field(init=False)
+    train_on: Literal["episode", "transition"] = "transition"
+    memory: ReplayMemory[Any, B] = field(init=False)
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
         super().__init__(torch.device("cpu"))
+        assert self.minibatch_size <= self.train_interval
         self.actor_critic = self.actor_critic.to(self.device)
         self.mixer = self.mixer.to(self.device)
         self._ratio_min = 1 - self.eps_clip
@@ -54,6 +55,16 @@ class MAPPO(Trainer):
         if isinstance(entropy_c2, (float, int)):
             entropy_c2 = Schedule.constant(entropy_c2)
         self.c2 = entropy_c2
+        if self.train_on == "transition":
+            from marl.models.replay_memory import TransitionMemory
+
+            self.memory = TransitionMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
+        else:
+            from marl.models.replay_memory import EpisodeMemory
+
+            self.memory = EpisodeMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
+        if self.actor_critic.is_recurrent and not self.train_on == "episode":
+            raise ValueError("Recurrent neural networks should train on full episodes, not on transaitions !")
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
@@ -67,15 +78,14 @@ class MAPPO(Trainer):
         values = self.actor_critic.value(batch.obs, batch.extras)
         values = self.mixer.forward(values, batch.states)
         next_values = self.actor_critic.value(batch.next_obs, batch.extras)
-        next_values = self.mixer.forward(next_values, batch.next_states)
+        next_values = self.mixer.forward(next_values, batch.next_states) * batch.not_dones
         values[batch.masked_indices] = 0.0
-        next_values[batch.dones == 1] = 0.0
+        next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
         advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
-        returns = batch.compute_mc_returns(self.gamma, 0.0)
+        returns = batch.compute_mc_returns(self.gamma, next_values)
         advantages[batch.masked_indices] = 0.0
         assert torch.all(advantages[batch.masked_indices] == 0)
-        assert torch.all(returns[batch.dones == 1] == 0.0)
         assert torch.all(returns[batch.masked_indices] == 0.0)
         return returns, advantages
 
@@ -88,24 +98,26 @@ class MAPPO(Trainer):
         old_ac = deepcopy(self.actor_critic)
         with torch.no_grad():
             returns, advantages = self._compute_training_data(batch)
+        advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
         critic_losses, actor_losses, entropy_losses, losses, ratios, entropies, norms = [], [], [], [], [], [], []
         for e in range(self.n_epochs):
-            if self.minibatch_size == batch.size:
-                minibatch = batch
-                indices = slice(None)
-            else:
-                indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
-                minibatch = batch.get_minibatch(indices)
+            indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
+            minibatch = batch.get_minibatch(indices)
             if isinstance(minibatch, EpisodeBatch):
                 indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
-            mini_returns, mini_advantages = returns[indices], advantages[indices]
+            else:
+                indices = (indices,)
+            mini_returns = returns[*indices]
+            mini_advantages = advantages[*indices, :]
             with torch.no_grad():
-                mini_log_probs = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions).log_prob(minibatch.actions)
+                dist = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
+                mini_log_probs = dist.log_prob(minibatch.actions)
                 mini_log_probs[minibatch.masked_indices] = 0.0
 
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
             mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
+            mini_values = self.mixer.forward(mini_values, batch.states)
             mini_values[minibatch.masked_indices] = 0.0
             td_error = mini_values - mini_returns
             critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
@@ -127,8 +139,9 @@ class MAPPO(Trainer):
 
             # S[\pi_0](s_t) in the paper (equation (9))
             entropy = mini_policy.entropy()
-            masked_entropy = entropy * minibatch.masks
-            entropy_loss = -torch.sum(masked_entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
+            entropy = entropy.sum(-1)  # Sum the agent dimension for the masking on the next line
+            entropy = entropy * minibatch.masks
+            entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
             self.optimizer.zero_grad()
             # Equation (9) in the paper
@@ -147,61 +160,62 @@ class MAPPO(Trainer):
         return {
             "ppo/min_critic_loss": min(critic_losses),
             "ppo/max_critic_loss": max(critic_losses),
-            "ppo/mean_critic_loss": np.mean(critic_losses),
+            "ppo/mean_critic_loss": np.mean(critic_losses).item(),
             "ppo/min_actor_loss": min(actor_losses),
             "ppo/max_actor_loss": max(actor_losses),
-            "ppo/mean_actor_loss": np.mean(actor_losses),
+            "ppo/mean_actor_loss": np.mean(actor_losses).item(),
             "ppo/min_entropy_loss": min(entropy_losses),
             "ppo/max_entropy_loss": max(entropy_losses),
-            "ppo/mean_entropy_loss": np.mean(entropy_losses),
+            "ppo/mean_entropy_loss": np.mean(entropy_losses).item(),
             "ppo/min_loss": min(losses),
             "ppo/max_loss": max(losses),
-            "ppo/mean_loss": np.mean(losses),
-            "ppo/min_ratio": min(ratios),
-            "ppo/max_ratio": max(ratios),
-            "ppo/mean_ratio": np.mean(ratios),
-            "ppo/mean_entropy": np.mean(entropies),
-            "ppo/min_entropy": min(entropies),
-            "ppo/max_entropy": max(entropies),
+            "ppo/mean_loss": np.mean(losses).item(),
+            "ppo/min_ratio": np.min(ratios).item(),
+            "ppo/max_ratio": np.max(ratios).item(),
+            "ppo/mean_ratio": np.mean(ratios).item(),
+            "ppo/mean_entropy": np.mean(entropies).item(),
+            "ppo/min_entropy": np.min(entropies).item(),
+            "ppo/max_entropy": np.max(entropies).item(),
             "ppo/c1": self.c1.value,
             "ppo/c2": self.c2.value,
         }
 
     def update_step(self, transition: Transition, time_step: int):
-        logs = {}
-        if self.memory.update_on_transitions:
-            self.memory.add(transition)
-            if self.memory.is_full:
-                batch = self.memory.as_batch().to(self.device)
-                logs = self.train(batch, time_step)
-                self.memory.clear()
-        return logs
+        if not self.memory.update_on_transitions:
+            return {}
+        self.memory.add(transition)
+        if not self.memory.is_full:
+            return {}
+        batch = self.memory.as_batch().to(self.device)
+        self.memory.clear()
+        return self.train(batch, time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        logs = {}
-        if self.memory.update_on_episodes:
-            self.memory.add(episode)
-            if self.memory.is_full:
-                batch = self.memory.as_batch().to(self.device)
-                logs = self.train(batch, time_step)
-                self.memory.clear()
-        return logs
+        if not self.memory.update_on_episodes:
+            return {}
+        self.memory.add(episode)
+        if not self.memory.is_full:
+            return {}
+        batch = self.memory.as_batch().to(self.device)
+        self.memory.clear()
+        return self.train(batch, time_step)
 
-    def make_agent(self) -> Agent:
-        from marl.agents import SimpleAgent
+    def make_agent(self):
+        from marl.agents import SimpleActor
 
-        return SimpleAgent(self.actor_critic)
+        return SimpleActor(self.actor_critic)
 
     @property
     def device(self):
         return self._device
 
     def save(self, directory_path: str):
-        directory = os.path.dirname(directory_path)
-        os.makedirs(directory, exist_ok=True)
-        with open(directory_path, "wb") as f:
+        os.makedirs(directory_path, exist_ok=True)
+        filename = os.path.join(directory_path, "actor_critic.weights")
+        with open(filename, "wb") as f:
             torch.save(self.actor_critic.state_dict(), f)
 
     def load(self, directory_path: str):
-        with open(directory_path, "rb") as f:
+        filename = os.path.join(directory_path, "actor_critic.weights")
+        with open(filename, "rb") as f:
             self.actor_critic.load_state_dict(torch.load(f))

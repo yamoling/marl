@@ -7,6 +7,7 @@ from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
 from .ppo import PPO
 from .ddpg import DDPGTrainer
 from .mappo import MAPPO
+from .qlearning import QLearning
 
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "HardUpdate",
     "RND",
     "intrinsic_reward",
+    "QLearning",
 ]

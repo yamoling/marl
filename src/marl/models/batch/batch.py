@@ -56,18 +56,18 @@ class Batch(ABC):
         """Normalize the tensor such that it has a mean of 0 and a std of 1."""
         return (tensor - tensor.mean()) / (tensor.std() + 1e-8)
 
-    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0, normalize: bool = True):
+    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
         """
         Compute the advantages using the Monte Carlo method, i.e. the discounted sum of rewards until the end of the episode.
         """
         if isinstance(next_value, (float, int)):
             next_value = torch.full_like(self.rewards[0], next_value)
+        elif len(next_value.shape) > 1:
+            next_value = next_value[-1]
         returns = torch.empty_like(self.rewards, dtype=torch.float32)
-        for t in range(self.size - 1, -1, -1):
+        for t in range(self.dones.shape[0] - 1, -1, -1):
             next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
             returns[t] = next_value
-        if normalize:
-            returns = self._normalize(returns)
         return returns
 
     def compute_td1_returns(self, gamma: float, next_values: torch.Tensor, normalize: bool = False):
@@ -92,7 +92,7 @@ class Batch(ABC):
             normalize: Whether to normalize the advantages.
         """
         values = all_values[:-1]
-        returns = self.compute_mc_returns(gamma, all_values[-1], normalize=False)
+        returns = self.compute_mc_returns(gamma, all_values[-1])
         advantages = returns - values
         if normalize:
             advantages = self._normalize(advantages)
@@ -147,7 +147,7 @@ class Batch(ABC):
         # Transitions: torch.zeros(self.reward_size, dtype=torch.float32).to(device=self.device)
         # Episodes:  torch.zeros(self.size, dtype=torch.float32).to(device=self.device)
         advantages = torch.empty_like(self.rewards, dtype=torch.float32)
-        for t in range(self.size - 1, -1, -1):
+        for t in range(self.dones.shape[0] - 1, -1, -1):
             not_done = self.not_dones[t]
             gae = deltas[t] + not_done * gamma * trace_decay * gae
             advantages[t] = gae

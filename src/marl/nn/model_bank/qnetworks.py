@@ -20,7 +20,7 @@ from .generic import CNN, MLP
 class QCNN(CNN, QNetwork):
     def __init__(
         self,
-        input_shape: tuple[int, ...],
+        input_shape: tuple[int, int, int],
         extras_size: int,
         output_shape: int | tuple[int, int],
         mlp_sizes: tuple[int, ...] = (128, 128),

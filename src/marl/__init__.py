@@ -15,8 +15,7 @@ from . import optimism
 from .utils import seed
 
 
-from .models import Experiment, LightExperiment, Runner, Run, Policy, Trainer, ReplayMemory, Batch
-from .agents import Agent
+from .models import Experiment, Runner, Run, Policy, Trainer, ReplayMemory, Batch, Agent
 
 
 __all__ = [
@@ -29,7 +28,6 @@ __all__ = [
     "training",
     "seed",
     "Experiment",
-    "LightExperiment",
     "Batch",
     "Agent",
     "Runner",

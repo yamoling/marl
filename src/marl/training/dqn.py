@@ -5,7 +5,7 @@ from typing import Any, Literal, Optional
 import torch
 from marlenv import Episode, Observation, State, Transition
 
-from marl.agents import DQNAgent, RDQNAgent, Agent
+from marl.agents import DQNAgent, RDQNAgent
 from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule, Batch, Trainer
 from marl.optimism import VBE
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
@@ -190,7 +190,7 @@ class DQN[B: Batch](Trainer):
             logs = logs | self._update(time_step)
         return logs
 
-    def make_agent(self, test_policy: Optional[Policy] = None) -> Agent:
+    def make_agent(self, test_policy: Optional[Policy] = None):
         if isinstance(self.qnetwork, RecurrentQNetwork):
             return RDQNAgent(
                 qnetwork=self.qnetwork,

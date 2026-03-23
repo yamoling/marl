@@ -1,14 +1,15 @@
 import os
 import subprocess
+import orjson
 import time
 from threading import Thread
 from typing import Optional
-from marl.models import Experiment, ReplayEpisode, LightExperiment
+from marl.models import Experiment, ReplayEpisode
 
 
 class ServerState:
     def __init__(self, logdir: str = "logs"):
-        self._light_experiments = dict[str, LightExperiment]()
+        self._light_experiments = dict[str, Experiment]()
         self._experiments = dict[str, Experiment]()
         self.last_accessed = dict[str, float]()
         self.logdir = logdir
@@ -19,7 +20,8 @@ class ServerState:
         for directory in os.listdir(self.logdir):
             directory = os.path.join(self.logdir, directory)
             try:
-                experiments.append(Experiment.get_parameters(directory))
+                with open(Experiment.json_file(directory)) as f:
+                    experiments.append(orjson.loads(f.read()))
             except (FileNotFoundError, NotADirectoryError):
                 # Not an experiment directory, ignore
                 pass
@@ -34,11 +36,6 @@ class ServerState:
         return
         # Start a completely detached new run
         p = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    def get_light_experiment(self, logdir: str) -> LightExperiment:
-        if logdir in self._light_experiments:
-            return self._light_experiments[logdir]
-        return LightExperiment.load(logdir)
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()

@@ -1,5 +1,7 @@
 import os
 import typed_argparse as tap
+from marl import exceptions
+from marl import Experiment, Run
 
 
 class ListArguments(tap.TypedArgs):
@@ -11,13 +13,18 @@ class ShowArguments(tap.TypedArgs):
 
 
 class KillArguments(tap.TypedArgs):
-    logdir: str = tap.arg(positional=True, help="The experiment directory")
+    logdir: str = tap.arg(positional=True, help="The experiment directory, or 'all' for all experiments")
+    no_confirm: bool = tap.arg(positional=False, help="Do not ask for confirmation before killing runs", default=False)
+
+    @property
+    def experiments(self):
+
+        if self.logdir == "all":
+            return _list("logs")
+        yield Experiment.load(self.logdir)
 
 
-def print_status(exp):
-    from marl import LightExperiment
-
-    assert isinstance(exp, LightExperiment)
+def print_status(exp: Experiment):
     runs = list(exp.runs)
     print(f"Experiment {exp.logdir} has {len(runs)} runs")
     if len(runs) == 0:
@@ -34,11 +41,8 @@ def print_status(exp):
     print(f"{actives}/{len(runs)} active runs")
 
 
-def interrupt_runs(experiment):
-    from marl import exceptions
-    from marl import LightExperiment, Run
-
-    exp: LightExperiment = experiment
+def interrupt_runs(experiment: Experiment):
+    exp: Experiment = experiment
 
     runs_to_cleanup = list[Run]()
     for run in exp.runs:
@@ -60,37 +64,36 @@ def interrupt_runs(experiment):
     print("Done.")
 
 
-def list_active_runs(args: ListArguments):
-    import marl
-
-    root = args.logdir
+def _list(root: str):
     for directory in os.listdir(root):
         directory = os.path.join(root, directory)
         try:
-            exp = marl.LightExperiment.load(directory)
-            if exp.is_running:
-                print_status(exp)
+            yield Experiment.load(directory)
         except FileNotFoundError:
             continue
         except Exception:
             print(f"Unexpected error loading {directory}")
 
 
+def list_active_runs(args: ListArguments):
+    root = args.logdir
+    for exp in _list(root):
+        if exp.is_running:
+            print_status(exp)
+
+
 def kill_runs(args: KillArguments):
-    import marl
-
-    exp = marl.LightExperiment.load(args.logdir)
-    print_status(exp)
-    n_active = exp.n_active_runs()
-    if n_active == 0:
-        print("No active runs to kill.")
-        return
-
-    answer = input(f"Kill the {n_active} active runs ? [y/n] ")
-    if answer.lower() != "y":
-        print("Exiting without killing processes.")
-        return
-    interrupt_runs(exp)
+    for exp in args.experiments:
+        print_status(exp)
+        n_active = exp.n_active_runs()
+        if n_active == 0:
+            continue
+        if not args.no_confirm:
+            answer = input(f"Kill the {n_active} active runs ? [y/n] ")
+            if answer.lower() != "y":
+                print("Exiting without killing processes.")
+                continue
+        interrupt_runs(exp)
 
 
 def show_status(args: ShowArguments):

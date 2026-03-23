@@ -8,13 +8,13 @@ import torch
 from marlenv import Space, Episode, MARLEnv, Transition
 from tqdm import tqdm
 
-from marl.agents import Agent
 from marl.agents.random_agent import RandomAgent
 from marl.logging import Logger, LogSpecs, get_logger
-from marl.models.trainer import Trainer
 from marl.utils import get_device
 
 from .run import Run
+from ..agent import Agent
+from ..trainer import Trainer
 
 
 class Runner[A: Space](Run):
@@ -50,7 +50,7 @@ class Runner[A: Space](Run):
             try:
                 agent = trainer.make_agent()
             except NotImplementedError:
-                logging.warning("No agent provided, using a random agent")
+                logging.info("No agent provided, using a random agent")
                 agent = RandomAgent(env)
         self._agent = agent
         if test_env is None:
@@ -125,7 +125,7 @@ class Runner[A: Space](Run):
             step_num += 1
         self._logger.log_train(episode.metrics, step_num)
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
-        self._logger.log_train(training_logs, step_num)
+        self._logger.log_training_data(training_logs, step_num)
         return episode
 
     def run(self, render_tests: bool = False):
@@ -179,11 +179,8 @@ class Runner[A: Space](Run):
             i += 1
             if render:
                 self._test_env.render()
-            match self._agent.choose_action(obs):
-                case (action, _):
-                    step = self._test_env.step(action)
-                case action:
-                    step = self._test_env.step(action)
+            action = self._agent.choose_action(obs)
+            step = self._test_env.step(action)
             transition = Transition.from_step(obs, state, action, step)
             episode.add(transition)
             obs = step.obs

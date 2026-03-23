@@ -1,9 +1,9 @@
+import os
 import shutil
 from copy import deepcopy
-from typing import Any, Literal, Optional
 from datetime import datetime
-import os
 from functools import cached_property
+from typing import Any, Literal, Optional
 
 import marlenv
 import typed_argparse as tap
@@ -32,8 +32,9 @@ class Arguments(tap.TypedArgs):
     _logdir: str | None = tap.arg("--logdir", default=None, help="The experiment directory")
     n_runs: int = tap.arg(default=1, help="Number of runs to create")
     _n_jobs: int | None = tap.arg("--n-jobs", default=None, help="Maximal number of simultaneous processes to use")
-    n_tests: int = tap.arg(default=1, help="Number of tests to run")
+    n_tests: int = tap.arg(default=1, help="Number of tests to perform ")
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
+    disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
 
     @cached_property
     def logdir(self) -> str:
@@ -56,11 +57,15 @@ class Arguments(tap.TypedArgs):
             seed=0,
             n_tests=self.n_tests,
             _device=self._device,
+            disabled_devices=self.disabled_devices,
         )
 
 
 def make_smac(map_name: str):
-    env = marlenv.adapters.SMAC(map_name)
+    from absl import logging
+
+    logging.set_verbosity(logging.WARNING)
+    env = marlenv.adapters.SMAC(map_name, debug=False)
     env = marlenv.Builder(env).agent_id().build()
     return env, None
 
@@ -72,7 +77,6 @@ def create_smac_experiment(args: Arguments):
     env = marlenv.Builder(env).agent_id().last_action().build()
     trainer = marl.training.MAPPO(
         marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
-        marl.models.EpisodeMemory(5_000),
         VDN(env.n_agents),
     )
 
@@ -128,6 +132,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 # grad_norm_clipping=10.0,
             )
         case "dqn":
+            assert len(meta_env.observation_shape) == 3
             meta_agent = DQN(
                 qnetwork=marl.nn.model_bank.qnetworks.QCNN(
                     input_shape=meta_env.observation_shape,
@@ -256,11 +261,14 @@ def make_dqn(
 
 
 def make_mappo(env: MARLEnv):
-    return marl.training.MAPPO(
-        marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
-        marl.models.EpisodeMemory(5_000),
-        VDN(env.n_agents),
-    )
+    match env.observation_shape:
+        case (_, _, _):
+            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC(env.observation_shape, env.extras_shape[0], env.n_actions)
+        case (_,):
+            ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
+        case _:
+            raise NotImplementedError()
+    return marl.training.MAPPO(ac, VDN(env.n_agents), train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
 
 
 def make_ppo(
@@ -318,8 +326,8 @@ def make_lle():
     builder = LLE.level(6).obs_type("layered").state_type("state")
     world = builder._world
     to_reward = [laser for laser in world.laser_sources if laser.agent_id in (0, 1)]
-    env = builder.pbrs(lasers_to_reward=to_reward).build()
-    env = marlenv.Builder(env).agent_id().time_limit(78).build()
+    env = builder.pbrs(lasers_to_reward=to_reward, reward_value=1.0, gamma=1).build()
+    env = marlenv.Builder(env).agent_id().time_limit(env.width * env.height // 2).build()
     test_env = None
     return env, test_env
 
@@ -341,8 +349,8 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        # env, test_env = make_lle()
-        env, test_env = make_smac("3m")
+        env, test_env = make_lle()
+        # env, test_env = make_smac("8m_vs_9m")
         trainer = make_mappo(env)
         # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(

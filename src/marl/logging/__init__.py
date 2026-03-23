@@ -6,7 +6,18 @@ from .tensorboard import TBLogger
 from .sql_logger import SQLiteLogger
 from .multi_logger import MultiLogger
 from typing import Literal, Sequence, TypeAlias
+import logging
+import os
+import dotenv
 
+
+dotenv.load_dotenv()
+log_level = os.getenv("LOG_LEVEL", "info").upper()
+logging.basicConfig(
+    handlers=[logging.FileHandler("logs.txt", mode="a"), logging.StreamHandler()],
+    level=log_level,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 
 LogSpec: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
 LogSpecs: TypeAlias = LogSpec | Sequence[LogSpec]

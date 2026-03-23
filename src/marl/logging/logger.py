@@ -11,8 +11,8 @@ import polars as pl
 from marlenv import Episode
 
 from marlenv import MARLEnv
-from marl.agents import Agent
 from marl.models.trainer import Trainer
+from marl.models.agent import Agent
 
 ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"

@@ -7,7 +7,7 @@ import torch
 from marlenv import Transition
 from marlenv.utils import Schedule
 
-from marl.agents import SimpleAgent
+from marl.agents import SimpleActor
 from marl.models import Mixer, Trainer
 from marl.models.batch import Batch, TransitionBatch
 from marl.models.nn import ActorCritic, IRModule
@@ -227,4 +227,4 @@ class PPO(Trainer):
         return {}
 
     def make_agent(self):
-        return SimpleAgent(self.actor_critic)
+        return SimpleActor(self.actor_critic)

@@ -1,8 +1,10 @@
 from typing import Optional
 from dataclasses import dataclass
 from typing import Literal, Any
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import torch
+
+from marl.utils.has_device import HasDevice
 
 
 def randomize(init_fn, nn: torch.nn.Module):
@@ -14,7 +16,7 @@ def randomize(init_fn, nn: torch.nn.Module):
 
 
 @dataclass
-class NN(torch.nn.Module, ABC):
+class NN(torch.nn.Module, HasDevice):
     """Parent class of all neural networks"""
 
     name: str
@@ -22,16 +24,12 @@ class NN(torch.nn.Module, ABC):
 
     def __init__(self, output_shape: int | tuple[int, ...]):
         torch.nn.Module.__init__(self)
+        HasDevice.__init__(self, torch.device("cpu"))
         self.name = self.__class__.__name__
-        self._device = torch.device("cpu")
         if isinstance(output_shape, int):
             self.output_shape = (output_shape,)
         else:
             self.output_shape = output_shape
-
-    @property
-    def device(self):
-        return self._device
 
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, *args, **kwargs) -> Any:
@@ -58,6 +56,16 @@ class NN(torch.nn.Module, ABC):
         else:
             self._device = torch.device(device)
         return super().to(device, dtype, non_blocking)
+
+    @property
+    def is_recurrent(self):
+        for nn in self.networks:
+            if nn.is_recurrent:
+                return True
+        for module in self.modules():
+            if isinstance(module, (torch.nn.GRU, torch.nn.GRUCell, torch.nn.LSTM, torch.nn.LSTMCell)):
+                return True
+        return False
 
 
 @dataclass

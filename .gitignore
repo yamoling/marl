@@ -203,3 +203,4 @@ qplex/
 myenv/*
 uv.lock
 wandb
+logs.txt

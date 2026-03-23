@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import MultiDiscreteSpace, MARLEnv
+from marlenv import MARLEnv, MultiDiscreteSpace
 
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
@@ -62,9 +62,9 @@ class QMix(Mixer):
             nn.Linear(self.embed_size, 1),
         )
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, device: torch.device, *args, **kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *args, **kwargs) -> torch.Tensor:
         batch_size = qvalues.size(0)
-        q_totals = torch.zeros(batch_size, self.n_objectives, device=device)
+        q_totals = torch.zeros(batch_size, self.n_objectives, device=self.device)
         states = states.reshape(-1, self.state_dim)
         for i in range(self.n_objectives):
             if self.n_objectives == 1:

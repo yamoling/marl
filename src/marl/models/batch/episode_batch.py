@@ -9,11 +9,13 @@ from .batch import Batch
 
 
 class EpisodeBatch(Batch):
-    def __init__(self, episodes: list[Episode], device: Optional[torch.device] = None):
+    def __init__(self, episodes: list[Episode], device: Optional[torch.device] = None, pad_episodes: bool = True):
+        super().__init__(len(episodes), episodes[0].n_agents, device)
         self._max_episode_len = max(len(e) for e in episodes)
         self._base_episodes = episodes
-        self.episodes = [e.padded(self._max_episode_len) for e in episodes]
-        super().__init__(len(episodes), episodes[0].n_agents, device)
+        if pad_episodes:
+            episodes = [e.padded(self._max_episode_len) for e in episodes]
+        self.episodes = episodes
 
     def for_individual_learners(self):
         self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
@@ -29,7 +31,7 @@ class EpisodeBatch(Batch):
             result[step] = next_step_returns
         return result
 
-    def get_minibatch(self, arg, /) -> Batch:
+    def get_minibatch2(self, arg, /) -> Batch:
         match arg:
             case int(minibatch_size):
                 if minibatch_size > self.size:
@@ -38,6 +40,16 @@ class EpisodeBatch(Batch):
             case indices:
                 pass
         return EpisodeBatch([self.episodes[i] for i in indices], self.device)
+
+    def get_minibatch(self, indices_or_size) -> Batch:
+        match indices_or_size:
+            case int(minibatch_size):
+                indices = np.random.choice(self.size, minibatch_size, replace=False)
+            case tuple() | list() | np.ndarray() as indices:
+                pass
+            case _:
+                raise ValueError(f"Invalid minibatch size {indices_or_size}")
+        return EpisodeBatch([self.episodes[i] for i in indices], self.device, pad_episodes=False)
 
     def extend(self, data: list[Episode]) -> Batch:
         return EpisodeBatch(self.episodes + data, self.device)
@@ -49,14 +61,6 @@ class EpisodeBatch(Batch):
     def __getitem__(self, key: str) -> torch.Tensor:
         res = np.array([e[key] for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(res).transpose(1, 0).to(self.device)
-
-    # def compute_normalized_returns(self, gamma: float, last_obs_value: Optional[float] = None) -> torch.Tensor:
-    #     """Compute the returns for each timestep in the batch"""
-    #     returns = self.compute_returns(gamma, last_obs_value)
-    #     # Normalize the returns such that the algorithm is more stable across environments
-    #     # Add 1e-8 to the std to avoid dividing by 0 in case all the returns are equal to 0
-    #     normalized_returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-    #     return normalized_returns
 
     @cached_property
     def probs(self):
@@ -126,7 +130,7 @@ class EpisodeBatch(Batch):
     def actions(self):
         dtype = self.episodes[0].actions[0].dtype
         actions = torch.from_numpy(np.array([e.actions for e in self.episodes], dtype=dtype)).to(self.device)
-        return actions.unsqueeze(-1).transpose(1, 0)
+        return actions.transpose(1, 0)
 
     @cached_property
     def rewards(self):
@@ -135,8 +139,11 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def dones(self):
-        return torch.BoolTensor(torch.from_numpy(np.array([e.dones for e in self.episodes], dtype=np.bool)).transpose(1, 0).to(self.device))
+        np_dones = np.array([e.dones for e in self.episodes], dtype=np.bool).squeeze(-1)
+        dones: torch.BoolTensor = torch.from_numpy(np_dones).transpose(1, 0).to(self.device)  # pyright: ignore[reportAssignmentType]
+        return dones
 
     @cached_property
     def masks(self):
-        return torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        masks = torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).to(self.device)
+        return masks.squeeze(-1).transpose(0, 1)

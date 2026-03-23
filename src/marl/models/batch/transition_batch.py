@@ -40,6 +40,20 @@ class TransitionBatch(Batch):
     def extend(self, data: list[Transition]) -> Batch:
         return TransitionBatch(self.transitions + data, self.device)
 
+    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
+        if isinstance(next_value, torch.Tensor):
+            if next_value.dim() > 0:
+                next_value = next_value[-1].item()
+            else:
+                next_value = next_value.item()
+        returns = [0.0] * self.size
+        returns[-1] = next_value
+        not_dones = self.not_dones.tolist()
+        rewards = self.rewards.tolist()
+        for t in range(self.size - 2, -1, -1):
+            returns[t] = rewards[t] + gamma * not_dones[t] * returns[t + 1]
+        return torch.tensor(returns, device=self.device)
+
     @cached_property
     def obs(self):
         return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)
@@ -70,12 +84,12 @@ class TransitionBatch(Batch):
         return rewards.squeeze(-1)
 
     @cached_property
-    def dones(self):
-        dones = np.array([t.done for t in self.transitions], dtype=np.bool)
-        dones = torch.from_numpy(dones).to(self.device)
+    def dones(self) -> torch.BoolTensor:
+        np_dones = np.array([t.done for t in self.transitions], dtype=np.bool)
+        dones = torch.from_numpy(np_dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return torch.BoolTensor(dones)
+        return dones  # type: ignore
 
     @cached_property
     def available_actions(self):

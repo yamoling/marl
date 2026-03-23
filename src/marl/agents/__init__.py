@@ -1,12 +1,11 @@
-from .agent import Agent, SimpleAgent
+from .simple_actor import SimpleActor
 from .random_agent import RandomAgent
-from .qlearning import DQNAgent, RDQNAgent, CNet, MAIC
+from .qlearning import DQNAgent, RDQNAgent, CNet, MAIC, QAgent
 from .mcts import MCTS
 from .hierarchical import Haven
 
 
 __all__ = [
-    "Agent",
     "RandomAgent",
     "DQNAgent",
     "RDQNAgent",
@@ -14,5 +13,6 @@ __all__ = [
     "MAIC",
     "MCTS",
     "Haven",
-    "SimpleAgent",
+    "SimpleActor",
+    "QAgent",
 ]

@@ -3,9 +3,7 @@ import cv2
 import numpy as np
 from typing import Callable, Optional, TypeVar
 import re
-from marlenv import MARLEnv
-import torch
-from lle import World
+from marlenv import MARLEnv, Observation
 
 
 def seed(seed_value: int, env: Optional[MARLEnv] = None):
@@ -46,24 +44,10 @@ def encode_b64_image(image: np.ndarray) -> str:
     return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")  # type: ignore
 
 
-def default_serialization(obj):
-    """Default behaviour for orjson serialization"""
-    match obj:
-        case torch.nn.Parameter() as param:
-            return f"Parameter(shape={param.shape}, dtype={param.dtype})"
-        case set():
-            return list(obj)
-        case torch.optim.Optimizer() as optim:
-            return {
-                "name": optim.__class__.__name__,
-                "param_groups": [{k: v for k, v in group.items()} for group in optim.param_groups],
-            }
-        case np.ndarray():
-            return obj.tolist()
-        case np.signedinteger():
-            return int(obj)
-        case np.floating():
-            return float(obj)
-        case World():
-            return obj.world_string
-    raise TypeError(f"Type {type(obj)} is not serializable")
+def hash_ndarray(data: np.ndarray) -> int:
+    return hash(data.tobytes())
+
+
+def obs_to_hashes(obs: Observation):
+    obs_data = np.concatenate((obs.data, obs.extras), axis=-1)
+    return [hash_ndarray(o) for o in obs_data]
