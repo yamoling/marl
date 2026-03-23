@@ -84,12 +84,12 @@ class TransitionBatch(Batch):
         return rewards.squeeze(-1)
 
     @cached_property
-    def dones(self):
+    def dones(self) -> torch.BoolTensor:
         np_dones = np.array([t.done for t in self.transitions], dtype=np.bool)
-        dones: torch.BoolTensor = torch.from_numpy(np_dones).to(self.device)  # pyright: ignore[reportAssignmentType]
+        dones = torch.from_numpy(np_dones).to(self.device)
         if self.reward_size > 1:
-            dones: torch.BoolTensor = dones.unsqueeze(-1).expand_as(self.rewards)  # pyright: ignore[reportAssignmentType]
-        return dones
+            dones = dones.unsqueeze(-1).expand_as(self.rewards)
+        return dones  # type: ignore
 
     @cached_property
     def available_actions(self):
