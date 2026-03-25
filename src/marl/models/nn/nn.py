@@ -1,8 +1,9 @@
-from typing import Optional
-from dataclasses import dataclass
-from typing import Literal, Any
 from abc import abstractmethod
+from dataclasses import dataclass
+from typing import Any, Literal, Optional
+
 import torch
+from torch import Tensor
 
 from marl.utils.has_device import HasDevice
 
@@ -32,7 +33,7 @@ class NN(torch.nn.Module, HasDevice):
             self.output_shape = output_shape
 
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *args, **kwargs) -> Any:
+    def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs) -> Any:
         """Forward pass"""
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -72,7 +73,7 @@ class NN(torch.nn.Module, HasDevice):
 class RecurrentNN(NN):
     def __init__(self, output_shape: int | tuple[int, ...]):
         super().__init__(output_shape)
-        self.hidden_states: Optional[torch.Tensor] = None
+        self.hidden_states: Optional[Tensor] = None
         self.saved_hidden_states = None
 
     def reset_hidden_states(self):

@@ -18,7 +18,7 @@ from marl.logging import LogSpecs
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl.optimism import VBE
-from marl.training import DQN, PPO, SoftUpdate
+from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
 from run import Arguments as RunArguments
@@ -116,7 +116,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
 
     match agent_type:
         case "ppo":
-            meta_agent = PPO(
+            meta_agent = marl.training.MAPPO(
                 actor_critic=CNNContinuousActorCritic(
                     input_shape=meta_env.observation_shape,
                     n_extras=meta_env.extras_shape[0],
@@ -125,7 +125,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 train_interval=1024,
                 minibatch_size=64,
                 n_epochs=32,
-                value_mixer=VDN.from_env(meta_env),
+                mixer=VDN.from_env(meta_env),
                 gamma=gamma,
                 lr_actor=5e-4,
                 lr_critic=1e-3,
@@ -325,7 +325,7 @@ def main(args: Arguments):
         env, test_env = make_lle()
         # env, test_env = make_smac("8m_vs_9m")
         # trainer = make_mappo(env, mixing=None)
-        trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
+        trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,

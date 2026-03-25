@@ -1,20 +1,20 @@
+import logging
 import os
 from copy import deepcopy
 from pprint import pprint
 from typing import Literal, Optional
-import logging
 
 import torch
-from marlenv import Space, Episode, MARLEnv, Transition
+from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
 
 from marl.agents.random_agent import RandomAgent
 from marl.logging import Logger, LogSpecs, get_logger
 from marl.utils import get_device
 
-from .run import Run
 from ..agent import Agent
 from ..trainer import Trainer
+from .run import Run
 
 
 class Runner[A: Space](Run):
