@@ -17,9 +17,11 @@ class EpisodeBatch(Batch):
             episodes = [e.padded(self._max_episode_len) for e in episodes]
         self.episodes = episodes
 
-    def for_individual_learners(self):
-        self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
-        return super().for_individual_learners()
+    @cached_property
+    def reward_size(self):
+        if self.rewards.dim() == 2:
+            return 1
+        return self.rewards.shape[-1]
 
     def compute_returns(self, gamma: float) -> torch.Tensor:
         result = torch.empty_like(self.rewards, dtype=torch.float32)

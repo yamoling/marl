@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import Iterable, Optional, overload, Self
+from typing import Iterable, Optional, Self, overload
 
 import torch
 
@@ -30,14 +30,14 @@ class Batch(ABC):
         if (
             self.reward_size > 1
         ):  # Need to consider this case, because multiple rewards should be at the end and dones/masks are expanded when called (so rewards needs to be as is until then)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])  # pyright: ignore[reportAttributeAccessIssue]
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])
             self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape[:-1], self.n_agents, self.masks.shape[-1])
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(
                 *self.rewards.shape[:-1], self.n_agents, self.rewards.shape[-1]
             )
         else:
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)  # pyright: ignore[reportAttributeAccessIssue]
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
             self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape, self.n_agents)
         return self
 
@@ -181,12 +181,10 @@ class Batch(ABC):
         """Number of possible actions"""
         return self.available_actions.shape[-1]
 
+    @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
     def reward_size(self) -> int:
-        """Number of rewards, i.e. the number of objectives"""
-        if self.rewards.dim() == 1:
-            return 1
-        return self.rewards.shape[-1]
+        """Number of rewards, i.e. the number of objectives. Always == 1, unless you are working with multi-objective RL."""
 
     @abstractmethod
     def multi_objective(self):
