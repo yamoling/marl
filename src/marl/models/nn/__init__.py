@@ -2,7 +2,6 @@ from .actor_critic import Actor, ActorCritic, Critic, DiscreteActor, DiscreteAct
 from .ir_module import IRModule
 from .mixer import Mixer
 from .nn import NN, RecurrentNN, randomize
-from .options import OptionCritic
 from .other import MAIC, MAICNN
 from .qnetwork import QNetwork, RecurrentQNetwork
 
@@ -21,5 +20,4 @@ __all__ = [
     "MAICNN",
     "MAIC",
     "IRModule",
-    "OptionCritic",
 ]
