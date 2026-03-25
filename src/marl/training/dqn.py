@@ -6,8 +6,9 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl.agents import DQNAgent, RDQNAgent
-from marl.models import Mixer, Policy, PrioritizedMemory, QNetwork, ReplayMemory, RecurrentQNetwork, IRModule, Batch, Trainer
+from marl.models import Batch, IRModule, Mixer, Policy, PrioritizedMemory, QNetwork, RecurrentQNetwork, ReplayMemory, Trainer
 from marl.optimism import VBE
+
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
@@ -209,7 +210,7 @@ class DQN[B: Batch](Trainer):
         data, extras = obs.as_tensors(self.device)
         state_data, _ = state.as_tensors(self.device)
         with torch.no_grad():
-            qvalues = self.qnetwork.forward(data, extras)
+            qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
             max_qvalues = qvalues.max(dim=-1).values
             if self.mixer is None:
                 return float(max_qvalues.mean().item())

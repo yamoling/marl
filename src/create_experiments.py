@@ -324,8 +324,8 @@ def main(args: Arguments):
     try:
         env, test_env = make_lle()
         # env, test_env = make_smac("8m_vs_9m")
-        trainer = make_mappo(env, mixing=None)
-        # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
+        # trainer = make_mappo(env, mixing=None)
+        trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,

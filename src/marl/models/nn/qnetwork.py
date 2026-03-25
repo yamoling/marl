@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-from marlenv import Observation
 from abc import abstractmethod
-import torch
+from dataclasses import dataclass
 
+import torch
+from marlenv import Observation
 from marlenv.models import MARLEnv, MultiDiscreteSpace
 
 from .nn import NN, RecurrentNN
@@ -32,7 +32,7 @@ class QNetwork(NN):
         Compute the Q-values (one per agent, per action and per objective).
         """
         obs_tensor, extra_tensor = obs.as_tensors(self._device)
-        qvalues = self.forward(obs_tensor, extra_tensor)
+        qvalues = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         return qvalues.squeeze(0)
 
     def value(self, obs: Observation) -> torch.Tensor:
