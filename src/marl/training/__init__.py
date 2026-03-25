@@ -1,14 +1,12 @@
-from .intrinsic_reward import RND
-from .no_train import NoTrain
-from .dqn import DQN
 from .cnet import CNetTrainer
-from .maic import MAICTrainer
-from .qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
-from .ppo import PPO
 from .ddpg import DDPGTrainer
+from .dqn import DQN
+from .intrinsic_reward import RND
+from .maic import MAICTrainer
 from .mappo import MAPPO
+from .no_train import NoTrain
 from .qlearning import QLearning
-
+from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 
 __all__ = [
     "NoTrain",

@@ -2,9 +2,10 @@ from typing import Any
 
 from marlenv import MARLEnv
 
-from marl.models.agent import Agent
 from marl.logging.logger import LogReader
+from marl.models.agent import Agent
 from marl.models.trainer import Trainer
+
 from .logger import Logger
 
 

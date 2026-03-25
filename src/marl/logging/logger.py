@@ -8,11 +8,10 @@ import cv2
 import numpy as np
 import orjson
 import polars as pl
-from marlenv import Episode
+from marlenv import Episode, MARLEnv
 
-from marlenv import MARLEnv
-from marl.models.trainer import Trainer
 from marl.models.agent import Agent
+from marl.models.trainer import Trainer
 
 ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"
