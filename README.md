@@ -5,33 +5,53 @@ This repository contains a variety of Multi-Agent Reinforcement Learning (MARL) 
 `marl` comes with a web interface to visualise the results of your experiments (more info down below).
 
 ## Requirements
-- uv (`pip install uv`)
+- [uv](https://docs.astral.sh/uv/)
 - python >=  3.10
 
 ## Getting started
-To install all the dependencies, simply run `uv sync`. This will install all the dependencies except pytorch.
-To install pytorch, you have to specify which variant you want to install, i.e. `torch-cu124` for CUDA 12.4 support, `torch-cu118` for CUDA 11.8 support or `torch-cpu` for CPU only support. Specify your variant with the `--extra` flag.
+
+### Dependencies installation
+To install all the dependencies, run `uv sync`. If you are using a GPU whose support has ended, use the `legacy-gpu` extra.
+
 ```bash
-$ uv sync --extra=torch-cu124 # To use CUDA 12.4
+$ uv sync                    # Standard install
+$ uv sync --extra legacy-gpu # Install for older GPUs
+```
+
+### Running an experiment
+You can create an experiment with `create_experiments.py` and run it directly with the `--run` option. The results of the experiment are stored in the `logs` folder.
+
+```bash
+$ python src/create_experiments.py --run
 ```
 
 
-## Web UI to inspect your experiments
+### Checking results
+#### Logs
+When creating your experiment, you can decide which logging method to use (csv, tensorboard, weights & biases, or neptune). All log files are stored in the `logs` folder.
+
+For instance, to check your tensorboard logs, run
+```bash
+$ tensorboard --logdir logs
+```
+
+#### Web UI
 **With the Brave browser:** you have to deactivate the Brave shield.
 
-After cloning the repo, you can serve the files either in development mode with hot-reloading or in production mode, which implies transpiling the sources explicitly. You need bun, node or deno to be installed to transpile. The below example assumes that you have [Bun](https://bun.sh/) installed, but npm or deno should work similarly.
+You can also inspect your results with a dedicated web UI. You first have to build the sources, and then serve the files with the `serve.py` script.
 
-Serve the files in production mode:
 ```bash
 $ cd src/ui
-$ bun install
-$ bun run build # Build the sources to src/ui/dist.
+$ npm install   # or deno install or bun install
+$ npm run build # Build the sources to src/ui/dist.
 $ cd ../..      # Go back to the root of the project
 $ python src/serve.py
 ```
 
+
+
 To serve the files in development mode, you need two terminals.
 ```bash
-$ cd src/ui && bun run dev  # In one terminal
+$ cd src/ui && npm run dev  # In one terminal
 $ python src/serve.py       # In an other terminal
 ```

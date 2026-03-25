@@ -260,7 +260,7 @@ def make_dqn(
     )
 
 
-def make_mappo(env: MARLEnv):
+def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "vdn"):
     match env.observation_shape:
         case (_, _, _):
             ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC(env.observation_shape, env.extras_shape[0], env.n_actions)
@@ -268,45 +268,18 @@ def make_mappo(env: MARLEnv):
             ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
         case _:
             raise NotImplementedError()
-    return marl.training.MAPPO(ac, VDN(env.n_agents), train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
-
-
-def make_ppo(
-    env: MARLEnv[MultiDiscreteSpace],
-    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = None,
-    eps_clip: float = 0.2,
-    train_interval: int = 400,
-    k: int = 20,
-    minibatch_size: int = 400,
-    lr_actor: float = 1e-3,
-    lr_critic: float = 1e-3,
-    c1: float = 0.5,
-    c2: float = 0.1,
-    grad_norm_clipping: float = 0.1,
-):
-    match env.observation_shape:
-        case (_, _, _):
-            actor_critic = marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env)
-        case (_,):
-            actor_critic = marl.nn.model_bank.actor_critics.SimpleActorCritic.from_env(env)
+    match mixing:
+        case None:
+            mixer = None
+        case "vdn":
+            mixer = VDN.from_env(env)
+        case "qmix":
+            mixer = marl.nn.mixers.QMix.from_env(env)
+        case "qplex":
+            mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
-            raise ValueError(f"Invalid observation shape: {other}")
-    mixer = make_mixer(env, mixing)
-    return PPO(
-        actor_critic=actor_critic,
-        train_interval=train_interval,
-        n_epochs=k,
-        minibatch_size=minibatch_size,
-        value_mixer=mixer,
-        gamma=0.99,
-        eps_clip=eps_clip,
-        gae_lambda=0.98,
-        lr_actor=lr_actor,
-        lr_critic=lr_critic,
-        critic_c1=c1,
-        exploration_c2=c2,
-        grad_norm_clipping=grad_norm_clipping,
-    )
+            raise ValueError(f"Invalid mixer type: {other}")
+    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
 
 
 def make_experiment(
@@ -351,7 +324,7 @@ def main(args: Arguments):
     try:
         env, test_env = make_lle()
         # env, test_env = make_smac("8m_vs_9m")
-        trainer = make_mappo(env)
+        trainer = make_mappo(env, mixing=None)
         # trainer = make_dqn(env, mixing="vdn", gamma=0.95, memory=None)
         exp = marl.Experiment.create(
             logdir=args.logdir,

@@ -16,6 +16,12 @@ class TransitionBatch(Batch):
         self.actions_dtype = transitions[0].action.dtype
         super().__init__(len(transitions), transitions[0].n_agents, device)
 
+    @cached_property
+    def reward_size(self):
+        if self.rewards.dim() == 1:
+            return 1
+        return self.rewards.shape[-1]
+
     def multi_objective(self):
         self.actions = self.actions.unsqueeze(-1).repeat(*(1 for _ in self.actions.shape), self.reward_size)
         # This transformation is done already in the cached_prodperty of done and masks
