@@ -3,13 +3,12 @@
         <ul>
             <li v-for="run in runs"> {{ run.rundir }}: {{ run.progress * 100 }}% </li>
         </ul>
-
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from "vue";
-import {Run} from "../../models/Run";
+import { Run } from "../../models/Run";
 
 
 const runs = ref([] as Run[]);
@@ -23,16 +22,15 @@ function show(newRuns: Run[], x: number, y: number) {
     hover.value.style.display = 'block';
 }
 
-document.addEventListener('click', () => {
-    hover.value.style.display = 'none';
-});
+// document.addEventListener('click', () => {
+//     hover.value.style.display = 'none';
+// });
 
 defineExpose({ show });
 
 </script>
 
 <style scoped>
-
 .hover {
     width: fit-content;
     position: fixed;
