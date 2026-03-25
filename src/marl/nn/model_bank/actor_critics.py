@@ -2,12 +2,14 @@ import math
 from dataclasses import dataclass
 
 import torch
-from marlenv import MultiDiscreteSpace, MARLEnv
+from marlenv import MARLEnv, MultiDiscreteSpace
+from torch import Tensor
 from torch.distributions.distribution import Distribution
 
-from marl.models.nn import Critic, ActorCritic, Actor, DiscreteActorCritic, RecurrentNN
+from marl.models.nn import Actor, ActorCritic, Critic, DiscreteActorCritic, RecurrentNN
+
 from ..utils import make_cnn
-from .generic import SimpleRNN, MLP, CNN
+from .generic import CNN, MLP, SimpleRNN
 
 
 @dataclass(unsafe_hash=True)
@@ -367,3 +369,22 @@ class MLPContinuousActorCritic(ActorCritic):
     @property
     def policy_parameters(self):
         return list(self.actor_nn.parameters())
+
+
+@dataclass
+class CNNActor(Actor, CNN):
+    def __init__(self, obs_shape: tuple[int, ...], extras_size: int, action_shape: int | tuple[int, ...]):
+        assert len(obs_shape) == 3
+        Actor.__init__(self, action_shape)
+        CNN.__init__(self, obs_shape, extras_size, action_shape)
+
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
+        logits = CNN.forward(self, obs, extras)
+        logits[~available_actions] = -torch.inf
+        return torch.distributions.Categorical(logits=logits)
+
+    def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
+        return CNN.forward(self, obs, extras)
+
+    def __hash__(self):
+        return hash(self.name)

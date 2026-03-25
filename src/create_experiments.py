@@ -16,7 +16,9 @@ from marl import ReplayMemory, Trainer
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.logging import LogSpecs
 from marl.nn.mixers import VDN
-from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.nn.model_bank.actor_critics import CNNActor, CNNContinuousActorCritic
+from marl.nn.model_bank.options import OptionTermination, SimpleOptionCritic
+from marl.nn.model_bank.qnetworks import QCNN
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
@@ -93,6 +95,19 @@ def create_smac_experiment(args: Arguments):
         if isinstance(trainer.memory, marl.models.PrioritizedMemory):
             logdir += "-PER"
     return marl.Experiment.create(logdir=logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
+
+
+def make_option_critic(env: MARLEnv[MultiDiscreteSpace], n_options: int = 8):
+    from marl.training.option_critic import OptionCriticTrainer
+
+    assert len(env.observation_shape) == 3
+    oc = SimpleOptionCritic(
+        [CNNActor(env.observation_shape, env.extras_shape[0], env.n_actions) for _ in range(n_options)],
+        QCNN(env.observation_shape, env.extras_size, n_options),
+        OptionTermination(n_options, env.observation_shape, env.extras_shape),
+        env.n_agents,
+    )
+    return OptionCriticTrainer(oc, 1e-4, 50_000, env.n_agents)
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
@@ -325,7 +340,8 @@ def main(args: Arguments):
         env, test_env = make_lle()
         # env, test_env = make_smac("8m_vs_9m")
         # trainer = make_mappo(env, mixing=None)
-        trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
+        # trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
+        trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,

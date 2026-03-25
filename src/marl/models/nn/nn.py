@@ -1,5 +1,6 @@
+import math
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
 import torch
@@ -20,17 +21,16 @@ def randomize(init_fn, nn: torch.nn.Module):
 class NN(torch.nn.Module, HasDevice):
     """Parent class of all neural networks"""
 
-    name: str
-    output_shape: tuple[int, ...]
+    name: str = field(init=False)
+    output_shape: tuple[int, ...] = field(init=False)
 
     def __init__(self, output_shape: int | tuple[int, ...]):
         torch.nn.Module.__init__(self)
         HasDevice.__init__(self, torch.device("cpu"))
         self.name = self.__class__.__name__
         if isinstance(output_shape, int):
-            self.output_shape = (output_shape,)
-        else:
-            self.output_shape = output_shape
+            output_shape = (output_shape,)
+        self.output_shape = output_shape
 
     @abstractmethod
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs) -> Any:
@@ -67,6 +67,10 @@ class NN(torch.nn.Module, HasDevice):
             if isinstance(module, (torch.nn.GRU, torch.nn.GRUCell, torch.nn.LSTM, torch.nn.LSTMCell)):
                 return True
         return False
+
+    @property
+    def output_size(self):
+        return math.prod(self.output_shape)
 
 
 @dataclass

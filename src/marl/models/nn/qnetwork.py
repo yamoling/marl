@@ -14,10 +14,10 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    def __init__(self, output_shape: int | tuple[int, int]):
+    def __init__(self, output_shape: int | tuple[int] | tuple[int, int]):
         super().__init__(output_shape)
         match output_shape:
-            case int(n_actions):
+            case int(n_actions) | (n_actions,):
                 self.action_dim = -1
                 self.is_multi_objective = False
                 self.output_shape = (n_actions,)

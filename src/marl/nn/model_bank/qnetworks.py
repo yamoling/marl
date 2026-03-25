@@ -5,13 +5,14 @@ from functools import reduce
 from typing import Literal, Optional, Sequence
 
 import torch
-from torch import distributions
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import MultiDiscreteSpace, MARLEnv
+from marlenv import MARLEnv, MultiDiscreteSpace
+from torch import distributions
 
 from marl.agents.qlearning.maic import MAICParameters
-from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork, MAICNN
+from marl.models.nn import MAIC, MAICNN, QNetwork, RecurrentQNetwork
+
 from ..layers import NoisyLinear
 from ..utils import make_cnn
 from .generic import CNN, MLP
@@ -30,8 +31,8 @@ class QCNN(CNN, QNetwork):
             output = (output_shape,)
         else:
             output = output_shape
-        CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
         QNetwork.__init__(self, output_shape)
+        CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
 
 
 class QMLP(MLP, QNetwork):

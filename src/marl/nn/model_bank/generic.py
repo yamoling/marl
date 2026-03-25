@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Sequence
 
 import torch
@@ -17,7 +17,7 @@ class MLP(NN):
     Multi layer perceptron
     """
 
-    layer_sizes: Sequence[int]
+    layer_sizes: Sequence[int] = field(init=False)
 
     def __init__(
         self,
@@ -78,7 +78,7 @@ class CNN(NN):
         self,
         input_shape: tuple[int, int, int],
         extras_size: int,
-        output_shape: tuple[int, ...],
+        output_shape: int | tuple[int, ...],
         mlp_sizes: tuple[int, ...] = (64, 64),
         mlp_noisy: bool = False,
     ):
@@ -90,9 +90,8 @@ class CNN(NN):
         filters = [32, 64, 64]
         self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         if isinstance(output_shape, int):
-            self.output_shape = (output_shape,)
-        else:
-            self.output_shape = output_shape
+            output_shape = (output_shape,)
+        self.output_shape = output_shape
         self.linear = MLP(n_features, extras_size, mlp_sizes, self.output_shape, last_layer_noisy=mlp_noisy)
 
     @classmethod
