@@ -28,63 +28,31 @@
                             : objective }}
                     </th>
                     <td v-for="action in currentQvalues.length" :style='{
-                        "background-color": "#" + (isMultiObj
+                        "background-color": "#" + (isMultiObjective
                             ? backgroundColours[action - 1][objectiveNum]
                             : backgroundColours[action - 1])
                     }'>
-                        {{ isMultiObj
+                        {{ isMultiObjective
                             ? currentQvalues[action - 1][objectiveNum].toFixed(4)
                             : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
                     </td>
                 </tr>
-                {{ isMultiObjective }}
-                <template v-if="logits">
+                <template v-if="logits != null">
                     <tr v-if="isMultiObjective" v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                         TODO
                     </tr>
                     <tr v-else>
                         <th> Logits </th>
-                        <td> {{ logits }}</td>
-                        <!-- <td v-for="logit in logits" :style='{ "background-color": "#" + rainbow.colourAt(logit) }'>
+                        <td v-for="logit in logits" :style='{ "background-color": "#" + rainbow.colourAt(logit) }'>
                             {{ logit.toFixed(4) }}
-                        </td> -->
+                        </td>
                     </tr>
-
                 </template>
                 <!-- <tr v-if="episode?.probs && episode.probs.length > currentStep">
                     <th> <b>Probs</b></th>
                     <td v-for="prob in episode.probs[currentStep][agentNum]">
                         {{ prob[0].toFixed(4) }}
                     </td>
-                </tr> -->
-                <!-- <tr v-if="episode?.messages && episode.messages.length > currentStep"
-                    v-for="(messages, index) in episode.messages[currentStep][0][agentNum]">
-                    <th>
-                        <b>Message to {{ index }}</b>
-                    </th>
-                    <td v-for="message in messages">
-                        {{ message.toFixed(4) }}
-                    </td>
-                </tr> -->
-                <!-- <tr v-if="episode?.received_messages && episode.received_messages.length > currentStep">
-                    <th> <b>Received Messages</b></th>
-                    <td v-for="message in episode.received_messages[currentStep][agentNum]">
-                        {{ message.toFixed(4) }}
-                    </td>
-                </tr> -->
-                <!-- <tr v-if="episode?.init_qvalues && episode.init_qvalues.length > currentStep">
-                    <th> <b>Init Qvalues</b></th>
-                    <td v-for="qvalue in episode.init_qvalues[currentStep][agentNum]">
-                        {{ qvalue.toFixed(4) }}
-                    </td>
-                </tr> -->
-                <!-- <tr v-if="episode?.messages && episode.messages.length > 0">
-                    <th> <b>Messages</b></th>
-                    <template v-for="messages in episode.messages[0][currentStep][agentNum]">
-                        <td>
-                            {{ messages }}
-                        </td>
-                    </template>
                 </tr> -->
             </tbody>
             <tfoot v-if="isMultiObjective && qvalues != null">
@@ -120,7 +88,7 @@ const props = defineProps<{
     experiment: Experiment
 }>();
 
-const isMultiObj = computed(() => {
+const isMultiObjective = computed(() => {
     return props.experiment.env.reward_space.size > 1
 });
 
@@ -177,7 +145,11 @@ const backgroundColours = computed(() => {
     else return (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
 });
 
-
+function getQValues(objective: number | null) {
+    if (isMultiObjective.value) {
+        return
+    }
+}
 
 const totalQValuesColours = computed(() => {
     const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
