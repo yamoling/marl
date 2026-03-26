@@ -12,9 +12,8 @@ from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
 import marl
-from marl import ReplayMemory, Trainer
+from marl import ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
-from marl.logging import LogSpecs
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNActor, CNNContinuousActorCritic
 from marl.nn.model_bank.options import OptionTermination, SimpleOptionCritic
@@ -101,10 +100,11 @@ def make_option_critic(env: MARLEnv[MultiDiscreteSpace], n_options: int = 8):
     from marl.training.option_critic import OptionCriticTrainer
 
     assert len(env.observation_shape) == 3
+    (c, h, w) = env.observation_shape
     oc = SimpleOptionCritic(
         [CNNActor(env.observation_shape, env.extras_shape[0], env.n_actions) for _ in range(n_options)],
-        QCNN(env.observation_shape, env.extras_size, n_options),
-        OptionTermination(n_options, env.observation_shape, env.extras_shape),
+        QCNN((c, w, h), env.extras_size, n_options),
+        OptionTermination(n_options, (c, w, h), env.extras_shape),
         env.n_agents,
     )
     return OptionCriticTrainer(oc, 1e-4, 50_000, env.n_agents)
@@ -277,8 +277,8 @@ def make_dqn(
 
 def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "vdn"):
     match env.observation_shape:
-        case (_, _, _):
-            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC(env.observation_shape, env.extras_shape[0], env.n_actions)
+        case (c, h, w):
+            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC((c, h, w), env.extras_shape[0], env.n_actions)
         case (_,):
             ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
         case _:
@@ -295,19 +295,6 @@ def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "v
         case other:
             raise ValueError(f"Invalid mixer type: {other}")
     return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
-
-
-def make_experiment(
-    args: Arguments,
-    trainer: Trainer,
-    env: MARLEnv,
-    test_env: Optional[MARLEnv],
-    n_steps: int,
-    logger: LogSpecs = "csv",
-):
-    return marl.Experiment.create(
-        logdir=args.logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps, test_env=test_env, logger=logger
-    )
 
 
 def make_lle():
@@ -349,7 +336,7 @@ def main(args: Arguments):
             test_interval=5000,
             n_steps=1_000_000,
             test_env=test_env,
-            logger=["tensorboard", "csv"],
+            logger="csv",
         )
         print(f"Experiment created in {exp.logdir}")
         if args.run:

@@ -294,13 +294,13 @@ class Batch(ABC):
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
-    def dones(self) -> torch.BoolTensor:
+    def dones(self) -> torch.Tensor:
         """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
 
     @property
-    def not_dones(self) -> torch.BoolTensor:
+    def not_dones(self) -> torch.Tensor:
         """Whether the corresponding transition lead to a non-terminal state. True for "continued" states, False for terminal states."""
-        return ~self.dones  # pyright: ignore[reportReturnType]
+        return ~self.dones 
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -312,9 +312,9 @@ class Batch(ABC):
         return self.masks.sum()
 
     @cached_property
-    def masked_indices(self) -> torch.BoolTensor:
+    def masked_indices(self) -> torch.Tensor:
         """Boolean masks for padded episodes. True at indices that are masked."""
-        return self.masks == 0  # pyright: ignore[reportReturnType][return-type]
+        return self.masks == 0 
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property

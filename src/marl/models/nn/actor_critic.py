@@ -9,8 +9,8 @@ from .nn import NN
 
 @dataclass
 class Actor(NN, ABC):
-    def __init__(self, action_shape: int | tuple[int, ...]):
-        NN.__init__(self, action_shape)
+    def __init__(self):
+        NN.__init__(self)
 
     @abstractmethod
     def policy(
@@ -38,7 +38,7 @@ class Critic(NN, ABC):
     """Critic neural network"""
 
     def __init__(self):
-        NN.__init__(self, 1)
+        NN.__init__(self)
 
     @abstractmethod
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -49,8 +49,8 @@ class Critic(NN, ABC):
 
 @dataclass
 class ActorCritic(Actor, Critic):
-    def __init__(self, action_shape: int | tuple[int, ...]):
-        Actor.__init__(self, action_shape)
+    def __init__(self):
+        Actor.__init__(self)
         Critic.__init__(self)
 
     @property
@@ -84,13 +84,8 @@ class DiscreteActor(Actor, ABC):
     clip_logits_low: Optional[float]
     clip_logits_high: Optional[float]
 
-    def __init__(
-        self,
-        action_shape: int | tuple[int, ...],
-        clip_logits_low: Optional[float] = None,
-        clip_logits_high: Optional[float] = None,
-    ):
-        Actor.__init__(self, action_shape)
+    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
+        Actor.__init__(self)
         self.clip_logits_low = clip_logits_low
         self.clip_logits_high = clip_logits_high
 
@@ -110,11 +105,6 @@ class DiscreteActor(Actor, ABC):
 
 @dataclass
 class DiscreteActorCritic(ActorCritic, DiscreteActor):
-    def __init__(
-        self,
-        action_shape: int | tuple[int, ...],
-        clip_logits_low: Optional[float] = None,
-        clip_logits_high: Optional[float] = None,
-    ):
-        ActorCritic.__init__(self, action_shape)
-        DiscreteActor.__init__(self, action_shape, clip_logits_low, clip_logits_high)
+    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
+        ActorCritic.__init__(self)
+        DiscreteActor.__init__(self, clip_logits_low, clip_logits_high)

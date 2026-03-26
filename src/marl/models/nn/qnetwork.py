@@ -15,7 +15,7 @@ class QNetwork(NN):
     """
 
     def __init__(self, output_shape: int | tuple[int] | tuple[int, int]):
-        super().__init__(output_shape)
+        super().__init__()
         match output_shape:
             case int(n_actions) | (n_actions,):
                 self.action_dim = -1
@@ -67,7 +67,7 @@ class QNetwork(NN):
 class RecurrentQNetwork(QNetwork, RecurrentNN):
     def __init__(self, output_shape: int | tuple[int, int]):
         QNetwork.__init__(self, output_shape)
-        RecurrentNN.__init__(self, output_shape)
+        RecurrentNN.__init__(self)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function. Does not update the hidden states."""

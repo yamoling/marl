@@ -21,7 +21,7 @@ class Agent(ABC):
             device = torch.device(device)
         self._device = torch.device("cpu")
 
-    @cached_property
+    @property
     def networks(self):
         """Dynamic list of neural networks attributes in the agent"""
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]

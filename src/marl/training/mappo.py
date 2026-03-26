@@ -75,7 +75,7 @@ class MAPPO[B: Batch](Trainer):
             {"params": self.actor_critic.value_parameters, "lr": lr_critic, "name": "critic parameters"},
         ]
         if self.mixer is not None:
-            params.append({"params": self.mixer.parameters(), "lr": lr_critic, "name": "mixer parameters"})
+            params.append({"params": list(self.mixer.parameters()), "lr": lr_critic, "name": "mixer parameters"})
         return params
 
     def _compute_training_data(self, batch: Batch):

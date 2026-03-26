@@ -37,7 +37,7 @@ class SimpleOptionCritic(Actor):
         epsilon: Schedule = Schedule.constant(0.1),
         temperature: float = 1.0,
     ):
-        super().__init__(policies[0].output_shape)
+        super().__init__()
         self.policies = ModuleList(policies)
         self.q_options = q_options
         self.options_termination = options_termination
@@ -101,12 +101,11 @@ class SimpleOptionCritic(Actor):
 
 
 class OptionTermination(NN):
-    def __init__(self, n_options: int, obs_shape: tuple[int, ...], extras_shape: tuple[int, ...]):
-        super().__init__(n_options)
-        assert len(obs_shape) == 3
+    def __init__(self, n_options: int, obs_shape: tuple[int, int, int], extras_shape: tuple[int, ...]):
+        super().__init__()
         assert len(extras_shape) == 1
         self.cnn = CNN(obs_shape, extras_shape[0], n_options)
 
-    def forward(self, obs: Tensor, extras: Tensor):
+    def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
         output = self.cnn.forward(obs, extras)
         return torch.nn.functional.sigmoid(output)

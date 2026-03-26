@@ -2,7 +2,7 @@ import random
 from collections import deque
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import torch
@@ -10,8 +10,8 @@ from marlenv import Transition
 
 from marl.models import Trainer
 
-if TYPE_CHECKING:
-    from marl.nn.model_bank.options import SimpleOptionCritic
+
+from marl.nn.model_bank.options import SimpleOptionCritic
 
 
 @dataclass
@@ -32,9 +32,11 @@ class ReplayBuffer:
 
 @dataclass
 class OptionCriticTrainer(Trainer):
+    oc: SimpleOptionCritic
+
     def __init__(
         self,
-        oc: "SimpleOptionCritic",
+        oc: SimpleOptionCritic,
         lr: float,
         buffer_size: int,
         n_agents: int,
@@ -46,12 +48,11 @@ class OptionCriticTrainer(Trainer):
     ):
         super().__init__()
         self.oc = oc
-        self.oc_target = deepcopy(oc)
+        self.target_oc = deepcopy(oc)
         self.optim = torch.optim.AdamW(self.oc.parameters(), lr)
         self.buffer = ReplayBuffer(buffer_size)
         self.freeze_interval = 200
         self.critic_update_freq = critic_update_freq
-        self.target_oc = deepcopy(oc)
         self.gamma = gamma
         self.termination_reg = termination_reg
         self.entropy_reg = entropy_reg
@@ -88,25 +89,25 @@ class OptionCriticTrainer(Trainer):
     def critic_loss(self, data_batch: tuple):
         obs, extras, options, rewards, next_obs, next_extras, dones = data_batch
         batch_size = len(options)
-        options = torch.LongTensor(options).to(self.oc.device).unsqueeze(-1)
-        rewards = torch.FloatTensor(rewards).to(self.oc.device).repeat_interleave(self.n_agents).view(batch_size, self.n_agents)
-        masks = 1 - torch.FloatTensor(dones).to(self.oc.device).repeat_interleave(self.n_agents).view(batch_size, self.n_agents)
+        options = torch.LongTensor(options).to(self.device).unsqueeze(-1)
+        rewards = torch.FloatTensor(rewards).to(self.device).repeat_interleave(self.n_agents).view(batch_size, self.n_agents)
+        masks = 1 - torch.FloatTensor(dones).to(self.device).repeat_interleave(self.n_agents).view(batch_size, self.n_agents)
 
         # The loss is the TD loss of Q and the update target, so we need to calculate Q
-        states = torch.from_numpy(obs)
-        extras = torch.from_numpy(extras)
-        q_options = self.oc.compute_q_options(states, extras)
+        obs = torch.from_numpy(obs).to(self.device)
+        extras = torch.from_numpy(extras).to(self.device)
+        q_options = self.oc.compute_q_options(obs, extras)
         q_options = torch.gather(q_options, -1, options).squeeze(-1)
 
-        next_states = torch.from_numpy(next_obs)
-        next_extras = torch.from_numpy(next_extras)
+        next_obs = torch.from_numpy(next_obs).to(self.device)
+        next_extras = torch.from_numpy(next_extras).to(self.device)
         with torch.no_grad():
             # the update target contains Q_next, but for stable learning we use prime network for this
-            next_q_options = self.target_oc.compute_q_options(next_states, next_extras)
+            next_q_options = self.target_oc.compute_q_options(next_obs, next_extras)
             next_continued_q_options = torch.gather(next_q_options, -1, options).squeeze(-1)
             next_best_q_option = next_q_options.max(dim=-1).values
             # Additionally, we need the beta probabilities of the next state
-            next_termination_probs = self.oc.compute_termination_probs(next_states, next_extras)
+            next_termination_probs = self.oc.compute_termination_probs(next_obs, next_extras)
             next_options_term_prob = torch.gather(next_termination_probs, -1, options).squeeze(-1)
 
             # Now we can calculate the update target gt
@@ -120,12 +121,12 @@ class OptionCriticTrainer(Trainer):
 
     def actor_loss(self, t: Transition, options: list[int], step_num: int):
         logs = dict[str, Any]()
-        obs, extras = t.obs.as_tensors()
-        next_obs, next_extras = t.next_obs.as_tensors()
+        obs, extras = t.obs.as_tensors(self.device)
+        next_obs, next_extras = t.next_obs.as_tensors(self.device)
 
         all_termination_probs = self.oc.compute_termination_probs(obs, extras)
         all_next_termination_probs = self.oc.compute_termination_probs(next_obs, next_extras).detach()
-        torch_options = torch.tensor(options).unsqueeze(0)
+        torch_options = torch.tensor(options, device=self.device).unsqueeze(0)
         option_term_prob = torch.gather(all_termination_probs, 1, torch_options)
         next_option_term_prob = torch.gather(all_next_termination_probs, 1, torch_options)
 
@@ -143,8 +144,8 @@ class OptionCriticTrainer(Trainer):
         gt = t.reward.item() + (1 - t.done) * self.gamma * (
             (1 - next_option_term_prob) * next_continued_option_value + next_option_term_prob * next_best_option_value
         )
-        dist = self.oc.policy(obs, extras, torch.from_numpy(t.obs.available_actions))
-        logp = dist.log_prob(torch.from_numpy(t.action)).unsqueeze(0)
+        dist = self.oc.policy(obs, extras, torch.from_numpy(t.obs.available_actions).to(self.device))
+        logp = dist.log_prob(torch.from_numpy(t.action).to(self.device)).unsqueeze(0)
         entropy = dist.entropy().unsqueeze(0)
         for a, ent in enumerate(entropy[0]):
             logs[f"train/entropy-{a}"] = ent.item()

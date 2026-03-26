@@ -27,11 +27,11 @@ class MLP(NN):
         output_shape: tuple[int, ...],
         last_layer_noisy: bool = False,
     ):
-        super().__init__(output_shape)
+        super().__init__()
         self.output_shape = output_shape
         output_size = math.prod(self.output_shape)
         self.layer_sizes = (input_size + extras_size, *hidden_sizes, output_size)
-        layers = [torch.nn.Linear(input_size + extras_size, hidden_sizes[0]), torch.nn.ReLU()]
+        layers: list[torch.nn.Module] = [torch.nn.Linear(input_size + extras_size, hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(hidden_sizes) - 1):
             layers.append(torch.nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
             layers.append(torch.nn.ReLU())
@@ -82,8 +82,7 @@ class CNN(NN):
         mlp_sizes: tuple[int, ...] = (64, 64),
         mlp_noisy: bool = False,
     ):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__(output_shape)
+        NN.__init__(self)
         self.extras_size = extras_size
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
@@ -101,7 +100,7 @@ class CNN(NN):
         else:
             output_shape = (env.n_actions, env.reward_space.size)
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)
+        return cls(env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)  # type: ignore
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -125,7 +124,7 @@ class SimpleRNN(RecurrentNN):
         n_outputs: int,
         hidden_size: int = 256,
     ):
-        super().__init__(n_outputs)
+        super().__init__()
         self.fc1 = torch.nn.Sequential(
             torch.nn.Linear(n_inputs, hidden_size),
             torch.nn.ReLU(),

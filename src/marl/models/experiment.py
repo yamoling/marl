@@ -102,11 +102,6 @@ class Experiment[A: Space]:
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
 
-    # @classmethod
-    # def load(cls, logdir: str):
-    #     json_path = cls.json_file(logdir)
-    #     return serialization.structure(json_path, Experiment[MultiDiscreteSpace])
-
     @classmethod
     def load(cls, logdir: str):
         """Load an experiment from disk."""

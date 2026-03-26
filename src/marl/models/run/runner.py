@@ -207,13 +207,9 @@ class Runner[A: Space](Run):
         return episodes
 
     def to(self, device: Literal["auto", "cpu"] | int | torch.device):
-        match device:
-            case str():
-                device = get_device(device)
-            case int():
-                device = torch.device(device)
-        self._agent.to(device)
-        self._trainer.to(device)
+        device = get_device(device)
+        self._agent = self._agent.to(device)
+        self._trainer = self._trainer.to(device)
         return self
 
     def close(self):

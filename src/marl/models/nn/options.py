@@ -14,8 +14,8 @@ class OptionCritic(NN):
     n_agents: int
     options: list[int]
 
-    def __init__(self, n_options: int, n_actions: int, n_agents: int):
-        super().__init__(n_actions)
+    def __init__(self, n_options: int, n_agents: int):
+        super().__init__()
         self.n_options = n_options
         self.n_agents = n_agents
         self.options = [random.randint(0, n_options - 1) for _ in range(n_agents)]
