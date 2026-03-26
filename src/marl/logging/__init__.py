@@ -23,8 +23,8 @@ LogSpec: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
 LogSpecs: TypeAlias = LogSpec | Sequence[LogSpec]
 
 
-def get_logger(logdir: str, specs: LogSpec | LogSpecs):
-    loggers = []
+def get_logger(logdir: str, specs: LogSpecs):
+    loggers = list[Logger]()
     if isinstance(specs, str):
         specs = [specs]
     for spec in specs:

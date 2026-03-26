@@ -121,17 +121,17 @@ class OptionCriticTrainer(Trainer):
 
     def actor_loss(self, t: Transition, options: list[int], step_num: int):
         logs = dict[str, Any]()
-        obs, extras = t.obs.as_tensors(self.device)
-        next_obs, next_extras = t.next_obs.as_tensors(self.device)
+        obs, extras = t.obs.as_tensors(self.device, batch_dim=True)
+        next_obs, next_extras = t.next_obs.as_tensors(self.device, batch_dim=True)
 
-        all_termination_probs = self.oc.compute_termination_probs(obs, extras)
-        all_next_termination_probs = self.oc.compute_termination_probs(next_obs, next_extras).detach()
+        all_termination_probs = self.oc.compute_termination_probs(obs, extras).squeeze(0)
+        all_next_termination_probs = self.oc.compute_termination_probs(next_obs, next_extras).squeeze(0).detach()
         torch_options = torch.tensor(options, device=self.device).unsqueeze(0)
         option_term_prob = torch.gather(all_termination_probs, 1, torch_options)
         next_option_term_prob = torch.gather(all_next_termination_probs, 1, torch_options)
 
-        q_options = self.oc.compute_q_options(obs, extras).detach()
-        next_q_option = self.target_oc.compute_q_options(next_obs, next_extras).detach()
+        q_options = self.oc.compute_q_options(obs, extras).squeeze(0).detach()
+        next_q_option = self.target_oc.compute_q_options(next_obs, next_extras).detach().squeeze(0)
         next_best_option_value = next_q_option.max(dim=-1).values
         next_continued_option_value = torch.gather(next_q_option, 1, torch_options)
 
@@ -144,12 +144,15 @@ class OptionCriticTrainer(Trainer):
         gt = t.reward.item() + (1 - t.done) * self.gamma * (
             (1 - next_option_term_prob) * next_continued_option_value + next_option_term_prob * next_best_option_value
         )
-        dist = self.oc.policy(obs, extras, torch.from_numpy(t.obs.available_actions).to(self.device))
+        dist = self.oc.policy(obs, extras, torch.from_numpy(t.obs.available_actions).to(self.device).unsqueeze(0))
         logp = dist.log_prob(torch.from_numpy(t.action).to(self.device)).unsqueeze(0)
-        entropy = dist.entropy().unsqueeze(0)
-        for a, ent in enumerate(entropy[0]):
+        entropy = dist.entropy()
+        for a, ent in enumerate(entropy):
             logs[f"train/entropy-{a}"] = ent.item()
             logs[f"train/option-{a}"] = options[a]
+        for a, prob in enumerate(option_term_prob):
+            logs[f"train/termination prob-{a}"] = prob.item()
+        logs["train/state"] = t.state.data.tolist()
         td_error = gt.detach() - torch.gather(q_options, -1, torch_options)
         policy_loss = -logp * td_error - self.entropy_reg * entropy
         actor_loss = termination_loss + policy_loss

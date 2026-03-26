@@ -124,16 +124,18 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
 
     if ir:
-        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
+        c, h, w = meta_env.state_shape
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic((c, h, w), meta_env.state_extra_shape[0])
         ir_module = AdvantageIntrinsicReward(value_network, gamma)
     else:
         ir_module = None
 
     match agent_type:
         case "ppo":
+            c, h, w = meta_env.observation_shape
             meta_agent = marl.training.MAPPO(
                 actor_critic=CNNContinuousActorCritic(
-                    input_shape=meta_env.observation_shape,
+                    input_shape=(c, h, w),
                     n_extras=meta_env.extras_shape[0],
                     action_output_shape=(N_SUBGOALS,),
                 ),
@@ -324,7 +326,17 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        env, test_env = make_lle()
+        # env, test_env = make_lle()
+
+        env = (
+            LLE.from_file("maps/four_rooms.toml")
+            .obs_type("layered")
+            .state_type("state")
+            .builder()
+            .randomize_actions(1 / 3)
+            .time_limit(1000)
+            .build()
+        )
         # env, test_env = make_smac("8m_vs_9m")
         # trainer = make_mappo(env, mixing=None)
         # trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
@@ -335,7 +347,6 @@ def main(args: Arguments):
             env=env,
             test_interval=5000,
             n_steps=1_000_000,
-            test_env=test_env,
             logger="csv",
         )
         print(f"Experiment created in {exp.logdir}")
