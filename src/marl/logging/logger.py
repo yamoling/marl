@@ -9,6 +9,7 @@ import numpy as np
 import orjson
 import polars as pl
 from marlenv import Episode, MARLEnv
+import logging
 
 from marl.models.agent import Agent
 from marl.models.trainer import Trainer
@@ -95,11 +96,11 @@ class Logger(ABC):
             episode_directory = self.test_dir(time_step, i)
             self.log_test(episode.metrics, time_step)
             if os.path.exists(episode_directory):
-                print(f"Warning: episode directory {episode_directory} already exists ! Overwriting...")
+                logging.warning(f"Episode directory {episode_directory} already exists ! Overwriting...")
             else:
                 os.makedirs(episode_directory)
             with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
-                bytes_data = orjson.dumps(episode.actions, option=orjson.OPT_SERIALIZE_NUMPY)
+                bytes_data = orjson.dumps(np.array(episode.actions), option=orjson.OPT_SERIALIZE_NUMPY)
                 f.write(bytes_data)
 
     def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):

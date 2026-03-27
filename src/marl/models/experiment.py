@@ -22,6 +22,7 @@ from marl.logging import LogSpecs
 from marl.utils import default_serialization, stats
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.utils import encode_b64_image, get_device
+from marl.models.run.runner import seeded_rollout
 
 
 from .agent import Agent
@@ -101,11 +102,6 @@ class Experiment[A: Space]:
             # In case the experiment could not be created for another reason, do not create the experiment and remove its directory
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
-
-    # @classmethod
-    # def load(cls, logdir: str):
-    #     json_path = cls.json_file(logdir)
-    #     return serialization.structure(json_path, Experiment[MultiDiscreteSpace])
 
     @classmethod
     def load(cls, logdir: str):
@@ -197,27 +193,14 @@ class Experiment[A: Space]:
         self.agent.load(run.get_saved_algo_dir(time_step))
         # runner = self.create_runner()
         seed = Run.get_test_seed(time_step, test_num)
-        actions = run.get_test_actions(time_step, test_num)
-        episode = self.test_env.replay(actions, seed=seed)
-        # episode = runner.test(seed)
-        frames = [encode_b64_image(img) for img in episode.get_images(self.test_env, seed=seed)]
-        replay = ReplayEpisode(episode_folder, episode, frames)
+        # actions = run.get_test_actions(time_step, test_num)
+        agent = self.agent_at(time_step, run.seed)
 
-        # Add extra data to the replay depending on the algorithm
-        obs = torch.from_numpy(np.array(episode.obs))
-        extras = torch.from_numpy(np.array(episode.extras))
-        actions = torch.from_numpy(np.array(episode.actions))
-        available_actions = torch.from_numpy(np.array(episode.available_actions))
-        if isinstance(self.agent, SimpleActor):
-            dist = self.agent.actor_network.policy(obs, extras, available_actions)
-            logits = dist.log_prob(actions)
-            replay.logits = logits.tolist()
-            replay.probs = torch.exp(logits).tolist()
-            replay.state_values = None  # self.agent.actor_network.value(obs, extras).tolist()
-        elif isinstance(self.agent, DQNAgent):
-            batch = TransitionBatch(list(episode.transitions()))
-            replay.qvalues = self.agent.qnetwork.batch_forward(batch.obs, batch.extras).detach().cpu().tolist()
-        return replay
+        episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
+
+        # episode = self.test_env.replay(actions, seed=seed)
+        frames = [encode_b64_image(f) for f in frames]
+        return ReplayEpisode(episode_folder, episode, frames, action_details)
 
     def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
         """Load the agent at a specific time step."""
@@ -302,9 +285,9 @@ class Experiment[A: Space]:
     def get_experiment_results(self, replace_inf=False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf)
+        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", suffix=" [test]")
+        datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, source="train", suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf, source="training")
         # qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
         return datasets, []
 

@@ -1,23 +1,25 @@
-from abc import ABC
-from dataclasses import dataclass, asdict, field
 import os
-from typing import Any, Optional, Sequence
+from abc import ABC
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal, Optional, Self, Sequence
 
 import torch
-from marlenv import Episode, Transition, Observation, State
+from marlenv import Episode, Observation, State, Transition
 
 from .agent import Agent
-from marl.utils import HasDevice
+from .nn import NN, randomize
 
 
 @dataclass
-class Trainer(HasDevice, ABC):
+class Trainer(ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str = field(init=False)
 
     def __init__(self, device: Optional[torch.device] = None):
-        super().__init__(device)
+        if device is None:
+            device = torch.device("cpu")
+        self._device = device
         self.name = self.__class__.__name__
 
     def make_agent(self) -> Agent:
@@ -64,3 +66,28 @@ class Trainer(HasDevice, ABC):
         for i, nn in enumerate(self.networks):
             path = os.path.join(directory_path, f"{nn.name}_{i}.pt")
             nn.load_state_dict(torch.load(path))
+
+    @property
+    def device(self):
+        return self._device
+
+    @property
+    def networks(self):
+        """Dynamic list of neural networks attributes in the trainer"""
+        return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
+
+    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
+        """Randomize the parameters of all the neural networks in the trainer."""
+
+        for nn in self.networks:
+            if isinstance(nn, NN):
+                nn.randomize(method)
+            else:
+                randomize(torch.nn.init.xavier_uniform_, nn)
+
+    def to(self, device: torch.device) -> Self:
+        """Send the networks to the given device."""
+        self._device = device
+        for nn in self.networks:
+            nn.to(device)
+        return self

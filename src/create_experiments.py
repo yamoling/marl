@@ -12,11 +12,12 @@ from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
 import marl
-from marl import ReplayMemory, Trainer
+from marl import ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
-from marl.logging import LogSpecs
 from marl.nn.mixers import VDN
-from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
+from marl.nn.model_bank.actor_critics import CNNActor, CNNContinuousActorCritic
+from marl.nn.model_bank.options import OptionTermination, SimpleOptionCritic
+from marl.nn.model_bank.qnetworks import QCNN
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
@@ -95,6 +96,20 @@ def create_smac_experiment(args: Arguments):
     return marl.Experiment.create(logdir=logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps)
 
 
+def make_option_critic(env: MARLEnv[MultiDiscreteSpace], n_options: int = 8):
+    from marl.training.option_critic import OptionCriticTrainer
+
+    assert len(env.observation_shape) == 3
+    (c, h, w) = env.observation_shape
+    oc = SimpleOptionCritic(
+        [CNNActor(env.observation_shape, env.extras_shape[0], env.n_actions) for _ in range(n_options)],
+        QCNN((c, w, h), env.extras_size, n_options),
+        OptionTermination(n_options, (c, w, h), env.extras_shape),
+        env.n_agents,
+    )
+    return OptionCriticTrainer(oc, 1e-4, 50_000, env.n_agents)
+
+
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     n_steps = 2_000_000
     test_interval = 5000
@@ -109,16 +124,18 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     meta_env = marlenv.Builder(lle).time_limit(width * height // 2).agent_id().build()
 
     if ir:
-        value_network = marl.nn.model_bank.actor_critics.CNNCritic(meta_env.state_shape, meta_env.state_extra_shape[0])
+        c, h, w = meta_env.state_shape
+        value_network = marl.nn.model_bank.actor_critics.CNNCritic((c, h, w), meta_env.state_extra_shape[0])
         ir_module = AdvantageIntrinsicReward(value_network, gamma)
     else:
         ir_module = None
 
     match agent_type:
         case "ppo":
+            c, h, w = meta_env.observation_shape
             meta_agent = marl.training.MAPPO(
                 actor_critic=CNNContinuousActorCritic(
-                    input_shape=meta_env.observation_shape,
+                    input_shape=(c, h, w),
                     n_extras=meta_env.extras_shape[0],
                     action_output_shape=(N_SUBGOALS,),
                 ),
@@ -262,8 +279,8 @@ def make_dqn(
 
 def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "vdn"):
     match env.observation_shape:
-        case (_, _, _):
-            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC(env.observation_shape, env.extras_shape[0], env.n_actions)
+        case (c, h, w):
+            ac = marl.nn.model_bank.actor_critics.CNNDiscreteAC((c, h, w), env.extras_shape[0], env.n_actions)
         case (_,):
             ac = marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic.from_env(env)
         case _:
@@ -279,20 +296,7 @@ def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "v
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer type: {other}")
-    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
-
-
-def make_experiment(
-    args: Arguments,
-    trainer: Trainer,
-    env: MARLEnv,
-    test_env: Optional[MARLEnv],
-    n_steps: int,
-    logger: LogSpecs = "csv",
-):
-    return marl.Experiment.create(
-        logdir=args.logdir, trainer=trainer, env=env, test_interval=5000, n_steps=n_steps, test_env=test_env, logger=logger
-    )
+    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=16, n_epochs=5)
 
 
 def make_lle():
@@ -322,18 +326,27 @@ def make_overcooked():
 
 def main(args: Arguments):
     try:
-        env, test_env = make_lle()
-        # env, test_env = make_smac("8m_vs_9m")
-        # trainer = make_mappo(env, mixing=None)
-        trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
+        # env, test_env = make_lle()
+
+        env = (
+            LLE.from_file("maps/four_rooms.toml")
+            .obs_type("layered")
+            .state_type("state")
+            .builder()
+            .randomize_actions(1 / 3)
+            .time_limit(1000)
+            .build()
+        )
+        trainer = make_mappo(env, mixing=None)
+        # trainer = make_dqn(env, mixing="vdn", gamma=0.95)
+        # trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,
             env=env,
             test_interval=5000,
             n_steps=1_000_000,
-            test_env=test_env,
-            logger=["tensorboard", "csv"],
+            logger="csv",
         )
         print(f"Experiment created in {exp.logdir}")
         if args.run:

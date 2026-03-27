@@ -12,6 +12,8 @@ class Dataset:
     logdir: str
     ticks: list[int]
     label: str
+    metric: str
+    source: str
     mean: list[float]
     min: list[float]
     max: list[float]
@@ -24,6 +26,20 @@ class ExperimentResults:
     logdir: str
     datasets: list[Dataset]
     qvalue_ds: list[Dataset]
+
+
+def _concat_with_missing_columns(dfs: list[pl.DataFrame]) -> pl.DataFrame:
+    """Concatenate frames with potentially different schemas by padding missing columns with nulls."""
+    if len(dfs) == 0:
+        return pl.DataFrame()
+    all_columns = sorted(set().union(*(df.columns for df in dfs)))
+    aligned = []
+    for df in dfs:
+        missing = [col for col in all_columns if col not in df.columns]
+        if len(missing) > 0:
+            df = df.with_columns([pl.lit(None).alias(col) for col in missing])
+        aligned.append(df.select(all_columns))
+    return pl.concat(aligned)
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):
@@ -84,7 +100,9 @@ def compute_dataframe(dfs: list[pl.DataFrame], replace_inf: bool) -> pl.DataFram
     dfs = [d for d in dfs if not d.is_empty()]
     if len(dfs) == 0:
         return pl.DataFrame()
-    df = pl.concat(dfs).drop("timestamp_sec")
+    df = _concat_with_missing_columns(dfs)
+    if "timestamp_sec" in df.columns:
+        df = df.drop("timestamp_sec")
     to_drop = list[str]()
     for col, dtype in zip(df.columns, df.dtypes):
         if not dtype.is_numeric():
@@ -96,23 +114,24 @@ def compute_dataframe(dfs: list[pl.DataFrame], replace_inf: bool) -> pl.DataFram
     return stats_by("time_step", df, replace_inf)
 
 
-def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, suffix: Optional[str] = None) -> list[Dataset]:
+def compute_datasets(
+    dfs: list[pl.DataFrame],
+    logdir: str,
+    replace_inf: bool,
+    source: str,
+    suffix: Optional[str] = None,
+) -> list[Dataset]:
     """
     Aggregates dataframes and computes the stats (mean, std, etc) for each column.
 
-    Returns the list of datasets, one for each column in the dataframes.
-    Note: The dataframes must have the same columns.
+    Returns the list of datasets, one for each metric column in the dataframes.
     """
     dfs = [d for d in dfs if not d.is_empty()]
     if len(dfs) == 0:
         return []
-    columns = dfs[0].columns
-    # Re-order the columns to have the same order in all dataframes
-    for i, df in enumerate(dfs):
-        if df.columns != columns:
-            dfs[i] = df.select(columns)
-    df = pl.concat(dfs)
-    df = df.drop("timestamp_sec")
+    df = _concat_with_missing_columns(dfs)
+    if "timestamp_sec" in df.columns:
+        df = df.drop("timestamp_sec")
     score_cols = [col for col in df.columns if col.startswith("score")]
     if len(score_cols) != 0:
         df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
@@ -135,6 +154,8 @@ def compute_datasets(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, su
                 logdir=logdir,
                 ticks=ticks,
                 label=label,
+                metric=col,
+                source=source,
                 mean=df_stats[f"mean-{col}"].to_list(),
                 std=df_stats[f"std-{col}"].to_list(),
                 min=df_stats[f"min-{col}"].to_list(),
@@ -151,8 +172,9 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
     dfs = [d for d in dfs if not d.is_empty()]
     if len(dfs) == 0:
         return []
-    df = pl.concat(dfs)
-    df = df.drop("timestamp_sec")
+    df = _concat_with_missing_columns(dfs)
+    if "timestamp_sec" in df.columns:
+        df = df.drop("timestamp_sec")
 
     df_stats = stats_by("time_step", df, replace_inf)
     res = list[Dataset]()
@@ -180,6 +202,8 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
                 logdir=logdir,
                 ticks=ticks,
                 label=label,
+                metric=label,
+                source="qvalues",
                 mean=df_stats[f"mean-{col}"].to_list(),
                 std=df_stats[f"std-{col}"].to_list(),
                 min=df_stats[f"min-{col}"].to_list(),
@@ -188,6 +212,25 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
             )
         )
     return res
+
+
+def build_results_payload(metrics: list[Dataset], qvalues: list[Dataset]) -> dict:
+    by_source: dict[str, int] = {}
+    for dataset in metrics:
+        by_source[dataset.source] = by_source.get(dataset.source, 0) + 1
+    return {
+        "version": 2,
+        "metrics": metrics,
+        "qvalues": qvalues,
+        "meta": {
+            "metric_labels": sorted({dataset.label for dataset in metrics}),
+            "qvalue_labels": sorted({dataset.label for dataset in qvalues}),
+            "metric_sources": sorted(by_source.keys()),
+            "metric_counts_by_source": by_source,
+            "n_metric_series": len(metrics),
+            "n_qvalue_series": len(qvalues),
+        },
+    }
 
 
 def agregate_metrics(

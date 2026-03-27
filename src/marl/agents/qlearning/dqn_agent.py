@@ -7,6 +7,7 @@ import torch
 from marlenv import Observation
 
 from marl.models import Policy, QNetwork, RecurrentQNetwork
+from marl.models.detailed_action import DetailedAction
 from marl.optimism import VBE
 
 from marl.models.agent import Agent
@@ -80,6 +81,18 @@ class DQNAgent(Agent):
             self.train_policy = pickle.load(f)
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
+
+    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
+        with torch.no_grad():
+            qvalues = self.qnetwork.qvalues(observation)
+        qvalues = qvalues.numpy(force=True)
+        if self.qnetwork.is_multi_objective:
+            qvalues = qvalues.sum(axis=-1)
+        if self._is_training and self.vbe is not None:
+            bonus = self.vbe.compute_bonus(observation)
+            qvalues = qvalues + bonus
+        action = self.policy.get_action(qvalues, observation.available_actions)
+        return DetailedAction(action, "Q-values", details=qvalues)
 
 
 class RDQNAgent(DQNAgent):

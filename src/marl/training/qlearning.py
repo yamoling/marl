@@ -18,9 +18,9 @@ class QLearning(Trainer):
 
     def __post_init__(self):
         super().__init__()
-        self._qtable = defaultdict(self.__init_qvalue)
+        self._qtable = defaultdict(self._init_qvalue)
 
-    def __init_qvalue(self):  # -> npt.NDArray[np.float32]:
+    def _init_qvalue(self):  # -> npt.NDArray[np.float32]:
         return np.full((self.n_agents, self.n_actions), self.default_qvalue, dtype=np.float32)
 
     def update_step(self, transition: Transition, time_step: int):
@@ -47,7 +47,12 @@ class QLearning(Trainer):
         file = os.path.join(directory_path, "qtable.pkl")
         with open(file, "rb") as f:
             loaded: QLearning = pickle.load(f)
-            self.__dict__.update(loaded.__dict__)
+        self._qtable = loaded._qtable
+        self.n_actions = loaded.n_actions
+        self.n_agents = loaded.n_agents
+        self.gamma = loaded.gamma
+        self.lr = loaded.lr
+        self.default_qvalue = loaded.default_qvalue
 
     def make_agent(self, policy: Policy | None = None, test_policy: Policy | None = None) -> Agent:
         from marl.agents import QAgent

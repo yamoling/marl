@@ -74,7 +74,3 @@ class ValuePotentialIntrinsicReward(IRModule):
         self.target_network.to(device)
         self._device = device
         return self
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        self.network.randomize(method)
-        self.target_network.randomize(method)

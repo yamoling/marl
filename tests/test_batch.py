@@ -46,7 +46,7 @@ def test_batch_mc_returns():
             g += GAMMA ** (j - i) * REWARD_STEP
         expected_returns.append(g)
     expected_returns = torch.tensor(expected_returns, dtype=torch.float32)
-    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1), normalize=False)
+    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1))
     assert torch.allclose(actual, expected_returns)
 
 
@@ -69,7 +69,7 @@ def test_batch_mc_returns_episode_ended():
             g += GAMMA ** (j - i) * REWARD_STEP
         expected_returns.append(g)
     expected_returns = torch.tensor(expected_returns, dtype=torch.float32)
-    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1), normalize=False)
+    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1))
     assert torch.allclose(actual, expected_returns)
 
 

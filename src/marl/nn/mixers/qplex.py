@@ -1,11 +1,12 @@
 from marlenv import MARLEnv, MultiDiscreteSpace
 import torch
-
+from dataclasses import dataclass
 from torch import nn
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
+@dataclass
 class QPlex(Mixer):
     """Duplex dueling"""
 
@@ -70,6 +71,9 @@ class QPlex(Mixer):
             nn.Linear(adv_hypernet_embed, n_agents),
         )
 
+    def __hash__(self) -> int:
+        return hash(self.name)
+
     def transformation(self, states: torch.Tensor, qvalues: torch.Tensor, values: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         weights = self.weights_generator(states) + 1e-10
         states_value = self.V(states)
@@ -106,10 +110,10 @@ class QPlex(Mixer):
         self,
         qvalues: torch.Tensor,
         states: torch.Tensor,
+        *,
         one_hot_actions: torch.Tensor,
         all_qvalues: torch.Tensor,
-        *_args,
-        **_kwargs,
+        **kwargs,
     ) -> torch.Tensor:
         *dims, _ = qvalues.shape
         states = states.reshape(-1, self.state_size)
@@ -132,6 +136,6 @@ class QPlex(Mixer):
         return q_tot.view(*dims)
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], adv_hypernet_embed: int = 64, transformation=True):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], adv_hypernet_embed: int = 64, transformation=True):
         assert len(env.state_shape) == 1
-        return QPlex(env.n_agents, env.n_actions, env.state_shape[0], adv_hypernet_embed, transformation)
+        return QPlex(env.n_agents, env.n_actions, env.state_shape[0], env.state_shape[0], adv_hypernet_embed, transformation)

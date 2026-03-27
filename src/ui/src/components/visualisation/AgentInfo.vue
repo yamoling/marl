@@ -6,7 +6,7 @@
         <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
             :extras-meanings="extrasMeanings" />
         <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
-        <h4> Actions & Qvalues </h4>
+        <h4> Actions & {{ decisionDataLabel }}</h4>
         <table class="table table-responsive">
             <thead>
                 <tr>
@@ -20,47 +20,30 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-if="currentQvalues.length > 0"
+                <tr v-if="currentDecisionData.length > 0"
                     v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
                     <th scope="row" class="text-capitalize">
                         {{ experiment.env.reward_space.size == 1
-                            ? "Qvalues"
-                            : objective }}
+                            ? decisionDataLabel
+                            : `${decisionDataLabel} (${objective})` }}
                     </th>
-                    <td v-for="action in currentQvalues.length" :style='{
+                    <td v-for="action in currentDecisionData.length" :style='{
                         "background-color": "#" + (isMultiObjective
-                            ? backgroundColours[action - 1][objectiveNum]
+                            ? backgroundColours[action - 1]?.[objectiveNum]
                             : backgroundColours[action - 1])
                     }'>
                         {{ isMultiObjective
-                            ? currentQvalues[action - 1][objectiveNum].toFixed(4)
-                            : (currentQvalues[action - 1] as unknown as number).toFixed(4) }}
+                            ? formatValue(decisionDataAt(action - 1, objectiveNum))
+                            : formatValue((currentDecisionData[action - 1] as unknown as number)) }}
                     </td>
                 </tr>
-                <template v-if="logits != null">
-                    <tr v-if="isMultiObjective" v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
-                        TODO
-                    </tr>
-                    <tr v-else>
-                        <th> Logits </th>
-                        <td v-for="logit in logits" :style='{ "background-color": "#" + rainbow.colourAt(logit) }'>
-                            {{ logit.toFixed(4) }}
-                        </td>
-                    </tr>
-                </template>
-                <!-- <tr v-if="episode?.probs && episode.probs.length > currentStep">
-                    <th> <b>Probs</b></th>
-                    <td v-for="prob in episode.probs[currentStep][agentNum]">
-                        {{ prob[0].toFixed(4) }}
-                    </td>
-                </tr> -->
             </tbody>
-            <tfoot v-if="isMultiObjective && qvalues != null">
+            <tfoot v-if="isMultiObjective && currentDecisionData.length > 0">
                 <tr>
-                    <td> <b>Q-Total</b></td>
-                    <td v-for="action in qvalues.length"
-                        :style='{ "background-color": "#" + totalQValuesColours[action - 1] }'>
-                        {{ totalQValues[action - 1].toFixed(4) }}
+                    <td> <b>Total</b></td>
+                    <td v-for="action in currentDecisionData.length"
+                        :style='{ "background-color": "#" + totalValueColours[action - 1] }'>
+                        {{ totalValues[action - 1].toFixed(4) }}
                     </td>
                 </tr>
             </tfoot>
@@ -87,6 +70,7 @@ const props = defineProps<{
     rainbow: Rainbow
     experiment: Experiment
 }>();
+console.log(props.episode?.decision_data)
 
 const isMultiObjective = computed(() => {
     return props.experiment.env.reward_space.size > 1
@@ -98,42 +82,55 @@ const obsShape = computed(() => {
 });
 const obsDimensions = computed(() => obsShape.value.length);
 const episodeLength = computed(() => props.episode?.metrics.episode_len || 0);
+const safeStep = computed(() => {
+    if (episodeLength.value === 0) return 0;
+    return Math.max(0, Math.min(episodeLength.value - 1, props.currentStep));
+});
 
 const obs = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode.all_observations[props.currentStep][props.agentNum];
+    return props.episode.episode.all_observations[safeStep.value][props.agentNum];
 });
 
 const extras = computed(() => {
     if (props.episode == null) return []
-    return props.episode.episode.all_extras[props.currentStep][props.agentNum];
+    return props.episode.episode.all_extras[safeStep.value][props.agentNum];
 });
 
 const extrasMeanings = computed(() => props.experiment.env.extras_meanings)
 
 const availableActions = computed(() => {
     if (props.episode == null) return [];
-    return props.episode.episode.all_available_actions[props.currentStep][props.agentNum];
+    return props.episode.episode.all_available_actions[safeStep.value][props.agentNum];
 });
 
 const takenAction = computed(() => {
-    if (props.episode == null) return [];
-    return props.episode.episode.actions[props.currentStep][props.agentNum];
+    if (props.episode == null) return -1;
+    return props.episode.episode.actions[safeStep.value][props.agentNum];
 });
 
-const currentQvalues = computed(() => {
+const currentDecisionData = computed(() => {
     if (props.episode == null) return [];
-    if (props.episode.qvalues == null || props.episode.qvalues.length == 0) return [];
-    if (props.currentStep >= episodeLength.value) return [];
-    return props.episode.qvalues[props.currentStep][props.agentNum];
+    if (props.episode.decision_data == null) return [];
+    if (safeStep.value >= episodeLength.value) return [];
+    return props.episode.decision_data.data[safeStep.value][props.agentNum];
 });
 
-const totalQValues = computed(() => {
+const decisionDataLabel = computed(() => {
+    return props.episode?.decision_data?.label ?? "Values";
+});
+
+const multiObjectiveDecisionData = computed(() => {
+    if (!isMultiObjective.value) return [] as number[][];
+    return currentDecisionData.value as unknown as number[][];
+});
+
+const totalValues = computed(() => {
     const res = [] as number[];
-    for (let i = 0; i < multiObjectiveQvalues.value.length; i++) {
+    for (let i = 0; i < multiObjectiveDecisionData.value.length; i++) {
         let sum = 0;
-        for (let j = 0; j < multiObjectiveQvalues.value[i].length; j++) {
-            sum += multiObjectiveQvalues.value[i][j];
+        for (let j = 0; j < multiObjectiveDecisionData.value[i].length; j++) {
+            sum += multiObjectiveDecisionData.value[i][j];
         }
         res.push(sum);
     }
@@ -141,35 +138,26 @@ const totalQValues = computed(() => {
 });
 
 const backgroundColours = computed(() => {
-    if (isMultiObj.value) return (currentQvalues.value).map(qs => qs.map(q => props.rainbow.colourAt(q)));
-    else return (currentQvalues.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
+    if (isMultiObjective.value) return (currentDecisionData.value as unknown as number[][]).map(qs => qs.map(q => props.rainbow.colourAt(q)));
+    else return (currentDecisionData.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
 });
 
-function getQValues(objective: number | null) {
-    if (isMultiObjective.value) {
-        return
-    }
-}
-
-const totalQValuesColours = computed(() => {
-    const colours = totalQValues.value.map(q => props.rainbow.colourAt(q));
+const totalValueColours = computed(() => {
+    const colours = totalValues.value.map(v => props.rainbow.colourAt(v));
     return colours;
 });
-const multiObjectiveLogits = computed(() => {
-    if (props.episode == null) return [];
-    if (props.episode.logits == null || props.episode.logits.length == 0) return [];
-    if (props.currentStep >= episodeLength.value) return [];
-    return props.episode.logits[props.currentStep][props.agentNum] as number[][];
-});
-const logits = computed(() => {
-    if (props.episode == null) return null;
-    if (props.episode.logits == null || props.episode.logits.length == 0) return null;
-    if (props.currentStep >= episodeLength.value) return null;
-    return props.episode.logits[props.currentStep][props.agentNum] as number[];
-})
 
 const obsFlattened = computed(() => obs.value as number[]);
 const obsLayered = computed(() => obs.value as number[][][]);
+
+function decisionDataAt(action: number, objective: number): number {
+    const row = (currentDecisionData.value as unknown[])[action] as number[] | undefined;
+    return row?.[objective] ?? 0;
+}
+
+function formatValue(value: number): string {
+    return Number.isFinite(value) ? value.toFixed(4) : "-";
+}
 
 </script>
 

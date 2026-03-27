@@ -84,7 +84,7 @@ def get_max_gpu_usage(pids: set[int]):
 
 
 def get_device(
-    device: Literal["auto", "cpu"] | int = "auto",
+    device: Literal["auto", "cpu"] | int | torch.device | str = "auto",
     fit_strategy: Literal["scatter", "group"] = "scatter",
     estimated_memory_MB: int = 0,
     disabled_devices: list[int] | None = None,
@@ -99,6 +99,8 @@ def get_device(
             - "scatter": Fit the process in the GPU that has the most free memory (scatter runs across all GPUs).
         - estimated_memory_MB: Estimated memory usage in MB.
     """
+    if isinstance(device, torch.device):
+        return device
     if device != "auto":
         return torch.device(device)
 

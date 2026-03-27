@@ -1,41 +1,44 @@
 from http import HTTPStatus
-from flask import Response
-from . import app, state
+from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse, Response
+from . import state
 from marl.utils import stats
 import orjson
 
+router = APIRouter()
 
-@app.route("/results/load/<path:logdir>", methods=["GET"])
+
+@router.get("/results/load/{logdir:path}")
 def get_experiment_results(logdir: str):
     try:
         exp = state.get_experiment(logdir)
     except (ModuleNotFoundError, FileNotFoundError) as e:
-        return Response(str(e), status=HTTPStatus.NOT_FOUND)
+        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
     try:
         metrics, qvalues = exp.get_experiment_results(replace_inf=True)
-        response_data = {"metrics": metrics, "qvalues": qvalues}
-        return Response(orjson.dumps(response_data), mimetype="application/json")
+        response_data = stats.build_results_payload(metrics, qvalues)
+        return Response(orjson.dumps(response_data), media_type="application/json")
     except Exception as e:
         print(e)
-        return Response(str(e), status=500)
+        return PlainTextResponse(str(e), status_code=500)
 
 
-@app.route("/results/test/<time_step>/<path:logdir>", methods=["GET"])
+@router.get("/results/test/{time_step}/{logdir:path}")
 def get_test_results_at(time_step: str, logdir: str):
     exp = state.get_experiment(logdir)
     res = exp.get_tests_at(int(time_step))
     res = orjson.dumps(res)
-    return Response(res, mimetype="application/json")
+    return Response(res, media_type="application/json")
 
 
-@app.route("/results/load-by-run/<path:logdir>", methods=["GET"])
+@router.get("/results/load-by-run/{logdir:path}")
 def get_experiment_results_by_run(logdir: str):
     runs_results = []
     exp = state.get_experiment(logdir)
     for run in exp.runs:
-        datasets = stats.compute_datasets([run.test_metrics], logdir, True, suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics], logdir, True, suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data], logdir, True)
+        datasets = stats.compute_datasets([run.test_metrics], logdir, True, source="test", suffix=" [test]")
+        datasets += stats.compute_datasets([run.train_metrics], logdir, True, source="train", suffix=" [train]")
+        datasets += stats.compute_datasets([run.training_data], logdir, True, source="training")
         # qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
-        runs_results.append(stats.ExperimentResults(run.rundir, datasets, []))
-    return Response(orjson.dumps(runs_results), mimetype="application/json")
+        runs_results.append(stats.build_results_payload(datasets, []) | {"logdir": run.rundir})
+    return Response(orjson.dumps(runs_results), media_type="application/json")

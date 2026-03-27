@@ -29,6 +29,7 @@ class RND(IRModule):
         target: NN,
         input_shape: tuple[int, ...],
         extras_shape: tuple[int, ...],
+        output_shape: tuple[int, ...] = (256,),
         update_ratio: float = 0.25,
         normalise_rewards=False,
         ir_weight: Schedule | float = 1.0,
@@ -44,7 +45,7 @@ class RND(IRModule):
         # RND should output one intrinsic reward per objective
         self._target = target
         self._predictor_head = deepcopy(target)
-        self.output_size = math.prod(target.output_shape)
+        self.output_size = math.prod(output_shape)
         self._predictor_tail = torch.nn.Sequential(
             torch.nn.ReLU(),
             torch.nn.Linear(self.output_size, self.output_size),
@@ -141,11 +142,7 @@ class RND(IRModule):
                 )
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
-        return RND(nn, env.observation_shape, env.extras_shape, n_warmup_steps)
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        nn_randomize(torch.nn.init.xavier_uniform_, self._predictor_tail)
-        return super().randomize(method)
+        return RND(nn, env.observation_shape, env.extras_shape, output_shape, n_warmup_steps)
 
     def save(self, to_directory: str):
         os.makedirs(to_directory, exist_ok=True)

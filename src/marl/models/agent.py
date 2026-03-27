@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from marlenv.models import Observation
 
+from .detailed_action import DetailedAction
 from .nn import NN, RecurrentNN
 
 
@@ -21,7 +22,7 @@ class Agent(ABC):
             device = torch.device(device)
         self._device = torch.device("cpu")
 
-    @cached_property
+    @property
     def networks(self):
         """Dynamic list of neural networks attributes in the agent"""
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
@@ -51,6 +52,12 @@ class Agent(ABC):
     @abstractmethod
     def choose_action(self, observation: Observation) -> np.ndarray:
         """Get the action to perform given the input observation."""
+
+    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
+        """
+        Get the action to perform given the input observation along with details on the decision-making, for instance the qvalues, the action probabilities of the logits.
+        """
+        raise NotImplementedError()
 
     def new_episode(self):
         """

@@ -1,8 +1,12 @@
-from . import app, state
+from fastapi import APIRouter
+from fastapi.responses import Response
+from . import state
 import orjson
 
+router = APIRouter()
 
-@app.route("/runs/get/<path:logdir>")
+
+@router.get("/runs/get/{logdir:path}")
 def list_runs(logdir: str):
     try:
         exp = state.get_experiment(logdir)
@@ -16,6 +20,6 @@ def list_runs(logdir: str):
                     "pid": run.get_pid(),
                 }
             )
-        return orjson.dumps(runs)
+        return Response(orjson.dumps(runs), media_type="application/json")
     except (ModuleNotFoundError, AttributeError):
-        return orjson.dumps([])
+        return Response(orjson.dumps([]), media_type="application/json")

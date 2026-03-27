@@ -58,7 +58,6 @@ class DQN[B: Batch](Trainer):
                 raise ValueError(f"Unknown train_interval: {other}. Expected (int, 'step' | 'episode').")
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
-        self._device = qnetwork.device
         self.policy = train_policy
         self.memory = memory
         self.gamma = gamma
@@ -87,11 +86,15 @@ class DQN[B: Batch](Trainer):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
+        if mixer is not None:
+            self.name = mixer.name
+        if ir_module is not None:
+            self.name = f"{self.name} - {ir_module.name}"
 
     def _update(self, time_step: int):
         if not self.memory.can_sample(self.batch_size):
             return {}
-        batch = self.memory.sample(self.batch_size).to(self.qnetwork._device)
+        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
         logs = self.train(batch)
         if self.ir_module is not None:
             logs = logs | self.ir_module.update(batch, time_step)
@@ -122,7 +125,7 @@ class DQN[B: Batch](Trainer):
                     next_values,
                     batch.next_states,
                     one_hot_actions=batch.one_hot_actions,
-                    next_qvalues=next_qvalues,
+                    all_qvalues=next_qvalues,
                 )
             return next_values
 
@@ -139,10 +142,12 @@ class DQN[B: Batch](Trainer):
                 ir = ir.unsqueeze(-1)
             batch.rewards = batch.rewards + ir
         # Qvalues and qvalues with target network computation
-        qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
-        qvalues = torch.gather(qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
+        all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras)
+        qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
+            qvalues = self.mixer.forward(
+                qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues, all_qvalues=all_qvalues
+            )
 
         # Qtargets computation
         next_values = self.next_values(batch)
@@ -214,17 +219,5 @@ class DQN[B: Batch](Trainer):
             max_qvalues = qvalues.max(dim=-1).values
             if self.mixer is None:
                 return float(max_qvalues.mean().item())
-            value = self.mixer.forward(max_qvalues, state_data)
+            value = self.mixer.forward(max_qvalues, state_data, all_qvalues=qvalues, one_hot_actions=torch.zeros_like(qvalues))
             return float(value.item())
-
-    def to(self, device: torch.device):
-        if self.ir_module is not None:
-            self.ir_module.to(device)
-        if self.vbe is not None:
-            self.vbe.to(device)
-        return super().to(device)
-
-    def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        super().randomize(method)
-        if self.ir_module is not None:
-            self.ir_module.randomize(method)

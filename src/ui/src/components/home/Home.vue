@@ -73,12 +73,7 @@
                                     {{ exp.env.name }}
                                 </td>
                                 <td>
-                                    <template v-if="exp.trainer.mixer">
-                                        {{ exp.trainer.mixer.name }}
-                                    </template>
-                                    <template v-else>
-                                        {{ exp.agent.name }}
-                                    </template>
+                                    {{ exp.trainer.name }}
                                 </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
@@ -151,22 +146,20 @@ const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 const contextMenu = ref({} as typeof ContextMenu);
-const runHover = ref({} as typeof RunHover)
 
 const selectedMetrics = ref(["score [train]"]);
 const selectedQvalues = ref(["agent0-qvalue0"]);
 
 const metrics = computed(() => {
     const res = new Set<string>();
-    resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
+    resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
     res.add("qvalues");
     return res;
 });
 
 const qvalues = computed(() => {
     const res = new Set<string>();
-    //resultsStore.results.forEach((r) => r.qvalue_ds.forEach(rds => res.add(rds.label)));
-    resultsStore.results.forEach((r) => r.qvaluesDs.forEach(qDs => res.add(qDs.label)));
+    resultsStore.results.forEach((r) => r.qvalueLabels().forEach(label => res.add(label)));
     return res;
 });
 
@@ -176,6 +169,10 @@ const experimentProgresses = computed(() => {
     experimentStore.experiments.forEach(exp => {
         const runs = runStore.runs.get(exp.logdir) ?? [];
         const nRuns = runs.length;
+        if (nRuns === 0) {
+            res[exp.logdir] = 0;
+            return;
+        }
         const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
         res[exp.logdir] = progress;
     });
@@ -189,28 +186,31 @@ const qvaluesSelected = computed(() => {
 const qvaluesDatasets = computed(() => {
     // Later use in the Qvalues component
     const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, _k) => {
-        r.qvaluesDs.forEach(qDs => {
-            if (!selectedQvalues.value.includes(qDs.label)) return
-            if (!res.has(qDs.logdir)) {
-                res.set(qDs.logdir, []);
-            }
-            res.get(qDs.logdir)?.push(qDs);
-        })
+    resultsStore.results.forEach((r, logdir) => {
+        const qvalueDatasets = [] as Dataset[];
+        selectedQvalues.value.forEach((label) => {
+            qvalueDatasets.push(...r.getQvalueDatasets(label));
+        });
+        if (qvalueDatasets.length > 0) {
+            res.set(logdir, qvalueDatasets);
+        }
     });
     return res;
 });
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, _k) => {
-        r.datasets.forEach(ds => {
-            if (!selectedMetrics.value.includes(ds.label)) return
-            if (!res.has(ds.label)) {
-                res.set(ds.label, []);
-            }
-            res.get(ds.label)?.push(ds);
-        })
+    selectedMetrics.value.forEach((label) => {
+        if (label === "qvalues") {
+            return;
+        }
+        const grouped = [] as Dataset[];
+        resultsStore.results.forEach((r) => {
+            grouped.push(...r.getMetricDatasets(label));
+        });
+        if (grouped.length > 0) {
+            res.set(label, grouped);
+        }
     });
     return res;
 });
@@ -235,15 +235,6 @@ function downloadDatasets(logdir: string) {
     }
 }
 
-
-function showHover(logdir: string) {
-    const runs = runStore.runs.get(logdir);
-    if (runs === undefined) {
-        alert("No such logdir to show");
-        return;
-    }
-    runHover.value.show(runs);
-}
 
 const emits = defineEmits<{
     (event: "experiment-selected", logdir: string): void

@@ -10,7 +10,8 @@ from marlenv.models import Observation
 from marlenv import Episode
 from marl.utils.dotdic import DotDic
 
-from marl.models import Policy, DRU
+from marl.models import Policy
+from marl.nn.model_bank.others import DRU
 
 
 from marl.models.agent import Agent

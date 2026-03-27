@@ -25,23 +25,82 @@ export class ExperimentResults {
     public logdir: string
     public datasets: Dataset[]
     public qvaluesDs: Dataset[]
+    public meta: ResultsMeta
+    private datasetsByLabel: Map<string, Dataset[]>
+    private qvaluesByLabel: Map<string, Dataset[]>
 
-    constructor(logdir: string, datasets: Dataset[], qvaluesDs: Dataset[]) {
+    constructor(logdir: string, datasets: Dataset[], qvaluesDs: Dataset[], meta?: ResultsMeta) {
         this.logdir = logdir;
         this.datasets = datasets;
         this.qvaluesDs = qvaluesDs;
+        this.meta = meta ?? {
+            metric_labels: Array.from(new Set(datasets.map(d => d.label))).sort(),
+            qvalue_labels: Array.from(new Set(qvaluesDs.map(d => d.label))).sort(),
+            metric_sources: Array.from(new Set(datasets.map(d => d.source))).sort(),
+            metric_counts_by_source: {},
+            n_metric_series: datasets.length,
+            n_qvalue_series: qvaluesDs.length,
+        };
+        this.datasetsByLabel = groupByLabel(datasets);
+        this.qvaluesByLabel = groupByLabel(qvaluesDs);
+    }
+
+    public metricLabels(): string[] {
+        return this.meta.metric_labels;
+    }
+
+    public qvalueLabels(): string[] {
+        return this.meta.qvalue_labels;
+    }
+
+    public getMetricDatasets(label: string): Dataset[] {
+        return this.datasetsByLabel.get(label) ?? [];
+    }
+
+    public getQvalueDatasets(label: string): Dataset[] {
+        return this.qvaluesByLabel.get(label) ?? [];
     }
 }
 
 export interface Dataset {
     ticks: number[]
     label: string
+    metric: string
+    source: string
     logdir: string
     mean: number[]
     std: number[]
     min: number[]
     max: number[]
     ci95: number[]
+}
+
+export interface ResultsMeta {
+    metric_labels: string[]
+    qvalue_labels: string[]
+    metric_sources: string[]
+    metric_counts_by_source: Record<string, number>
+    n_metric_series: number
+    n_qvalue_series: number
+}
+
+export interface ResultsResponse {
+    version: number
+    metrics: Dataset[]
+    qvalues: Dataset[]
+    meta: ResultsMeta
+    logdir?: string
+}
+
+function groupByLabel(datasets: Dataset[]): Map<string, Dataset[]> {
+    const grouped = new Map<string, Dataset[]>();
+    datasets.forEach(ds => {
+        if (!grouped.has(ds.label)) {
+            grouped.set(ds.label, []);
+        }
+        grouped.get(ds.label)?.push(ds);
+    });
+    return grouped;
 }
 
 export class DatasetTable {
@@ -52,7 +111,7 @@ export class DatasetTable {
     }
 
     public static fromTestDatasets(datasets: Dataset[]) {
-        return DatasetTable.fromDatasets(datasets.filter(d => d.label.includes("[test]")))
+        return DatasetTable.fromDatasets(datasets.filter(d => d.source === "test" || d.label.includes("[test]")))
     }
 
     public static fromDatasets(datasets: Dataset[]) {

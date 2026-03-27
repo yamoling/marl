@@ -2,16 +2,17 @@ import math
 import operator
 from dataclasses import dataclass
 from functools import reduce
-from typing import Literal, Optional, Sequence
+from typing import Optional, Sequence
 
 import torch
-from torch import distributions
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import MultiDiscreteSpace, MARLEnv
+from marlenv import MARLEnv, MultiDiscreteSpace
+from torch import distributions
 
 from marl.agents.qlearning.maic import MAICParameters
-from marl.models.nn import MAIC, QNetwork, RecurrentQNetwork, MAICNN
+from marl.models.nn import MAIC, MAICNN, QNetwork, RecurrentQNetwork
+
 from ..layers import NoisyLinear
 from ..utils import make_cnn
 from .generic import CNN, MLP
@@ -30,8 +31,8 @@ class QCNN(CNN, QNetwork):
             output = (output_shape,)
         else:
             output = output_shape
-        CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
         QNetwork.__init__(self, output_shape)
+        CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
 
 
 class QMLP(MLP, QNetwork):
@@ -100,8 +101,7 @@ RNN = RNNQMix
 class AtariCNN(QNetwork):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
-    def __init__(self, input_shape: tuple[int, ...], output_shape: int):
-        assert len(input_shape) == 3
+    def __init__(self, input_shape: tuple[int, int, int], output_shape: int):
         super().__init__(output_shape)
         filters = [32, 64, 64]
         kernels = [8, 4, 3]
@@ -149,7 +149,7 @@ class IndependentCNN(QNetwork):
             n_outputs += 1
         linears = []
         for _ in range(n_agents):
-            layers = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
+            layers: list[torch.nn.Module] = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
             for i in range(len(mlp_sizes) - 1):
                 layers.append(torch.nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))
                 layers.append(torch.nn.ReLU())
@@ -160,24 +160,23 @@ class IndependentCNN(QNetwork):
             linears.append(torch.nn.Sequential(*layers))
         self.linears = torch.nn.ModuleList(linears)
 
-    def to(self, device: str | int | torch.device | Literal["auto"], dtype: torch.dtype | None = None, non_blocking=True):
-        self.linears.to(device, dtype, non_blocking)
-        self.cnn.to(device, dtype, non_blocking=True)
-        self._device = device
-        return self
-
     @classmethod
     def from_env(
-        cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64), duelling: bool = True, mlp_noisy: bool = False
+        cls,
+        env: MARLEnv[MultiDiscreteSpace],
+        mlp_sizes: tuple[int, ...] = (64, 64),
+        duelling: bool = True,
+        mlp_noisy: bool = False,
     ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = env.n_actions
         assert len(env.observation_shape) == 3
+        c, h, w = env.observation_shape
         return IndependentCNN(
             env.n_agents,
-            env.observation_shape,
+            (c, h, w),
             env.extras_shape[0],
             output_shape,
             mlp_sizes,
@@ -234,7 +233,8 @@ class RCNN(RecurrentQNetwork):
         else:
             output_shape = env.n_actions
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extras_shape[0], output_shape)
+        c, h, w = env.observation_shape
+        return cls((c, h, w), env.extras_shape[0], output_shape)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -357,7 +357,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # type: ignore
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -450,6 +450,7 @@ class MAICNetworkCNN(MAICNN):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # type: ignore
         assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
+        c, h, w = env.observation_shape
+        return cls((c, h, w), env.extras_shape, env.n_actions, args)

@@ -11,7 +11,7 @@ class Mixer(NN):
     n_agents: int
 
     def __init__(self, n_agents: int, n_objectives=1):
-        super().__init__(output_shape=n_objectives)
+        super().__init__()
         self.n_agents = n_agents
         if n_objectives == 1:
             self.agent_dim = -1
@@ -19,7 +19,7 @@ class Mixer(NN):
             self.agent_dim = -2
 
     @abstractmethod
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Mix the utiliy values of the agents.
 

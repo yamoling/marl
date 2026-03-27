@@ -14,10 +14,10 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    def __init__(self, output_shape: int | tuple[int, int]):
-        super().__init__(output_shape)
+    def __init__(self, output_shape: int | tuple[int] | tuple[int, int]):
+        super().__init__()
         match output_shape:
-            case int(n_actions):
+            case int(n_actions) | (n_actions,):
                 self.action_dim = -1
                 self.is_multi_objective = False
                 self.output_shape = (n_actions,)
@@ -31,7 +31,7 @@ class QNetwork(NN):
         """
         Compute the Q-values (one per agent, per action and per objective).
         """
-        obs_tensor, extra_tensor = obs.as_tensors(self._device)
+        obs_tensor, extra_tensor = obs.as_tensors(self.device)
         qvalues = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         return qvalues.squeeze(0)
 
@@ -67,7 +67,7 @@ class QNetwork(NN):
 class RecurrentQNetwork(QNetwork, RecurrentNN):
     def __init__(self, output_shape: int | tuple[int, int]):
         QNetwork.__init__(self, output_shape)
-        RecurrentNN.__init__(self, output_shape)
+        RecurrentNN.__init__(self)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function. Does not update the hidden states."""
