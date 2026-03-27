@@ -337,10 +337,9 @@ def main(args: Arguments):
             .time_limit(1000)
             .build()
         )
-        # env, test_env = make_smac("8m_vs_9m")
         # trainer = make_mappo(env, mixing=None)
-        # trainer = make_dqn(env, mixing="qmix", gamma=0.95, memory=None)
-        trainer = make_option_critic(env)
+        trainer = make_dqn(env, mixing="qplex", gamma=0.95)
+        # trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,

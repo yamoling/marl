@@ -31,7 +31,7 @@ class QNetwork(NN):
         """
         Compute the Q-values (one per agent, per action and per objective).
         """
-        obs_tensor, extra_tensor = obs.as_tensors(self._device)
+        obs_tensor, extra_tensor = obs.as_tensors(self.device)
         qvalues = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         return qvalues.squeeze(0)
 
