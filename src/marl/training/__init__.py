@@ -11,7 +11,6 @@ from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 __all__ = [
     "NoTrain",
     "DQN",
-    "PPO",
     "MAPPO",
     "DDPGTrainer",
     "CNetTrainer",

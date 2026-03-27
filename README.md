@@ -39,8 +39,6 @@ $ cd ../..      # Go back to the root of the project
 $ python src/serve.py
 ```
 
-
-
 To serve the files in development mode, you need two terminals.
 ```bash
 $ cd src/ui && npm run dev  # In one terminal
@@ -69,10 +67,12 @@ This module contains neural network related classes and functions as well as a *
 
 All classes inherit from the `NN` abstract class that enables each device management, randomization, and saving/loading.
 
+### Web UI
+The web UI is implemted with Vue in the frontend and Flask in the backend. The backend is located in the `src/ui` folder.
+
+
 ## Algorithm Organization
 Each training algorithm has its own dedicated file in the `src/marl/training` module. This module also contains components that provide intrinsic rewards such as RandomNetworkDistillation.
-
-### Implemented Algorithms
 
 | Algorithm | Multi-Objective | Status | Notes |
 |-----------|:---:|---|---|
@@ -90,6 +90,5 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | RND | ✓ | ? | Random Network Distillation |
 | ICM | ✓ | ? | Intrinsic Curiosity Module |
 | AlphaZero/MCTS | ✗ | ? | Tree search-based |
-
 
 

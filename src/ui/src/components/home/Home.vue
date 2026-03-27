@@ -158,15 +158,14 @@ const selectedQvalues = ref(["agent0-qvalue0"]);
 
 const metrics = computed(() => {
     const res = new Set<string>();
-    resultsStore.results.forEach((r) => r.datasets.forEach(ds => res.add(ds.label)));
+    resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
     res.add("qvalues");
     return res;
 });
 
 const qvalues = computed(() => {
     const res = new Set<string>();
-    //resultsStore.results.forEach((r) => r.qvalue_ds.forEach(rds => res.add(rds.label)));
-    resultsStore.results.forEach((r) => r.qvaluesDs.forEach(qDs => res.add(qDs.label)));
+    resultsStore.results.forEach((r) => r.qvalueLabels().forEach(label => res.add(label)));
     return res;
 });
 
@@ -189,28 +188,31 @@ const qvaluesSelected = computed(() => {
 const qvaluesDatasets = computed(() => {
     // Later use in the Qvalues component
     const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, _k) => {
-        r.qvaluesDs.forEach(qDs => {
-            if (!selectedQvalues.value.includes(qDs.label)) return
-            if (!res.has(qDs.logdir)) {
-                res.set(qDs.logdir, []);
-            }
-            res.get(qDs.logdir)?.push(qDs);
-        })
+    resultsStore.results.forEach((r, logdir) => {
+        const qvalueDatasets = [] as Dataset[];
+        selectedQvalues.value.forEach((label) => {
+            qvalueDatasets.push(...r.getQvalueDatasets(label));
+        });
+        if (qvalueDatasets.length > 0) {
+            res.set(logdir, qvalueDatasets);
+        }
     });
     return res;
 });
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, _k) => {
-        r.datasets.forEach(ds => {
-            if (!selectedMetrics.value.includes(ds.label)) return
-            if (!res.has(ds.label)) {
-                res.set(ds.label, []);
-            }
-            res.get(ds.label)?.push(ds);
-        })
+    selectedMetrics.value.forEach((label) => {
+        if (label === "qvalues") {
+            return;
+        }
+        const grouped = [] as Dataset[];
+        resultsStore.results.forEach((r) => {
+            grouped.push(...r.getMetricDatasets(label));
+        });
+        if (grouped.length > 0) {
+            res.set(label, grouped);
+        }
     });
     return res;
 });

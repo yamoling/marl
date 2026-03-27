@@ -90,7 +90,7 @@ onMounted(async () => {
     const resultsStore = useResultsStore();
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
     metrics.value = runResults.value.reduce((acc, r) => {
-        r.datasets.forEach(d => acc.add(d.label));
+        r.metricLabels().forEach(label => acc.add(label));
         return acc;
     }, new Set<string>());
     datasets.value = runResults.value.map(r => {
