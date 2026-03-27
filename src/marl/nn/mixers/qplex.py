@@ -1,141 +1,245 @@
-from marlenv import MARLEnv, MultiDiscreteSpace
-import torch
 from dataclasses import dataclass
-from torch import nn
+
+import numpy as np
+import torch
+import torch.nn as nn
+from marlenv import MARLEnv, MultiDiscreteSpace
+
 from marl.models.nn import Mixer
-from marl.nn.layers import AbsLayer
 
 
-@dataclass
+class DMAQSIWeight(nn.Module):
+	"""State-action dependent weighting used in the QPLEX advantage stream."""
+
+	def __init__(
+		self,
+		state_dim: int,
+		n_agents: int,
+		n_actions: int,
+		num_kernel: int = 10,
+		adv_hypernet_layers: int = 3,
+		adv_hypernet_embed: int = 64,
+	):
+		super().__init__()
+		self.state_dim = state_dim
+		self.n_agents = n_agents
+		self.n_actions = n_actions
+		self.action_dim = n_agents * n_actions
+		self.state_action_dim = self.state_dim + self.action_dim
+		self.num_kernel = num_kernel
+
+		self.key_extractors = nn.ModuleList()
+		self.agent_extractors = nn.ModuleList()
+		self.action_extractors = nn.ModuleList()
+		for _ in range(num_kernel):
+			self.key_extractors.append(self._make_head(self.state_dim, 1, adv_hypernet_layers, adv_hypernet_embed))
+			self.agent_extractors.append(
+				self._make_head(self.state_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed)
+			)
+			self.action_extractors.append(
+				self._make_head(self.state_action_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed)
+			)
+
+	@staticmethod
+	def _make_head(in_features: int, out_features: int, n_layers: int, hidden_size: int) -> nn.Module:
+		if n_layers == 1:
+			return nn.Linear(in_features, out_features)
+		if n_layers == 2:
+			return nn.Sequential(
+				nn.Linear(in_features, hidden_size),
+				nn.ReLU(),
+				nn.Linear(hidden_size, out_features),
+			)
+		if n_layers == 3:
+			return nn.Sequential(
+				nn.Linear(in_features, hidden_size),
+				nn.ReLU(),
+				nn.Linear(hidden_size, hidden_size),
+				nn.ReLU(),
+				nn.Linear(hidden_size, out_features),
+			)
+		raise ValueError(f"Unsupported adv_hypernet_layers={n_layers}. Expected 1, 2 or 3.")
+
+	def forward(self, states: torch.Tensor, one_hot_actions: torch.Tensor) -> torch.Tensor:
+		states = states.reshape(-1, self.state_dim)
+		one_hot_actions = one_hot_actions.reshape(-1, self.action_dim)
+		state_action = torch.cat([states, one_hot_actions], dim=-1)
+
+		head_weights = []
+		for key_ext, agent_ext, action_ext in zip(self.key_extractors, self.agent_extractors, self.action_extractors):
+			x_key = torch.abs(key_ext(states)).repeat(1, self.n_agents) + 1e-10
+			x_agent = torch.sigmoid(agent_ext(states))
+			x_action = torch.sigmoid(action_ext(state_action))
+			head_weights.append(x_key * x_agent * x_action)
+
+		# Sum kernels to get per-agent weighting term in the advantage stream.
+		return torch.stack(head_weights, dim=1).sum(dim=1)
+
+
+@dataclass(unsafe_hash=True)
 class QPlex(Mixer):
-    """Duplex dueling"""
+	"""
+	QPLEX mixer close to the official implementation in `qplex_official`.
 
-    def __init__(
-        self,
-        n_agents: int,
-        n_actions: int,
-        n_heads: int,
-        state_size: int,
-        adv_hypernet_embed: int,
-        weighted_head: bool = True,
-    ):
-        super().__init__(n_agents)
-        self.n_heads = n_heads
-        self.n_actions = n_actions
-        self.state_size = state_size
-        self.weighted_head = weighted_head
-        self.key_extractors = nn.ModuleList()
-        self.agents_extractors = nn.ModuleList()
-        self.action_extractors = nn.ModuleList()
+	This follows the duplex dueling decomposition:
+	- utility stream: transformed per-agent utilities
+	- advantage stream: weighted advantage wrt per-agent greedy values
+	"""
 
-        for _ in range(n_heads):  # multi-head attention
-            self.key_extractors.append(
-                nn.Sequential(
-                    nn.Linear(state_size, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, 1),
-                    AbsLayer(),
-                )
-            )  # key
-            self.agents_extractors.append(
-                nn.Sequential(
-                    nn.Linear(state_size, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, n_agents),
-                    nn.Sigmoid(),
-                )
-            )  # agent
-            self.action_extractors.append(
-                nn.Sequential(
-                    nn.Linear(state_size + n_agents * n_actions, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, adv_hypernet_embed),
-                    nn.ReLU(),
-                    nn.Linear(adv_hypernet_embed, n_agents),
-                    nn.Sigmoid(),
-                )
-            )  # action
-        self.weights_generator = nn.Sequential(
-            nn.Linear(state_size, adv_hypernet_embed),
-            nn.ReLU(),
-            nn.Linear(adv_hypernet_embed, n_agents),
-            AbsLayer(),
-        )
-        self.V = nn.Sequential(
-            nn.Linear(state_size, adv_hypernet_embed),
-            nn.ReLU(),
-            nn.Linear(adv_hypernet_embed, n_agents),
-        )
+	def __init__(
+		self,
+		state_shape: int | tuple[int, ...],
+		n_agents: int,
+		n_actions: int,
+		mixing_embed_dim: int = 32,
+		hypernet_embed: int = 64,
+		num_kernel: int = 10,
+		adv_hypernet_layers: int = 3,
+		adv_hypernet_embed: int = 64,
+		is_minus_one: bool = True,
+		weighted_head: bool = True,
+		is_stop_gradient: bool = True,
+		n_objectives: int = 1,
+	):
+		super().__init__(n_agents, n_objectives)
 
-    def __hash__(self) -> int:
-        return hash(self.name)
+		self.state_shape = state_shape
+		self.n_agents = n_agents
+		self.n_actions = n_actions
+		self.n_objectives = n_objectives
+		self.state_dim = int(np.prod(state_shape))
+		self.embed_dim = mixing_embed_dim
+		self.is_minus_one = is_minus_one
+		self.weighted_head = weighted_head
+		self.is_stop_gradient = is_stop_gradient
 
-    def transformation(self, states: torch.Tensor, qvalues: torch.Tensor, values: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        weights = self.weights_generator(states) + 1e-10
-        states_value = self.V(states)
-        qvalues = qvalues * weights + states_value
-        values = values * weights + states_value
-        advantages = qvalues - values
-        return values, advantages
+		self.hyper_w_final = nn.Sequential(
+			nn.Linear(self.state_dim, hypernet_embed),
+			nn.ReLU(),
+			nn.Linear(hypernet_embed, self.n_agents),
+		)
+		self.V = nn.Sequential(
+			nn.Linear(self.state_dim, hypernet_embed),
+			nn.ReLU(),
+			nn.Linear(hypernet_embed, self.n_agents),
+		)
+		self.si_weight = DMAQSIWeight(
+			state_dim=self.state_dim,
+			n_agents=self.n_agents,
+			n_actions=self.n_actions,
+			num_kernel=num_kernel,
+			adv_hypernet_layers=adv_hypernet_layers,
+			adv_hypernet_embed=adv_hypernet_embed,
+		)
 
-    def dueling_mixing(
-        self,
-        advantages: torch.Tensor,
-        values: torch.Tensor,
-        states: torch.Tensor,
-        one_hot_actions: torch.Tensor,
-    ) -> torch.Tensor:
-        state_actions = torch.cat([states, one_hot_actions], dim=-1)
-        # Compute attention weights
-        agents = torch.stack([k_ext(states) for k_ext in self.agents_extractors], dim=1)
-        actions = torch.stack([sel_ext(state_actions) for sel_ext in self.action_extractors], dim=1)
-        keys = torch.stack([k_ext(states) for k_ext in self.key_extractors], dim=1)
-        keys = keys.repeat(1, 1, self.n_agents)
-        attention = keys * agents * actions
-        attention = torch.sum(attention, dim=1)  # sum over heads
-        attention = attention - 1  # Don't know why they do this but they do it in the original code
+	def _calc_v(self, agent_qs: torch.Tensor) -> torch.Tensor:
+		return torch.sum(agent_qs, dim=-1)
 
-        # Weight the advantage with the attention
-        advantage = advantages * attention
-        a_tot = torch.sum(advantage, dim=-1)
-        v_tot = torch.sum(values, dim=-1)
-        q_tot = v_tot + a_tot
-        return q_tot
+	def _calc_adv(
+		self,
+		agent_qs: torch.Tensor,
+		max_q_i: torch.Tensor,
+		states: torch.Tensor,
+		one_hot_actions: torch.Tensor,
+	) -> torch.Tensor:
+		adv_q = agent_qs - max_q_i
+		if self.is_stop_gradient:
+			adv_q = adv_q.detach()
 
-    def forward(
-        self,
-        qvalues: torch.Tensor,
-        states: torch.Tensor,
-        *,
-        one_hot_actions: torch.Tensor,
-        all_qvalues: torch.Tensor,
-        **kwargs,
-    ) -> torch.Tensor:
-        *dims, _ = qvalues.shape
-        states = states.reshape(-1, self.state_size)
-        one_hot_actions = one_hot_actions.view(-1, self.n_actions * self.n_agents)
-        qvalues = qvalues.view(-1, self.n_agents)
+		adv_w_final = self.si_weight(states, one_hot_actions).view(-1, self.n_agents)
+		if self.is_minus_one:
+			return torch.sum(adv_q * (adv_w_final - 1.0), dim=-1)
+		return torch.sum(adv_q * adv_w_final, dim=-1)
 
-        # Value of a state is the maximal qvalue
-        values = all_qvalues.max(dim=-1).values
-        values = values.view(-1, self.n_agents)
+	def _mix_single(
+		self,
+		qvalues: torch.Tensor,
+		states: torch.Tensor,
+		one_hot_actions: torch.Tensor,
+		all_qvalues: torch.Tensor,
+		available_actions: torch.Tensor | None,
+	) -> torch.Tensor:
+		states_flat = states.reshape(-1, self.state_dim)
+		agent_qs = qvalues.reshape(-1, self.n_agents)
 
-        # Weighted heads
-        if self.weighted_head:
-            values, advantages = self.transformation(states, qvalues, values)
-        else:
-            advantages = qvalues - values
-        # I don't know why we need to detach the advantages here but they do it in the original code
-        # and it does not work without it.
-        advantages = advantages.detach()
-        q_tot = self.dueling_mixing(advantages, values, states, one_hot_actions)
-        return q_tot.view(*dims)
+		# Compute per-agent greedy baseline max_a Q_i(s, a).
+		q_for_max = all_qvalues
+		if available_actions is not None:
+			q_for_max = q_for_max.masked_fill(~available_actions, -torch.inf)
+		max_q_i = q_for_max.max(dim=-1).values.reshape(-1, self.n_agents)
 
-    @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], adv_hypernet_embed: int = 64, transformation=True):
-        assert len(env.state_shape) == 1
-        return QPlex(env.n_agents, env.n_actions, env.state_shape[0], env.state_shape[0], adv_hypernet_embed, transformation)
+		w_final = torch.abs(self.hyper_w_final(states_flat)).view(-1, self.n_agents) + 1e-10
+		v = self.V(states_flat).view(-1, self.n_agents)
+
+		if self.weighted_head:
+			agent_qs = w_final * agent_qs + v
+			max_q_i = w_final * max_q_i + v
+
+		v_tot = self._calc_v(agent_qs)
+		adv_tot = self._calc_adv(agent_qs, max_q_i, states_flat, one_hot_actions)
+		return v_tot + adv_tot
+
+	def forward(
+		self,
+		qvalues: torch.Tensor,
+		states: torch.Tensor,
+		*args,
+		one_hot_actions: torch.Tensor | None = None,
+		all_qvalues: torch.Tensor | None = None,
+		available_actions: torch.Tensor | None = None,
+		**kwargs,
+	) -> torch.Tensor:
+		del args, kwargs
+		if one_hot_actions is None:
+			raise ValueError("QPlex requires `one_hot_actions` for the advantage stream.")
+		if all_qvalues is None:
+			raise ValueError("QPlex requires `all_qvalues` to compute per-agent max Q-values.")
+
+		if self.n_objectives == 1:
+			mixed = self._mix_single(qvalues, states, one_hot_actions, all_qvalues, available_actions)
+			return mixed.view(*qvalues.shape[:-1])
+
+		outputs = []
+		base_shape = qvalues.shape[:-2]
+		for objective in range(self.n_objectives):
+			q_obj = qvalues[..., objective]
+			all_q_obj = all_qvalues[..., objective]
+			mixed_obj = self._mix_single(q_obj, states, one_hot_actions, all_q_obj, available_actions)
+			outputs.append(mixed_obj.view(*base_shape))
+		return torch.stack(outputs, dim=-1)
+
+	@classmethod
+	def from_env(
+		cls,
+		env: MARLEnv[MultiDiscreteSpace],
+		mixing_embed_dim: int = 32,
+		hypernet_embed: int = 64,
+		num_kernel: int = 10,
+		adv_hypernet_layers: int = 3,
+		adv_hypernet_embed: int = 64,
+		is_minus_one: bool = True,
+		weighted_head: bool = True,
+		is_stop_gradient: bool = True,
+	):
+		return cls(
+			state_shape=env.state_shape,
+			n_agents=env.n_agents,
+			n_actions=env.n_actions,
+			mixing_embed_dim=mixing_embed_dim,
+			hypernet_embed=hypernet_embed,
+			num_kernel=num_kernel,
+			adv_hypernet_layers=adv_hypernet_layers,
+			adv_hypernet_embed=adv_hypernet_embed,
+			is_minus_one=is_minus_one,
+			weighted_head=weighted_head,
+			is_stop_gradient=is_stop_gradient,
+			n_objectives=env.reward_space.size,
+		)
+
+	def save(self, to_directory: str):
+		filename = f"{to_directory}/qplex.weights"
+		torch.save(self.state_dict(), filename)
+
+	def load(self, from_directory: str):
+		filename = f"{from_directory}/qplex.weights"
+		self.load_state_dict(torch.load(filename, weights_only=True))

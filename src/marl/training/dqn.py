@@ -121,11 +121,16 @@ class DQN[B: Batch](Trainer):
             indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
             next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
             if self.target_mixer is not None:
+                next_one_hot_actions = torch.nn.functional.one_hot(
+                    indices.squeeze(-1),
+                    num_classes=next_qvalues.shape[-1],
+                ).to(next_qvalues.dtype)
                 next_values = self.target_mixer.forward(
                     next_values,
                     batch.next_states,
-                    one_hot_actions=batch.one_hot_actions,
+                    one_hot_actions=next_one_hot_actions,
                     all_qvalues=next_qvalues,
+                    available_actions=batch.next_available_actions,
                 )
             return next_values
 
@@ -146,7 +151,12 @@ class DQN[B: Batch](Trainer):
         qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(
-                qvalues, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues, all_qvalues=all_qvalues
+                qvalues,
+                batch.states,
+                one_hot_actions=batch.one_hot_actions,
+                next_qvalues=qvalues,
+                all_qvalues=all_qvalues,
+                available_actions=batch.available_actions,
             )
 
         # Qtargets computation
