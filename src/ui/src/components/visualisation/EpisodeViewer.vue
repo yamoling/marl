@@ -72,6 +72,7 @@ defineProps<{
 
 const nAgents = computed(() => (episode.value?.episode.actions[0].length) || 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
+const maxStep = computed(() => Math.max(0, episodeLength.value));
 const currentFrame = computed(() => episode.value?.frames?.at(currentStep.value) || '');
 
 onMounted(() => {
@@ -91,17 +92,17 @@ onMounted(() => {
 });
 
 function step(amount: number) {
-    currentStep.value = Math.max(0, Math.min(episodeLength.value, currentStep.value + amount));
+    currentStep.value = Math.max(0, Math.min(maxStep.value, currentStep.value + amount));
 }
 
 function changeStep(event: KeyboardEvent) {
     const target = event.target as HTMLInputElement;
     if (target.value == "") {
-        currentStep.value = currentStep.value;
+        currentStep.value = Math.max(0, Math.min(maxStep.value, currentStep.value));
     } else {
         const newValue = parseInt(target.value);
         if (!isNaN(newValue)) {
-            currentStep.value = newValue;
+            currentStep.value = Math.max(0, Math.min(maxStep.value, newValue));
         }
     }
 }
@@ -113,12 +114,10 @@ async function viewEpisode(episodeDirectory: string) {
     const replay = await replayStore.getEpisode(episodeDirectory);
     episode.value = replay;
     currentStep.value = 0;
-    if (episode.value.qvalues != null && episode.value.qvalues.length > 0) {
-        const allQvalues = episode.value.qvalues.flat(4);
-        const minQValue = Math.min(...allQvalues);
-        const maxQValue = Math.max(...allQvalues);
-        rainbow.setNumberRange(minQValue, maxQValue);
-    }
+    const allDecisionData = episode.value.decision_data.data.flat(4);
+    const min = Math.min(...allDecisionData);
+    const max = Math.max(...allDecisionData);
+    rainbow.setNumberRange(min, max);
     loading.value = false;
 }
 

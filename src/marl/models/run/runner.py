@@ -3,7 +3,8 @@ import os
 from copy import deepcopy
 from pprint import pprint
 from typing import Literal, Optional
-
+import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
@@ -15,6 +16,7 @@ from marl.utils import get_device
 from ..agent import Agent
 from ..trainer import Trainer
 from .run import Run
+from ..detailed_action import DetailedAction
 
 
 class Runner[A: Space](Run):
@@ -159,41 +161,12 @@ class Runner[A: Space](Run):
         episodes = self.tests(time_step, render)
         self._logger.log_test_episodes(episodes, time_step)
 
-    def perform_one_test(self, time_step: int, test_num: int, render: bool = False):
-        """
-        Perform a single test episode.
-
-        The test can be seeded for reproducibility purposes, for instance when the policy or the environment is stochastic.
-        """
-        self._agent.set_testing()
-        seed = self.get_test_seed(time_step, test_num)
-        self._test_env.seed(seed)
-        self._agent.seed(seed)
-
-        self._agent.new_episode()
-        obs, state = self._test_env.reset()
-        episode = Episode.new(obs, state)
-        episode.add_metrics({"initial_value": self._trainer.value(obs, state)})
-        i = 0
-        while not episode.is_finished:
-            i += 1
-            if render:
-                self._test_env.render()
-            action = self._agent.choose_action(obs)
-            step = self._test_env.step(action)
-            transition = Transition.from_step(obs, state, action, step)
-            episode.add(transition)
-            obs = step.obs
-            state = step.state
-        if render:
-            self._test_env.render()
-        return episode
-
     def tests(self, time_step: int, render: bool = False):
         """Test the agent"""
         episodes = list[Episode]()
         for test_num in tqdm(range(self.n_tests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
-            episodes.append(self.perform_one_test(time_step, test_num, render))
+            seed = self.get_test_seed(time_step, test_num)
+            episodes.append(seeded_rollout(self._test_env, self._agent, seed, render, compute_frames=False)[0])
         if not self._quiet:
             metrics = episodes[0].metrics.keys()
             avg_metrics = {}
@@ -224,3 +197,32 @@ class Runner[A: Space](Run):
     def agent_at(self, time_step: int) -> Agent:
         self._agent.load(self.get_saved_algo_dir(time_step))
         return self._agent
+
+
+def seeded_rollout(env: MARLEnv, agent: Agent, seed: int, render=False, compute_frames=False):
+    agent.set_testing()
+    env.seed(seed)
+    agent.seed(seed)
+
+    agent.new_episode()
+    obs, state = env.reset()
+    episode = Episode.new(obs, state)
+    frames = list[npt.NDArray[np.uint8]]()
+    action_details = list[DetailedAction]()
+    while not episode.is_finished:
+        if render:
+            env.render()
+        if compute_frames:
+            frames.append(env.get_image())
+        action = agent.choose_action_with_details(obs)
+        action_details.append(action)
+        step = env.step(action.action)
+        transition = Transition.from_step(obs, state, action.action, step)
+        episode.add(transition)
+        obs = step.obs
+        state = step.state
+    if render:
+        env.render()
+    if compute_frames:
+        frames.append(env.get_image())
+    return episode, frames, action_details

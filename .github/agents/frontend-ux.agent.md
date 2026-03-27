@@ -22,7 +22,7 @@ Your users are Reinforcement Learning experts, and the software is a website whe
 2. Map impacted Vue components, stores, models, and styles; keep architecture coherent.
 3. Implement with strict TypeScript safety and clear state flow.
 4. Responsiveness is not a primary focus.
-5. Run relevant checks (type-check/build/tests) and report concrete outcomes.
+5. Run relevant checks (type-check) and correct them.
 
 ## UX Quality Checklist
 - Interaction clarity: primary actions are obvious and low-friction.

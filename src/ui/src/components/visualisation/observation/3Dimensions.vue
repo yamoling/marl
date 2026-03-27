@@ -75,7 +75,12 @@ const props = defineProps<{
 }>();
 
 const rainbow = new Rainbow()
-rainbow.setNumberRange(Math.min(...props.extras), Math.max(...props.extras));
+const min = Math.min(...props.extras);
+let max = Math.max(...props.extras);
+if (min == max) {
+    max++;
+}
+rainbow.setNumberRange(min, max);
 rainbow.setSpectrum("blue", "white", "red");
 const rows = computed(() => {
     let i = 0;

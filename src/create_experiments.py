@@ -296,7 +296,7 @@ def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "v
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer type: {other}")
-    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=32, n_epochs=20)
+    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=16, n_epochs=5)
 
 
 def make_lle():
@@ -337,8 +337,8 @@ def main(args: Arguments):
             .time_limit(1000)
             .build()
         )
-        # trainer = make_mappo(env, mixing=None)
-        trainer = make_dqn(env, mixing="qplex", gamma=0.95)
+        trainer = make_mappo(env, mixing=None)
+        # trainer = make_dqn(env, mixing="vdn", gamma=0.95)
         # trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,

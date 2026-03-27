@@ -19,7 +19,7 @@ class Mixer(NN):
             self.agent_dim = -2
 
     @abstractmethod
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Mix the utiliy values of the agents.
 

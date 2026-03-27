@@ -3,7 +3,7 @@ from .ddpg import DDPGTrainer
 from .dqn import DQN
 from .intrinsic_reward import RND
 from .maic import MAICTrainer
-from .mappo import MAPPO
+from .ppo import MAPPO
 from .no_train import NoTrain
 from .qlearning import QLearning
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater

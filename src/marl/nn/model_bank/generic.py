@@ -107,9 +107,9 @@ class CNN(NN):
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
         bs = math.prod(dims)
-        obs = obs.view(bs, channels, height, width)
+        obs = obs.reshape(bs, channels, height, width)
         features = self.cnn.forward(obs)
-        extras = extras.view(bs, self.extras_size)
+        extras = extras.reshape(bs, self.extras_size)
         res = self.linear.forward(features, extras)
         return res.view(*dims, *self.output_shape)
 

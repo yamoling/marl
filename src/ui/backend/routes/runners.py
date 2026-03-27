@@ -1,22 +1,24 @@
-from . import app
-from . import state
 from http import HTTPStatus
-from flask import request
+from fastapi import APIRouter, Request
+from fastapi.responses import Response
+from . import state
+
+router = APIRouter()
 
 
-@app.route("/runner/port/<path:rundir>", methods=["GET"])
+@router.get("/runner/port/{rundir:path}")
 def get_runner_port(rundir: str):
     port = state.get_runner_port(rundir)
     if port is None:
-        return "", HTTPStatus.NOT_FOUND
-    return str(port)
+        return Response(content="", status_code=HTTPStatus.NOT_FOUND)
+    return Response(content=str(port))
 
 
-@app.route("/runner/new/<path:logdir>", methods=["POST"])
-def new_run(logdir: str):
-    data = request.json
+@router.post("/runner/new/{logdir:path}")
+async def new_run(logdir: str, request: Request):
+    data = await request.json()
     if data is None:
-        return ("", HTTPStatus.BAD_REQUEST)
+        return Response(content="", status_code=HTTPStatus.BAD_REQUEST)
     print(data)
     state.new_runs(logdir, data["nRuns"], data["nTests"], data["seed"])
-    return ""
+    return Response(content="")

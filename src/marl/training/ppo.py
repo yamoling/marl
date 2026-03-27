@@ -1,5 +1,4 @@
 import os
-from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from typing import Any, Literal
 
@@ -103,8 +102,10 @@ class MAPPO[B: Batch](Trainer):
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
 
-        old_ac = deepcopy(self.actor_critic)
         with torch.no_grad():
+            old_dist = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
+            old_log_probs = old_dist.log_prob(batch.actions)
+            old_log_probs[batch.masked_indices] = 0.0
             returns, advantages = self._compute_training_data(batch)
         if self.mixer is not None:
             # For IPPO, the advantages are already computed agent-wise.
@@ -121,10 +122,7 @@ class MAPPO[B: Batch](Trainer):
                 indices = (indices,)
             mini_returns = returns[*indices]
             mini_advantages = advantages[*indices, :]
-            with torch.no_grad():
-                dist = old_ac.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
-                mini_log_probs = dist.log_prob(minibatch.actions)
-                mini_log_probs[minibatch.masked_indices] = 0.0
+            mini_log_probs = old_log_probs[indices]
 
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper

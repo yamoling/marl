@@ -2,49 +2,52 @@ from http import HTTPStatus
 
 import cv2
 import orjson
-from flask import request, Response
+from fastapi import APIRouter, Request
+from fastapi.responses import PlainTextResponse, Response
 
 import marl
 from marl.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
 
-from . import app, state
+from . import state
+
+router = APIRouter()
 
 
-@app.route("/experiment/replay/<path:path>")
+@router.get("/experiment/replay/{path:path}")
 def replay(path: str):
     try:
         replay_episode = state.replay_episode(path)
         serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
-        return Response(serialized, mimetype="application/json", status=HTTPStatus.OK)
+        return Response(serialized, media_type="application/json", status_code=HTTPStatus.OK)
     except ValueError as e:
-        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
+        return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
-@app.route("/experiment/list")
+@router.get("/experiment/list")
 def list_experiments():
     try:
         return state.list_experiments()
     except ExperimentVersionMismatch as e:
         print(e)
-        return str(e), HTTPStatus.INTERNAL_SERVER_ERROR
+        return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
-@app.route("/experiment/is_running/<path:logdir>")
+@router.get("/experiment/is_running/{logdir:path}")
 def list_running_experiments(logdir: str):
     try:
         exp = state.get_experiment(logdir)
-        return orjson.dumps(exp.is_running)
+        return Response(orjson.dumps(exp.is_running), media_type="application/json")
     except (ModuleNotFoundError, AttributeError):
-        return orjson.dumps(False)
+        return Response(orjson.dumps(False), media_type="application/json")
 
 
-@app.route("/experiment/<path:logdir>", methods=["GET"])
+@router.get("/experiment/{logdir:path}")
 def get_experiment(logdir: str):
-    return orjson.dumps(marl.Experiment.get_parameters(logdir))
+    return Response(orjson.dumps(marl.Experiment.get_parameters(logdir)), media_type="application/json")
 
 
-@app.route("/experiment/load/<path:logdir>", methods=["POST"])
+@router.post("/experiment/load/{logdir:path}")
 def load_experiment(logdir: str):
     """
     Load an experiment into the state.
@@ -52,20 +55,20 @@ def load_experiment(logdir: str):
     replay an episode in the future.
     """
     state.load_experiment(logdir)
-    return ("", HTTPStatus.NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@app.route("/experiment/load/<path:logdir>", methods=["DELETE"])
+@router.delete("/experiment/load/{logdir:path}")
 def unload_experiment(logdir: str):
     state.unload_experiment(logdir)
-    return ("", HTTPStatus.NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@app.route("/experiment/rename", methods=["POST"])
-def rename_experiment():
-    json_data = request.json
+@router.post("/experiment/rename")
+async def rename_experiment(request: Request):
+    json_data = await request.json()
     if json_data is None:
-        return ("", HTTPStatus.BAD_REQUEST)
+        return Response(status_code=HTTPStatus.BAD_REQUEST)
     logdir = json_data["logdir"]
     new_logdir = json_data["newLogdir"]
     exp = state.get_experiment(logdir)
@@ -74,25 +77,25 @@ def rename_experiment():
     state.unload_experiment(logdir)
     state.load_experiment(new_logdir)
     # exp.delete()
-    return ("", HTTPStatus.NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@app.route("/experiment/delete/<path:logdir>", methods=["DELETE"])
+@router.delete("/experiment/delete/{logdir:path}")
 def delete_experiment(logdir: str):
     try:
         exp = state.get_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
     except FileNotFoundError as e:
-        return str(e), HTTPStatus.NOT_FOUND
+        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
     except AttributeError:  # From version mismatch, for instance
         import shutil
 
         shutil.rmtree(logdir)
-    return ("", HTTPStatus.NO_CONTENT)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
-@app.route("/experiment/image/<seed>/<path:logdir>")
+@router.get("/experiment/image/{seed}/{logdir:path}")
 def get_env_image(seed: str, logdir: str):
     exp = state.get_experiment(logdir)
     exp.env.seed(int(seed))
@@ -102,11 +105,11 @@ def get_env_image(seed: str, logdir: str):
     return encode_b64_image(image)
 
 
-@app.route("/experiment/test-on-other-env", methods=["POST"])
-def test_on_other_env():
-    json_data = request.json
+@router.post("/experiment/test-on-other-env")
+async def test_on_other_env(request: Request):
+    json_data = await request.json()
     if json_data is None:
-        return ("", HTTPStatus.BAD_REQUEST)
+        return Response(status_code=HTTPStatus.BAD_REQUEST)
     logdir = json_data["logdir"]
     new_logdir = json_data["newLogdir"]
     env_logdir = json_data["envLogdir"]
@@ -121,4 +124,4 @@ def test_on_other_env():
     threading.Thread(target=start).start()
 
     # The parent just returns
-    return ""
+    return Response(content="")

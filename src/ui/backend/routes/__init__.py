@@ -1,6 +1,10 @@
 import os
-from flask import Flask
-from flask_cors import CORS
+import traceback
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+
 from ..server_state import ServerState
 
 state = ServerState()
@@ -20,24 +24,59 @@ if dist_dir == "" or not os.path.exists(dist_dir):
     raise RuntimeError("Could not find front end files to serve ! Make sure you have built them (cf: readme).")
 dist_dir = os.path.join(os.getcwd(), "src/ui/dist/")
 
-app = Flask(__name__, static_folder=dist_dir, static_url_path="")
-CORS(app)
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        # This prints the full stack trace to your terminal
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Internal Server Error", "detail": str(exc)},
+        )
+
+
+# Register API routers before declaring the SPA fallback route.
+from .experiments import router as experiment_router
+from .results import router as results_router
+from .runners import router as runner_router
+from .runs import router as runs_router
+
+app.include_router(experiment_router)
+app.include_router(runs_router)
+app.include_router(results_router)
+app.include_router(runner_router)
 
 
 def run(port: int, debug=False):
-    # Required to import these files without using them to register the flask routes.
-    from . import runners
-    from . import results
-    from . import experiments
-    from . import runs
+    import uvicorn
 
     try:
-        app.run(port=port, debug=debug)
+        uvicorn.run(app, host="0.0.0.0", port=port, reload=debug, log_level="debug")
     except KeyboardInterrupt:
         print("Shutting down server...")
         exit(0)
 
 
-@app.route("/")
+@app.get("/")
 def index():
-    return app.send_static_file("index.html")
+    return FileResponse(os.path.join(dist_dir, "index.html"))
+
+
+@app.get("/{path:path}")
+def spa_fallback(path: str):
+    target = os.path.join(dist_dir, path)
+    if os.path.isfile(target):
+        return FileResponse(target)
+    return FileResponse(os.path.join(dist_dir, "index.html"))

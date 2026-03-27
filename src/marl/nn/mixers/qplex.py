@@ -110,10 +110,10 @@ class QPlex(Mixer):
         self,
         qvalues: torch.Tensor,
         states: torch.Tensor,
+        *,
         one_hot_actions: torch.Tensor,
         all_qvalues: torch.Tensor,
-        *_args,
-        **_kwargs,
+        **kwargs,
     ) -> torch.Tensor:
         *dims, _ = qvalues.shape
         states = states.reshape(-1, self.state_size)

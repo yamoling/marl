@@ -15,13 +15,12 @@ export interface ReplayEpisode {
     metrics: {
         [key: string]: number
     },
-    qvalues?: number[][][][] | number[][][],
-    logits?: number[][][][] | number[][][],
-    probs?: number[][][][],
-    messages?: number[][][][],
-    received_messages?: number[][][],
-    init_qvalues?: number[][][],
     frames: string[]
+    decision_data: {
+        label: string
+        data: number[][][]
+    }
+
 }
 
 

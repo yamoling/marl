@@ -73,12 +73,7 @@
                                     {{ exp.env.name }}
                                 </td>
                                 <td>
-                                    <template v-if="exp.trainer.mixer">
-                                        {{ exp.trainer.mixer.name }}
-                                    </template>
-                                    <template v-else>
-                                        {{ exp.agent.name }}
-                                    </template>
+                                    {{ exp.trainer.name }}
                                 </td>
                                 <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
                                 </td>
@@ -151,7 +146,6 @@ const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 const contextMenu = ref({} as typeof ContextMenu);
-const runHover = ref({} as typeof RunHover)
 
 const selectedMetrics = ref(["score [train]"]);
 const selectedQvalues = ref(["agent0-qvalue0"]);
@@ -175,6 +169,10 @@ const experimentProgresses = computed(() => {
     experimentStore.experiments.forEach(exp => {
         const runs = runStore.runs.get(exp.logdir) ?? [];
         const nRuns = runs.length;
+        if (nRuns === 0) {
+            res[exp.logdir] = 0;
+            return;
+        }
         const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
         res[exp.logdir] = progress;
     });
@@ -237,15 +235,6 @@ function downloadDatasets(logdir: string) {
     }
 }
 
-
-function showHover(logdir: string) {
-    const runs = runStore.runs.get(logdir);
-    if (runs === undefined) {
-        alert("No such logdir to show");
-        return;
-    }
-    runHover.value.show(runs);
-}
 
 const emits = defineEmits<{
     (event: "experiment-selected", logdir: string): void

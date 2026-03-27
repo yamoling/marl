@@ -300,7 +300,7 @@ class Batch(ABC):
     @property
     def not_dones(self) -> torch.Tensor:
         """Whether the corresponding transition lead to a non-terminal state. True for "continued" states, False for terminal states."""
-        return ~self.dones 
+        return ~self.dones
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -314,7 +314,7 @@ class Batch(ABC):
     @cached_property
     def masked_indices(self) -> torch.Tensor:
         """Boolean masks for padded episodes. True at indices that are masked."""
-        return self.masks == 0 
+        return self.masks == 0
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property

@@ -68,7 +68,7 @@ This module contains neural network related classes and functions as well as a *
 All classes inherit from the `NN` abstract class that enables each device management, randomization, and saving/loading.
 
 ### Web UI
-The web UI is implemted with Vue in the frontend and Flask in the backend. The backend is located in the `src/ui` folder.
+The web UI is implemted with Vue in the frontend and FastAPI in the backend. The backend is located in the `src/ui` folder.
 
 
 ## Algorithm Organization

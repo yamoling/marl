@@ -78,15 +78,14 @@ function updateChartData() {
     // if (yScaleType.value == "Normalized") plotDatasets = normalizeDatasetsRowWise(plotDatasets);
     plotDatasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        // TODO: Add flag of combobox: Agent-hue or value-hue
+        // Labels typically look like "agent0-qvalue1"; fallback to the full label for robustness.
         const match = ds.label.match(/^agent(\d+)-(.+)$/);
-        if (!match) throw new Error("Invalid label format");
         let colour;
         // Hues diff by Qvalue
-        if (primaryColour.value) colour = colourStore.getQColour(match[2], primaryColour.value); 
+        if (primaryColour.value) colour = colourStore.getQColour(match?.[2] ?? ds.label, primaryColour.value);
         // Hues diff by Agent
-        else colour = colourStore.getQColour(match[1], primaryColour.value);
-        
+        else colour = colourStore.getQColour(match?.[1] ?? ds.label, primaryColour.value);
+
         if (enablePlusMinus.value) {
             let lower;
             lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
@@ -172,7 +171,7 @@ function initialiseChart(): Chart {
                     display: props.showLegend,
                     labels: {
                         generateLabels(chart) {
-                            if (!props.showLegend) return[];
+                            if (!props.showLegend) return [];
                             const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
                             return defaultLabels.filter(label => !!label.text)
                         }
@@ -205,7 +204,7 @@ function initialiseChart(): Chart {
             },
             scales: {
                 y: fixedYAxis.value
-                    ? { min: -1, max: 1}
+                    ? { min: -1, max: 1 }
                     : {}
             }
         },

@@ -1,12 +1,14 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from marlenv.models import Episode
-from typing import Optional
+from typing import Literal
+
+from .detailed_action import DetailedAction
 
 
 @dataclass
 class LightEpisodeSummary:
-    name: str
+    name: str = field(init=False)
     directory: str
     metrics: dict[str, float]
 
@@ -17,37 +19,20 @@ class LightEpisodeSummary:
 
 
 @dataclass
+class DecisionData:
+    label: str
+    data: list[list[list[float]]]
+
+
+@dataclass
 class ReplayEpisode(LightEpisodeSummary):
     episode: Episode
-    qvalues: Optional[list[list[list[float]]]]
-    state_values: Optional[list[float]]
     frames: list[str]
-    logits: Optional[list[list[list[float]]]]
-    probs: Optional[list[list[list[float]]]]
-    messages: Optional[list[list[list[float]]]]
-    received_messages: Optional[list[list[float]]]
-    init_qvalues: Optional[list[list[list[float]]]]
+    decision_data: DecisionData
 
-    def __init__(
-        self,
-        directory: str,
-        episode: Episode,
-        frames: list[str],
-        state_values: Optional[list[float]] = None,
-        qvalues: Optional[list[list[list[float]]]] = None,
-        logits: Optional[list[list[list[float]]]] = None,
-        probs: Optional[list[list[list[float]]]] = None,
-        messages: Optional[list[list[list[float]]]] = None,
-        received_messages: Optional[list[list[float]]] = None,
-        init_qvalues: Optional[list[list[list[float]]]] = None,
-    ):
-        super().__init__(directory, episode.metrics)
+    def __init__(self, directory: str, episode: Episode, frames: list[str], detailed_actions: list[DetailedAction]):
+        super().__init__(directory=directory, metrics=episode.metrics)
         self.episode = episode
-        self.qvalues = qvalues
-        self.state_values = state_values
         self.frames = frames
-        self.logits = logits
-        self.probs = probs
-        self.messages = messages
-        self.received_messages = received_messages
-        self.init_qvalues = init_qvalues
+        label = detailed_actions[0].label
+        self.decision_data = DecisionData(label, data=[action.details.tolist() for action in detailed_actions])
