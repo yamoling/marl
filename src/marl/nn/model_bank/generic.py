@@ -27,7 +27,7 @@ class MLP(NN):
         output_shape: tuple[int, ...],
         last_layer_noisy: bool = False,
     ):
-        super().__init__()
+        NN.__init__(self)
         self.output_shape = output_shape
         output_size = math.prod(self.output_shape)
         self.layer_sizes = (input_size + extras_size, *hidden_sizes, output_size)
@@ -63,7 +63,7 @@ class MLP(NN):
     def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         *dims, _obs_size = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
-        x = self.nn(obs)
+        x = self.nn.forward(obs)
         return x.view(*dims, *self.output_shape)
 
 
