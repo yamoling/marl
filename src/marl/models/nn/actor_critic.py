@@ -32,6 +32,10 @@ class Actor(NN, ABC):
         x[~mask] = replacement
         return x
 
+    def log_probs(self, obs: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
+        dist = self.policy(obs, extras, torch.ones_like(actions, dtype=torch.bool))
+        return dist.log_prob(actions)
+
 
 @dataclass
 class Critic(NN, ABC):

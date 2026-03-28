@@ -83,12 +83,14 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | QPLEX | ? | Almost | Factorization architecture |
 | QTRAN | ? | Not tested | Transitivity-aware factorization |
 | QATTEN | ? | Not tested | Attention-based mixing |
-| IPPO | ? | Working | MAPPO with `mixer=None` |
-| MAPPO | ? | Working | Multi-Agent PPO with centralized critic |
+| IPPO | ? | ✓ | MAPPO with `mixer=None` |
+| MAPPO | ? | ✓ | Multi-Agent PPO with centralized critic |
 | DDPG | ✗ | ✗ | Continuous control |
 | Option-Critic | ✗ | ? | Hierarchical RL |
-| RND | ✓ | ? | Random Network Distillation |
+| RND | ✓ | ✓ | Random Network Distillation |
 | ICM | ✓ | ? | Intrinsic Curiosity Module |
+| HAVEN | ✗ | ✗ | Hierarchical MARL with intrinsic motivation |
+| REINFORCE | ✗ | ✓ | Policy gradient method |
 | AlphaZero/MCTS | ✗ | ? | Tree search-based |
 
 

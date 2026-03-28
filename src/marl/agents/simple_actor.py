@@ -24,15 +24,18 @@ class SimpleActor(Agent):
         return actions.numpy(force=True)
 
     def choose_action_with_details(self, observation: Observation) -> DetailedAction:
-        n_agents, n_actions = observation.available_actions.shape
         with torch.no_grad():
             obs_data, obs_extras = observation.as_tensors(self._device, batch_dim=True)
             available_actions = torch.from_numpy(observation.available_actions).unsqueeze(0).to(self._device, non_blocking=True)
             distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
         action = distribution.sample().squeeze(0).numpy(force=True)
         # Compute the probability of each action for each agent
-        all_actions = torch.arange(observation.available_actions.shape[-1], device=self._device).repeat((n_agents, 1))
-        action_probs = distribution.log_prob(all_actions).exp()
+        all_actions = (
+            torch.arange(observation.available_actions.shape[-1], device=self._device)
+            .repeat_interleave(observation.n_agents)
+            .view(-1, observation.n_agents)
+        )
+        action_probs = distribution.log_prob(all_actions).exp().T
         return DetailedAction(
             action,
             label="Probability",

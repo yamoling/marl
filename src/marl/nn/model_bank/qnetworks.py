@@ -18,6 +18,7 @@ from ..utils import make_cnn
 from .generic import CNN, MLP
 
 
+@dataclass(unsafe_hash=True)
 class QCNN(CNN, QNetwork):
     def __init__(
         self,
@@ -35,6 +36,7 @@ class QCNN(CNN, QNetwork):
         CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
 
 
+@dataclass(unsafe_hash=True)
 class QMLP(MLP, QNetwork):
     def __init__(
         self,
@@ -48,8 +50,8 @@ class QMLP(MLP, QNetwork):
             output = (output_shape,)
         else:
             output = output_shape
-        MLP.__init__(self, input_size, extras_size, hidden_sizes, output, last_layer_noisy)
         QNetwork.__init__(self, output_shape)
+        MLP.__init__(self, input_size, extras_size, hidden_sizes, output, last_layer_noisy)
 
 
 class RNNQMix(RecurrentQNetwork):

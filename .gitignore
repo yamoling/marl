@@ -204,3 +204,4 @@ myenv/*
 uv.lock
 wandb
 logs.txt
+.github/agents

@@ -233,6 +233,7 @@ def make_dqn(
     noisy: bool = False,
     use_vbe: bool = False,
     memory: Optional[ReplayMemory[Any, Any]] = None,
+    update_every: tuple[int, Literal["step", "episode"]] = (5, "step"),
 ):
     mixer = make_mixer(env, mixing)
     if len(env.observation_shape) == 1:
@@ -268,7 +269,7 @@ def make_dqn(
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
         batch_size=64,
-        train_interval=(5, "step"),
+        train_interval=update_every,
         gamma=gamma,
         mixer=mixer,
         grad_norm_clipping=10,
@@ -334,11 +335,22 @@ def main(args: Arguments):
             .state_type("state")
             .builder()
             .randomize_actions(1 / 3)
+            .agent_id()
             .time_limit(1000)
             .build()
         )
-        trainer = make_mappo(env, mixing=None)
-        # trainer = make_dqn(env, mixing="vdn", gamma=0.95)
+        from marl.training import Reinforce
+
+        trainer = Reinforce(
+            1e-4,
+            env.n_agents,
+            marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env),
+            0.99,
+        )
+        # env, test_env = make_smac("8m")
+        # trainer = make_mappo(env, mixing=None)
+        # memory = marl.models.replay_memory.EpisodeMemory(10_000)
+        # trainer = make_dqn(env, mixing="qplex", gamma=0.99, memory=memory, update_every=(1, "episode"))
         # trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
