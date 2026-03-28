@@ -335,19 +335,27 @@ def main(args: Arguments):
             .state_type("state")
             .builder()
             .randomize_actions(1 / 3)
+            .agent_id()
             .time_limit(1000)
             .build()
         )
-        env, test_env = make_smac("8m")
+        from marl.training import Reinforce
+
+        trainer = Reinforce(
+            1e-4,
+            env.n_agents,
+            marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env),
+            0.99,
+        )
+        # env, test_env = make_smac("8m")
         # trainer = make_mappo(env, mixing=None)
-        memory = marl.models.replay_memory.EpisodeMemory(10_000)
-        trainer = make_dqn(env, mixing="qplex", gamma=0.99, memory=memory, update_every=(1, "episode"))
+        # memory = marl.models.replay_memory.EpisodeMemory(10_000)
+        # trainer = make_dqn(env, mixing="qplex", gamma=0.99, memory=memory, update_every=(1, "episode"))
         # trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,
             env=env,
-            test_env=test_env,
             test_interval=5000,
             n_steps=1_000_000,
             logger="csv",

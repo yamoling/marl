@@ -55,7 +55,7 @@ class Agent(ABC):
 
     def choose_action_with_details(self, observation: Observation) -> DetailedAction:
         """
-        Get the action to perform given the input observation along with details on the decision-making, for instance the qvalues, the action probabilities of the logits.
+        Get the action to perform given the input observation along with details on the decision-making such as the qvalues, the action probabilities or the logits.
         """
         raise NotImplementedError()
 
