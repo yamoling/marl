@@ -32,7 +32,7 @@ class NN(torch.nn.Module):
 
     name: str = field(init=False)
 
-    def __init__(self):
+    def __post_init__(self):
         super().__init__()
         self.name = self.__class__.__name__
 

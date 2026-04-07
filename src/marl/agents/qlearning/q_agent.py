@@ -1,16 +1,21 @@
-from marlenv import Observation
-import numpy as np
-from marl.models import Policy
-from marl.models.agent import Agent
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+import numpy as np
+from marlenv import Observation
+
+from marl.models.agent import Agent
+
+if TYPE_CHECKING:
+    from marl.models import Policy
 
 
 @dataclass
 class QAgent(Agent):
-    train_policy: Policy
-    test_policy: Policy
+    train_policy: "Policy"
+    test_policy: "Policy"
 
-    def __init__(self, qtable: dict[Observation, np.ndarray], policy: Policy, test_policy: Policy | None):
+    def __init__(self, qtable: dict[Observation, np.ndarray], policy: "Policy", test_policy: "Policy | None"):
         super().__init__()
         self._qtable = qtable
         self.train_policy = policy

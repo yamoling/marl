@@ -1,18 +1,16 @@
 import os
-
+import pathlib
 import pickle
+from typing import Optional, Union
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
-import pathlib
-import numpy as np
-
-from typing import Optional, Union
+from marlenv.models import Episode
 
 from marl.models.batch import Batch
-from marl.xmarl.distilers.utils import flatten_observation, get_agent_pos, get_fixed_features, abstract_observation
-from marlenv.models import Episode
+from marl.xmarl.distilers.utils import abstract_observation, flatten_observation, get_agent_pos, get_fixed_features
 
 EPS = 1e-6
 
@@ -415,7 +413,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
                         leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id].reshape(-1))
                     else:
                         leaf, path_w, path_b = self.greedy_trace(f_obs[self.agent_id])
-                pred_actions[i] = leaf.forward().data.numpy().flatten()  # type: ignore
+                assert isinstance(leaf, LeafNode)
+                pred_actions[i] = leaf.forward().data.numpy().flatten()
                 paths_taken_weights.append(path_w)
                 paths_taken_biases.append(path_b)
             og_acts = np.zeros_like(pred_actions, dtype=int)
@@ -501,7 +500,8 @@ class SoftDecisionTree[B: Batch](nn.Module):
                         leaves.append(leaf)
                         weights.append(path_w)
                         biases.append(path_b)
-                    pred_actions[i, ag] = leaf.forward().data.numpy().flatten()  # type: ignore
+                    assert isinstance(leaf, LeafNode)
+                    pred_actions[i, ag] = leaf.forward().data.numpy().flatten()
                 paths_taken_weights.append(weights)
                 paths_taken_biases.append(biases)
             og_acts = np.zeros_like(pred_actions, dtype=int)

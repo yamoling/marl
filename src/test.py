@@ -1,19 +1,38 @@
-import torch
-from marl.nn.mixers.qplex import QPlex
+import lle
 
-m = QPlex(state_shape=(20,), n_agents=3, n_actions=5)
-q = torch.randn(7, 3)
-st = torch.randn(7, 20)
-all_q = torch.randn(7, 3, 5)
-a = torch.nn.functional.one_hot(torch.randint(0, 5, (7, 3)), num_classes=5).float()
-av = torch.ones(7, 3, 5, dtype=torch.bool)
-out = m(q, st, one_hot_actions=a, all_qvalues=all_q, available_actions=av)
-print(out.shape)
+import marl
+from marl.nn import mixers
+from marl.nn.model_bank import options as options_nn
+from marl.policy import EpsilonGreedy
+from marl.training.option_critic2 import OptionCriticTrainer
 
-q2 = torch.randn(4, 6, 3)
-st2 = torch.randn(4, 6, 20)
-all_q2 = torch.randn(4, 6, 3, 5)
-a2 = torch.nn.functional.one_hot(torch.randint(0, 5, (4, 6, 3)), num_classes=5).float()
-av2 = torch.ones(4, 6, 3, 5, dtype=torch.bool)
-out2 = m(q2, st2, one_hot_actions=a2, all_qvalues=all_q2, available_actions=av2)
-print(out2.shape)
+
+def main():
+    N_OPTIONS = 4
+    env = (
+        lle.from_file("maps/four_rooms.toml")
+        .obs_type("layered")
+        .state_type("state")
+        .builder()
+        # .randomize_actions(1 / 3)
+        .agent_id()
+        .time_limit(1000)
+        .build()
+    )
+    marl.seed(0, env)
+
+    oc = options_nn.CNNOptionCritic.from_env(env, N_OPTIONS)
+    trainer = OptionCriticTrainer(
+        oc,
+        env.n_agents,
+        n_options=N_OPTIONS,
+        mixer=mixers.VDN(env.n_agents),
+        option_train_policy=EpsilonGreedy.linear(1.0, 0.05, 50_000),
+    )
+
+    exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=2000)
+    exp.run(seeds=10, n_tests=10, n_parallel=3)
+
+
+if __name__ == "__main__":
+    main()

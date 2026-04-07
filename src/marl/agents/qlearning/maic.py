@@ -1,25 +1,17 @@
 import os
 import pickle
-import torch
 from dataclasses import dataclass
-from marlenv.models import Observation
-from marl.models import Policy, MAICNN
+from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
+
 from marl.models.agent import Agent
 
+if TYPE_CHECKING:
+    from marlenv import Observation
 
-@dataclass
-class MAICParameters:
-    n_agents: int
-    latent_dim: int = 8
-    nn_hidden_size: int = 64
-    rnn_hidden_dim: int = 64
-    attention_dim: int = 32
-    var_floor: float = 0.002
-    mi_loss_weight: float = 0.001
-    entropy_loss_weight: float = 0.01
-    com: bool = True
+    from marl.models import MAICNN, Policy
 
 
 @dataclass
@@ -28,11 +20,10 @@ class MAIC(Agent):
     train_policy: Policy
     test_policy: Policy
 
-    def __init__(self, maic_network: MAICNN, train_policy: Policy, test_policy: Policy, args: MAICParameters):
+    def __init__(self, maic_network: MAICNN, train_policy: Policy, test_policy: Policy | None, n_agents: int):
         super().__init__()
         self.maic_network = maic_network
-        self.n_agents = args.n_agents
-        self.args = args
+        self.n_agents = n_agents
         self.train_policy = train_policy
         if test_policy is None:
             test_policy = self.train_policy

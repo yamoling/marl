@@ -1,6 +1,7 @@
-import torch.nn as nn
 import torch
-from marl.models import Mixer
+import torch.nn as nn
+
+from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 

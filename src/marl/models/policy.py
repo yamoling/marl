@@ -1,6 +1,7 @@
 from abc import abstractmethod
-import numpy as np
 from dataclasses import dataclass
+
+import numpy as np
 
 
 @dataclass
@@ -15,7 +16,7 @@ class Policy:
         self.name = self.__class__.__name__
 
     @abstractmethod
-    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray) -> np.ndarray:
+    def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray | None = None) -> np.ndarray:
         """
         Choose an action based on the given qvalues and avalable actions.
         Returns the chosen action.

@@ -42,6 +42,7 @@ class DQN[B: Batch](Trainer):
         ir_module: Optional[IRModule] = None,
         grad_norm_clipping: Optional[float] = None,
         vbe: Optional[VBE] = None,
+        test_policy: Policy | None = None,
     ):
         super().__init__()
         match train_interval:
@@ -59,6 +60,9 @@ class DQN[B: Batch](Trainer):
         self.qnetwork = qnetwork
         self.qtarget = deepcopy(qnetwork)
         self.policy = train_policy
+        if test_policy is None:
+            test_policy = train_policy
+        self.test_policy = test_policy
         self.memory = memory
         self.gamma = gamma
         self.batch_size = batch_size
@@ -206,18 +210,18 @@ class DQN[B: Batch](Trainer):
             logs = logs | self._update(time_step)
         return logs
 
-    def make_agent(self, test_policy: Optional[Policy] = None):
+    def make_agent(self):
         if isinstance(self.qnetwork, RecurrentQNetwork):
             return RDQNAgent(
                 qnetwork=self.qnetwork,
                 train_policy=self.policy,
-                test_policy=test_policy,
+                test_policy=self.test_policy,
                 vbe=self.vbe,
             )
         return DQNAgent(
             qnetwork=self.qnetwork,
             train_policy=self.policy,
-            test_policy=test_policy,
+            test_policy=self.test_policy,
             vbe=self.vbe,
         )
 

@@ -1,22 +1,25 @@
 import base64
+import re
+from typing import Callable, Optional, TypeVar
+
 import cv2
 import numpy as np
-from typing import Callable, Optional, TypeVar
-import re
 from marlenv import MARLEnv, Observation
 
 
-def seed(seed_value: int, env: Optional[MARLEnv] = None):
-    import torch
+def seed(seed: int, env: Optional[MARLEnv] = None):
+    """Seeds `random`, `numpy`, `torch` and the environment (if provided) with the given seed value."""
     import random
-    import numpy as np
 
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    torch.manual_seed(seed_value)
+    import numpy as np
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
     if env is not None:
-        env.seed(seed_value)
+        env.seed(seed)
 
 
 T = TypeVar("T")
@@ -39,9 +42,7 @@ def alpha_num_order(string):
 
 
 def encode_b64_image(image: np.ndarray) -> str:
-    if image is None:
-        return ""
-    return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")  # type: ignore
+    return base64.b64encode(cv2.imencode(".jpg", image)[1]).decode("ascii")
 
 
 def hash_ndarray(data: np.ndarray) -> int:

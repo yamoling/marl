@@ -97,17 +97,16 @@ def create_smac_experiment(args: Arguments):
 
 
 def make_option_critic(env: MARLEnv[MultiDiscreteSpace], n_options: int = 8):
-    from marl.training.option_critic import OptionCriticTrainer
+    from marl.training.option_critic import OptionCritic
 
     assert len(env.observation_shape) == 3
-    (c, h, w) = env.observation_shape
     oc = SimpleOptionCritic(
         [CNNActor(env.observation_shape, env.extras_shape[0], env.n_actions) for _ in range(n_options)],
-        QCNN((c, w, h), env.extras_size, n_options),
-        OptionTermination(n_options, (c, w, h), env.extras_shape),
+        QCNN(env.observation_shape, env.extras_size, n_options),
+        OptionTermination(n_options, env.observation_shape, env.extras_shape),
         env.n_agents,
     )
-    return OptionCriticTrainer(oc, 1e-4, 50_000, env.n_agents)
+    return OptionCritic(oc, 1e-4, 50_000, env.n_agents)
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
@@ -339,24 +338,17 @@ def main(args: Arguments):
             .time_limit(1000)
             .build()
         )
-        from marl.training import Reinforce
 
-        trainer = Reinforce(
-            1e-4,
-            env.n_agents,
-            marl.nn.model_bank.actor_critics.CNN_ActorCritic.from_env(env),
-            0.99,
-        )
         # env, test_env = make_smac("8m")
         # trainer = make_mappo(env, mixing=None)
         # memory = marl.models.replay_memory.EpisodeMemory(10_000)
         # trainer = make_dqn(env, mixing="qplex", gamma=0.99, memory=memory, update_every=(1, "episode"))
-        # trainer = make_option_critic(env)
+        trainer = make_option_critic(env)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,
             env=env,
-            test_interval=5000,
+            test_interval=1000,
             n_steps=1_000_000,
             logger="csv",
         )

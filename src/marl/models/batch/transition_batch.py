@@ -53,9 +53,9 @@ class TransitionBatch(Batch):
             else:
                 next_value = next_value.item()
         returns = [0.0] * self.size
-        returns[-1] = next_value
         not_dones = self.not_dones.tolist()
         rewards = self.rewards.tolist()
+        returns[-1] = rewards[-1] + gamma * next_value * not_dones[-1]
         for t in range(self.size - 2, -1, -1):
             returns[t] = rewards[t] + gamma * not_dones[t] * returns[t + 1]
         return torch.tensor(returns, device=self.device)
@@ -95,7 +95,7 @@ class TransitionBatch(Batch):
         dones = torch.from_numpy(np_dones).to(self.device)
         if self.reward_size > 1:
             dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        return dones 
+        return dones
 
     @cached_property
     def available_actions(self):

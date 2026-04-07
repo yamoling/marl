@@ -22,10 +22,26 @@ class Agent(ABC):
             device = torch.device(device)
         self._device = torch.device("cpu")
 
+    @abstractmethod
+    def choose_action(self, observation: Observation) -> np.ndarray:
+        """Get the action to perform given the input observation."""
+
+    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
+        """
+        Get the action to perform given the input observation along with details on the decision-making such as the qvalues, the action probabilities or the logits.
+        """
+        action = self.choose_action(observation)
+        return DetailedAction(action, "No details", np.zeros_like(observation.available_actions))
+
     @property
     def networks(self):
         """Dynamic list of neural networks attributes in the agent"""
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
+
+    @property
+    def device(self):
+        """Device on which the agent is located"""
+        return self._device
 
     @cached_property
     def recurrent_networks(self):
@@ -48,16 +64,6 @@ class Agent(ABC):
         """Randomize the algorithm parameters"""
         for nn in self.networks:
             nn.randomize(method)
-
-    @abstractmethod
-    def choose_action(self, observation: Observation) -> np.ndarray:
-        """Get the action to perform given the input observation."""
-
-    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
-        """
-        Get the action to perform given the input observation along with details on the decision-making such as the qvalues, the action probabilities or the logits.
-        """
-        raise NotImplementedError()
 
     def new_episode(self):
         """

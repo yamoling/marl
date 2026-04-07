@@ -4,6 +4,7 @@ from .dqn import DQN
 from .intrinsic_reward import RND
 from .maic import MAICTrainer
 from .no_train import NoTrain
+from .option_critic import OptionCritic
 from .ppo import MAPPO
 from .qlearning import QLearning
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
@@ -11,6 +12,7 @@ from .reinforce import Reinforce
 
 __all__ = [
     "NoTrain",
+    "OptionCritic",
     "DQN",
     "MAPPO",
     "DDPGTrainer",

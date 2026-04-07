@@ -40,10 +40,16 @@ dependencies = [
 
 [project.optional-dependencies]
 # Use `uv sync --extra legacy-gpu` to sync on the MLG cluster and have a torch version compatible with the GPUs.
-legacy-gpu = ["torch<2.8"]
+# legacy-gpu = ["torch<2.8"]
 
 [dependency-groups]
 dev = ["pytest>=8.3.2"]
+
+[tool.pytest]
+# Ignore deprecation warnings caused by SMAC
+filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [build-system]
 requires = ["hatchling"]

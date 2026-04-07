@@ -1,17 +1,21 @@
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import torch
 from marlenv.models import Observation
 
-from marl.models import Actor, Agent
+from marl.models import Agent
 from marl.models.detailed_action import DetailedAction
+
+if TYPE_CHECKING:
+    from marl.models import Actor
 
 
 @dataclass
 class SimpleActor(Agent):
-    actor_network: Actor
+    actor_network: "Actor"
 
-    def __init__(self, actor_network: Actor):
+    def __init__(self, actor_network: "Actor"):
         super().__init__()
         self.actor_network = actor_network
 

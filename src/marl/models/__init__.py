@@ -1,18 +1,18 @@
-from .nn import NN, RecurrentNN, Mixer, RecurrentQNetwork, QNetwork, MAICNN, MAIC, IRModule, Actor, Critic, ActorCritic
-from .policy import Policy
+from .agent import Agent
 from .batch import Batch
+from .experiment import Experiment
+from .nn import MAIC, MAICNN, NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
+from .policy import Policy
+from .replay_episode import LightEpisodeSummary, ReplayEpisode
 from .replay_memory import (
+    BiasedMemory,
     EpisodeMemory,
     NStepMemory,
     PrioritizedMemory,
     ReplayMemory,
     TransitionMemory,
-    BiasedMemory,
 )
-from .replay_episode import ReplayEpisode, LightEpisodeSummary
-from .agent import Agent
-from .run import Run, Runner
-from .experiment import Experiment
+from .run import Run
 from .trainer import Trainer
 
 __all__ = [
@@ -37,7 +37,6 @@ __all__ = [
     "LightEpisodeSummary",
     "Trainer",
     "Run",
-    "Runner",
     "IRModule",
     "Actor",
     "Critic",

@@ -1,17 +1,17 @@
-from dataclasses import dataclass
-from typing import Literal, Optional
+import math
+import os
 from copy import deepcopy
+from dataclasses import dataclass
+from typing import Optional
 
 import torch
-import os
-import math
-
 from marlenv import MARLEnv
-from marl.models.batch import Batch, EpisodeBatch
-from marl.models.nn import randomize as nn_randomize, NN, IRModule
 from marlenv.utils import Schedule
-from marl.utils.stats import RunningMeanStd
+
+from marl.models.batch import Batch, EpisodeBatch
+from marl.models.nn import NN, IRModule
 from marl.nn import model_bank
+from marl.utils.stats import RunningMeanStd
 
 
 @dataclass
@@ -54,7 +54,7 @@ class RND(IRModule):
         if isinstance(ir_weight, (float, int)):
             ir_weight = Schedule.constant(ir_weight)
         self.ir_weight = ir_weight
-        self._optimizer = torch.optim.Adam(list(self._predictor_head.parameters()) + list(self._predictor_tail.parameters()), lr=lr)  # type: ignore
+        self._optimizer = torch.optim.Adam(list(self._predictor_head.parameters()) + list(self._predictor_tail.parameters()), lr=lr)
         self.n_warmup_steps = n_warmup_steps
         self._warmup_done = False
         self.update_ratio = update_ratio
