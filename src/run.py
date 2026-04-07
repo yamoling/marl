@@ -1,9 +1,6 @@
-import time
-import torch
-import typed_argparse as tap
-
 from typing import Literal, Optional
-from multiprocessing.pool import Pool, AsyncResult
+
+import typed_argparse as tap
 
 
 class Arguments(tap.TypedArgs):
@@ -19,7 +16,7 @@ class Arguments(tap.TypedArgs):
     disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices")
 
     @property
-    def device(self) -> Literal["auto", "cpu"] | int:
+    def device(self):
         if self._device in ("auto", "cpu"):
             return self._device
         if self._device.startswith("cuda:"):
@@ -59,50 +56,24 @@ class Arguments(tap.TypedArgs):
         # Otherwise, start only one run at a time on the cpu
         return 1
 
-
-def start_run(args: Arguments, run_num: int, estimated_gpu_memory: int):
-    import marl
-
-    # Load the experiment from disk and start a child process for each run.
-    # The run with seed=0 is spawned in the main process.
-    experiment = marl.Experiment.load(args.logdir)
-    experiment.run(
-        seed=args.seed + run_num,
-        fill_strategy=args.gpu_strategy,
-        required_memory_MB=estimated_gpu_memory,
-        quiet=run_num > 0,
-        device=args.device,
-        n_tests=args.n_tests,
-        render_tests=args.render,
-    )
+    @property
+    def seeds(self):
+        return list(range(self.seed, self.n_runs))
 
 
 def main(args: Arguments):
-    if args.n_runs == 1:
-        start_run(args, 0, 0)
-        return
+    import marl
 
-    from marl.utils.gpu import get_max_gpu_usage, get_gpu_processes
-
-    # NOTE: within a docker, the pids do not match with the host, so we have to retrieve the pids "unreliably"
-    n_gpus = torch.cuda.device_count() if args.device != "cpu" else 0
-    initial_pids = get_gpu_processes()
-    estimated_gpu_memory = 0
-    print(f"Running on {args.n_jobs} processes")
-    with Pool(args.n_jobs) as pool:
-        handles = list[AsyncResult]()
-        for run_num in range(args.n_runs):
-            h = pool.apply_async(start_run, (args, run_num, estimated_gpu_memory))
-            handles.append(h)
-            # If it is not the last process and there are multiple GPUs
-            # then wait a bit to let the time to allocate the GPUs correctly.
-            if n_gpus > 1 and run_num != args.n_runs - 1:
-                time.sleep(args.delay)
-                new_pids = get_gpu_processes() - initial_pids
-                estimated_gpu_memory = get_max_gpu_usage(new_pids)
-
-        for h in handles:
-            h.get()
+    experiment = marl.Experiment.load(args.logdir)
+    experiment.run(
+        args.seeds,
+        fill_strategy=args.gpu_strategy,
+        quiet=True,
+        device=args.device,
+        n_tests=args.n_tests,
+        render_tests=args.render,
+        n_parallel=args.n_jobs,
+    )
 
 
 if __name__ == "__main__":

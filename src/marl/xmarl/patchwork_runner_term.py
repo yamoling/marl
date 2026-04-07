@@ -1,30 +1,26 @@
 # type: ignore
 
-from marl.models import Experiment
-from marlenv.models import Episode
-
 import os
+from pathlib import Path
+
 import numpy as np
-
-from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl import FrameViewer, ActFrameViewer, HeatmapActFrameViewer, AbstractActFrameViewer
-from marl.xmarl.distilers.utils import get_env_infos, feature_labels
-from marl.xmarl import FilePickerScreen
-
+from marlenv.models import Episode
+from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
 from textual.widgets import (
     Button,
-    Label,
     Checkbox,
+    Label,
     Static,
     Switch,
 )
-from textual import on
-from textual.reactive import reactive
 
-from pathlib import Path
-
+from marl.models import Experiment
+from marl.xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
+from marl.xmarl.distilers.sdt import SoftDecisionTree
+from marl.xmarl.distilers.utils import feature_labels, get_env_infos
 
 LOG_PATH = Path("logs")
 
@@ -71,7 +67,7 @@ class Selector(App):
     def action_press_button(self):
         # `self.focused` is the widget with focus
         if hasattr(self.focused, "pressed"):
-            self.focused.press()  # type: ignore
+            self.focused.press()
 
     def compose(self) -> ComposeResult:
         yield Static("Patchwork Runner", id="title", classes="bold")

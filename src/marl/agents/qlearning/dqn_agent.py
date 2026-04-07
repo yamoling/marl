@@ -1,16 +1,17 @@
 import os
 import pickle
 from dataclasses import dataclass
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
 from marlenv import Observation
 
-from marl.models import Policy, QNetwork, RecurrentQNetwork
+from marl.models.agent import Agent
 from marl.models.detailed_action import DetailedAction
 from marl.optimism import VBE
 
-from marl.models.agent import Agent
+if TYPE_CHECKING:
+    from marl.models import Policy, QNetwork, RecurrentQNetwork
 
 
 @dataclass
@@ -19,15 +20,15 @@ class DQNAgent(Agent):
     Deep Q-Network Interface with shared QNetwork.
     """
 
-    qnetwork: QNetwork
-    train_policy: Policy
-    test_policy: Policy
+    qnetwork: "QNetwork"
+    train_policy: "Policy"
+    test_policy: "Policy"
 
     def __init__(
         self,
-        qnetwork: QNetwork,
-        train_policy: Policy,
-        test_policy: Optional[Policy] = None,
+        qnetwork: "QNetwork",
+        train_policy: "Policy",
+        test_policy: "Policy|None" = None,
         vbe: Optional[VBE] = None,
     ):
         super().__init__()
@@ -102,7 +103,7 @@ class RDQNAgent(DQNAgent):
     Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
     """
 
-    qnetwork: RecurrentQNetwork  # type: ignore
+    qnetwork: "RecurrentQNetwork"  # type: ignore
 
     def new_episode(self):
         self.qnetwork.reset_hidden_states()

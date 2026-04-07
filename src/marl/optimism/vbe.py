@@ -1,13 +1,15 @@
 import random
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 import torch
 from marlenv import Observation
 
-from marl.models import QNetwork, Batch
+if TYPE_CHECKING:
+    from marl.models import Batch, QNetwork
 
 
 @dataclass
@@ -20,7 +22,7 @@ class VBE:
     n: int
     lr: float
 
-    def __init__(self, gamma: float, rqf: QNetwork, n: int, lr: float = 1e-4):
+    def __init__(self, gamma: float, rqf: "QNetwork", n: int, lr: float = 1e-4):
         """
         Parameters
         ----------
@@ -31,8 +33,8 @@ class VBE:
         """
         assert 0 < gamma < 1, "Gamma must ensure 0 < gamma < 1"
         self.gamma = gamma
-        self._target_rqfs = list[QNetwork]()
-        self._rqfs = list[QNetwork]()
+        self._target_rqfs = list()
+        self._rqfs = list()
         self._optimizers = list[torch.optim.Optimizer]()
         self._bonus_history = []
         self._device = rqf.device

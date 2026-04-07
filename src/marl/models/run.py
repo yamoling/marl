@@ -1,20 +1,25 @@
-import os
 import math
+import os
 import shutil
-import polars as pl
-import orjson
 import signal
-from datetime import datetime
-from typing import Optional
 from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional
+
+import orjson
+import polars as pl
+
 from marl.exceptions import (
     CorruptExperimentException,
-    RunProcessNotFound,
     NotRunningExcception,
+    RunProcessNotFound,
 )
-from marl.utils import stats
-from marl.logging import LogReader, TIME_STEP_COL, TIMESTAMP_COL, CSVLogger
+from marl.logging import TIME_STEP_COL, TIMESTAMP_COL, CSVLogger, LogReader
 from marl.models.replay_episode import LightEpisodeSummary
+from marl.utils import stats
+
+if TYPE_CHECKING:
+    from marl import Experiment
 
 TRAIN = "train.csv"
 TEST = "test.csv"
@@ -42,11 +47,7 @@ class Run:
         self._reader = reader
 
     @staticmethod
-    def from_experiment(experiment, seed: int, n_tests: int = 1):
-        from marl import Experiment
-
-        # For type hinting
-        assert isinstance(experiment, Experiment)
+    def from_experiment(experiment: "Experiment", seed: int, n_tests: int = 1):
         return Run.create(
             logdir=experiment.logdir,
             seed=seed,

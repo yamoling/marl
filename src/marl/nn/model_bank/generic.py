@@ -1,11 +1,11 @@
 import math
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Literal, Sequence
 
 import torch
 from marlenv import MARLEnv, MultiDiscreteSpace
 
-from marl.models import NN, RecurrentNN
+from marl.models.nn import NN, RecurrentNN
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
@@ -26,6 +26,7 @@ class MLP(NN):
         hidden_sizes: Sequence[int],
         output_shape: tuple[int, ...],
         last_layer_noisy: bool = False,
+        output_activation: None | Literal["sigmoid", "tanh"] = None,
     ):
         NN.__init__(self)
         self.output_shape = output_shape
@@ -39,6 +40,14 @@ class MLP(NN):
             layers.append(NoisyLinear(hidden_sizes[-1], output_size))
         else:
             layers.append(torch.nn.Linear(hidden_sizes[-1], output_size))
+        if output_activation is not None:
+            match output_activation:
+                case "sigmoid":
+                    layers.append(torch.nn.Sigmoid())
+                case "tanh":
+                    layers.append(torch.nn.Tanh())
+                case other:
+                    raise ValueError(f"Unsupported output activation: {other}")
         self.nn = torch.nn.Sequential(*layers)
 
     @classmethod
@@ -81,6 +90,7 @@ class CNN(NN):
         output_shape: int | tuple[int, ...],
         mlp_sizes: tuple[int, ...] = (64, 64),
         mlp_noisy: bool = False,
+        output_activation: None | Literal["sigmoid", "tanh"] = None,
     ):
         NN.__init__(self)
         self.extras_size = extras_size
@@ -91,7 +101,7 @@ class CNN(NN):
         if isinstance(output_shape, int):
             output_shape = (output_shape,)
         self.output_shape = output_shape
-        self.linear = MLP(n_features, extras_size, mlp_sizes, self.output_shape, last_layer_noisy=mlp_noisy)
+        self.linear = MLP(n_features, extras_size, mlp_sizes, self.output_shape, mlp_noisy, output_activation)
 
     @classmethod
     def qnetwork(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64)):

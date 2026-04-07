@@ -1,14 +1,61 @@
 import random
 from dataclasses import dataclass
+from typing import Sequence
 
 import torch
+from marlenv import MARLEnv
 from marlenv.utils import Schedule
 from torch import Tensor
 from torch.distributions import Categorical
 from torch.nn import ModuleList
 
 from marl.models.nn import NN, Actor, QNetwork
+from marl.models.nn.options import OptionCritic
 from marl.nn.model_bank.generic import CNN
+
+
+@dataclass(unsafe_hash=True)
+class CNNOptionCritic(OptionCritic):
+    policies: torch.nn.ModuleList
+    q_options: QNetwork
+    options_termination: NN
+
+    def __init__(self, policies: torch.nn.ModuleList, q_options: QNetwork, options_termination: NN):
+        OptionCritic.__init__(self)
+        self.policies = policies
+        self.q_options = q_options
+        self.options_termination = options_termination
+
+    @staticmethod
+    def from_env(env: MARLEnv, n_options: int):
+        from marl.nn.model_bank.actor_critics import CNNActor
+        from marl.nn.model_bank.qnetworks import QCNN
+
+        assert len(env.observation_shape) == 3
+        policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
+        terminations = CNN(env.observation_shape, env.extras_size, n_options, output_activation="sigmoid")
+        q_options = QCNN(env.observation_shape, env.extras_size, n_options)
+        return CNNOptionCritic(policies, q_options, terminations)
+
+    def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:
+        return self.q_options.forward(obs, extras)
+
+    def termination_probability(self, obs: Tensor, extras: Tensor, options: Tensor) -> Tensor:
+        probs = self.options_termination.forward(obs, extras)
+        while options.ndim < probs.ndim:
+            options = options.unsqueeze(-1)
+        probs = torch.gather(probs, dim=-1, index=options)
+        # Squeeze the last dimension introduced by the gathering
+        return probs.squeeze(-1)
+
+    def policy(
+        self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, option: Sequence[int]
+    ) -> torch.distributions.Categorical:
+        logits = [self.policies[i].forward(o, e) for i, (o, e) in enumerate(zip(obs, extras))]
+        logits = torch.stack(logits)
+        logits[~available_actions] = -torch.inf
+        dist = torch.distributions.Categorical(logits=logits)
+        return dist
 
 
 @dataclass

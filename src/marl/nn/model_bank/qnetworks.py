@@ -2,7 +2,7 @@ import math
 import operator
 from dataclasses import dataclass
 from functools import reduce
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -10,12 +10,14 @@ import torch.nn.functional as F
 from marlenv import MARLEnv, MultiDiscreteSpace
 from torch import distributions
 
-from marl.agents.qlearning.maic import MAICParameters
 from marl.models.nn import MAIC, MAICNN, QNetwork, RecurrentQNetwork
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
 from .generic import CNN, MLP
+
+if TYPE_CHECKING:
+    from marl.training.maic import MAICParameters
 
 
 @dataclass(unsafe_hash=True)

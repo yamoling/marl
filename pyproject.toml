@@ -33,21 +33,30 @@ dependencies = [
   "torch>=2.7.1",
   "tqdm>=4.66.5",
   "typed-argparse>=0.3.1",
+  "uvicorn>=0.34.3",
   "wandb>=0.21.2",
   "websockets>=12.0",
-  "uvicorn>=0.34.3",
 ]
 
 [project.optional-dependencies]
 # Use `uv sync --extra legacy-gpu` to sync on the MLG cluster and have a torch version compatible with the GPUs.
-legacy-gpu = ["torch<2.8"]
+# legacy-gpu = ["torch<2.8"]
 
 [dependency-groups]
-dev = ["pytest>=8.3.2"]
+dev = [
+  "marker-pdf>=1.10.2",
+  "pytest>=8.3.2",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest]
+# Ignore deprecation warnings caused by SMAC
+filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 140

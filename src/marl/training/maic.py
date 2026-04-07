@@ -1,4 +1,5 @@
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 import torch
@@ -6,11 +7,23 @@ from marlenv import Episode, Transition
 
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
 from marl.models.batch import EpisodeBatch
+from marl.models.trainer import Trainer
 from marl.utils import defaults_to
-from marl.agents.qlearning.maic import MAICParameters
 
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
-from marl.models.trainer import Trainer
+
+
+@dataclass
+class MAICParameters:
+    n_agents: int
+    latent_dim: int = 8
+    nn_hidden_size: int = 64
+    rnn_hidden_dim: int = 64
+    attention_dim: int = 32
+    var_floor: float = 0.002
+    mi_loss_weight: float = 0.001
+    entropy_loss_weight: float = 0.01
+    com: bool = True
 
 
 class MAICTrainer(Trainer):

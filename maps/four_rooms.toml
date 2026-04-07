@@ -1,7 +1,7 @@
 #:schema https://raw.githubusercontent.com/yamoling/lle/refs/heads/master/resources/lle_toml_schema.json
 
-starts = [{ i_max = 5, j_max = 5 }]
-n_agents = 2
+starts = [{ i_min = 0, j_min = 0 }]
+n_agents = 1
 world_string = """
 @ @ @ @ @ @ @ @ @ @ @ @ @
 @ . . . . . @ . . . . . @
@@ -10,10 +10,10 @@ world_string = """
 @ . . . . . @ . . . . . @
 @ . . . . . @ . . . . . @
 @ @ . @ @ @ @ . . . . . @
-@ . . . . . @ @ @ . @ @ @
+@ . . . . . @ @ @ X @ @ @
 @ . . . . . @ . . . . . @
 @ . . . . . @ . . . . . @
 @ . . . . . . . . . . . @
-@ X . . . . @ . . . . X @
+@ . . . . . @ . . . . . @
 @ @ @ @ @ @ @ @ @ @ @ @ @
 """

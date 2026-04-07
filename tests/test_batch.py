@@ -1,7 +1,10 @@
 from typing import Optional
-from marlenv import Transition, DiscreteMockEnv
-import marl
+
 import torch
+from marlenv import Transition
+from marlenv.catalog import DiscreteMockEnv
+
+import marl
 
 
 def _make_batch(size: int, step_reward: float = 1.0, ep_length: Optional[int] = None):
@@ -20,7 +23,7 @@ def _make_batch(size: int, step_reward: float = 1.0, ep_length: Optional[int] = 
         action = env.sample_action()
         step = env.step(action)
         done = step.done
-        transitions.append(Transition.from_step(obs, state, action, step))  # type: ignore
+        transitions.append(Transition.from_step(obs, state, action, step))
     return marl.models.batch.TransitionBatch(transitions)
 
 
@@ -46,7 +49,7 @@ def test_batch_mc_returns():
             g += GAMMA ** (j - i) * REWARD_STEP
         expected_returns.append(g)
     expected_returns = torch.tensor(expected_returns, dtype=torch.float32)
-    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1))
+    actual = batch.compute_mc_returns(GAMMA, 0.0)
     assert torch.allclose(actual, expected_returns)
 
 
@@ -69,7 +72,7 @@ def test_batch_mc_returns_episode_ended():
             g += GAMMA ** (j - i) * REWARD_STEP
         expected_returns.append(g)
     expected_returns = torch.tensor(expected_returns, dtype=torch.float32)
-    actual = batch.compute_mc_returns(GAMMA, torch.zeros(1))
+    actual = batch.compute_mc_returns(GAMMA, 0.0)
     assert torch.allclose(actual, expected_returns)
 
 

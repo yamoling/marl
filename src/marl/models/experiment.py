@@ -1,31 +1,26 @@
 import os
+import pathlib
 import pickle
-import orjson
 import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Literal, overload
-import pathlib
+from typing import Any, Literal, Sequence, overload
 
-import numpy as np
-import torch
-from marlenv.models import Space, MARLEnv
+import orjson
+from marlenv.models import MARLEnv, Space
 from tqdm import tqdm
 
 from marl import exceptions
-from marl.agents import DQNAgent, SimpleActor
-from marl.models import Run, Runner, ReplayEpisode
-from marl.models.trainer import Trainer
-from marl.models.batch import TransitionBatch
 from marl.logging import LogSpecs
-from marl.utils import default_serialization, stats
 from marl.models.replay_episode import LightEpisodeSummary
-from marl.utils import encode_b64_image, get_device
-from marl.models.run.runner import seeded_rollout
-
+from marl.models.trainer import Trainer
+from marl.runners import seeded_rollout
+from marl.utils import default_serialization, encode_b64_image, stats
 
 from .agent import Agent
+from .replay_episode import ReplayEpisode
+from .run import Run
 
 
 @dataclass
@@ -33,14 +28,11 @@ class Experiment[A: Space]:
     logdir: str
     test_interval: int
     creation_timestamp: int
-    agent: Agent
     trainer: Trainer
     env: MARLEnv[A]
     n_steps: int
     test_env: MARLEnv[A]
     log_qvalues: bool
-    seed_test_env: bool
-    """Whether the test environment has to be seeded for each test"""
     logger: LogSpecs = "csv"
 
     @staticmethod
@@ -49,12 +41,10 @@ class Experiment[A: Space]:
         n_steps: int,
         logdir: str = "logs/tests",
         trainer: Trainer | None = None,
-        agent: Agent | None = None,
         test_interval: int = 5_000,
         test_env: MARLEnv[A] | None = None,
         log_qvalues: bool = False,
         logger: LogSpecs = "csv",
-        seed_test_env: bool = False,
     ):
         """
         Create a new experiment in the specified directory.
@@ -77,13 +67,10 @@ class Experiment[A: Space]:
             from marl.training import NoTrain
 
             trainer = NoTrain(env)
-        if agent is None:
-            agent = trainer.make_agent()
         try:
             os.makedirs(logdir, exist_ok=False)
             experiment = Experiment(
                 logdir,
-                agent=agent,
                 trainer=trainer,
                 env=env,
                 n_steps=n_steps,
@@ -92,7 +79,6 @@ class Experiment[A: Space]:
                 test_env=test_env,
                 log_qvalues=log_qvalues,
                 logger=logger,
-                seed_test_env=seed_test_env,
             )
             experiment.save()
             return experiment
@@ -119,19 +105,34 @@ class Experiment[A: Space]:
 
     def run(
         self,
-        seed: int = 0,
+        seeds: int | Sequence[int] = 0,
         fill_strategy: Literal["scatter", "group"] = "scatter",
-        required_memory_MB: int = 0,
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
         render_tests: bool = False,
+        n_parallel: int = 1,
     ):
         """Train the Agent on the environment according to the experiment parameters."""
-        runner = Runner.from_experiment(self, seed, quiet=quiet, n_tests=n_tests)
-        selected_device = get_device(device, fill_strategy, required_memory_MB)
-        runner = runner.to(selected_device)
-        runner.run(render_tests)
+        if isinstance(seeds, int):
+            seeds = list(range(seeds))
+        if n_parallel <= 1:
+            from marl.runners import SequentialRunner
+
+            runner = SequentialRunner(self)
+            return runner.start(seeds, device, fill_strategy, quiet, n_tests, render_tests)
+
+        from marl.runners import ParallelRunner
+
+        runner = ParallelRunner(self.logdir)
+        return runner.start(
+            seeds,
+            n_jobs=n_parallel,
+            device=device,
+            auto_device_strategy=fill_strategy,
+            n_tests=n_tests,
+            render_tests=render_tests,
+        )
 
     def test_on_other_env(
         self,
@@ -145,20 +146,21 @@ class Experiment[A: Space]:
 
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
+        from marl.runners import SimpleRunner
+
         new_experiment = Experiment.create(
             logdir=new_logdir,
             env=deepcopy(self.env),
             n_steps=self.n_steps,
-            agent=deepcopy(self.agent),
             trainer=self.trainer,
             test_interval=self.test_interval,
             test_env=other_env,
         )
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
+
         for i, base_run in enumerate(runs):
-            runner = Runner.from_experiment(new_experiment, base_run.seed).to(device)
+            runner = SimpleRunner.from_experiment(new_experiment, base_run.seed).to(device)
             for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                self.agent.load(base_run.get_saved_algo_dir(time_step))
                 runner._test_and_log(time_step, render=False)
 
     @overload
@@ -190,12 +192,10 @@ class Experiment[A: Space]:
     def _replay_episode(self, run_num: int, time_step: int, test_num: int):
         run = list(self.runs)[run_num]
         episode_folder = run.test_dir(time_step, test_num)
-        self.agent.load(run.get_saved_algo_dir(time_step))
         # runner = self.create_runner()
         seed = Run.get_test_seed(time_step, test_num)
         # actions = run.get_test_actions(time_step, test_num)
         agent = self.agent_at(time_step, run.seed)
-
         episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
 
         # episode = self.test_env.replay(actions, seed=seed)
@@ -206,10 +206,11 @@ class Experiment[A: Space]:
         """Load the agent at a specific time step."""
         if time_step % self.test_interval != 0:
             raise ValueError(f"Time step must be a multiple of the test interval ({self.test_interval})")
+        agent = self.trainer.make_agent()
         for run in self.runs:
             if run.seed == run_seed:
-                self.agent.load(run.get_saved_algo_dir(time_step))
-                return self.agent
+                agent.load(run.get_saved_algo_dir(time_step))
+                return agent
         raise ValueError(f"No run with seed {run_seed} found in the experiment.")
 
     def move(self, new_logdir: str):
