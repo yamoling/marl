@@ -1,21 +1,19 @@
-import cv2
 import base64
+from typing import Optional
 
+import cv2
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-from matplotlib.widgets import RadioButtons, Button, CheckButtons
-from matplotlib.colors import TwoSlopeNorm, Colormap
-from matplotlib.cm import ScalarMappable, get_cmap
-from matplotlib.colorbar import Colorbar
-from matplotlib.patches import Rectangle
 import matplotlib.ticker as mticker
 import mplcursors
-from cycler import cycler
-
 import numpy as np
-
-from typing import Optional
+from cycler import cycler
+from matplotlib.axes import Axes
+from matplotlib.cm import ScalarMappable, get_cmap
+from matplotlib.colorbar import Colorbar
+from matplotlib.colors import Colormap, TwoSlopeNorm
+from matplotlib.figure import Figure
+from matplotlib.patches import Rectangle
+from matplotlib.widgets import Button, CheckButtons, RadioButtons
 
 
 def decode_b64_image(base64_str: str):
@@ -41,7 +39,6 @@ class FrameViewer:
     frame_btn_text: Axes
     btn_prev: Button
     btn_next: Button
-    btn_close: Button
     btn_close: Button
     ctrl_height: float
 

@@ -21,14 +21,19 @@ class OptionAgent(Agent):
     including the mutable `options` state.
     """
 
-    oc: OptionCriticNetwork
+    oc: "OptionCriticNetwork"
     n_options: int
     n_agents: int
-    train_policy: Policy
-    test_policy: Policy
+    train_policy: "Policy"
+    test_policy: "Policy"
 
     def __init__(
-        self, n_options: int, n_agents: int, option_critic: OptionCriticNetwork, train_policy: Policy, test_policy: Policy | None = None
+        self,
+        n_options: int,
+        n_agents: int,
+        option_critic: "OptionCriticNetwork",
+        train_policy: "Policy",
+        test_policy: "Policy | None" = None,
     ):
         Agent.__init__(self)
         self.n_options = n_options
@@ -63,9 +68,11 @@ class OptionAgent(Agent):
             self.update_options(obs, extras)
             dist = self.oc.policy(obs, extras, available, self.options)
             action = dist.sample().squeeze(0)
+
+        action = Action(action.numpy(force=True), options=self.options.copy())
         if with_details:
-            return Action(action.numpy(force=True), options=self.options, action_probabilities=dist.probs.numpy(force=True).squeeze(0))
-        return Action(action.numpy(force=True))
+            action.action_probabilities = dist.probs.numpy(force=True).squeeze(0)
+        return action
 
     def new_episode(self):
         # Upon new episodes, we want to force the agent to update its option at the first step, even if the termination probability is low.

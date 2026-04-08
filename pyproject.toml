@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<4"
 dependencies = [
-  "cattrs>=25.3.0",
   "fastapi>=0.135.2",
   "jupyterlab>=4.3.4",
   "laser-learning-environment>=2.6",
@@ -16,7 +15,6 @@ dependencies = [
   "numpy>=2.0",
   "orjson>=3.10.12",
   "polars>=1.5.0",
-  "pygame>=2.6.1",
   "pysc2",
   "python-dotenv>=1.0.1",
   "scikit-learn>=1.5.2",
@@ -27,7 +25,7 @@ dependencies = [
   "swig>=4.3.0",
   "tensorboard>=2.20.0",
   "textual>=4.0.0",
-  "torch>=2.7.1",
+  "torch",
   "tqdm>=4.66.5",
   "typed-argparse>=0.3.1",
   "uvicorn>=0.34.3",
@@ -37,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Use `uv sync --extra legacy-gpu` to sync on the MLG cluster and have a torch version compatible with the GPUs.
-# legacy-gpu = ["torch<2.8"]
+legacy-gpu = ["torch<2.8"]
 
 [dependency-groups]
 dev = ["marker-pdf>=1.10.2", "pytest>=8.3.2"]

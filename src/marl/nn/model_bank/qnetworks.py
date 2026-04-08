@@ -266,7 +266,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
+    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: "MAICParameters"):
         super().__init__(output_size)
         self.args = args
         self.n_agents = args.n_agents
@@ -361,7 +361,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
         return q_values
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # type: ignore
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: "MAICParameters"):  # type: ignore
         return cls(env.observation_shape, env.extras_shape, env.n_actions, args)
 
 
@@ -370,7 +370,7 @@ class MAICNetworkCNN(MAICNN):
     Source : https://github.com/mansicer/MAIC
     """
 
-    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int, ...], output_size: int, args: MAICParameters):
+    def __init__(self, input_shape: tuple[int, int, int], extras_shape: tuple[int, ...], output_size: int, args: "MAICParameters"):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
         super().__init__(input_shape, extras_shape, (output_size,))
         self.extras_shape = extras_shape
@@ -454,7 +454,7 @@ class MAICNetworkCNN(MAICNN):
         return q.view(*dims, *self.output_shape).unsqueeze(-1)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: MAICParameters):  # type: ignore
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], args: "MAICParameters"):  # type: ignore
         assert len(env.observation_shape) == 3
         c, h, w = env.observation_shape
         return cls((c, h, w), env.extras_shape, env.n_actions, args)

@@ -72,7 +72,7 @@ class SimpleRunner[A: Space]:
             exp.test_env,
         )
 
-    def _train_episode(self, run: LiveRun, step_num: int, episode_num: int, render_tests: bool):
+    def _train_episode(self, run: "LiveRun", step_num: int, episode_num: int, render_tests: bool):
         obs, state = self._env.reset()
         self._agent.new_episode()
         episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state), "episode_num": episode_num})
@@ -117,7 +117,7 @@ class SimpleRunner[A: Space]:
             if self.n_tests > 0 and self.test_interval > 0:
                 self._test_and_log(run, self.n_steps, render_tests)
 
-    def _test_and_log(self, run: LiveRun, time_step: int, render: bool):
+    def _test_and_log(self, run: "LiveRun", time_step: int, render: bool):
         run.save_agent(self._agent, time_step)
         run.save_trainer(self._trainer, time_step)
         episodes = self.perform_tests(time_step, render)

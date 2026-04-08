@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, overload
 
+import torch
 import orjson
 from marlenv.models import MARLEnv, Space
 from tqdm import tqdm
@@ -108,7 +109,7 @@ class Experiment[A: Space]:
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
         render_tests: bool = False,
-        n_parallel: int = 1,
+        n_parallel: int = torch.cuda.device_count(),
     ):
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):

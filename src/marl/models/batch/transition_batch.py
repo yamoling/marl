@@ -11,9 +11,8 @@ from .batch import Batch
 class TransitionBatch(Batch):
     def __init__(self, transitions: list[Transition], device: Optional[torch.device] = None):
         self.transitions = transitions
-        self.is_continuous = np.issubdtype(transitions[0].action.dtype, np.floating)
-        self.is_discrete = not self.is_continuous
-        self.actions_dtype = transitions[0].action.dtype
+        # self.is_continuous = np.issubdtype(transitions[0].action.dtype, np.floating)
+        # self.is_discrete = not self.is_continuous
         super().__init__(len(transitions), transitions[0].n_agents, device)
         self._cache = dict[str, torch.Tensor]()
 
@@ -83,7 +82,7 @@ class TransitionBatch(Batch):
 
     @cached_property
     def actions(self):
-        np_actions = np.array([t.action for t in self.transitions], dtype=self.actions_dtype)
+        np_actions = np.array([t.action for t in self.transitions])
         torch_actions = torch.from_numpy(np_actions).to(self.device)
         return torch_actions
 

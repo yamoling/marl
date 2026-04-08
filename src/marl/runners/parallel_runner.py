@@ -1,7 +1,8 @@
 import signal
 import time
 from copy import deepcopy
-from multiprocessing.pool import AsyncResult, Pool
+from multiprocessing import get_context
+from multiprocessing.pool import AsyncResult
 from typing import Literal, Sequence
 
 import torch
@@ -29,13 +30,13 @@ class ParallelRunner:
         # If there are multiple GPUs, the first N_GPU runs will all try to fit on the same device.
         # For that reason, we sleep for delay seconds between each run to let the time to the
         # previous run to allocate memory on the GPU.
-        n_gpus = torch.cuda.device_count() if device != "cpu" else 0
+        n_gpus = torch.cuda.device_count()
         initial_pids = get_gpu_processes()
         estimated_gpu_memory = 0
-        with Pool(n_jobs) as pool:
+        with get_context("spawn").Pool(n_jobs) as pool:
             handles = list[AsyncResult]()
             for run_num, seed in enumerate(seeds):
-                device = get_device(device, auto_device_strategy, estimated_gpu_memory)
+                run_device = get_device(device, auto_device_strategy, estimated_gpu_memory)
                 # We want each child process to ignore the SIGINT signal so that if the user presses Ctrl+C, only the main process is killed and the children with it.
                 original_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
                 h = pool.apply_async(
@@ -43,7 +44,7 @@ class ParallelRunner:
                     kwds={
                         "logdir": deepcopy(self.logdir),
                         "seed": seed,
-                        "device_index": device.index,
+                        "device_index": run_device.index,
                         "n_tests": n_tests,
                         "quiet": (run_num != 0),
                         "render_tests": (run_num == 0) and render_tests,

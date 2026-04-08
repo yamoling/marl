@@ -121,7 +121,7 @@ class Logger(ABC, LogHelper):
             return
         self.log(data, time_step, prefix="test/")
 
-    def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
+    def log_params(self, trainer: "Trainer", agent: "Agent", env: MARLEnv, test_env: MARLEnv):
         self.log(asdict(trainer), prefix="params/trainer/", time_step=0)
         self.log(asdict(agent), prefix="params/agent/", time_step=0)
         self.log(asdict(env), prefix="params/env/", time_step=0)
@@ -168,13 +168,13 @@ class Logger(ABC, LogHelper):
     def reader(self) -> "LogReader":
         raise NotImplementedError("This method should be implemented by subclasses of Logger to return a LogReader for the same logdir.")
 
-    def save_trainer(self, trainer: Trainer, time_step: int):
+    def save_trainer(self, trainer: "Trainer", time_step: int):
         directory = self.get_saved_algo_dir(time_step)
         if not os.path.exists(directory):
             os.makedirs(directory)
         trainer.save(directory)
 
-    def save_agent(self, agent: Agent, time_step: int):
+    def save_agent(self, agent: "Agent", time_step: int):
         directory = self.get_saved_algo_dir(time_step)
         if not os.path.exists(directory):
             os.makedirs(directory)
