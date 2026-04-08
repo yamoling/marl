@@ -31,6 +31,7 @@ class Run(LogReader):
 
     def __init__(self, rundir: str, granularity: int, log_specs: LogSpecs):
         super().__init__(rundir)
+        self.rundir = rundir
         self.reader = get_logger(rundir, log_specs).reader()
         self.granularity = granularity
 

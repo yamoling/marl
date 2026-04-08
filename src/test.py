@@ -9,7 +9,7 @@ from marl.training import OptionCritic
 
 def main():
     env = (
-        lle.from_file("maps/four_rooms_small.toml")
+        lle.from_file("maps/four_rooms_small-1.toml")
         .obs_type("layered")
         .state_type("state")
         .builder()

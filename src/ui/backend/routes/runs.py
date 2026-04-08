@@ -21,5 +21,9 @@ def list_runs(logdir: str):
                 }
             )
         return Response(orjson.dumps(runs), media_type="application/json")
-    except (ModuleNotFoundError, AttributeError):
+    except (ModuleNotFoundError, AttributeError) as e:
+        # This can occur if the structure of the repository has changed since the
+        # pickle file has been created (ModuleNotFoundError) or if the attributes of the
+        # experiment have changed (AttributeError). In both cases, we consider that the experiment has no runs to display, and we return an empty list.
+        print(e)
         return Response(orjson.dumps([]), media_type="application/json")
