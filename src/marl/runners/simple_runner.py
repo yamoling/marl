@@ -163,7 +163,7 @@ def seeded_rollout(env: MARLEnv, agent: "Agent", seed: int, render=False, comput
             env.render()
         if compute_frames:
             frames.append(env.get_image())
-        action = agent.choose_action_with_details(obs)
+        action = agent.choose_action(obs, with_details=True)
         action_details.append(action)
         step = env.step(action.action)
         transition = Transition.from_step(obs, state, action.action, step)
@@ -178,4 +178,4 @@ def seeded_rollout(env: MARLEnv, agent: "Agent", seed: int, render=False, comput
 
 
 def get_test_seed(time_step: int, test_num: int):
-    return time_step + test_num
+    return time_step * 31 + test_num

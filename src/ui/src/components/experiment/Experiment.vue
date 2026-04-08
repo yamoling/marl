@@ -5,8 +5,8 @@
     <div v-else class="row">
         <EpisodeViewer ref="viewer" :experiment="experiment" />
         <div class="col-3">
-            <DQNParams v-if="experiment.agent.name == 'DQN'" :trainer="experiment.trainer"
-                :algo="(experiment.agent as DQN)" class="mb-1" />
+            <DQNParams v-if="experiment.trainer.name == 'DQN'" :trainer="experiment.trainer"
+                :algo="(experiment.trainer as any as DQN)" class="mb-1" />
             <EnvironmentParams :env="experiment.env" />
         </div>
         <div class="col">

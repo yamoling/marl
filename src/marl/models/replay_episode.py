@@ -1,8 +1,9 @@
 import os
 from dataclasses import dataclass, field
+from typing import Any
 from marlenv.models import Episode
 
-from .action import DetailedAction
+from .action import Action
 
 
 @dataclass
@@ -18,20 +19,13 @@ class LightEpisodeSummary:
 
 
 @dataclass
-class DecisionData:
-    label: str
-    data: list[list[list[float]]]
-
-
-@dataclass
 class ReplayEpisode(LightEpisodeSummary):
     episode: Episode
     frames: list[str]
-    decision_data: DecisionData
+    action_details: list[dict[str, Any]]
 
-    def __init__(self, directory: str, episode: Episode, frames: list[str], detailed_actions: list[DetailedAction]):
+    def __init__(self, directory: str, episode: Episode, frames: list[str], detailed_actions: list[Action]):
         super().__init__(directory=directory, metrics=episode.metrics)
         self.episode = episode
         self.frames = frames
-        label = detailed_actions[0].label
-        self.decision_data = DecisionData(label, data=[action.details.tolist() for action in detailed_actions])
+        self.action_details = [a.details for a in detailed_actions]

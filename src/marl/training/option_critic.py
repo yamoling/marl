@@ -116,14 +116,14 @@ class OptionCritic(Trainer):
         values = batch.rewards + self.gamma * batch.not_dones * next_values
         policy_advantages = values - q_options
         dist = self.oc.policy(batch.obs, batch.extras, batch.available_actions, batch["options"].squeeze(0).tolist())
-        log_probs = dist.log_prob(batch.actions).squeeze(0)
-        entropies = dist.entropy().squeeze(0)
+        log_probs = dist.log_prob(batch.actions)
+        entropies = dist.entropy()
         policy_loss = -log_probs * policy_advantages - self.entropy_reg * entropies
         policy_loss = torch.mean(policy_loss)
 
         # Termination loss (Theorem 2): use advantage at next state, mask out episode ends
         # A_Ω(s', ω) = Q_Ω(s', ω) - V_Ω(s')
-        next_termination_probs = self.oc.termination_probability(batch.next_obs, batch.next_extras, options).squeeze(0)
+        next_termination_probs = self.oc.termination_probability(batch.next_obs, batch.next_extras, options)
         next_advantage = next_q_options_continued - next_q_max
         termination_loss = next_termination_probs * (next_advantage + self.termination_reg) * batch.not_dones
         termination_loss = torch.mean(termination_loss)

@@ -1,7 +1,7 @@
 <template>
     <div v-if="dataset != null" class="row text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
-            @row-expand="onRowExpanded">
+            @row-expand="onRowExpanded" @row-click="onRowClicked" selection-mode="single">
             <Column expander style="width: 3rem" />
             <Column field="step" header="Time step"></Column>
             <Column v-for="label in dataset.columns()" :field="label" :header="label">
@@ -32,7 +32,7 @@
     </div>
 </template>
 <script setup lang="ts">
-import { DataTable, Column, DataTableRowExpandEvent } from "primevue";
+import { DataTable, Column, DataTableRowClickEvent, DataTableRowExpandEvent } from "primevue";
 import { ref } from 'vue';
 import { DatasetTable, Experiment } from '../../models/Experiment';
 import { useResultsStore } from '../../stores/ResultsStore';
@@ -43,7 +43,7 @@ const props = defineProps<{
     experiment: Experiment
 }>();
 
-const expanded = ref();
+const expanded = ref({} as Record<string, boolean>);
 const resultsStore = useResultsStore();
 const dataset = ref(null as DatasetTable | null);
 const testsAtStep = ref({} as { [key: number]: any })
@@ -67,8 +67,30 @@ function formatFloat(value: number) {
 }
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
+    await loadTestsAtStep(event.data.step);
+}
+
+async function onRowClicked(event: DataTableRowClickEvent) {
+    const step = String(event.data.step);
+    const current = expanded.value ?? {};
+
+    if (current[step]) {
+        const { [step]: _, ...rest } = current;
+        expanded.value = rest;
+        return;
+    }
+
+    expanded.value = {
+        ...current,
+        [step]: true,
+    };
+    await loadTestsAtStep(event.data.step);
+}
+
+async function loadTestsAtStep(step: number) {
+    if (testsAtStep.value[step] != undefined) return;
     const testsDataset = [];
-    const results = await resultsStore.getTestsResultsAt(props.experiment.logdir, event.data.step);
+    const results = await resultsStore.getTestsResultsAt(props.experiment.logdir, step);
     for (const res of results) {
         testsDataset.push({
             testNum: res.name,
@@ -79,7 +101,7 @@ async function onRowExpanded(event: DataTableRowExpandEvent) {
     for (const column of Object.keys(testsDataset[0])) {
         testColumns.value.add(column);
     }
-    testsAtStep.value[event.data.step] = testsDataset;
+    testsAtStep.value[step] = testsDataset;
 }
 
 

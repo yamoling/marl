@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 
 
+@dataclass
 class Action[T: Any]:
     """
     An Action is a wrapper around a numpy array representing the action to perform. It also allows to store additional keyword arguments that can be used to store details on the decision-making such as:
@@ -12,6 +13,12 @@ class Action[T: Any]:
      - Options in the case of option-based RL algorithms.
      - Meta-agent actions in the case of hierarchical RL algorithms.
     """
+
+    action: npt.NDArray[T]
+    action_probabilities: npt.NDArray[np.float32] | None = None
+    q_values: npt.NDArray[np.float32] | None = None
+    options: list | None = None
+    meta_actions: npt.ArrayLike | None = None
 
     def __init__(
         self,
@@ -21,7 +28,6 @@ class Action[T: Any]:
         q_values: npt.NDArray[np.float32] | None = None,
         options: list | None = None,
         meta_actions: npt.ArrayLike | None = None,
-        **kwargs: npt.ArrayLike,
     ):
         self.action = action
         self.action_probabilities = action_probabilities
@@ -53,13 +59,4 @@ class Action[T: Any]:
 
     @property
     def details(self):
-        res = self.__dict__.copy()
-        res.pop("action", None)
-        return res
-
-
-@dataclass
-class DetailedAction:
-    action: np.ndarray
-    label: str
-    details: np.ndarray
+        return {name: value for name, value in self.__dict__.items() if name != "action" and value is not None}

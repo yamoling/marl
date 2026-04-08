@@ -57,13 +57,15 @@ class OptionAgent(Agent):
             self.options = np.where((r < end_probs), chosen_options, self.options).tolist()
         self.force_update_next_option = False
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation, *, with_details: bool = False):
         with torch.no_grad():
             obs, extras, available = observation.as_tensors(self.device, batch_dim=True, actions=True)
             self.update_options(obs, extras)
             dist = self.oc.policy(obs, extras, available, self.options)
             action = dist.sample().squeeze(0)
-        return Action(action.numpy(force=True), options=self.options)
+        if with_details:
+            return Action(action.numpy(force=True), options=self.options, action_probabilities=dist.probs.numpy(force=True).squeeze(0))
+        return Action(action.numpy(force=True))
 
     def new_episode(self):
         # Upon new episodes, we want to force the agent to update its option at the first step, even if the termination probability is low.

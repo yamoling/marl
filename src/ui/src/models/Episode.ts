@@ -7,6 +7,13 @@ export interface ReplayEpisodeSummary {
 }
 
 
+export interface ActionDetails {
+    action_probabilities?: number[][] | number[][][]
+    q_values?: number[][] | number[][][]
+    options?: number[]
+    meta_actions?: number[]
+}
+
 
 export interface ReplayEpisode {
     name: string,
@@ -16,45 +23,12 @@ export interface ReplayEpisode {
         [key: string]: number
     },
     frames: string[]
-    decision_data: {
-        label: string
-        data: number[][][]
-    }
+    action_details: ActionDetails[]
 
 }
 
 
-// export class Episode {
-//     public directory: string
-//     public metrics: Metrics
-//     public qvalues: number[][][] | null
-//     public frames: string[]
 
-//     public obs: number[][][] | number[][][][][]
-//     public obs_: number[][][] | number[][][][][]
-//     public extras: number[][][]
-//     public actions: number[][]
-//     public rewards: number[]
-//     public available_actions: number[][][]
-//     public available_actions_: number[][][]
-//     public states: number[][][]
-
-//     public constructor(directory: string, metrics: Metrics, qvalues: number[][][] | null, frames: string[], remoteEpisode: RemoteEpisode) {
-//         this.directory = directory;
-//         this.metrics = metrics;
-//         this.qvalues = qvalues;
-//         this.frames = frames;
-
-//         this.obs = remoteEpisode.all_observations.slice(0, -2);
-//         this.obs_ = remoteEpisode.all_observations.slice(1);
-//         this.extras = remoteEpisode.all_extras;
-//         this.actions = remoteEpisode.actions;
-//         this.rewards = remoteEpisode.rewards;
-//         this.available_actions = remoteEpisode.all_available_actions.slice(0, -2);
-//         this.available_actions_ = remoteEpisode.all_available_actions.slice(1);
-//         this.states = remoteEpisode.states;
-//     }
-// }
 
 export interface Episode {
     all_available_actions: number[][][]

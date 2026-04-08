@@ -1,10 +1,8 @@
-import { Agent } from "./Agent"
 import { Trainer } from "./Trainer"
 import { Env, EnvWrapper } from "./Env"
 
 export interface Experiment {
     logdir: string
-    agent: Agent
     trainer: Trainer
     env: Env | EnvWrapper
     test_env?: Env | EnvWrapper

@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from marlenv import Observation
 
-from .action import Action, DetailedAction
+from .action import Action
 from .nn import NN, RecurrentNN
 
 
@@ -23,15 +23,12 @@ class Agent(ABC):
         self._device = torch.device("cpu")
 
     @abstractmethod
-    def choose_action(self, observation: Observation) -> Action:
-        """Get the action to perform given the input observation."""
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
+        """
+        Get the action to perform given the input observation.
 
-    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
+        If the `with_details` flag is set to True, the method should return an Action with additional details about the decision-making such as the action probabilities, the q-values, etc.
         """
-        Get the action to perform given the input observation along with details on the decision-making such as the qvalues, the action probabilities or the logits.
-        """
-        action = self.choose_action(observation)
-        return DetailedAction(np.array(action), "No details", np.zeros_like(observation.available_actions))
 
     @property
     def networks(self):

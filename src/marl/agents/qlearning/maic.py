@@ -38,11 +38,11 @@ class MAIC(Agent):
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self._device)
         return obs_tensor, extras
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         with torch.no_grad():
             qvalues = self.compute_qvalues(observation)
         qvalues = qvalues.cpu().numpy()
-        return Action(self.policy.get_action(qvalues, observation.available_actions))
+        return Action(self.policy.get_action(qvalues, observation.available_actions), q_values=qvalues)
 
     def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""

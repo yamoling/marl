@@ -13,7 +13,7 @@ class RandomAgent(Generic[S], Agent):
         super().__init__()
         self.env = env
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         return Action(self.env.action_space.sample(observation.available_actions))
 
     def value(self, _):

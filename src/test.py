@@ -9,7 +9,7 @@ from marl.training import OptionCritic
 
 def main():
     env = (
-        lle.from_file("maps/four_rooms_small-1.toml")
+        lle.from_file("maps/four_rooms_small-2.toml")
         .obs_type("layered")
         .state_type("state")
         .builder()
@@ -23,11 +23,13 @@ def main():
     trainer = OptionCritic(
         oc,
         env.n_agents,
-        mixer=mixers.VDN(env.n_agents),
+        mixer=None,
         option_train_policy=EpsilonGreedy.linear(1.0, 0.05, 50_000),
     )
 
-    exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=1000, logdir=f"logs/{env.name}-OC")
+    logdir = f"logs/{env.name}-OC"
+    # logdir = "tests"
+    exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=2500, logdir=logdir)
     exp.run(seeds=10, n_tests=5, n_parallel=3)
 
 
