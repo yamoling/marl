@@ -13,7 +13,7 @@ from .replay_memory import (
     ReplayMemory,
     TransitionMemory,
 )
-from .run import Run
+from .run import LiveRun, Run
 from .trainer import Trainer
 
 __all__ = [
@@ -40,6 +40,7 @@ __all__ = [
     "LightEpisodeSummary",
     "Trainer",
     "Run",
+    "LiveRun",
     "IRModule",
     "Actor",
     "Critic",

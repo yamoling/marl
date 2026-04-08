@@ -26,4 +26,5 @@ class SequentialRunner:
 
         device = get_device(device, auto_device_strategy)
         for seed in seeds:
-            SimpleRunner.from_experiment(self.exp, seed, n_tests, quiet).to(device).run(render_tests)
+            runner = SimpleRunner.from_experiment(self.exp, n_tests, quiet).to(device)
+            runner.start(self.exp.logdir, seed, self.exp.logger, render_tests)

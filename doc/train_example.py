@@ -4,7 +4,7 @@ import marl
 from marl.nn import mixers
 from marl.nn.model_bank.options import CNNOptionCritic
 from marl.policy import EpsilonGreedy
-from marl.training.option_critic2 import OptionCritic
+from marl.training import OptionCritic
 
 WORLD_STR = '''
 starts = [{ i_min = 0, j_min = 0 }]

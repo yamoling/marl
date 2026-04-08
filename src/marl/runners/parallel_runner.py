@@ -67,9 +67,9 @@ def _start_run(logdir: str, seed: int, device_index: int | None, n_tests: int, q
     from marl import Experiment
 
     exp = Experiment.load(logdir)
-    runner = SimpleRunner.from_experiment(exp, seed, n_tests, quiet)
+    runner = SimpleRunner.from_experiment(exp, n_tests, quiet)
     if device_index is None:
         device = torch.device("cpu")
     else:
         device = torch.device(device_index)
-    return runner.to(device).run(render_tests)
+    return runner.to(device).start(logdir, seed, exp.logger, render_tests)

@@ -18,12 +18,13 @@ from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNActor, CNNContinuousActorCritic
 from marl.nn.model_bank.options import OptionTermination, SimpleOptionCritic
 from marl.nn.model_bank.qnetworks import QCNN
+from marl.nn import model_bank
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
 from marl.training.intrinsic_reward import AdvantageIntrinsicReward
-from run import Arguments as RunArguments
-from run import main as run_experiment
+from start_run import Arguments as RunArguments
+from start_run import main as run_experiment
 
 
 class Arguments(tap.TypedArgs):
@@ -99,14 +100,8 @@ def create_smac_experiment(args: Arguments):
 def make_option_critic(env: MARLEnv[MultiDiscreteSpace], n_options: int = 8):
     from marl.training.option_critic import OptionCritic
 
-    assert len(env.observation_shape) == 3
-    oc = SimpleOptionCritic(
-        [CNNActor(env.observation_shape, env.extras_shape[0], env.n_actions) for _ in range(n_options)],
-        QCNN(env.observation_shape, env.extras_size, n_options),
-        OptionTermination(n_options, env.observation_shape, env.extras_shape),
-        env.n_agents,
-    )
-    return OptionCritic(oc, 1e-4, 50_000, env.n_agents)
+    oc = model_bank.CNNOptionCritic.from_env(env, n_options)
+    return OptionCritic(oc, env.n_agents, lr=1e-4, memory_size=50_000)
 
 
 def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):

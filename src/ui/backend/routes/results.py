@@ -1,4 +1,5 @@
 from http import HTTPStatus
+
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse, Response
 from . import state
@@ -14,13 +15,9 @@ def get_experiment_results(logdir: str):
         exp = state.get_experiment(logdir)
     except (ModuleNotFoundError, FileNotFoundError) as e:
         return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
-    try:
-        metrics, qvalues = exp.get_experiment_results(replace_inf=True)
-        response_data = stats.build_results_payload(metrics, qvalues)
-        return Response(orjson.dumps(response_data), media_type="application/json")
-    except Exception as e:
-        print(e)
-        return PlainTextResponse(str(e), status_code=500)
+    metrics, qvalues = exp.get_experiment_results(replace_inf=True)
+    response_data = stats.build_results_payload(metrics, qvalues)
+    return Response(orjson.dumps(response_data), media_type="application/json")
 
 
 @router.get("/results/test/{time_step}/{logdir:path}")

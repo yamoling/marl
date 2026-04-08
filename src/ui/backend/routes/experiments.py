@@ -1,4 +1,5 @@
 from http import HTTPStatus
+import logging
 
 import cv2
 import orjson
@@ -12,6 +13,7 @@ from marl.utils import encode_b64_image
 from . import state
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/experiment/replay/{path:path}")
@@ -29,7 +31,7 @@ def list_experiments():
     try:
         return state.list_experiments()
     except ExperimentVersionMismatch as e:
-        print(e)
+        logger.exception("Failed to list experiments due to version mismatch")
         return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 

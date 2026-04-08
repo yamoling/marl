@@ -17,7 +17,7 @@ TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
 
-class CSVWriter:
+class CSVLogWriter:
     def __init__(self, filename: str, flush_interval_sec: float = 30):
         self.filename = filename
         self._file = None
@@ -106,10 +106,10 @@ class CSVLogReader(LogReader):
 class CSVLogger(Logger):
     def __init__(self, logdir: str, flush_interval_sec: float = 30):
         super().__init__(logdir)
-        self.test = CSVWriter(os.path.join(logdir, TEST), flush_interval_sec)
-        self.train = CSVWriter(os.path.join(logdir, TRAIN), flush_interval_sec)
-        self.training_data = CSVWriter(os.path.join(logdir, TRAINING_DATA), flush_interval_sec)
-        self.other_loggers = dict(default=CSVWriter(os.path.join(logdir, "other.csv"), flush_interval_sec))
+        self.test = CSVLogWriter(os.path.join(logdir, TEST), flush_interval_sec)
+        self.train = CSVLogWriter(os.path.join(logdir, TRAIN), flush_interval_sec)
+        self.training_data = CSVLogWriter(os.path.join(logdir, TRAINING_DATA), flush_interval_sec)
+        self.other_loggers = dict(default=CSVLogWriter(os.path.join(logdir, "other.csv"), flush_interval_sec))
 
     def log_test(self, data: dict[str, float], time_step: int):
         return self.test.log(data, time_step)
@@ -133,9 +133,8 @@ class CSVLogger(Logger):
             case other:
                 if other not in self.other_loggers:
                     filename = os.path.join(self.logdir, f"{other.strip('/')}.csv")
-                    self.other_loggers[other] = CSVWriter(filename)
+                    self.other_loggers[other] = CSVLogWriter(filename)
                 self.other_loggers[other].log(data, time_step)
 
-    @staticmethod
-    def reader(from_directory: str) -> "CSVLogReader":
-        return CSVLogReader(from_directory)
+    def reader(self):
+        return CSVLogReader(self.logdir)

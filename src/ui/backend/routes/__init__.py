@@ -1,5 +1,5 @@
 import os
-import traceback
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,7 +24,23 @@ if dist_dir == "" or not os.path.exists(dist_dir):
     raise RuntimeError("Could not find front end files to serve ! Make sure you have built them (cf: readme).")
 dist_dir = os.path.join(os.getcwd(), "src/ui/dist/")
 
+
 app = FastAPI()
+logger = logging.getLogger(__name__)
+
+
+@app.middleware("http")
+async def catch_exceptions_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:
+        logger.exception("Unhandled exception while handling %s %s", request.method, request.url)
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Internal Server Error", "detail": str(exc)},
+        )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,30 +49,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def register_routers():
+    # Register API routers before declaring the SPA fallback route.
+    from .experiments import router as experiment_router
+    from .results import router as results_router
+    from .runners import router as runner_router
+    from .runs import router as runs_router
 
-@app.middleware("http")
-async def catch_exceptions_middleware(request: Request, call_next):
-    try:
-        return await call_next(request)
-    except Exception as exc:
-        # This prints the full stack trace to your terminal
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"message": "Internal Server Error", "detail": str(exc)},
-        )
+    app.include_router(experiment_router)
+    app.include_router(runs_router)
+    app.include_router(results_router)
+    app.include_router(runner_router)
 
 
-# Register API routers before declaring the SPA fallback route.
-from .experiments import router as experiment_router
-from .results import router as results_router
-from .runners import router as runner_router
-from .runs import router as runs_router
-
-app.include_router(experiment_router)
-app.include_router(runs_router)
-app.include_router(results_router)
-app.include_router(runner_router)
+register_routers()
 
 
 def run(port: int, debug=False):

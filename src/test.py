@@ -4,7 +4,7 @@ import marl
 from marl.nn import mixers
 from marl.nn.model_bank import options as options_nn
 from marl.policy import EpsilonGreedy
-from marl.training.option_critic2 import OptionCritic
+from marl.training import OptionCritic
 
 
 def main():
@@ -27,8 +27,8 @@ def main():
         option_train_policy=EpsilonGreedy.linear(1.0, 0.05, 50_000),
     )
 
-    exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=2000)
-    exp.run(seeds=10, n_tests=10, n_parallel=1)
+    exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=1000, logdir=f"logs/{env.name}-OC")
+    exp.run(seeds=10, n_tests=5, n_parallel=3)
 
 
 if __name__ == "__main__":

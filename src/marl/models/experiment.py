@@ -16,6 +16,7 @@ from marl.logging import LogSpecs
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.models.trainer import Trainer
 from marl.utils import default_serialization, encode_b64_image, stats
+from marl.runners.simple_runner import get_test_seed
 
 from .agent import Agent
 from .replay_episode import ReplayEpisode
@@ -31,7 +32,6 @@ class Experiment[A: Space]:
     env: MARLEnv[A]
     n_steps: int
     test_env: MARLEnv[A]
-    log_qvalues: bool
     logger: LogSpecs = "csv"
 
     @staticmethod
@@ -42,7 +42,6 @@ class Experiment[A: Space]:
         trainer: Trainer | None = None,
         test_interval: int = 5_000,
         test_env: MARLEnv[A] | None = None,
-        log_qvalues: bool = False,
         logger: LogSpecs = "csv",
     ):
         """
@@ -76,7 +75,6 @@ class Experiment[A: Space]:
                 test_interval=test_interval,
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
-                log_qvalues=log_qvalues,
                 logger=logger,
             )
             experiment.save()
@@ -137,6 +135,7 @@ class Experiment[A: Space]:
         self,
         other_env: MARLEnv[A],
         new_logdir: str,
+        n_tests: int = 1,
         quiet: bool = False,
         device: Literal["auto", "cpu"] = "auto",
     ):
@@ -146,6 +145,7 @@ class Experiment[A: Space]:
         This methods loads the experiment parameters at every test step and run the test on the given environment.
         """
         from marl.runners import SimpleRunner
+        from marl.models import LiveRun
 
         new_experiment = Experiment.create(
             logdir=new_logdir,
@@ -158,9 +158,10 @@ class Experiment[A: Space]:
         runs = sorted(list(self.runs), key=lambda run: run.rundir)
 
         for i, base_run in enumerate(runs):
-            runner = SimpleRunner.from_experiment(new_experiment, base_run.seed).to(device)
-            for time_step in tqdm(range(0, base_run.latest_time_step + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                runner._test_and_log(time_step, render=False)
+            runner = SimpleRunner.from_experiment(new_experiment, n_tests, quiet).to(device)
+            run = LiveRun(new_experiment.logdir, base_run.seed, new_experiment.logger)
+            for time_step in tqdm(range(0, self.n_steps + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
+                runner._test_and_log(run, time_step, render=False)
 
     @overload
     def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
@@ -194,7 +195,7 @@ class Experiment[A: Space]:
         run = list(self.runs)[run_num]
         episode_folder = run.test_dir(time_step, test_num)
         # runner = self.create_runner()
-        seed = Run.get_test_seed(time_step, test_num)
+        seed = get_test_seed(time_step, test_num)
         # actions = run.get_test_actions(time_step, test_num)
         agent = self.agent_at(time_step, run.seed)
         episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
@@ -227,7 +228,7 @@ class Experiment[A: Space]:
     @property
     def runs(self):
         for rundir in self.rundirs:
-            yield Run.load(rundir)
+            yield Run(rundir, self.test_interval, self.logger)
 
     @property
     def rundirs(self):

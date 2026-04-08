@@ -6,7 +6,7 @@ import numpy as np
 from marlenv import Observation
 from torch import device
 
-from marl.models.agent import Agent
+from marl.models import Agent
 
 
 @dataclass
