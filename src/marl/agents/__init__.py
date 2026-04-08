@@ -9,8 +9,6 @@ __all__ = [
     "RandomAgent",
     "DQNAgent",
     "RDQNAgent",
-    "CNet",
-    "MAIC",
     "MCTS",
     "Haven",
     "SimpleActor",

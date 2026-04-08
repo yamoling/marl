@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from marlenv import Observation
 
-from marl.models.agent import Agent
+from marl.models import Agent, Action
 
 if TYPE_CHECKING:
     from marl.models import Policy
@@ -34,4 +34,4 @@ class QAgent(Agent):
 
     def choose_action(self, observation: Observation):
         qvalues = self._qtable[observation].copy()
-        return self.policy.get_action(qvalues, observation.available_actions)
+        return Action(self.policy.get_action(qvalues, observation.available_actions))

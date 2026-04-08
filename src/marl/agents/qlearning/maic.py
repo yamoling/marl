@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
-from marl.models.agent import Agent
+from marl.models import Agent, Action
 
 if TYPE_CHECKING:
     from marlenv import Observation
@@ -38,11 +38,11 @@ class MAIC(Agent):
         obs_tensor = torch.from_numpy(obs.data).unsqueeze(0).to(self._device)
         return obs_tensor, extras
 
-    def choose_action(self, observation: Observation) -> np.ndarray:
+    def choose_action(self, observation: Observation):
         with torch.no_grad():
             qvalues = self.compute_qvalues(observation)
         qvalues = qvalues.cpu().numpy()
-        return self.policy.get_action(qvalues, observation.available_actions)
+        return Action(self.policy.get_action(qvalues, observation.available_actions))
 
     def value(self, obs: Observation) -> float:
         """Get the value of the input observation"""

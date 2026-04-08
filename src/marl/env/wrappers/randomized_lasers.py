@@ -15,10 +15,10 @@ class RandomizedLasers(RLEnvWrapper[MultiDiscreteSpace]):
         else:
             self.sources = sources
 
-    def reset(self):
+    def reset(self, *, seed=None):
         for pos in self.sources:
             self.world.source_at(pos).set_colour(random.randint(0, self.n_agents - 1))
-        return super().reset()
+        return super().reset(seed=seed)
 
     def seed(self, seed_value: int):
         random.seed(seed_value)

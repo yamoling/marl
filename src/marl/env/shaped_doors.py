@@ -21,9 +21,9 @@ class ShapedDoors(RLEnvWrapper[MultiDiscreteSpace]):
             extra_meanings=env.extras_meanings + [f"checkpoint {i}" for i in range(len(self._key_pos))],
         )
 
-    def reset(self):
+    def reset(self, *, seed=None):
         self._reward_countdown = OrderedDict.fromkeys(self._key_pos, self.delay)
-        _, state = super().reset()
+        _, state = super().reset(seed=seed)
         return self.get_observation(), state
 
     def get_observation(self):

@@ -4,8 +4,7 @@ from typing import TYPE_CHECKING
 import torch
 from marlenv.models import Observation
 
-from marl.models import Agent
-from marl.models.detailed_action import DetailedAction
+from marl.models import Agent, Action, DetailedAction
 
 if TYPE_CHECKING:
     from marl.models import Actor
@@ -25,7 +24,7 @@ class SimpleActor(Agent):
             available_actions = torch.from_numpy(observation.available_actions).unsqueeze(0).to(self._device, non_blocking=True)
             distribution = self.actor_network.policy(obs_data, obs_extras, available_actions)
         actions = distribution.sample().squeeze(0)
-        return actions.numpy(force=True)
+        return Action(actions.numpy(force=True))
 
     def choose_action_with_details(self, observation: Observation) -> DetailedAction:
         with torch.no_grad():

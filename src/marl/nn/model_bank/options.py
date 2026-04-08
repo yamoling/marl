@@ -10,18 +10,19 @@ from torch.distributions import Categorical
 from torch.nn import ModuleList
 
 from marl.models.nn import NN, Actor, QNetwork
-from marl.models.nn.options import OptionCritic
+from marl.models.nn.options import OptionCriticNetwork
 from marl.nn.model_bank.generic import CNN
 
 
 @dataclass(unsafe_hash=True)
-class CNNOptionCritic(OptionCritic):
+class CNNOptionCritic(OptionCriticNetwork):
     policies: torch.nn.ModuleList
     q_options: QNetwork
     options_termination: NN
 
     def __init__(self, policies: torch.nn.ModuleList, q_options: QNetwork, options_termination: NN):
-        OptionCritic.__init__(self)
+        assert len(q_options.output_shape) == 1, "Multi-objective options are not supported"
+        OptionCriticNetwork.__init__(self, q_options.output_shape[0])
         self.policies = policies
         self.q_options = q_options
         self.options_termination = options_termination
@@ -49,9 +50,13 @@ class CNNOptionCritic(OptionCritic):
         return probs.squeeze(-1)
 
     def policy(
-        self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, option: Sequence[int]
-    ) -> torch.distributions.Categorical:
-        logits = [self.policies[i].forward(o, e) for i, (o, e) in enumerate(zip(obs, extras))]
+        self,
+        obs: Tensor,
+        extras: Tensor,
+        available_actions: torch.Tensor,
+        options: Sequence[int] | torch.Tensor,
+    ):
+        logits = [self.policies[option].forward(obs, extra) for option, obs, extra in zip(options, obs, extras)]
         logits = torch.stack(logits)
         logits[~available_actions] = -torch.inf
         dist = torch.distributions.Categorical(logits=logits)

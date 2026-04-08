@@ -11,8 +11,7 @@ from tqdm import tqdm
 
 from marl.agents.random_agent import RandomAgent
 from marl.logging import LogSpecs, get_logger
-from marl.models.detailed_action import DetailedAction
-from marl.models.run import Run
+from marl.models import DetailedAction, Run
 from marl.utils import get_device
 
 if TYPE_CHECKING:
@@ -116,7 +115,7 @@ class SimpleRunner[A: Space]:
             step = self._env.step(action)
             if step_num == self.n_steps:
                 step.truncated = True
-            transition = Transition.from_step(obs, state, action, step)
+            transition = Transition.from_step(obs, state, action.action, step, **action.details)
             training_metrics = self._trainer.update_step(transition, step_num)
             self._logger.log_train(training_metrics, step_num)
             episode.add(transition)

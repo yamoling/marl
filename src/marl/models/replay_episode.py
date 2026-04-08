@@ -1,9 +1,8 @@
 import os
 from dataclasses import dataclass, field
 from marlenv.models import Episode
-from typing import Literal
 
-from .detailed_action import DetailedAction
+from .action import DetailedAction
 
 
 @dataclass

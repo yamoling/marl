@@ -15,7 +15,6 @@ from marl import exceptions
 from marl.logging import LogSpecs
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.models.trainer import Trainer
-from marl.runners import seeded_rollout
 from marl.utils import default_serialization, encode_b64_image, stats
 
 from .agent import Agent
@@ -190,6 +189,8 @@ class Experiment[A: Space]:
                 raise ValueError("Invalid arguments")
 
     def _replay_episode(self, run_num: int, time_step: int, test_num: int):
+        from marl.runners import seeded_rollout
+
         run = list(self.runs)[run_num]
         episode_folder = run.test_dir(time_step, test_num)
         # runner = self.create_runner()

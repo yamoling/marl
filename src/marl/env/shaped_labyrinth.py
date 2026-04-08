@@ -21,9 +21,9 @@ class ShapedLabyrinth(RLEnvWrapper[MultiDiscreteSpace]):
             extra_meanings=env.extras_meanings + ["checkpoint 0", "checkpoint 1", "checkpoint 2", "checkpoint 3", "checkpoint 4"],
         )
 
-    def reset(self):
+    def reset(self, *, seed=None):
         self._reward_countdown = OrderedDict.fromkeys(self._key_pos, self.delay)
-        _, state = super().reset()
+        _, state = super().reset(seed=seed)
         return self.get_observation(), state
 
     def get_observation(self):

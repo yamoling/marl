@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Optional
 import torch
 from marlenv import Observation
 
-from marl.models.agent import Agent
-from marl.models.detailed_action import DetailedAction
+from marl.models import Agent, Action, DetailedAction
 from marl.optimism import VBE
 
 if TYPE_CHECKING:
@@ -51,7 +50,7 @@ class DQNAgent(Agent):
             bonus = self.vbe.compute_bonus(observation)
             qvalues = qvalues + bonus
         action = self.policy.get_action(qvalues, observation.available_actions)
-        return action
+        return Action(action, qvalues=qvalues)
 
     def set_testing(self):
         self.policy = self.test_policy
