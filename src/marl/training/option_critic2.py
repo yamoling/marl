@@ -111,7 +111,7 @@ class OptionCritic(Trainer):
         # Policy loss: policy gradient using Q_U bootstrapped target
         values = batch.rewards + self.gamma * batch.not_dones * next_values
         policy_advantages = values - q_options
-        dist = self.oc.policy(batch.obs, batch.extras, batch.available_actions, options.tolist())
+        dist = self.oc.policy(batch.obs, batch.extras, batch.available_actions, options.squeeze().tolist())
         log_probs = dist.log_prob(batch.actions).squeeze(0)
         entropies = dist.entropy().squeeze(0)
         policy_loss = -log_probs * policy_advantages - self.entropy_reg * entropies

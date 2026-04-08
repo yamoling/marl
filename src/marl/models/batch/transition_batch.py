@@ -15,6 +15,7 @@ class TransitionBatch(Batch):
         self.is_discrete = not self.is_continuous
         self.actions_dtype = transitions[0].action.dtype
         super().__init__(len(transitions), transitions[0].n_agents, device)
+        self._cache = dict[str, torch.Tensor]()
 
     @cached_property
     def reward_size(self):
@@ -32,9 +33,13 @@ class TransitionBatch(Batch):
                 *(1 for _ in self.importance_sampling_weights.shape), self.reward_size
             )
 
-    def __getitem__(self, key: str) -> torch.Tensor:
+    def __getitem__(self, key: str):
+        if key in self._cache:
+            return self._cache[key]
         items = np.array([t[key] for t in self.transitions])
-        return torch.from_numpy(items).to(self.device)
+        res = torch.from_numpy(items).to(self.device)
+        self._cache[key] = res
+        return res
 
     def get_minibatch(self, indices_or_size):
         if isinstance(indices_or_size, int):
