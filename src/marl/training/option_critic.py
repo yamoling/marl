@@ -42,6 +42,7 @@ class OptionCritic(Trainer):
         self.target_updater.add_parameters(self.oc.parameters(), self.target_oc.parameters())
         if self.mixer is not None and self.target_mixer is not None:
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
+            self.name = f"OptionCritic-{self.mixer.name}"
 
     @property
     def n_options(self):
