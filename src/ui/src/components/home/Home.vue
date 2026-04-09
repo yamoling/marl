@@ -148,12 +148,19 @@
                                         </button>
                                         <button v-else-if="data.status === 'CREATED'"
                                             class="btn btn-sm btn-outline-primary"
-                                            @click.stop="onRunClicked(slotProps.data.logdir, data.rundir)">
-                                            <font-awesome-icon :icon="['fas', 'play']" />
+                                            @click.stop="onRunClicked(slotProps.data.logdir, data.rundir)"
+                                            :disabled="startingRuns[data.rundir]">
+                                            <font-awesome-icon v-if="startingRuns[data.rundir]"
+                                                :icon="['fas', 'spinner']" spin />
+                                            <font-awesome-icon v-else :icon="['fas', 'play']" />
                                         </button>
                                         <button v-else-if="data.status === 'CANCELLED'"
-                                            class="btn btn-sm btn-outline-primary">
-                                            <font-awesome-icon :icon="['fas', 'repeat']" class="text-info" />
+                                            class="btn btn-sm btn-outline-primary"
+                                            @click.stop="onRunClicked(slotProps.data.logdir, data.rundir)"
+                                            :disabled="startingRuns[data.rundir]">
+                                            <font-awesome-icon v-if="startingRuns[data.rundir]"
+                                                :icon="['fas', 'spinner']" spin />
+                                            <font-awesome-icon v-else :icon="['fas', 'repeat']" />
                                         </button>
                                         <font-awesome-icon v-else :icon="['fas', 'check']" class="text-success" />
                                     </template>
@@ -213,6 +220,7 @@ const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
 const expandedRows = ref({} as Record<string, boolean>);
 const stoppingRuns = ref({} as Record<string, boolean>);
+const startingRuns = ref({} as Record<string, boolean>);
 const contextMenu = ref({ show: (_exp: Experiment, _x: number, _y: number) => undefined });
 
 const selectedMetrics = ref(["score [train]"]);
@@ -383,8 +391,17 @@ function statusLabel(status: RunStatus) {
     return labels[status];
 }
 
-function onRunClicked(_logdir: string, _rundir: string) {
-    // Placeholder for future per-run start behavior.
+async function onRunClicked(logdir: string, rundir: string) {
+    startingRuns.value = {
+        ...startingRuns.value,
+        [rundir]: true,
+    };
+    try {
+        await runStore.startRun(logdir, rundir);
+    } finally {
+        const { [rundir]: _ignored, ...rest } = startingRuns.value;
+        startingRuns.value = rest;
+    }
 }
 
 async function stopRun(logdir: string, rundir: string) {

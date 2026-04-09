@@ -12,14 +12,13 @@ def main():
     trainer = OptionCritic(
         oc,
         env.n_agents,
-        mixer=None,
+        mixer=None,  # marl.nn.mixers.VDN.from_env(env),
         option_train_policy=EpsilonGreedy.linear(1.0, 0.05, 50_000),
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
-    # exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir)
-    exp = marl.Experiment.load(logdir)
-    exp.run(seeds=1, n_tests=5)
+    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir)
+    exp.run(seeds=16, n_tests=5)
 
 
 if __name__ == "__main__":

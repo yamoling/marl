@@ -49,3 +49,12 @@ def stop_run(rundir: str):
         return Response(status_code=HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return Response(content=str(e), status_code=HTTPStatus.NOT_FOUND)
+
+
+@router.post("/runs/start/{rundir:path}")
+def start_run(rundir: str):
+    try:
+        state.start_run(rundir)
+        return Response(status_code=HTTPStatus.NO_CONTENT)
+    except FileNotFoundError as e:
+        return Response(content=str(e), status_code=HTTPStatus.NOT_FOUND)

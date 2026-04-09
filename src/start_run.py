@@ -58,7 +58,7 @@ class Arguments(tap.TypedArgs):
 
     @property
     def seeds(self):
-        return list(range(self.seed, self.n_runs))
+        return list(range(self.seed, self.seed + self.n_runs))
 
 
 def main(args: Arguments):
