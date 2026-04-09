@@ -9,13 +9,13 @@ from marl.training import OptionCritic
 
 def main():
     env = (
-        lle.from_file("maps/four_rooms_small-2.toml")
+        lle.from_file("maps/four_rooms-2.toml")
         .obs_type("layered")
         .state_type("state")
         .builder()
-        # .randomize_actions(1 / 3)
+        # .randomize_actions(1 / 5)
         .agent_id()
-        .time_limit(300)
+        .time_limit(1000)
         .build()
     )
 
@@ -28,9 +28,9 @@ def main():
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
-    logdir = "tests"
-    exp = marl.Experiment.create(env, 300_000, trainer=trainer, test_interval=2500, logdir=logdir)
-    exp.run(seeds=16, n_tests=5, n_parallel=1)
+    # logdir = "tests"
+    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir)
+    exp.run(seeds=16, n_tests=5)
 
 
 if __name__ == "__main__":
