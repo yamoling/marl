@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from signal import SIGINT, Signals
 from functools import cached_property
+import psutil
 
 import polars as pl
 
@@ -130,6 +131,12 @@ class Run:
                 return int(f.read())
         except FileNotFoundError:
             return None
+        
+    def get_parent_pid(self):
+        pid = self.get_pid()
+        if pid is None:
+            return None
+        return psutil.Process(self.get_pid()).ppid()
 
     def kill(self, signal: Signals | int = SIGINT):
         if not isinstance(signal, int):

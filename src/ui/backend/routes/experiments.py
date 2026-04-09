@@ -1,4 +1,5 @@
 import logging
+import time
 from http import HTTPStatus
 
 import cv2
@@ -99,9 +100,12 @@ def delete_experiment(logdir: str):
 
 @router.post("/experiment/stop-runs/{logdir:path}")
 def stop_experiment_runs(logdir: str):
+    """Kill all running runs of an experiment. The loop accounts for queued runs that would start after killing the current ones."""
     try:
         exp = state.get_experiment(logdir)
-        exp.kill_runs()
+        while exp.is_running:
+            exp.kill_runs()
+            time.sleep(0.1)
         return Response(status_code=HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)

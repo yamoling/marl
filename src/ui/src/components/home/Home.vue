@@ -1,7 +1,6 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenu" />
-        <RunHover ref="runHover" />
         <div class="col-6">
             <div class="row">
                 <div class="input-group">
@@ -134,7 +133,6 @@ import { useColourStore } from '../../stores/ColourStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
 import ContextMenu from './ContextMenu.vue';
-import RunHover from './RunHover.vue';
 import { Run } from '../../models/Run';
 
 const experimentStore = useExperimentStore();
