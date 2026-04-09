@@ -1,6 +1,5 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { wsURL } from "../constants";
 import { SystemInfo } from "../models/SystemInfo";
 
 export const useSystemStore = defineStore("SystemStore", () => {
@@ -9,10 +8,10 @@ export const useSystemStore = defineStore("SystemStore", () => {
 
     function updateSystemInfo() {
         const address = `ws://${location.hostname}:5001`;
-        console.log("Connecting to system info websocket", address);
+        console.info("Connecting to system info websocket", address);
         const ws = new WebSocket(address);
         ws.onopen = () => {
-            console.log("Connected to system info websocket")
+            console.info("Connected to system info websocket")
         }
         ws.onmessage = async (event) => {
             const blob = event.data as Blob;

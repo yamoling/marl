@@ -11,21 +11,13 @@
                 <font-awesome-icon :icon="['fa', 'trash']" class="text-danger pe-2" />
                 Delete
             </li>
-            <li @click="() => modal.showModal(clickedExperiment)">
-                <font-awesome-icon :icon="['fa', 'play']" class=" text-success pe-2" />
-                Test on other env
-            </li>
             <li @click="archive">
                 <font-awesome-icon :icon="['fas', 'box-archive']" class="pe-2" />
                 Archive
             </li>
-            <li @click="() => newRunModal.showModal(clickedExperiment)">
-                <font-awesome-icon :icon="['fas', 'person-running']" class="pe-2" />
-                Start a new run
-            </li>
             <li @click="stopRuns">
-                <font-awesome-icon :icon="['fas', 'stop']" class="text-warning pe-2" />
-                Stop all running runs
+                <font-awesome-icon :icon="['fas', 'stop']" class="text-danger pe-2" />
+                Stop all runs
             </li>
         </ul>
     </div>
@@ -33,13 +25,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useExperimentStore } from '../../stores/ExperimentStore';
-import TestOnOtherEnvironment from '../modals/TestOnOtherEnv.vue';
 import NewRun from '../modals/NewRun.vue';
 import { Experiment } from '../../models/Experiment';
 
 const contextMenu = ref({} as HTMLDivElement);
-const modal = ref({} as typeof TestOnOtherEnvironment)
-const newRunModal = ref({} as typeof NewRun)
 const clickedExperiment = ref({} as Experiment);
 const experimentStore = useExperimentStore();
 
@@ -83,7 +72,6 @@ function remove() {
 function archive() {
     const currentLogdir = clickedExperiment.value.logdir;
     const newLogdir = currentLogdir.replace("logs/", "archives/")
-    console.log(newLogdir);
     experimentStore.rename(currentLogdir, newLogdir);
 }
 

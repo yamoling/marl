@@ -46,7 +46,6 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
     }
 
     function getExtraViewMode() {
-        console.log(settings.value.extrasViewMode);
         return settings.value.extrasViewMode;
     }
 
