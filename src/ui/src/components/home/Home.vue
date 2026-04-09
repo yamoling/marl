@@ -3,13 +3,12 @@
         <ContextMenu ref="contextMenu" />
         <div class="col-6">
             <div class="row">
-                <div class="input-group">
+                <div class="input-group mb-3">
                     <span class="input-group-text">
                         <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
                         Filter
                     </span>
                     <input class="form-control" type="text" v-model="searchString" />
-                    <!-- Cross icon to delete the search string -->
                     <button class="btn btn-secondary input-group-btn" @click="searchString = ''">
                         <font-awesome-icon :icon="['fas', 'times']" />
                     </button>
@@ -18,83 +17,151 @@
                         <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
                     </button>
                 </div>
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th> </th>
-                            <th> </th>
-                            <th> Progress </th>
-                            <th class="sortable" @click="() => sortBy('logdir')">
+                <DataTable v-model:expandedRows="expandedRows" :value="visibleExperiments" dataKey="logdir" striped-rows
+                    size="small" @row-click="onRowClicked" @row-expand="onRowExpanded"
+                    @row-contextmenu="onRowContextMenu">
+                    <Column expander style="width: 3rem" />
+                    <Column style="width: 3rem">
+                        <template #body="{ data }">
+                            <font-awesome-icon
+                                v-if="experimentStore.isRunning[data.logdir] || hasRunningRuns(data.logdir)"
+                                :icon="['fas', 'spinner']" class="fa-spin" />
+                        </template>
+                    </Column>
+                    <Column style="width: 8rem">
+                        <template #body="{ data }">
+                            <span>
+                                {{ finishedRuns(data.logdir) }}/{{ totalRuns(data.logdir) }}
+                            </span>
+                        </template>
+                    </Column>
+                    <Column field="logdir" style="min-width: 14rem">
+                        <template #header>
+                            <span class="sortable" @click="() => sortBy('logdir')">
                                 Directory
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('env')">
+                            </span>
+                        </template>
+                        <template #body="{ data }">
+                            {{ data.logdir.replace('logs/', '') }}
+                        </template>
+                    </Column>
+                    <Column field="env" style="min-width: 10rem">
+                        <template #header>
+                            <span class="sortable" @click="() => sortBy('env')">
                                 Env
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('algo')">
+                            </span>
+                        </template>
+                        <template #body="{ data }">
+                            {{ data.env.name }}
+                        </template>
+                    </Column>
+                    <Column field="algo" style="min-width: 10rem">
+                        <template #header>
+                            <span class="sortable" @click="() => sortBy('algo')">
                                 Algo
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('date')">
+                            </span>
+                        </template>
+                        <template #body="{ data }">
+                            {{ data.trainer.name }}
+                        </template>
+                    </Column>
+                    <Column field="date" style="min-width: 12rem">
+                        <template #header>
+                            <span class="sortable" @click="() => sortBy('date')">
                                 Start date
                                 <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody style="cursor: pointer;">
-                        <template v-for="exp in sortedExperiments">
-                            <tr v-if="searchMatch(searchString, exp.logdir)"
-                                @click="() => onExperimentClicked(exp.logdir)"
-                                @contextmenu="(e) => openContextMenu(e, exp)">
-                                <td class="text-center">
-                                    <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
-                                        :icon="['fas', 'spinner']" spin />
-                                    <template v-if="resultsStore.results.has(exp.logdir)">
-                                        <input type="color" :value="colours.get(exp.logdir)" @click.stop
-                                            @change="(e) => colours.set(exp.logdir, (e.target as HTMLInputElement).value)">
-                                    </template>
-                                </td>
-                                <td>
-                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]"
-                                        :icon="['fas', 'spinner']" class="fa-spin" />
-                                </td>
-                                <td>
-                                    <template v-if="experimentProgresses[exp.logdir]">
-                                        {{ (experimentProgresses[exp.logdir] * 100).toFixed(1) }}% <br>
-                                    </template>
-                                </td>
-                                <td>
-                                    {{ exp.logdir.replace("logs/", "") }}
-                                </td>
-                                <td>
-                                    {{ exp.env.name }}
-                                </td>
-                                <td>
-                                    {{ exp.trainer.name }}
-                                </td>
-                                <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
-                                </td>
-                                <td>
-                                    <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + exp.logdir"
-                                        @click.stop title="Inspect experiment">
-                                        <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                                    </RouterLink>
-                                    <button v-if="resultsStore.results.has(exp.logdir)"
-                                        class="btn btn-sm btn-outline-primary me-1 mb-1"
-                                        @click="() => downloadDatasets(exp.logdir)">
-                                        <font-awesome-icon :icon="['fas', 'download']" />
-                                    </button>
-                                    <button v-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
-                                        @click.stop="() => resultsStore.unload(exp.logdir)">
-                                        <font-awesome-icon :icon="['far', 'circle-xmark']" />
-                                    </button>
-                                </td>
-                            </tr>
+                            </span>
                         </template>
-                    </tbody>
-                </table>
+                        <template #body="{ data }">
+                            {{ new Date(data.creation_timestamp).toLocaleString() }}
+                        </template>
+                    </Column>
+                    <Column style="width: 13rem">
+                        <template #body="{ data }">
+                            <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + data.logdir"
+                                @click.stop title="Inspect experiment">
+                                <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
+                            </RouterLink>
+                            <button v-if="resultsStore.results.has(data.logdir)"
+                                class="btn btn-sm btn-outline-primary me-1 mb-1"
+                                @click.stop="() => downloadDatasets(data.logdir)">
+                                <font-awesome-icon :icon="['fas', 'download']" />
+                            </button>
+                            <button v-if="resultsStore.isLoaded(data.logdir)" class="btn btn-sm btn-danger me-1 mb-1"
+                                @click.stop="() => resultsStore.unload(data.logdir)">
+                                <font-awesome-icon :icon="['far', 'circle-xmark']" />
+                            </button>
+                        </template>
+                    </Column>
+                    <template #expansion="slotProps">
+                        <div class="p-3 expanded-runs">
+                            <h5 class="mb-3">Runs</h5>
+                            <div v-if="runsForExperiment(slotProps.data.logdir).length === 0" class="text-muted">
+                                No runs found.
+                            </div>
+                            <DataTable v-else :value="runsForExperiment(slotProps.data.logdir)" dataKey="rundir"
+                                striped-rows size="small">
+                                <Column style="width: 4rem">
+                                    <template #header>
+                                        Status
+                                    </template>
+                                    <template #body="{ data }">
+                                        <font-awesome-icon :icon="statusIcon(data.status)"
+                                            :class="statusClass(data.status)" :title="statusLabel(data.status)"
+                                            :aria-label="statusLabel(data.status)" />
+                                    </template>
+                                </Column>
+                                <Column style="min-width: 12rem">
+                                    <template #header>
+                                        Run
+                                    </template>
+                                    <template #body="{ data }">
+                                        {{ data.rundir.split('/').at(-1) }}
+                                    </template>
+                                </Column>
+                                <Column style="min-width: 12rem">
+                                    <template #header>
+                                        Progress
+                                    </template>
+                                    <template #body="{ data }">
+                                        <div class="progress position-relative" role="progressbar">
+                                            <div class="progress-bar text-dark" :class="progressBarClass(data)"
+                                                :style="{ width: `${progressPercent(data)}%` }">
+                                            </div>
+                                            <div class="justify-content-center d-flex position-absolute w-100">
+                                                {{ progressPercent(data).toFixed(1) }}%
+                                            </div>
+                                        </div>
+                                    </template>
+                                </Column>
+                                <Column style="width: 8rem">
+                                    <template #body="{ data }">
+                                        <button v-if="data.status === 'RUNNING'" class="btn btn-sm btn-outline-danger"
+                                            @click.stop="() => stopRun(slotProps.data.logdir, data.rundir)"
+                                            :disabled="stoppingRuns[data.rundir]">
+                                            <font-awesome-icon v-if="stoppingRuns[data.rundir]"
+                                                :icon="['fas', 'spinner']" spin />
+                                            <font-awesome-icon v-else :icon="['fas', 'stop']" />
+                                        </button>
+                                        <button v-else-if="data.status === 'CREATED'"
+                                            class="btn btn-sm btn-outline-primary"
+                                            @click.stop="onRunClicked(slotProps.data.logdir, data.rundir)">
+                                            <font-awesome-icon :icon="['fas', 'play']" />
+                                        </button>
+                                        <button v-else-if="data.status === 'CANCELLED'"
+                                            class="btn btn-sm btn-outline-primary">
+                                            <font-awesome-icon :icon="['fas', 'repeat']" class="text-info" />
+                                        </button>
+                                        <font-awesome-icon v-else :icon="['fas', 'check']" class="text-success" />
+                                    </template>
+                                </Column>
+                            </DataTable>
+                        </div>
+                    </template>
+                </DataTable>
             </div>
         </div>
         <div class="col-6" style="">
@@ -120,6 +187,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { DataTable, Column, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from 'primevue';
 import { Dataset, Experiment, toCSV } from '../../models/Experiment';
 import Plotter from '../charts/Plotter.vue';
 import Qvalues from '../charts/Qvalues.vue';
@@ -133,7 +201,7 @@ import { useColourStore } from '../../stores/ColourStore';
 import { searchMatch } from '../../utils';
 import { RouterLink } from 'vue-router';
 import ContextMenu from './ContextMenu.vue';
-import { Run } from '../../models/Run';
+import { Run, RunStatus } from '../../models/Run';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
@@ -143,7 +211,9 @@ const runStore = useRunStore();
 const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
 const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
 const searchString = ref("");
-const contextMenu = ref({} as typeof ContextMenu);
+const expandedRows = ref({} as Record<string, boolean>);
+const stoppingRuns = ref({} as Record<string, boolean>);
+const contextMenu = ref({ show: (_exp: Experiment, _x: number, _y: number) => undefined });
 
 const selectedMetrics = ref(["score [train]"]);
 const selectedQvalues = ref(["agent0-qvalue0"]);
@@ -161,28 +231,11 @@ const qvalues = computed(() => {
     return res;
 });
 
-
-const experimentProgresses = computed(() => {
-    const res = {} as { [key: string]: number };
-    experimentStore.experiments.forEach(exp => {
-        const runs = runStore.runs.get(exp.logdir) ?? [];
-        const nRuns = runs.length;
-        if (nRuns === 0) {
-            res[exp.logdir] = 0;
-            return;
-        }
-        const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
-        res[exp.logdir] = progress;
-    });
-    return res;
-});
-
 const qvaluesSelected = computed(() => {
     return selectedMetrics.value.includes("qvalues")
 })
 
 const qvaluesDatasets = computed(() => {
-    // Later use in the Qvalues component
     const res = new Map<string, Dataset[]>();
     resultsStore.results.forEach((r, logdir) => {
         const qvalueDatasets = [] as Dataset[];
@@ -213,34 +266,6 @@ const datasetPerLabel = computed(() => {
     return res;
 });
 
-
-function onExperimentClicked(logdir: string) {
-    resultsStore.load(logdir);
-    runStore.refresh(logdir);
-}
-
-function downloadDatasets(logdir: string) {
-    const results = resultsStore.results.get(logdir);
-    if (results === undefined) {
-        alert("No such logdir to download");
-        return;
-    }
-    const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
-    downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
-    if (!(results.qvaluesDs.length == 0)) {
-        const csv_q = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
-        downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
-    }
-}
-
-
-const emits = defineEmits<{
-    (event: "experiment-selected", logdir: string): void
-    (event: "experiment-deleted", logdir: string): void
-    (event: "create-experiment"): void
-    (event: "compare-experiments"): void
-}>();
-
 const sortedExperiments = computed(() => {
     const entries = [...experimentStore.experiments];
     switch (sortKey.value) {
@@ -263,6 +288,132 @@ const sortedExperiments = computed(() => {
     return entries;
 });
 
+const visibleExperiments = computed(() => {
+    return sortedExperiments.value.filter(exp => searchMatch(searchString.value, exp.logdir));
+});
+
+function runsForExperiment(logdir: string) {
+    return runStore.runs.get(logdir) ?? [];
+}
+
+function totalRuns(logdir: string) {
+    return runsForExperiment(logdir).length;
+}
+
+function finishedRuns(logdir: string) {
+    return runsForExperiment(logdir).filter(run => run.status === "COMPLETED").length;
+}
+
+function runningRuns(logdir: string) {
+    return runsForExperiment(logdir).filter(run => run.status === "RUNNING");
+}
+
+function hasRunningRuns(logdir: string) {
+    return runningRuns(logdir).length > 0;
+}
+
+async function onRowClicked(event: DataTableRowClickEvent) {
+    const experiment = event.data as Experiment;
+    onExperimentClicked(experiment.logdir);
+}
+
+async function onRowExpanded(event: DataTableRowExpandEvent) {
+    const experiment = event.data as Experiment;
+    await runStore.refresh(experiment.logdir);
+}
+
+function onRowContextMenu(event: DataTableRowContextMenuEvent) {
+    openContextMenu(event.originalEvent as MouseEvent, event.data as Experiment);
+}
+
+function onExperimentClicked(logdir: string) {
+    resultsStore.load(logdir);
+    runStore.refresh(logdir);
+}
+
+function progressPercent(run: Run) {
+    switch (run.status) {
+        case "CREATED":
+            return 0;
+        case "COMPLETED":
+            return 100;
+        case "RUNNING":
+        case "CANCELLED":
+            return Math.min(100, run.progress * 100);
+    }
+}
+
+function progressBarClass(run: Run) {
+    const classes: Record<RunStatus, string> = {
+        CREATED: "bg-light",
+        RUNNING: "bg-info progress-bar-striped progress-bar-animated",
+        COMPLETED: "bg-success",
+        CANCELLED: "bg-warning",
+    };
+    return classes[run.status];
+}
+
+function statusIcon(status: RunStatus) {
+    const icons: Record<RunStatus, ["fas", string]> = {
+        CREATED: ["fas", "clock"],
+        RUNNING: ["fas", "spinner"],
+        CANCELLED: ["fas", "ban"],
+        COMPLETED: ["fas", "check-circle"],
+    };
+    return icons[status];
+}
+
+function statusClass(status: RunStatus) {
+    const classes: Record<RunStatus, string> = {
+        CREATED: "text-secondary",
+        RUNNING: "text-secondary fa-spin",
+        CANCELLED: "text-secondary",
+        COMPLETED: "text-success",
+    };
+    return classes[status];
+}
+
+function statusLabel(status: RunStatus) {
+    const labels: Record<RunStatus, string> = {
+        CREATED: "Created",
+        RUNNING: "Running",
+        CANCELLED: "Cancelled",
+        COMPLETED: "Completed",
+    };
+    return labels[status];
+}
+
+function onRunClicked(_logdir: string, _rundir: string) {
+    // Placeholder for future per-run start behavior.
+}
+
+async function stopRun(logdir: string, rundir: string) {
+    stoppingRuns.value = {
+        ...stoppingRuns.value,
+        [rundir]: true,
+    };
+    try {
+        await runStore.stopRun(logdir, rundir);
+    } finally {
+        const { [rundir]: _ignored, ...rest } = stoppingRuns.value;
+        stoppingRuns.value = rest;
+    }
+}
+
+function downloadDatasets(logdir: string) {
+    const results = resultsStore.results.get(logdir);
+    if (results === undefined) {
+        alert("No such logdir to download");
+        return;
+    }
+    const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
+    downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
+    if (!(results.qvaluesDs.length == 0)) {
+        const csv_q = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
+        downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
+    }
+}
+
 function sortBy(key: "logdir" | "env" | "algo" | "date") {
     if (sortKey.value === key) {
         sortOrder.value = sortOrder.value === "ASCENDING" ? "DESCENDING" : "ASCENDING";
@@ -272,13 +423,11 @@ function sortBy(key: "logdir" | "env" | "algo" | "date") {
     }
 }
 
-
 // Function to open context menu
 function openContextMenu(e: MouseEvent, exp: Experiment) {
     e.preventDefault()
     contextMenu.value.show(exp, e.x, e.y);
 }
-
 
 </script>
 
@@ -290,5 +439,9 @@ function openContextMenu(e: MouseEvent, exp: Experiment) {
 .sortable:hover {
     cursor: pointer;
     text-decoration: underline;
+}
+
+.expanded-runs .p-datatable {
+    margin-top: 0.5rem;
 }
 </style>

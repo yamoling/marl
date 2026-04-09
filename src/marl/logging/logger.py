@@ -1,4 +1,3 @@
-import logging
 import os
 import shutil
 from abc import ABC, abstractmethod
@@ -129,9 +128,7 @@ class Logger(ABC, LogHelper):
         for i, episode in enumerate(episodes):
             episode_directory = self.test_dir(time_step, i)
             self.log_test(episode.metrics, time_step)
-            if os.path.exists(episode_directory):
-                logging.warning(f"Episode directory {episode_directory} already exists ! Overwriting...")
-            else:
+            if not os.path.exists(episode_directory):
                 os.makedirs(episode_directory)
             with open(self.get_test_actions_path(time_step, i), "wb") as f:
                 bytes_data = orjson.dumps(np.array(episode.actions), option=orjson.OPT_SERIALIZE_NUMPY)

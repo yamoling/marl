@@ -109,10 +109,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         await runStore.refresh(logdir);
     }
 
-    async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
-        await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
-        refresh()
-    }
 
     async function getEnvImage(logdir: String, seed: number): Promise<string> {
         const resp = await fetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`);
@@ -140,7 +136,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         remove,
         stopRuns,
         rename,
-        testOnOtherEnvironment,
         getEnvImage,
     };
 });

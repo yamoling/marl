@@ -100,6 +100,16 @@ class Experiment[A: Space]:
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
 
+    def _prepare_runs(self, seeds: Sequence[int]):
+        """Create/load all the runs corresponding to the given seeds, and return them as a list."""
+        runs = list[Run]()
+        for seed in seeds:
+            run = self.get_run_with_seed(seed)
+            if run is None:
+                run = Run.create(self.logdir, seed, self.logger)
+            runs.append(run)
+        return runs
+
     def run(
         self,
         seeds: int | Sequence[int] = 0,
@@ -113,18 +123,18 @@ class Experiment[A: Space]:
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):
             seeds = list(range(seeds))
-        for seed in seeds:
-            Run.create(self.logdir, seed, self.logger)
-        if n_parallel <= 1:
+        runs = self._prepare_runs(seeds)
+        if n_parallel <= 1 or len(runs) <= 1:
             from marl.runners import SequentialRunner
 
             runner = SequentialRunner(self)
-            return runner.start(device, fill_strategy, quiet, n_tests, render_tests)
+            return runner.start(runs, device, fill_strategy, quiet, n_tests, render_tests)
 
         from marl.runners import ParallelRunner
 
-        runner = ParallelRunner(self)
+        runner = ParallelRunner(self.logdir)
         return runner.start(
+            runs,
             n_jobs=n_parallel,
             device=device,
             auto_device_strategy=fill_strategy,
@@ -196,8 +206,9 @@ class Experiment[A: Space]:
 
     @property
     def runs(self):
+        """All the runs related to the experiment."""
         for rundir in self.rundirs:
-            yield Run(rundir, self.logger)
+            yield Run.load(rundir, self.logger)
 
     @property
     def rundirs(self):

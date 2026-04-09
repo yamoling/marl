@@ -1,5 +1,4 @@
 <template>
-    <TestOnOtherEnvironment ref="modal" />
     <NewRun ref="newRunModal" />
     <div ref="contextMenu" class="context-menu">
         <ul>

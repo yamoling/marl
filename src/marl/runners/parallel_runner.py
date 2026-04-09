@@ -1,9 +1,8 @@
 import signal
 import time
-from copy import deepcopy
 from multiprocessing import get_context
 from multiprocessing.pool import AsyncResult
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import torch
 from torch import device
@@ -13,15 +12,16 @@ from marl.utils.gpu import get_device, get_gpu_processes, get_max_gpu_usage
 from .simple_runner import SimpleRunner
 
 if TYPE_CHECKING:
-    from marl import Experiment
+    from marl import Run
 
 
 class ParallelRunner:
-    def __init__(self, exp: "Experiment"):
-        self.exp = exp
+    def __init__(self, logdir: str):
+        self.logdir = logdir
 
     def start(
         self,
+        runs: "Sequence[Run]",
         n_jobs: int | None = None,
         device: int | device | str | Literal["auto", "cpu"] = "auto",
         auto_device_strategy: Literal["scatter", "group"] = "scatter",
@@ -35,7 +35,6 @@ class ParallelRunner:
         n_gpus = torch.cuda.device_count()
         initial_pids = get_gpu_processes()
         estimated_gpu_memory = 0
-        runs = list(self.exp.runs)
         with get_context("spawn").Pool(n_jobs) as pool:
             handles = list[AsyncResult]()
             for run_num, run in enumerate(runs):
@@ -45,7 +44,7 @@ class ParallelRunner:
                 h = pool.apply_async(
                     _start_run,
                     kwds={
-                        "logdir": deepcopy(self.exp.logdir),
+                        "logdir": self.logdir,
                         "seed": run.seed,
                         "device_index": run_device.index,
                         "n_tests": n_tests,

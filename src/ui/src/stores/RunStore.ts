@@ -16,6 +16,15 @@ export const useRunStore = defineStore("RunStore", () => {
         return await resp.json();
     }
 
+    async function stopRun(logdir: string, rundir: string) {
+        const resp = await fetch(`${HTTP_URL}/runs/stop/${rundir}`, { method: "POST" });
+        if (!resp.ok) {
+            alert("Failed to stop run: " + await resp.text());
+            return;
+        }
+        await refresh(logdir);
+    }
+
     async function remove(logdir: string) {
         runs.value.delete(logdir);
     }
@@ -24,6 +33,7 @@ export const useRunStore = defineStore("RunStore", () => {
         runs,
         getRuns,
         refresh,
+        stopRun,
         remove
     };
 });

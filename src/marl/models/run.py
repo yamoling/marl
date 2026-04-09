@@ -26,9 +26,9 @@ class Run:
     rundir: str
     log_specs: LogSpecs
 
-    def __init__(self, rundir: str, log_specs: LogSpecs):
-        self.rundir = rundir
-        self.log_specs = log_specs
+    @staticmethod
+    def load(rundir: str, log_specs: LogSpecs):
+        return Run(rundir, log_specs)
 
     @staticmethod
     def create(logdir: str, seed: int, log_specs: LogSpecs):
@@ -93,10 +93,21 @@ class Run:
     def is_running(self) -> bool:
         return self.get_pid() is not None
 
+    def is_completed(self, n_steps: int) -> bool:
+        return self.get_progress(n_steps) >= 1.0
+
     @property
     def latest_train_step(self) -> int:
         try:
-            return self.train_metrics(1).select(pl.last(TIME_STEP_COL)).item()
+            max_train = self.reader.train_metrics[TIME_STEP_COL].max()
+            if max_train is None:
+                max_train = 0
+            assert isinstance(max_train, int)
+            max_training_data = self.reader.training_data[TIME_STEP_COL].max()
+            if max_training_data is None:
+                max_training_data = 0
+            assert isinstance(max_training_data, int)
+            return max(max_train, max_training_data)
         except pl.exceptions.ColumnNotFoundError:
             return 0
 
@@ -131,7 +142,7 @@ class Run:
                 return int(f.read())
         except FileNotFoundError:
             return None
-        
+
     def get_parent_pid(self):
         pid = self.get_pid()
         if pid is None:

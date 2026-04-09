@@ -35,13 +35,24 @@ class ServerState:
         print(command)
         return
         # Start a completely detached new run
-        p = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()
         if logdir not in self._experiments:
             self.load_experiment(logdir)
         return self._experiments[logdir]
+
+    def stop_run(self, rundir: str):
+        logdir = Experiment.find_experiment_directory(rundir)
+        if logdir is None:
+            raise FileNotFoundError(f"Could not find experiment for run {rundir}")
+        experiment = self.get_experiment(logdir)
+        for run in experiment.runs:
+            if run.rundir == rundir:
+                run.kill()
+                return
+        raise FileNotFoundError(f"Could not find run {rundir}")
 
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self._experiments.pop(logdir, None)
