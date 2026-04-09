@@ -36,11 +36,8 @@ class CSVLogWriter:
         data["timestamp_sec"] = now
         data["time_step"] = time_step
         if self._writer is None:
-            if os.path.exists(self.filename):
-                self._file = open(self.filename, "a")
-            else:
-                os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-                self._file = open(self.filename, "w")
+            os.makedirs(os.path.dirname(self.filename), exist_ok=True)
+            self._file = open(self.filename, "w")
             self._writer = csv.DictWriter(self._file, fieldnames=data.keys())
             self._writer.writeheader()
         try:
