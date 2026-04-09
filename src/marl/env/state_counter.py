@@ -29,7 +29,7 @@ class StateCounter[S: Space](RLEnvWrapper[S]):
             }
         return step
 
-    def reset(self):
-        obs, state = super().reset()
+    def reset(self, *, seed=None):
+        obs, state = super().reset(seed=seed)
         self._register(state)
         return obs, state

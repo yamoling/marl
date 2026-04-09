@@ -37,6 +37,5 @@ class NeptuneLogger(Logger):
     def __del__(self):
         self.run.stop()
 
-    @staticmethod
-    def reader(from_directory: str) -> LogReader:
+    def reader(self) -> LogReader:
         raise NotImplementedError("Neptune logs cannot be read locally. Please visit https://app.neptune.ai to view your logs.")

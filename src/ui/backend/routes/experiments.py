@@ -1,3 +1,4 @@
+import logging
 from http import HTTPStatus
 
 import cv2
@@ -12,6 +13,7 @@ from marl.utils import encode_b64_image
 from . import state
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/experiment/replay/{path:path}")
@@ -29,7 +31,7 @@ def list_experiments():
     try:
         return state.list_experiments()
     except ExperimentVersionMismatch as e:
-        print(e)
+        logger.exception("Failed to list experiments due to version mismatch")
         return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
 
 
@@ -95,6 +97,16 @@ def delete_experiment(logdir: str):
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
+@router.post("/experiment/stop-runs/{logdir:path}")
+def stop_experiment_runs(logdir: str):
+    try:
+        exp = state.get_experiment(logdir)
+        exp.kill_runs()
+        return Response(status_code=HTTPStatus.NO_CONTENT)
+    except FileNotFoundError as e:
+        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
+
+
 @router.get("/experiment/image/{seed}/{logdir:path}")
 def get_env_image(seed: str, logdir: str):
     exp = state.get_experiment(logdir)
@@ -105,23 +117,23 @@ def get_env_image(seed: str, logdir: str):
     return encode_b64_image(image)
 
 
-@router.post("/experiment/test-on-other-env")
-async def test_on_other_env(request: Request):
-    json_data = await request.json()
-    if json_data is None:
-        return Response(status_code=HTTPStatus.BAD_REQUEST)
-    logdir = json_data["logdir"]
-    new_logdir = json_data["newLogdir"]
-    env_logdir = json_data["envLogdir"]
-    exp = state.get_experiment(logdir)
-    test_env = state.get_experiment(env_logdir).test_env
+# @router.post("/experiment/test-on-other-env")
+# async def test_on_other_env(request: Request):
+#     json_data = await request.json()
+#     if json_data is None:
+#         return Response(status_code=HTTPStatus.BAD_REQUEST)
+#     logdir = json_data["logdir"]
+#     new_logdir = json_data["newLogdir"]
+#     env_logdir = json_data["envLogdir"]
+#     exp = state.get_experiment(logdir)
+#     test_env = state.get_experiment(env_logdir).test_env
 
-    import threading
+#     import threading
 
-    def start():
-        exp.test_on_other_env(test_env, new_logdir, quiet=True)
+#     def start():
+#         exp.test_on_other_env(test_env, new_logdir, quiet=True)
 
-    threading.Thread(target=start).start()
+#     threading.Thread(target=start).start()
 
-    # The parent just returns
-    return Response(content="")
+#     # The parent just returns
+#     return Response(content="")

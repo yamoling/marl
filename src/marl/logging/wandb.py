@@ -44,6 +44,5 @@ class WABLogger(Logger):
     def __del__(self):
         wandb.finish()
 
-    @staticmethod
-    def reader(from_directory: str) -> LogReader:
+    def reader(self):
         raise NotImplementedError("WandB logs cannot be read locally. Please visit https://wandb.ai to view your logs.")

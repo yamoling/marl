@@ -6,7 +6,7 @@ import numpy as np
 from marlenv import Observation
 from torch import device
 
-from marl.models.agent import Agent
+from marl.models import Agent, Action
 
 
 @dataclass
@@ -48,7 +48,7 @@ class Haven(Agent):
         self._all_meta_actions_avaiable = np.full((n_workers, self.n_subgoals), True)
         self.n_workers = n_workers
 
-    def choose_action(self, observation: Observation):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def choose_action(self, observation: Observation, *, with_details: bool = False):
         """
         In HAVEN, the workers take an action at each step, but the meta-agent takes an action every k steps.
 
@@ -68,7 +68,7 @@ class Haven(Agent):
         self._t += 1
         observation.extras[:, -self.n_subgoals :] = self.last_subgoals
         workers_actions = self.workers.choose_action(observation)
-        return workers_actions, {"meta_actions": self.last_meta_action}
+        return Action(workers_actions.action, meta_actions=self.last_meta_action, **workers_actions.details)
 
     def make_meta_observation(self, observation: Observation):
         meta_obs = copy(observation)

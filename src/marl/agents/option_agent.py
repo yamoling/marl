@@ -1,16 +1,16 @@
 import random
-from dataclasses import InitVar, dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 from marlenv import Observation
 
-from marl.models.agent import Agent
+from marl.models import Action, Agent
 
 if TYPE_CHECKING:
     from marl.models import Policy
-    from marl.models.nn.options import OptionCritic
+    from marl.models.nn.options import OptionCriticNetwork
 
 
 @dataclass
@@ -21,13 +21,20 @@ class OptionAgent(Agent):
     including the mutable `options` state.
     """
 
-    oc: OptionCritic
+    oc: "OptionCriticNetwork"
     n_options: int
     n_agents: int
-    train_policy: Policy
-    test_policy: Policy
+    train_policy: "Policy"
+    test_policy: "Policy"
 
-    def __init__(self, n_options: int, n_agents: int, option_critic: OptionCritic, train_policy: Policy, test_policy: Policy | None = None):
+    def __init__(
+        self,
+        n_options: int,
+        n_agents: int,
+        option_critic: "OptionCriticNetwork",
+        train_policy: "Policy",
+        test_policy: "Policy | None" = None,
+    ):
         Agent.__init__(self)
         self.n_options = n_options
         self.n_agents = n_agents
@@ -55,13 +62,17 @@ class OptionAgent(Agent):
             self.options = np.where((r < end_probs), chosen_options, self.options).tolist()
         self.force_update_next_option = False
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation, *, with_details: bool = False):
         with torch.no_grad():
             obs, extras, available = observation.as_tensors(self.device, batch_dim=True, actions=True)
             self.update_options(obs, extras)
             dist = self.oc.policy(obs, extras, available, self.options)
             action = dist.sample().squeeze(0)
-        return action.numpy(force=True)
+
+        action = Action(action.numpy(force=True), options=self.options.copy())
+        if with_details:
+            action.action_probabilities = dist.probs.numpy(force=True).squeeze(0)
+        return action
 
     def new_episode(self):
         # Upon new episodes, we want to force the agent to update its option at the first step, even if the termination probability is low.

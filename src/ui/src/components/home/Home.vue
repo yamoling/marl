@@ -167,11 +167,16 @@ const qvalues = computed(() => {
 const experimentProgresses = computed(() => {
     const res = {} as { [key: string]: number };
     experimentStore.experiments.forEach(exp => {
+        console.log(exp.logdir)
         const runs = runStore.runs.get(exp.logdir) ?? [];
+        console.log(runs)
         const nRuns = runs.length;
         if (nRuns === 0) {
             res[exp.logdir] = 0;
             return;
+        }
+        for (const r of runs) {
+            console.log(r)
         }
         const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
         res[exp.logdir] = progress;
@@ -253,7 +258,7 @@ const sortedExperiments = computed(() => {
             entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
             break;
         case "algo":
-            entries.sort((a, b) => a.agent.name.localeCompare(b.agent.name));
+            entries.sort((a, b) => a.trainer.name.localeCompare(b.trainer.name));
             break;
         case "date":
             entries.sort((a, b) => a.creation_timestamp - b.creation_timestamp);

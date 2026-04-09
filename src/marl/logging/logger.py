@@ -1,28 +1,56 @@
+import logging
 import os
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import cv2
 import numpy as np
 import orjson
 import polars as pl
 from marlenv import Episode, MARLEnv
-import logging
 
-from marl.models.agent import Agent
-from marl.models.trainer import Trainer
+from marl.models.replay_episode import LightEpisodeSummary
+
+if TYPE_CHECKING:
+    from marl import Agent, Trainer
 
 ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
 
-class LogReader(ABC):
-    def __init__(self, weight_path: str):
-        super().__init__()
-        self.weight_path = weight_path
+class LogHelper:
+    """Helper class for loggers and log readers that provide common methods to get log directories and file paths."""
+
+    def __init__(self, logdir: str):
+        self.logdir = logdir
+
+    def get_logdir(self, time_step: int) -> str:
+        return os.path.join(self.logdir, str(time_step))
+
+    def test_dir(self, time_step: int, test_num: Optional[int] = None):
+        test_dir = os.path.join(self.logdir, "test", f"{time_step}")
+        if test_num is not None:
+            test_dir = os.path.join(test_dir, f"{test_num}")
+        return test_dir
+
+    def get_weight_directory(self, time_step: int):
+        """Return the file path where the weights of the model are saved for the given time step."""
+        return os.path.join(self.logdir, "weights", str(time_step))
+
+    def get_test_actions_path(self, time_step: int, test_num: int):
+        """Return the file path where the actions taken during the test are saved for the given time step and test number."""
+        return os.path.join(self.test_dir(time_step, test_num), ACTIONS)
+
+    def get_saved_algo_dir(self, time_step: int):
+        return self.test_dir(time_step)
+
+
+class LogReader(ABC, LogHelper):
+    def __init__(self, logdir: str):
+        LogHelper.__init__(self, logdir)
 
     @property
     @abstractmethod
@@ -36,30 +64,42 @@ class LogReader(ABC):
     @abstractmethod
     def training_data(self) -> pl.DataFrame: ...
 
-    def get_weights_directory(self, time_step: int) -> str:
-        """Return the file path where the weights of the model are saved."""
-        return os.path.join(self.weight_path, str(time_step))
+    def get_test_actions(self, time_step: int, test_num: int) -> list[list]:
+        actions_file = self.get_test_actions_path(time_step, test_num)
+        with open(actions_file, "r") as f:
+            return orjson.loads(f.read())
+
+    def get_test_episodes(self, time_step: int) -> list[LightEpisodeSummary]:
+        try:
+            test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
+            test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
+            episodes = []
+            for test_num, row in enumerate(test_metrics.rows()):
+                episode_dir = self.test_dir(time_step, test_num)
+                metrics = dict(zip(test_metrics.columns, row))
+                episode = LightEpisodeSummary(episode_dir, metrics)
+                episodes.append(episode)
+            return episodes
+        except pl.exceptions.ColumnNotFoundError:
+            # There is no log at all in the file, return an empty list
+            return []
 
     def close(self):
         """Close the log file."""
 
 
-class Logger(ABC):
+class Logger(ABC, LogHelper):
     """Logger base class."""
 
     logdir: str
 
     def __init__(self, logdir: str):
-        super().__init__()
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
-        self.logdir = logdir
+        LogHelper.__init__(self, logdir)
         if os.path.exists(logdir):
             if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
                 shutil.rmtree(logdir)
-
-    def get_logdir(self, time_step: int) -> str:
-        return os.path.join(self.logdir, str(time_step))
 
     def log_train(self, data: dict[str, Any], time_step: int):
         if len(data) == 0:
@@ -76,7 +116,7 @@ class Logger(ABC):
             return
         self.log(data, time_step, prefix="test/")
 
-    def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
+    def log_params(self, trainer: "Trainer", agent: "Agent", env: MARLEnv, test_env: MARLEnv):
         self.log(asdict(trainer), prefix="params/trainer/", time_step=0)
         self.log(asdict(agent), prefix="params/agent/", time_step=0)
         self.log(asdict(env), prefix="params/env/", time_step=0)
@@ -84,12 +124,6 @@ class Logger(ABC):
 
     @abstractmethod
     def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
-
-    def test_dir(self, time_step: int, test_num: Optional[int] = None):
-        test_dir = os.path.join(self.logdir, "test", f"{time_step}")
-        if test_num is not None:
-            test_dir = os.path.join(test_dir, f"{test_num}")
-        return test_dir
 
     def log_test_episodes(self, episodes: list[Episode], time_step: int):
         for i, episode in enumerate(episodes):
@@ -99,7 +133,7 @@ class Logger(ABC):
                 logging.warning(f"Episode directory {episode_directory} already exists ! Overwriting...")
             else:
                 os.makedirs(episode_directory)
-            with open(os.path.join(episode_directory, ACTIONS), "wb") as f:
+            with open(self.get_test_actions_path(time_step, i), "wb") as f:
                 bytes_data = orjson.dumps(np.array(episode.actions), option=orjson.OPT_SERIALIZE_NUMPY)
                 f.write(bytes_data)
 
@@ -126,6 +160,17 @@ class Logger(ABC):
             counter += 1
         cv2.imwrite(filename, image)
 
-    @staticmethod
-    @abstractmethod
-    def reader(from_directory: str) -> "LogReader": ...
+    def reader(self) -> "LogReader":
+        raise NotImplementedError("This method should be implemented by subclasses of Logger to return a LogReader for the same logdir.")
+
+    def save_trainer(self, trainer: "Trainer", time_step: int):
+        directory = self.get_saved_algo_dir(time_step)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        trainer.save(directory)
+
+    def save_agent(self, agent: "Agent", time_step: int):
+        directory = self.get_saved_algo_dir(time_step)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        agent.save(directory)

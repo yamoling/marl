@@ -12,15 +12,11 @@ class CategoricalPolicy(Policy):
     def __init__(self):
         super().__init__()
 
-    def get_action(self, qvalues, available_actions):
-        qvalues[available_actions == 0] = -np.inf
+    def get_action(self, qvalues, available_actions=None):
+        if available_actions is not None:
+            qvalues[available_actions == 0] = -np.inf
         qvalues = torch.from_numpy(qvalues)
-
-        # probs= torch.nn.functional.softmax(values, dim=1)
-        # dist = torch.distributions.Categorical(probs=probs)
-
         dist = torch.distributions.Categorical(logits=qvalues)
-
         actions = dist.sample()
         return actions.numpy(force=True)
 
@@ -35,19 +31,14 @@ class NoisyCategoricalPolicy(Policy):
     def __init__(self):
         super().__init__()
 
-    def get_action(self, qvalues, available_actions):
+    def get_action(self, qvalues, available_actions=None):
         # add noise to logits
         noise = np.random.normal(0, 1, qvalues.shape)
         qvalues = qvalues + noise
-
-        qvalues[available_actions == 0] = -np.inf
+        if available_actions is not None:
+            qvalues[available_actions == 0] = -np.inf
         qvalues = torch.from_numpy(qvalues)
-
-        # probs= torch.nn.functional.softmax(values, dim=1)
-        # dist = torch.distributions.Categorical(probs=probs)
-
         dist = torch.distributions.Categorical(logits=qvalues)
-
         actions = dist.sample()
         return actions.numpy(force=True)
 

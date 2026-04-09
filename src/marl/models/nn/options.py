@@ -9,9 +9,12 @@ from .nn import NN
 
 
 @dataclass
-class OptionCritic(NN):
-    def __init__(self):
+class OptionCriticNetwork(NN):
+    n_options: int
+
+    def __init__(self, n_options: int):
         super().__init__()
+        self.n_options = n_options
 
     @abstractmethod
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:
@@ -22,7 +25,11 @@ class OptionCritic(NN):
         """Compute the termination probability of the given agent-wise options"""
 
     def value_on_arrival(self, obs: Tensor, extras: Tensor, options: Tensor) -> Tensor:
-        """Compute the value of the current state or observation."""
+        r"""
+        Compute the value upon arrival at the given observation and considering the active options as:
+
+        $$U_\Omega(\omega, s') = (1 - \beta_\omega(s')) Q_\Omega(s', \omega) + \beta_\omega(s) V_\Omega(s')$$
+        """
         termination_probs = self.termination_probability(obs, extras, options)
         q_options = self.compute_q_options(obs, extras)
         best_q_options = q_options.max(dim=-1).values
@@ -35,6 +42,6 @@ class OptionCritic(NN):
         obs: Tensor,
         extras: Tensor,
         available_actions: torch.Tensor,
-        option: Sequence[int],
+        options: Sequence[int] | torch.Tensor,
     ) -> torch.distributions.Categorical:
         """Compute the policy distribution for the given observation, extras and following the given options."""

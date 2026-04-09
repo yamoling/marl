@@ -114,9 +114,9 @@ async function viewEpisode(episodeDirectory: string) {
     const replay = await replayStore.getEpisode(episodeDirectory);
     episode.value = replay;
     currentStep.value = 0;
-    const allDecisionData = episode.value.decision_data.data.flat(4);
-    const min = Math.min(...allDecisionData);
-    const max = Math.max(...allDecisionData);
+    const details = replay.action_details.flatMap((detail) => Object.values(detail)).flat(3);
+    const min = Math.min(...details);
+    const max = Math.max(...details);
     rainbow.setNumberRange(min, max);
     loading.value = false;
 }

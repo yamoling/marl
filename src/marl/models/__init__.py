@@ -1,3 +1,4 @@
+from .action import Action
 from .agent import Agent
 from .batch import Batch
 from .experiment import Experiment
@@ -16,6 +17,7 @@ from .run import Run
 from .trainer import Trainer
 
 __all__ = [
+    "Action",
     "NN",
     "RecurrentNN",
     "Mixer",

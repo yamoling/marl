@@ -30,9 +30,9 @@ class EnvSchedule(RLEnvWrapper):
             return self.envs[self.current_index + 1][0]
         return float("inf")
 
-    def reset(self):
+    def reset(self, *, seed: int | None = None):
         self.n_resets += 1
         if self.n_resets >= self.current_env_end:
             self.current_index += 1
             self.wrapped = self.envs[self.current_index][1]
-        return super().reset()
+        return super().reset(seed=seed)

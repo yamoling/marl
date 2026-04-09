@@ -61,6 +61,5 @@ class TBLogger(Logger):
                 case _:
                     raise NotImplementedError(f"Unsupported data type for key {key}: {type(value)} with value {value}")
 
-    @staticmethod
-    def reader(from_directory: str):
-        return TBReader(from_directory, from_directory)
+    def reader(self):
+        return TBReader(self.logdir, self.logdir)

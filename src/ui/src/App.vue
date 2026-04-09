@@ -16,6 +16,7 @@ import SystemInfo from './components/SystemInfo.vue';
 
 <style>
 :root {
+  --footer-height: 1.5rem;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -35,16 +36,24 @@ main {
 
 main {
   overflow-x: hidden;
+  box-sizing: border-box;
   padding-left: 1%;
   padding-right: 1%;
+  padding-bottom: var(--footer-height);
 }
 
 footer {
   position: fixed;
+  left: 0;
   bottom: 0;
+  height: var(--footer-height);
   font-size: smaller;
   width: 100%;
-  max-height: 2.5%;
+  box-sizing: border-box;
+  padding-left: 1%;
+  padding-right: 1%;
+  background-color: rgb(250, 244, 232);
+  z-index: 10;
 }
 
 dialog {

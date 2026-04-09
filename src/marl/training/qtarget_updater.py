@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 from abc import abstractmethod
+from dataclasses import dataclass, field
 from typing import Iterable
 
 import torch
@@ -7,12 +7,16 @@ import torch
 
 @dataclass
 class TargetParametersUpdater:
-    name: str
+    name: str = field(init=False)
 
-    def __init__(self):
+    def __init__(self, parameters: list[torch.nn.Parameter] | None = None, target_params: list[torch.nn.Parameter] | None = None):
         self.name = self.__class__.__name__
-        self.parameters = list[torch.nn.Parameter]()
-        self.target_params = list[torch.nn.Parameter]()
+        if parameters is None or target_params is None:
+            parameters = []
+            target_params = []
+        self.parameters = parameters
+        self.target_params = target_params
+        self.add_parameters(parameters, target_params)
 
     def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
         parameters = list(parameters)
@@ -31,8 +35,13 @@ class TargetParametersUpdater:
 class HardUpdate(TargetParametersUpdater):
     update_period: int
 
-    def __init__(self, update_period: int):
-        super().__init__()
+    def __init__(
+        self,
+        update_period: int,
+        params: list[torch.nn.Parameter] | None = None,
+        target_params: list[torch.nn.Parameter] | None = None,
+    ):
+        super().__init__(params, target_params)
         assert update_period > 0, "Update period must be positive"
         self.update_period = update_period
         self.update_num = 0

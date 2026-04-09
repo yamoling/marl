@@ -43,6 +43,11 @@ def _concat_with_missing_columns(dfs: list[pl.DataFrame]) -> pl.DataFrame:
 
 
 def round_col(df: pl.DataFrame, col_name: str, round_value: int):
+    """
+    Round the values of `col_name` to the closest multiple of `round_value`.
+
+    This is particularly useful to map each training time stet to the closest test interval, in order to compute the average test metrics for each training time step.
+    """
     if round_value == 0:
         raise ValueError("round_value must be different from 0")
     try:

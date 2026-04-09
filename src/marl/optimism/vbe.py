@@ -72,7 +72,7 @@ class VBE:
         self._bonus_history.append(bonus)
         return bonus
 
-    def update(self, batch: Batch):
+    def update(self, batch: "Batch"):
         i = random.randint(0, len(self._rqfs) - 1)
         rqf, target, optim = self._rqfs[i], self._target_rqfs[i], self._optimizers[i]
         # MSE

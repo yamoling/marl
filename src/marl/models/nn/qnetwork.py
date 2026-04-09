@@ -24,6 +24,7 @@ class QNetwork(NN):
             case (_, _):
                 self.action_dim = -2
                 self.is_multi_objective = True
+                self.output_shape = output_shape
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 

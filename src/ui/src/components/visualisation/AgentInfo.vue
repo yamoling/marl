@@ -6,8 +6,8 @@
         <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
             :extras-meanings="extrasMeanings" />
         <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
-        <h4> Actions & {{ decisionDataLabel }}</h4>
-        <table class="table table-responsive">
+        <h4 v-if="decisionSections.length > 0"> Actions & decision data </h4>
+        <table v-if="decisionSections.length > 0" class="table table-responsive">
             <thead>
                 <tr>
                     <th scope="row"> Actions <br> available </th>
@@ -20,33 +20,36 @@
                 </tr>
             </thead>
             <tbody>
-                <tr v-if="currentDecisionData.length > 0"
-                    v-for="(objective, objectiveNum) in experiment.env.reward_space.labels">
-                    <th scope="row" class="text-capitalize">
-                        {{ experiment.env.reward_space.size == 1
-                            ? decisionDataLabel
-                            : `${decisionDataLabel} (${objective})` }}
-                    </th>
-                    <td v-for="action in currentDecisionData.length" :style='{
-                        "background-color": "#" + (isMultiObjective
-                            ? backgroundColours[action - 1]?.[objectiveNum]
-                            : backgroundColours[action - 1])
-                    }'>
-                        {{ isMultiObjective
-                            ? formatValue(decisionDataAt(action - 1, objectiveNum))
-                            : formatValue((currentDecisionData[action - 1] as unknown as number)) }}
-                    </td>
-                </tr>
+                <template v-for="section in decisionSections" :key="section.key">
+                    <template v-if="section.isMultiObjective">
+                        <tr v-for="(objectiveLabel, objectiveNum) in getObjectiveLabels(section)">
+                            <th scope="row" class="text-capitalize">
+                                {{ `${section.label} (${objectiveLabel})` }}
+                            </th>
+                            <td v-for="action in section.data.length" :style='{
+                                "background-color": "#" + (section.backgroundColours[action - 1]?.[objectiveNum] ?? "FFFFFF")
+                            }'>
+                                {{ formatValue(decisionDataAt(section, action - 1, objectiveNum)) }}
+                            </td>
+                        </tr>
+                    </template>
+                    <tr v-else>
+                        <th scope="row" class="text-capitalize">{{ section.label }}</th>
+                        <td v-for="action in section.data.length" :style='{
+                            "background-color": "#" + (section.backgroundColours[action - 1] ?? "FFFFFF")
+                        }'>
+                            {{ formatValue((section.data[action - 1] as unknown as number)) }}
+                        </td>
+                    </tr>
+                    <tr v-if="section.isMultiObjective" class="decision-section-total">
+                        <td> <b>Total</b></td>
+                        <td v-for="action in section.data.length"
+                            :style='{ "background-color": "#" + section.totalValueColours[action - 1] }'>
+                            {{ section.totalValues[action - 1].toFixed(4) }}
+                        </td>
+                    </tr>
+                </template>
             </tbody>
-            <tfoot v-if="isMultiObjective && currentDecisionData.length > 0">
-                <tr>
-                    <td> <b>Total</b></td>
-                    <td v-for="action in currentDecisionData.length"
-                        :style='{ "background-color": "#" + totalValueColours[action - 1] }'>
-                        {{ totalValues[action - 1].toFixed(4) }}
-                    </td>
-                </tr>
-            </tfoot>
         </table>
     </div>
 </template>
@@ -70,11 +73,20 @@ const props = defineProps<{
     rainbow: Rainbow
     experiment: Experiment
 }>();
-console.log(props.episode?.decision_data)
 
-const isMultiObjective = computed(() => {
-    return props.experiment.env.reward_space.size > 1
-});
+type ScalarDecisionValues = number[];
+type MultiObjectiveDecisionValues = number[][];
+type DecisionValues = ScalarDecisionValues | MultiObjectiveDecisionValues;
+
+type DecisionSection = {
+    key: "q_values" | "action_probabilities"
+    label: string
+    data: DecisionValues
+    isMultiObjective: boolean
+    backgroundColours: string[] | string[][]
+    totalValues: number[]
+    totalValueColours: string[]
+};
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
@@ -109,50 +121,98 @@ const takenAction = computed(() => {
     return props.episode.episode.actions[safeStep.value][props.agentNum];
 });
 
-const currentDecisionData = computed(() => {
-    if (props.episode == null) return [];
-    if (props.episode.decision_data == null) return [];
-    if (safeStep.value >= episodeLength.value) return [];
-    return props.episode.decision_data.data[safeStep.value][props.agentNum];
+const currentActionDetails = computed(() => {
+    if (props.episode == null) return null;
+    if (safeStep.value >= episodeLength.value) return null;
+    return props.episode.action_details[safeStep.value] ?? null;
 });
 
-const decisionDataLabel = computed(() => {
-    return props.episode?.decision_data?.label ?? "Values";
+const qValuesForAgent = computed(() => {
+    return extractDecisionValues(currentActionDetails.value?.q_values);
 });
 
-const multiObjectiveDecisionData = computed(() => {
-    if (!isMultiObjective.value) return [] as number[][];
-    return currentDecisionData.value as unknown as number[][];
+const actionProbabilitiesForAgent = computed(() => {
+    return extractDecisionValues(currentActionDetails.value?.action_probabilities);
 });
 
-const totalValues = computed(() => {
-    const res = [] as number[];
-    for (let i = 0; i < multiObjectiveDecisionData.value.length; i++) {
-        let sum = 0;
-        for (let j = 0; j < multiObjectiveDecisionData.value[i].length; j++) {
-            sum += multiObjectiveDecisionData.value[i][j];
-        }
-        res.push(sum);
+const decisionSections = computed(() => {
+    const sections: DecisionSection[] = [];
+
+    if (qValuesForAgent.value != null) {
+        sections.push(buildDecisionSection("q_values", "Q-values", qValuesForAgent.value));
     }
-    return res;
-});
 
-const backgroundColours = computed(() => {
-    if (isMultiObjective.value) return (currentDecisionData.value as unknown as number[][]).map(qs => qs.map(q => props.rainbow.colourAt(q)));
-    else return (currentDecisionData.value as unknown as number[]).map(q => props.rainbow.colourAt(q));
-});
+    if (actionProbabilitiesForAgent.value != null) {
+        sections.push(buildDecisionSection("action_probabilities", "Action probabilities", actionProbabilitiesForAgent.value));
+    }
 
-const totalValueColours = computed(() => {
-    const colours = totalValues.value.map(v => props.rainbow.colourAt(v));
-    return colours;
+    return sections;
 });
 
 const obsFlattened = computed(() => obs.value as number[]);
 const obsLayered = computed(() => obs.value as number[][][]);
 
-function decisionDataAt(action: number, objective: number): number {
-    const row = (currentDecisionData.value as unknown[])[action] as number[] | undefined;
+function decisionDataAt(section: DecisionSection, action: number, objective: number): number {
+    const row = (section.data as unknown[])[action] as number[] | undefined;
     return row?.[objective] ?? 0;
+}
+
+function isNumberArray(value: unknown): value is number[] {
+    return Array.isArray(value) && value.every((v) => typeof v === "number" && Number.isFinite(v));
+}
+
+function isNumberMatrix(value: unknown): value is number[][] {
+    return Array.isArray(value) && value.every((row) => isNumberArray(row));
+}
+
+function extractDecisionValues(raw: unknown): DecisionValues | null {
+    if (!Array.isArray(raw)) return null;
+    const valuesForAgent = raw[props.agentNum];
+    if (isNumberArray(valuesForAgent)) return valuesForAgent;
+    if (isNumberMatrix(valuesForAgent)) return valuesForAgent;
+    return null;
+}
+
+function buildDecisionSection(
+    key: DecisionSection["key"],
+    label: string,
+    values: DecisionValues,
+): DecisionSection {
+    const isMultiObjective = Array.isArray(values[0]);
+
+    if (isMultiObjective) {
+        const matrix = values as MultiObjectiveDecisionValues;
+        const totalValues = matrix.map((objectiveValues) => objectiveValues.reduce((sum, value) => sum + value, 0));
+        return {
+            key,
+            label,
+            data: matrix,
+            isMultiObjective: true,
+            backgroundColours: matrix.map((objectiveValues) => objectiveValues.map((value) => props.rainbow.colourAt(value))),
+            totalValues,
+            totalValueColours: totalValues.map((value) => props.rainbow.colourAt(value)),
+        };
+    }
+
+    const scalarValues = values as ScalarDecisionValues;
+    return {
+        key,
+        label,
+        data: scalarValues,
+        isMultiObjective: false,
+        backgroundColours: scalarValues.map((value) => props.rainbow.colourAt(value)),
+        totalValues: [],
+        totalValueColours: [],
+    };
+}
+
+function getObjectiveLabels(section: DecisionSection): string[] {
+    if (!section.isMultiObjective) return [];
+    const objectiveCount = ((section.data[0] as unknown[])?.length ?? 0);
+    if (props.experiment.env.reward_space.labels.length === objectiveCount) {
+        return props.experiment.env.reward_space.labels;
+    }
+    return Array.from({ length: objectiveCount }, (_, i) => `objective ${i + 1}`);
 }
 
 function formatValue(value: number): string {
@@ -170,8 +230,12 @@ function formatValue(value: number): string {
     border-radius: 2%;
 }
 
+.decision-section-title th {
+    background-color: #f4f6f8;
+    text-align: left;
+}
 
-tfoot {
+.decision-section-total td {
     border-top: 2px solid black;
 }
 </style>

@@ -24,13 +24,14 @@ class QLearning(Trainer):
         return np.full((self.n_agents, self.n_actions), self.default_qvalue, dtype=np.float32)
 
     def update_step(self, transition: Transition, time_step: int):
-        actions = transition.action[:, np.newaxis]
+        actions = np.array([transition.action])
+        actions = actions[:, np.newaxis]
         qvalues = np.take_along_axis(self._qtable[transition.obs], actions).squeeze(-1)
         next_values = self._qtable[transition.next_obs].max(axis=-1)
         target_qvalues = transition.reward.item() + self.gamma * next_values
         new_qvalues = (1 - self.lr) * qvalues + self.lr * target_qvalues
         qmatrix = self._qtable[transition.obs]
-        for i, (a, newq) in enumerate(zip(transition.action, new_qvalues, strict=True)):
+        for i, (a, newq) in enumerate(zip(actions, new_qvalues, strict=True)):
             qmatrix[i][a] = newq
         return {}
 

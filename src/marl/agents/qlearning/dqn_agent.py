@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING, Optional
 import torch
 from marlenv import Observation
 
-from marl.models.agent import Agent
-from marl.models.detailed_action import DetailedAction
+from marl.models import Agent, Action
 from marl.optimism import VBE
 
 if TYPE_CHECKING:
@@ -41,7 +40,7 @@ class DQNAgent(Agent):
         self.vbe = vbe
         self._is_training = True
 
-    def choose_action(self, observation: Observation):
+    def choose_action(self, observation: Observation, *, with_details: bool = False):
         with torch.no_grad():
             qvalues = self.qnetwork.qvalues(observation)
         qvalues = qvalues.numpy(force=True)
@@ -51,7 +50,7 @@ class DQNAgent(Agent):
             bonus = self.vbe.compute_bonus(observation)
             qvalues = qvalues + bonus
         action = self.policy.get_action(qvalues, observation.available_actions)
-        return action
+        return Action(action, q_values=qvalues)
 
     def set_testing(self):
         self.policy = self.test_policy
@@ -82,18 +81,6 @@ class DQNAgent(Agent):
             self.train_policy = pickle.load(f)
             self.test_policy = pickle.load(g)
         self.policy = self.train_policy
-
-    def choose_action_with_details(self, observation: Observation) -> DetailedAction:
-        with torch.no_grad():
-            qvalues = self.qnetwork.qvalues(observation)
-        qvalues = qvalues.numpy(force=True)
-        if self.qnetwork.is_multi_objective:
-            qvalues = qvalues.sum(axis=-1)
-        if self._is_training and self.vbe is not None:
-            bonus = self.vbe.compute_bonus(observation)
-            qvalues = qvalues + bonus
-        action = self.policy.get_action(qvalues, observation.available_actions)
-        return DetailedAction(action, "Q-values", details=qvalues)
 
 
 class RDQNAgent(DQNAgent):

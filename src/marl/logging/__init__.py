@@ -23,7 +23,7 @@ LogSpec: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
 LogSpecs: TypeAlias = LogSpec | Sequence[LogSpec]
 
 
-def get_logger(logdir: str, specs: LogSpecs):
+def get_logger(logdir: str, specs: LogSpecs) -> Logger:
     loggers = list[Logger]()
     if isinstance(specs, str):
         specs = [specs]
@@ -42,7 +42,7 @@ def get_logger(logdir: str, specs: LogSpecs):
             raise ValueError(f"Unknown log spec: {spec}")
     if len(loggers) == 1:
         return loggers[0]
-    return MultiLogger(logdir, *loggers)
+    return MultiLogger(*loggers)
 
 
 __all__ = [

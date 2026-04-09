@@ -100,6 +100,15 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         }
     }
 
+    async function stopRuns(logdir: string) {
+        const resp = await fetch(`${HTTP_URL}/experiment/stop-runs/${logdir}`, { method: "POST" });
+        if (!resp.ok) {
+            alert("Failed to stop runs: " + await resp.text());
+            return;
+        }
+        await runStore.refresh(logdir);
+    }
+
     async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
         await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
         refresh()
@@ -129,6 +138,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         unloadExperiment,
         getTestEpisodes,
         remove,
+        stopRuns,
         rename,
         testOnOtherEnvironment,
         getEnvImage,
