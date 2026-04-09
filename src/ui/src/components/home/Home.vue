@@ -258,7 +258,7 @@ const sortedExperiments = computed(() => {
             entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
             break;
         case "algo":
-            entries.sort((a, b) => a.agent.name.localeCompare(b.agent.name));
+            entries.sort((a, b) => a.trainer.name.localeCompare(b.trainer.name));
             break;
         case "date":
             entries.sort((a, b) => a.creation_timestamp - b.creation_timestamp);

@@ -23,6 +23,10 @@
                 <font-awesome-icon :icon="['fas', 'person-running']" class="pe-2" />
                 Start a new run
             </li>
+            <li @click="stopRuns">
+                <font-awesome-icon :icon="['fas', 'stop']" class="text-warning pe-2" />
+                Stop all running runs
+            </li>
         </ul>
     </div>
 </template>
@@ -81,6 +85,13 @@ function archive() {
     const newLogdir = currentLogdir.replace("logs/", "archives/")
     console.log(newLogdir);
     experimentStore.rename(currentLogdir, newLogdir);
+}
+
+function stopRuns() {
+    const logdir = clickedExperiment.value.logdir;
+    if (confirm(`Stop all running runs for ${logdir}?`)) {
+        experimentStore.stopRuns(logdir);
+    }
 }
 
 </script>

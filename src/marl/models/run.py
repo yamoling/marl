@@ -2,6 +2,7 @@ import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
+from signal import SIGINT, Signals
 from functools import cached_property
 
 import polars as pl
@@ -129,6 +130,20 @@ class Run:
                 return int(f.read())
         except FileNotFoundError:
             return None
+
+    def kill(self, signal: Signals | int = SIGINT):
+        if not isinstance(signal, int):
+            signal = int(signal)
+        pid = self.get_pid()
+        if pid is not None:
+            try:
+                os.kill(pid, signal)
+            except ProcessLookupError:
+                pass
+            try:
+                os.remove(self.pid_filename)
+            except FileNotFoundError:
+                pass
 
     def __enter__(self):
         if self.is_running:

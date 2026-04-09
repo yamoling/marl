@@ -230,6 +230,11 @@ class Experiment[A: Space]:
                 return True
         return False
 
+    def kill_runs(self):
+        """Kill all runs of an experiment."""
+        for run in self.runs:
+            run.kill()
+
     def delete(self):
         shutil.rmtree(self.logdir)
 

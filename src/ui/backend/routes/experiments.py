@@ -97,6 +97,16 @@ def delete_experiment(logdir: str):
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
+@router.post("/experiment/stop-runs/{logdir:path}")
+def stop_experiment_runs(logdir: str):
+    try:
+        exp = state.get_experiment(logdir)
+        exp.kill_runs()
+        return Response(status_code=HTTPStatus.NO_CONTENT)
+    except FileNotFoundError as e:
+        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
+
+
 @router.get("/experiment/image/{seed}/{logdir:path}")
 def get_env_image(seed: str, logdir: str):
     exp = state.get_experiment(logdir)
