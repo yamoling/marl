@@ -1,8 +1,8 @@
 import lle
 
 import marl
-from marl.nn.model_bank import options as options_nn
 from marl.nn import mixers
+from marl.nn.model_bank import options as options_nn
 from marl.policy import EpsilonGreedy
 from marl.training import OptionCritic
 
@@ -28,9 +28,9 @@ def main():
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
-    # logdir = "tests"
+    logdir = "tests"
     exp = marl.Experiment.create(env, 300_000, trainer=trainer, test_interval=2500, logdir=logdir)
-    exp.run(seeds=16, n_tests=5)
+    exp.run(seeds=16, n_tests=5, n_parallel=1)
 
 
 if __name__ == "__main__":

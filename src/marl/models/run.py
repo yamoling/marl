@@ -2,17 +2,19 @@ import os
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from functools import cached_property
 
 import polars as pl
 
 from marl.exceptions import CorruptExperimentException
-from marl.logging import TIME_STEP_COL, get_logger, Logger, LogSpecs, LogReader
+from marl.logging import TIME_STEP_COL, LogSpecs, get_logger
 from marl.utils import stats
+
+PID_FILENAME = "pid"
 
 
 @dataclass
-class Run(LogReader):
+class Run:
     """
     A Run is a single execution of an experiment with a specific seed.
 
@@ -20,20 +22,31 @@ class Run(LogReader):
     """
 
     rundir: str
-    granularity: int
+    log_specs: LogSpecs
+
+    def __init__(self, rundir: str, log_specs: LogSpecs):
+        self.rundir = rundir
+        self.log_specs = log_specs
 
     @staticmethod
-    def create_rundir(logdir: str, seed: int):
+    def create(logdir: str, seed: int, log_specs: LogSpecs):
         now = datetime.now().isoformat().replace(":", "-")
         rundir = os.path.join(logdir, f"run_{now}_seed={seed}")
         os.makedirs(rundir, exist_ok=False)
-        return rundir
+        return Run(rundir, log_specs)
 
-    def __init__(self, rundir: str, granularity: int, log_specs: LogSpecs):
-        super().__init__(rundir)
-        self.rundir = rundir
-        self.reader = get_logger(rundir, log_specs).reader()
-        self.granularity = granularity
+    @cached_property
+    def reader(self):
+        return get_logger(self.rundir, self.log_specs).reader()
+
+    def test_dir(self, time_step: int, test_num: int | None = None):
+        return self.reader.test_dir(time_step, test_num)
+
+    def get_saved_algo_dir(self, time_step: int):
+        return self.reader.get_saved_algo_dir(time_step)
+
+    def get_test_episodes(self, time_step: int):
+        return self.reader.get_test_episodes(time_step)
 
     @property
     def seed(self) -> int:
@@ -44,25 +57,33 @@ class Run(LogReader):
     def test_metrics(self):
         return self.reader.test_metrics
 
-    @property
-    def train_metrics(self):
+    def train_metrics(self, granularity: int):
+        """
+        Return the training metrics aggregated by time step, where the time steps are rounded to the closest multiple of the given granularity.
+
+        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
+        """
         df = self.reader.train_metrics
         if df.is_empty():
             return df
         # Round the time step to match the closest test interval
-        df = stats.round_col(df, TIME_STEP_COL, self.granularity)
+        df = stats.round_col(df, TIME_STEP_COL, granularity)
         # Compute the mean of the metrics for each time step
         df = df.group_by(TIME_STEP_COL).mean()
         return df
 
-    @property
-    def training_data(self):
+    def training_data(self, granularity: int):
+        """
+        Return the training data aggregated by time step, where the time steps are rounded to the closest multiple of the given granularity.
+
+        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
+        """
         df = self.reader.training_data
         if df.is_empty():
             return df
         # Make sure we are working with numerical values
         df = stats.ensure_numerical(df, drop_non_numeric=True)
-        df = stats.round_col(df, TIME_STEP_COL, self.granularity)
+        df = stats.round_col(df, TIME_STEP_COL, granularity)
         df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
         return df
 
@@ -73,7 +94,7 @@ class Run(LogReader):
     @property
     def latest_train_step(self) -> int:
         try:
-            return self.train_metrics.select(pl.last(TIME_STEP_COL)).item()
+            return self.train_metrics(1).select(pl.last(TIME_STEP_COL)).item()
         except pl.exceptions.ColumnNotFoundError:
             return 0
 
@@ -97,6 +118,10 @@ class Run(LogReader):
         except FileNotFoundError:
             raise CorruptExperimentException(f"Rundir {self.rundir} has already been removed from the file system.")
 
+    @property
+    def pid_filename(self):
+        return os.path.join(self.rundir, PID_FILENAME)
+
     def get_pid(self):
         pid_file = self.pid_filename
         try:
@@ -105,28 +130,16 @@ class Run(LogReader):
         except FileNotFoundError:
             return None
 
-
-class LiveRun(Logger):
-    """
-    A *live* run, i.e. a process that is currently executing. This is the preferred way to retrieve the logger of a run while running the experiment, as it ensures that the logger is properly closed and the pid file is removed when the run is finished. It also allows to retrieve the logger reader, which can be useful to monitor the experiment while it is running.
-    """
-
-    def __init__(self, logdir: str, seed: int, log_specs: LogSpecs):
-        rundir = Run.create_rundir(logdir, seed)
-        Logger.__init__(self, rundir)
+    def __enter__(self):
+        if self.is_running:
+            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.get_pid()}!")
         pid = os.getpid()
         with open(self.pid_filename, "w") as f:
             f.write(str(pid))
-        self.logger = get_logger(rundir, log_specs)
+        return get_logger(self.rundir, self.log_specs)
 
-    def __del__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             os.remove(self.pid_filename)
         except FileNotFoundError:
             pass
-
-    def log(self, data: dict[str, Any], time_step: int, prefix: str | None = None):
-        self.logger.log(data, time_step, prefix)
-
-    def reader(self):
-        return self.logger.reader()

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import TYPE_CHECKING, Literal
 
 import torch
 
@@ -16,7 +16,6 @@ class SequentialRunner:
 
     def start(
         self,
-        seeds: Sequence[int],
         device: int | torch.device | str | Literal["auto", "cpu"] = "auto",
         auto_device_strategy: Literal["scatter", "group"] = "scatter",
         quiet: bool = False,
@@ -25,6 +24,6 @@ class SequentialRunner:
     ):
 
         device = get_device(device, auto_device_strategy)
-        for seed in seeds:
+        for run in self.exp.runs:
             runner = SimpleRunner.from_experiment(self.exp, n_tests, quiet).to(device)
-            runner.start(self.exp.logdir, seed, self.exp.logger, render_tests)
+            runner.start(run, render_tests)

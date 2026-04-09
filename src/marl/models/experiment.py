@@ -7,17 +7,16 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, overload
 
-import torch
 import orjson
+import torch
 from marlenv.models import MARLEnv, Space
-from tqdm import tqdm
 
 from marl import exceptions
 from marl.logging import LogSpecs
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.models.trainer import Trainer
-from marl.utils import default_serialization, encode_b64_image, stats
 from marl.runners.simple_runner import get_test_seed
+from marl.utils import default_serialization, encode_b64_image, stats
 
 from .agent import Agent
 from .replay_episode import ReplayEpisode
@@ -114,55 +113,24 @@ class Experiment[A: Space]:
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):
             seeds = list(range(seeds))
+        for seed in seeds:
+            Run.create(self.logdir, seed, self.logger)
         if n_parallel <= 1:
             from marl.runners import SequentialRunner
 
             runner = SequentialRunner(self)
-            return runner.start(seeds, device, fill_strategy, quiet, n_tests, render_tests)
+            return runner.start(device, fill_strategy, quiet, n_tests, render_tests)
 
         from marl.runners import ParallelRunner
 
-        runner = ParallelRunner(self.logdir)
+        runner = ParallelRunner(self)
         return runner.start(
-            seeds,
             n_jobs=n_parallel,
             device=device,
             auto_device_strategy=fill_strategy,
             n_tests=n_tests,
             render_tests=render_tests,
         )
-
-    def test_on_other_env(
-        self,
-        other_env: MARLEnv[A],
-        new_logdir: str,
-        n_tests: int = 1,
-        quiet: bool = False,
-        device: Literal["auto", "cpu"] = "auto",
-    ):
-        """
-        Test the Agent on an other environment but with the same parameters.
-
-        This methods loads the experiment parameters at every test step and run the test on the given environment.
-        """
-        from marl.runners import SimpleRunner
-        from marl.models import LiveRun
-
-        new_experiment = Experiment.create(
-            logdir=new_logdir,
-            env=deepcopy(self.env),
-            n_steps=self.n_steps,
-            trainer=self.trainer,
-            test_interval=self.test_interval,
-            test_env=other_env,
-        )
-        runs = sorted(list(self.runs), key=lambda run: run.rundir)
-
-        for i, base_run in enumerate(runs):
-            runner = SimpleRunner.from_experiment(new_experiment, n_tests, quiet).to(device)
-            run = LiveRun(new_experiment.logdir, base_run.seed, new_experiment.logger)
-            for time_step in tqdm(range(0, self.n_steps + 1, self.test_interval), desc=f"Run {i}", disable=quiet):
-                runner._test_and_log(run, time_step, render=False)
 
     @overload
     def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
@@ -229,7 +197,7 @@ class Experiment[A: Space]:
     @property
     def runs(self):
         for rundir in self.rundirs:
-            yield Run(rundir, self.test_interval, self.logger)
+            yield Run(rundir, self.logger)
 
     @property
     def rundirs(self):
@@ -290,8 +258,12 @@ class Experiment[A: Space]:
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
         datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics for run in runs], self.logdir, replace_inf, source="train", suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data for run in runs], self.logdir, replace_inf, source="training")
+        datasets += stats.compute_datasets(
+            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", suffix=" [train]"
+        )
+        datasets += stats.compute_datasets(
+            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training"
+        )
         # qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
         return datasets, []
 
@@ -309,3 +281,9 @@ class Experiment[A: Space]:
     def get_parameters(logdir: str) -> dict[str, Any]:
         with open(Experiment.json_file(logdir), "rb") as f:
             return orjson.loads(f.read())
+
+    def get_run_with_seed(self, seed: int):
+        for run in self.runs:
+            if run.seed == seed:
+                return run
+        return None

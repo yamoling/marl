@@ -10,12 +10,11 @@ from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
 
 from marl.agents.random_agent import RandomAgent
-from marl.logging import LogSpecs
 from marl.utils import get_device
 
 if TYPE_CHECKING:
-    from marl import Agent, Experiment, Trainer
-    from marl.models import LiveRun
+    from marl import Agent, Experiment, Run, Trainer
+    from marl.logging import Logger
 
 
 class SimpleRunner[A: Space]:
@@ -72,56 +71,57 @@ class SimpleRunner[A: Space]:
             exp.test_env,
         )
 
-    def _train_episode(self, run: "LiveRun", step_num: int, episode_num: int, render_tests: bool):
+    def _train_episode(self, logger: "Logger", step_num: int, episode_num: int, render_tests: bool):
         obs, state = self._env.reset()
         self._agent.new_episode()
         episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state), "episode_num": episode_num})
         while not episode.is_finished and step_num < self.n_steps:
             if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
-                self._test_and_log(run, step_num, render_tests)
+                self._test_and_log(logger, step_num, render_tests)
             action = self._agent.choose_action(obs)
             step = self._env.step(action)
             if step_num == self.n_steps:
                 step.truncated = True
             transition = Transition.from_step(obs, state, action.action, step, **action.details)
             training_metrics = self._trainer.update_step(transition, step_num)
-            run.log_training_data(training_metrics, step_num)
+            logger.log_training_data(training_metrics, step_num)
             episode.add(transition)
             obs = step.obs
             state = step.state
             step_num += 1
-        run.log_train(episode.metrics, step_num)
+        logger.log_train(episode.metrics, step_num)
         training_logs = self._trainer.update_episode(episode, episode_num, step_num)
-        run.log_training_data(training_logs, step_num)
+        logger.log_training_data(training_logs, step_num)
         return episode
 
-    def start(self, logdir: str, seed: int, log_specs: LogSpecs = "csv", render_tests: bool = False):
+    def start(self, run: "Run", render_tests: bool = False):
         """Start the training loop"""
         import marl
-        from marl.models import LiveRun
 
-        marl.seed(seed, self._env)
+        marl.seed(run.seed, self._env)
         self._agent.randomize()
         self._trainer.randomize()
 
-        run = LiveRun(logdir, seed, log_specs)
-        with tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar:
+        with (
+            tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar,
+            run as logger,
+        ):
             episode_num = 0
             step = 0
             while step < self.n_steps:
-                episode = self._train_episode(run, step, episode_num, render_tests)
+                episode = self._train_episode(logger, step, episode_num, render_tests)
                 episode_num += 1
                 step += len(episode)
                 pbar.update(len(episode))
             # Test the final agent
             if self.n_tests > 0 and self.test_interval > 0:
-                self._test_and_log(run, self.n_steps, render_tests)
+                self._test_and_log(logger, self.n_steps, render_tests)
 
-    def _test_and_log(self, run: "LiveRun", time_step: int, render: bool):
-        run.save_agent(self._agent, time_step)
-        run.save_trainer(self._trainer, time_step)
+    def _test_and_log(self, logger: "Logger", time_step: int, render: bool):
+        logger.save_agent(self._agent, time_step)
+        logger.save_trainer(self._trainer, time_step)
         episodes = self.perform_tests(time_step, render)
-        run.log_test_episodes(episodes, time_step)
+        logger.log_test_episodes(episodes, time_step)
 
     def perform_tests(self, time_step: int, render: bool = False):
         """Test the agent"""

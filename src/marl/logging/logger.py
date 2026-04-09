@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
-PID_FILENAME = "pid"
 
 
 class LogHelper:
@@ -47,10 +46,6 @@ class LogHelper:
 
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
-
-    @property
-    def pid_filename(self):
-        return os.path.join(self.logdir, PID_FILENAME)
 
 
 class LogReader(ABC, LogHelper):
