@@ -1,56 +1,68 @@
 <template>
-    <div class="agent-info text-center">
-        <h3> Agent {{ agentNum }}</h3>
-        Obs shape = {{ obsShape }}
-        <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
-        <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
-            :extras-meanings="extrasMeanings" />
-        <p v-else> No preview available for {{ obsDimensions }} dimensions </p>
-        <h4 v-if="decisionSections.length > 0"> Actions & decision data </h4>
-        <table v-if="decisionSections.length > 0" class="table table-responsive">
-            <thead>
-                <tr>
-                    <th scope="row"> Actions <br> available </th>
-                    <th scope="col" :style="{
-                        opacity: (availableActions[action] == 1) ? 1 : 0.5,
-                        backgroundColor: (action == takenAction) ? 'yellow' : 'transparent'
-                    }" v-for="(meaning, action) in experiment.env.action_space.labels">
-                        {{ meaning }}
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                <template v-for="section in decisionSections" :key="section.key">
-                    <template v-if="section.isMultiObjective">
-                        <tr v-for="(objectiveLabel, objectiveNum) in getObjectiveLabels(section)">
-                            <th scope="row" class="text-capitalize">
-                                {{ `${section.label} (${objectiveLabel})` }}
-                            </th>
+    <div class="agent-info">
+        <div class="agent-header d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+                <h5 class="mb-0">Agent {{ agentNum }}</h5>
+            </div>
+            <span class="badge text-bg-primary align-self-start">Action: {{ takenActionLabel }}</span>
+        </div>
+
+        <div v-if="decisionSections.length > 0" class="decision-panel mb-3">
+            <table class="table table-responsive table-sm align-middle decision-table mb-0">
+                <thead>
+                    <tr>
+                        <th scope="row">Available actions</th>
+                        <th scope="col" :style="{
+                            opacity: (availableActions[action] == 1) ? 1 : 0.5,
+                        }" v-for="(meaning, action) in experiment.env.action_space.labels">
+                            {{ meaning }}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template v-for="section in decisionSections" :key="section.key">
+                        <template v-if="section.isMultiObjective">
+                            <tr v-for="(objectiveLabel, objectiveNum) in getObjectiveLabels(section)">
+                                <th scope="row" class="text-capitalize">
+                                    {{ `${section.label} (${objectiveLabel})` }}
+                                </th>
+                                <td v-for="action in section.data.length" :style='{
+                                    "background-color": "#" + (section.backgroundColours[action - 1]?.[objectiveNum] ?? "FFFFFF")
+                                }'>
+                                    {{ formatValue(decisionDataAt(section, action - 1, objectiveNum)) }}
+                                </td>
+                            </tr>
+                        </template>
+                        <tr v-else>
+                            <th scope="row" class="text-capitalize">{{ section.label }}</th>
                             <td v-for="action in section.data.length" :style='{
-                                "background-color": "#" + (section.backgroundColours[action - 1]?.[objectiveNum] ?? "FFFFFF")
+                                "background-color": "#" + (section.backgroundColours[action - 1] ?? "FFFFFF")
                             }'>
-                                {{ formatValue(decisionDataAt(section, action - 1, objectiveNum)) }}
+                                {{ formatValue((section.data[action - 1] as unknown as number)) }}
+                            </td>
+                        </tr>
+                        <tr v-if="section.isMultiObjective" class="decision-section-total">
+                            <td> <b>Total</b></td>
+                            <td v-for="action in section.data.length"
+                                :style='{ "background-color": "#" + section.totalValueColours[action - 1] }'>
+                                {{ section.totalValues[action - 1].toFixed(4) }}
                             </td>
                         </tr>
                     </template>
-                    <tr v-else>
-                        <th scope="row" class="text-capitalize">{{ section.label }}</th>
-                        <td v-for="action in section.data.length" :style='{
-                            "background-color": "#" + (section.backgroundColours[action - 1] ?? "FFFFFF")
-                        }'>
-                            {{ formatValue((section.data[action - 1] as unknown as number)) }}
-                        </td>
-                    </tr>
-                    <tr v-if="section.isMultiObjective" class="decision-section-total">
-                        <td> <b>Total</b></td>
-                        <td v-for="action in section.data.length"
-                            :style='{ "background-color": "#" + section.totalValueColours[action - 1] }'>
-                            {{ section.totalValues[action - 1].toFixed(4) }}
-                        </td>
-                    </tr>
-                </template>
-            </tbody>
-        </table>
+                </tbody>
+            </table>
+        </div>
+
+        <details class="observation-panel">
+            <summary>Observation preview</summary>
+            <div class="observation-body mt-3 text-center">
+                <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras"
+                    :env-info="experiment.env" />
+                <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
+                    :extras-meanings="extrasMeanings" />
+                <p v-else class="text-muted">No preview available for {{ obsDimensions }} dimensions</p>
+            </div>
+        </details>
     </div>
 </template>
 
@@ -119,6 +131,12 @@ const availableActions = computed(() => {
 const takenAction = computed(() => {
     if (props.episode == null) return -1;
     return props.episode.episode.actions[safeStep.value][props.agentNum];
+});
+
+const takenActionLabel = computed(() => {
+    const actionLabel = props.experiment.env.action_space.labels[takenAction.value];
+    if (actionLabel == null) return takenAction.value < 0 ? "-" : `#${takenAction.value}`;
+    return actionLabel;
 });
 
 const currentActionDetails = computed(() => {
@@ -216,7 +234,7 @@ function getObjectiveLabels(section: DecisionSection): string[] {
 }
 
 function formatValue(value: number): string {
-    return Number.isFinite(value) ? value.toFixed(4) : "-";
+    return Number.isFinite(value) ? value.toFixed(2) : "-";
 }
 
 </script>
@@ -228,6 +246,30 @@ function formatValue(value: number): string {
     border-style: solid;
     border-color: gainsboro;
     border-radius: 2%;
+    padding: 0.75rem;
+    background: var(--bs-body-bg);
+}
+
+.decision-panel {
+    overflow-x: auto;
+}
+
+.decision-table th,
+.decision-table td {
+    white-space: nowrap;
+}
+
+.observation-panel {
+    margin-top: 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bs-secondary-bg);
+}
+
+.observation-panel>summary {
+    cursor: pointer;
+    font-weight: 600;
 }
 
 .decision-section-title th {

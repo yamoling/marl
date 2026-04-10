@@ -30,8 +30,16 @@
             </section>
 
             <section v-if="hasSelectedEpisode" class="workspace-replay">
-                <InlineEpisodeViewer :experiment="experiment" :episode-directory="activeEpisodeDirectory"
-                    @close="clearSelectedEpisode" />
+                <div class="inline-replay">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h5 class="mb-0">Replay episode {{ activeEpisodeDirectory }}</h5>
+                        <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSelectedEpisode">
+                            Close
+                        </button>
+                    </div>
+
+                    <EpisodeReplay :experiment="experiment" :episode-directory="activeEpisodeDirectory" />
+                </div>
             </section>
         </div>
     </div>
@@ -46,7 +54,7 @@ import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
 import Plotter from '../charts/Plotter.vue';
 import SettingsPanel from '../home/SettingsPanel.vue';
-import InlineEpisodeViewer from '../visualisation/InlineEpisodeViewer.vue';
+import EpisodeReplay from '../visualisation/EpisodeReplay.vue';
 import ExperimentDetailsPane from './ExperimentDetailsPane.vue';
 
 const experiment = ref(null as Experiment | null);
@@ -167,6 +175,11 @@ onUnmounted(() => {
     width: 100%;
     overflow: auto;
     min-width: 0;
+}
+
+.inline-replay {
+    height: 100%;
+    overflow: auto;
 }
 
 .table-scroll,
