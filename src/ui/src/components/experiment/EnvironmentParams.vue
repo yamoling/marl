@@ -17,7 +17,19 @@
                                     <template v-if="params.size > 0">
                                         <td>
                                             <template v-for="[key, value] in params">
-                                                {{ key }} = {{ value }}<br>
+                                                <template v-if="isObjectValue(value)">
+                                                    {{ key }} =
+                                                    <button class="btn btn-sm btn-outline-secondary ms-2" type="button"
+                                                        @click="toggleJsonDisplay(name, key)">
+                                                        {{ isJsonExpanded(name, key) ? "Hide JSON" : "Show JSON" }}
+                                                    </button>
+                                                    <pre v-if="isJsonExpanded(name, key)"
+                                                        class="bg-light border rounded p-2 mt-2">{{ formatJson(value) }}</pre>
+                                                    <br>
+                                                </template>
+                                                <template v-else>
+                                                    {{ key }} = {{ value }}<br>
+                                                </template>
                                             </template>
                                         </td>
                                     </template>
@@ -69,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { Env, EnvWrapper, getWrapperParameters } from "../../models/Env";
 
 const props = defineProps<{
@@ -88,4 +100,31 @@ const wrappers = computed(() => {
     }
     return wrappers;
 });
+
+const expandedJsonKeys = ref(new Set<string>());
+
+function getJsonKey(wrapperName: string, key: string): string {
+    return `${wrapperName}:${key}`;
+}
+
+function isObjectValue(value: unknown): boolean {
+    return typeof value === "object" && value !== null;
+}
+
+function isJsonExpanded(wrapperName: string, key: string): boolean {
+    return expandedJsonKeys.value.has(getJsonKey(wrapperName, key));
+}
+
+function toggleJsonDisplay(wrapperName: string, key: string): void {
+    const jsonKey = getJsonKey(wrapperName, key);
+    if (expandedJsonKeys.value.has(jsonKey)) {
+        expandedJsonKeys.value.delete(jsonKey);
+        return;
+    }
+    expandedJsonKeys.value.add(jsonKey);
+}
+
+function formatJson(value: unknown): string {
+    return JSON.stringify(value, null, 2) ?? "null";
+}
 </script>

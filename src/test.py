@@ -17,6 +17,7 @@ def main():
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
+    logdir = "tests"
     exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir)
     exp.run(seeds=16, n_tests=5)
 

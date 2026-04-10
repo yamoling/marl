@@ -93,6 +93,7 @@ class Logger(ABC, LogHelper):
     logdir: str
 
     def __init__(self, logdir: str):
+        super().__init__(logdir)
         if not logdir.startswith("logs/"):
             logdir = os.path.join("logs", logdir)
         LogHelper.__init__(self, logdir)

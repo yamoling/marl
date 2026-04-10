@@ -2,51 +2,56 @@
     <div v-if="experiment == null" class="row mt-5">
         <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
     </div>
-    <div v-else class="row">
-        <EpisodeViewer ref="viewer" :experiment="experiment" />
-        <div class="col-3">
-            <DQNParams v-if="experiment.trainer.name == 'DQN'" :trainer="experiment.trainer"
-                :algo="(experiment.trainer as any as DQN)" class="mb-1" />
-            <EnvironmentParams :env="experiment.env" />
-        </div>
-        <div class="col">
-            <div class="input-group mb-2">
-                <label class="btn" :class="plotOrTable == 'plot' ? 'btn-success' : 'btn-outline-dark'">
-                    Plot
-                    <input type="radio" value="plot" class="btn-check" v-model="plotOrTable">
-                </label>
-                <label class="btn" :class="plotOrTable == 'table' ? 'btn-success' : 'btn-outline-dark'">
-                    Table
-                    <input type="radio" value="table" class="btn-check" v-model="plotOrTable">
-                </label>
-            </div>
-            <MetricsTable v-show="plotOrTable == 'table'" :experiment="experiment" @view-episode="viewer.viewEpisode" />
-            <div v-show="plotOrTable == 'plot'">
-                <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
-                <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets" :title="metric"
-                    :showLegend="false" @episode-selected="onEpisodeSelected" />
-            </div>
+    <div v-else class="experiment-panel">
+        <ExperimentDetailsPane :experiment="experiment" :is-open="isDetailsPaneOpen" @toggle="toggleDetailsPane" />
+        <div class="workspace" :class="{ 'with-replay': hasSelectedEpisode }">
+            <section class="workspace-main">
+                <div class="input-group mb-2">
+                    <label class="btn" :class="plotOrTable == 'plot' ? 'btn-success' : 'btn-outline-dark'">
+                        Plot
+                        <input type="radio" value="plot" class="btn-check" v-model="plotOrTable">
+                    </label>
+                    <label class="btn" :class="plotOrTable == 'table' ? 'btn-success' : 'btn-outline-dark'">
+                        Table
+                        <input type="radio" value="table" class="btn-check" v-model="plotOrTable">
+                    </label>
+                </div>
+
+                <div v-show="plotOrTable == 'table'" class="table-scroll">
+                    <MetricsTable :experiment="experiment" @view-episode="onEpisodeDirectorySelected" />
+                </div>
+
+                <div v-show="plotOrTable == 'plot'" class="plot-scroll">
+                    <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
+                    <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets" :title="metric"
+                        :showLegend="false" @episode-selected="onEpisodeSelected" />
+                </div>
+            </section>
+
+            <section v-if="hasSelectedEpisode" class="workspace-replay">
+                <InlineEpisodeViewer
+                    :experiment="experiment"
+                    :episode-directory="activeEpisodeDirectory"
+                    @close="clearSelectedEpisode"
+                />
+            </section>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import DQNParams from "./algorithms/DQNParams.vue";
+import { computed, onMounted, ref } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
 import MetricsTable from './MetricsTable.vue';
-import EpisodeViewer from '../visualisation/EpisodeViewer.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { DQN } from '../../models/Agent';
-import EnvironmentParams from './EnvironmentParams.vue';
 import Plotter from '../charts/Plotter.vue';
 import SettingsPanel from '../home/SettingsPanel.vue';
+import InlineEpisodeViewer from '../visualisation/InlineEpisodeViewer.vue';
+import ExperimentDetailsPane from './ExperimentDetailsPane.vue';
 
 const experiment = ref(null as Experiment | null);
-const viewer = ref({} as typeof EpisodeViewer);
-const results = ref(null as ExperimentResults | null);
 const experimentStore = useExperimentStore()
 const plotOrTable = ref("table" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
@@ -54,7 +59,23 @@ const metrics = ref(new Set<string>());
 const selectedMetrics = ref([] as string[]);
 const datasets = ref([] as Dataset[]);
 const datasetByMetric = ref(new Map<string, Dataset[]>());
+const isDetailsPaneOpen = ref(true);
+const selectedEpisodeDirectory = ref(null as string | null);
 
+const hasSelectedEpisode = computed(() => selectedEpisodeDirectory.value != null);
+const activeEpisodeDirectory = computed(() => selectedEpisodeDirectory.value ?? "");
+
+function toggleDetailsPane() {
+    isDetailsPaneOpen.value = !isDetailsPaneOpen.value;
+}
+
+function onEpisodeDirectorySelected(episodeDirectory: string) {
+    selectedEpisodeDirectory.value = episodeDirectory;
+}
+
+function clearSelectedEpisode() {
+    selectedEpisodeDirectory.value = null;
+}
 
 function updateDatasets(newSelectedMetrics: string[]) {
     selectedMetrics.value = newSelectedMetrics;
@@ -71,8 +92,7 @@ function updateDatasets(newSelectedMetrics: string[]) {
 function onEpisodeSelected(datasetIndex: number, xIndex: number) {
     const run = runResults.value[datasetIndex];
     const tick = run.datasets[0].ticks[xIndex];
-    const episodeDirectory = `${run.logdir}/test/${tick}/0`
-    viewer.value.viewEpisode(episodeDirectory);
+    selectedEpisodeDirectory.value = `${run.logdir}/test/${tick}/0`;
 }
 
 
@@ -100,3 +120,44 @@ onMounted(async () => {
 });
 
 </script>
+
+<style scoped>
+.experiment-panel {
+    display: flex;
+    gap: 0.75rem;
+    min-height: 76vh;
+}
+
+.workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    flex: 1;
+    gap: 0.75rem;
+    min-width: 0;
+}
+
+.workspace.with-replay {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 42%);
+}
+
+.workspace-main,
+.workspace-replay {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    min-width: 0;
+}
+
+.table-scroll,
+.plot-scroll {
+    max-height: 72vh;
+    overflow: auto;
+}
+
+@media (max-width: 1200px) {
+    .workspace.with-replay {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+</style>

@@ -75,6 +75,7 @@ class CSVLogWriter:
 
 class CSVLogReader(LogReader):
     def __init__(self, logdir: str):
+        super().__init__(logdir)
         self.test_filename = os.path.join(logdir, TEST)
         self.train_filename = os.path.join(logdir, TRAIN)
         self.training_data_filename = os.path.join(logdir, TRAINING_DATA)

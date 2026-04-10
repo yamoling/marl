@@ -10,7 +10,7 @@
                 </template>
             </Column>
             <template #expansion="slotProps">
-                <div class="p-4">
+                <div class="px-4 pb-4">
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
@@ -67,6 +67,10 @@ function formatFloat(value: number) {
 }
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
+    const step = String(event.data.step);
+    expanded.value = {
+        [step]: true,
+    };
     await loadTestsAtStep(event.data.step);
 }
 
@@ -75,13 +79,11 @@ async function onRowClicked(event: DataTableRowClickEvent) {
     const current = expanded.value ?? {};
 
     if (current[step]) {
-        const { [step]: _, ...rest } = current;
-        expanded.value = rest;
+        expanded.value = {};
         return;
     }
 
     expanded.value = {
-        ...current,
         [step]: true,
     };
     await loadTestsAtStep(event.data.step);
