@@ -3,6 +3,7 @@ import shutil
 from copy import deepcopy
 from datetime import datetime
 from functools import cached_property
+import logging
 from typing import Any, Literal, Optional
 
 import marlenv
@@ -347,7 +348,7 @@ def main(args: Arguments):
             n_steps=1_000_000,
             logger="csv",
         )
-        print(f"Experiment created in {exp.logdir}")
+        logging.info(f"Experiment created in {exp.logdir}")
         if args.run:
             run_experiment(args.as_run_args())
     except ExperimentAlreadyExistsException as e:
@@ -355,7 +356,7 @@ def main(args: Arguments):
             response = ""
             response = input(f"Experiment already exists in {e.logdir}. Overwrite? [y/n] ")
             if response.lower() != "y":
-                print("Experiment not created.")
+                logging.info("Experiment not created.")
                 return
         shutil.rmtree(e.logdir)
         return main(args)

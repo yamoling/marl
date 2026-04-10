@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 import sys
 import orjson
@@ -41,7 +42,7 @@ class ServerState:
             f"--seed={seed}",
             "--device=auto",
         ]
-        print(" ".join(command))
+        logging.info("Starting new process with command: " + " ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
         subprocess.Popen(
             command,

@@ -1,6 +1,5 @@
 import logging
 from copy import deepcopy
-from pprint import pprint
 from typing import TYPE_CHECKING, Literal
 import numpy as np
 import numpy.typing as npt
@@ -127,6 +126,7 @@ class SimpleRunner[A: Space]:
 
     def perform_tests(self, time_step: int, render: bool = False):
         """Test the agent"""
+        self._agent.set_testing()
         episodes = list[Episode]()
         for test_num in tqdm(range(self.n_tests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
             seed = get_test_seed(time_step, test_num)
@@ -139,7 +139,7 @@ class SimpleRunner[A: Space]:
                     avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / self.n_tests
                 except TypeError:
                     pass
-            pprint(avg_metrics)
+            logging.info(avg_metrics)
         self._agent.set_training()
         return episodes
 

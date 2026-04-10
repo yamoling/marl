@@ -9,6 +9,7 @@ import { useRunStore } from "./RunStore";
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
+    const runStore = useRunStore();
     const isRunning = computed(() => {
         const res = {} as { [logdir: string]: boolean };
         runStore.runs.forEach((runs, logdir) => {
@@ -17,7 +18,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return res;
     });
     // const runningExperiments = ref(new Set<string>());
-    const runStore = useRunStore();
     refresh();
 
     async function refresh() {

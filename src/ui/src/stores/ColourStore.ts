@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { stringToRGB,qvalueLabelToHSL } from "../utils";
+import { stringToRGB, qvalueLabelToHSL } from "../utils";
 import { ref } from "vue";
 
 export const useColourStore = defineStore("ColourStore", () => {
@@ -41,7 +41,9 @@ export const useColourStore = defineStore("ColourStore", () => {
     }
 
     function set(logdir: string, colour: string) {
-        colours.value.set(logdir, colour);
+        const updated = new Map(colours.value);
+        updated.set(logdir, colour);
+        colours.value = updated;
         saveColoursToLocalStorage();
     }
 

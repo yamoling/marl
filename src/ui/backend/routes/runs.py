@@ -1,4 +1,5 @@
 from http import HTTPStatus
+import logging
 
 from fastapi import APIRouter
 from fastapi.responses import Response
@@ -29,7 +30,7 @@ def list_runs(logdir: str):
                     "rundir": run.rundir,
                     "seed": run.seed,
                     "progress": run.get_progress(exp.n_steps),
-                    "pid": run.get_pid(),
+                    "pid": run.pid,
                     "status": status,
                 }
             )
@@ -38,7 +39,7 @@ def list_runs(logdir: str):
         # This can occur if the structure of the repository has changed since the
         # pickle file has been created (ModuleNotFoundError) or if the attributes of the
         # experiment have changed (AttributeError). In both cases, we consider that the experiment has no runs to display, and we return an empty list.
-        print(e)
+        logging.error(e)
         return Response(orjson.dumps([]), media_type="application/json")
 
 
