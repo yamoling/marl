@@ -1,7 +1,7 @@
 <template>
     <div v-if="dataset != null" class="row text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
-            @row-expand="onRowExpanded" @row-click="onRowClicked" selection-mode="single">
+            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked">
             <Column expander style="width: 3rem" />
             <Column field="step" header="Time step"></Column>
             <Column v-for="label in dataset.columns()" :field="label" :header="label">
@@ -14,7 +14,7 @@
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        @row-select="e => emits('view-episode', e.data.directory)">
+                        :rowClass="getTestRowClass" @row-select="e => emits('view-episode', e.data.directory)">
                         <Column v-for="column in testColumns" :header="column" :field="column">
                             <template #body="{ data }">
                                 <template v-if="typeof data[column] === 'number'">
@@ -40,7 +40,8 @@ import { onMounted } from "vue";
 
 
 const props = defineProps<{
-    experiment: Experiment
+    experiment: Experiment,
+    selectedEpisodeDirectory?: string | null
 }>();
 
 const expanded = ref({} as Record<string, boolean>);
@@ -64,6 +65,12 @@ function formatFloat(value: number) {
         return value.toString();
     }
     return value.toFixed(3);
+}
+
+function getTestRowClass(data: { directory?: string }) {
+    return {
+        'selected-replay-row': data.directory === props.selectedEpisodeDirectory,
+    };
 }
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
@@ -113,3 +120,13 @@ const emits = defineEmits<{
 }>();
 
 </script>
+
+<style scoped>
+:deep(.selected-replay-row) {
+    background: color-mix(in srgb, var(--bs-primary) 18%, transparent);
+}
+
+:deep(.selected-replay-row:hover) {
+    background: color-mix(in srgb, var(--bs-primary) 24%, transparent);
+}
+</style>

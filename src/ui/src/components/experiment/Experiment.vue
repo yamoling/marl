@@ -18,29 +18,27 @@
                 </div>
 
                 <div v-show="plotOrTable == 'table'" class="table-scroll">
-                    <MetricsTable :experiment="experiment" @view-episode="onEpisodeDirectorySelected" />
+                    <MetricsTable :experiment="experiment" :selected-episode-directory="selectedEpisodeDirectory"
+                        @view-episode="onEpisodeDirectorySelected" />
                 </div>
 
                 <div v-show="plotOrTable == 'plot'" class="plot-scroll">
                     <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
-                    <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets" :title="metric"
-                        :showLegend="false" @episode-selected="onEpisodeSelected" />
+                    <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets"
+                        :title="metric" :showLegend="false" @episode-selected="onEpisodeSelected" />
                 </div>
             </section>
 
             <section v-if="hasSelectedEpisode" class="workspace-replay">
-                <InlineEpisodeViewer
-                    :experiment="experiment"
-                    :episode-directory="activeEpisodeDirectory"
-                    @close="clearSelectedEpisode"
-                />
+                <InlineEpisodeViewer :experiment="experiment" :episode-directory="activeEpisodeDirectory"
+                    @close="clearSelectedEpisode" />
             </section>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
 import MetricsTable from './MetricsTable.vue';
 import { useRoute } from 'vue-router';
@@ -77,6 +75,12 @@ function clearSelectedEpisode() {
     selectedEpisodeDirectory.value = null;
 }
 
+function onEscapePressed(event: KeyboardEvent) {
+    if (event.key === 'Escape' && hasSelectedEpisode.value) {
+        clearSelectedEpisode();
+    }
+}
+
 function updateDatasets(newSelectedMetrics: string[]) {
     selectedMetrics.value = newSelectedMetrics;
     const newDatasets = datasets.value.filter(d => selectedMetrics.value.includes(d.label));
@@ -97,6 +101,8 @@ function onEpisodeSelected(datasetIndex: number, xIndex: number) {
 
 
 onMounted(async () => {
+    window.addEventListener('keydown', onEscapePressed);
+
     const route = useRoute();
     const logdir = (route.params.logdir as string[]).join('/');
     // Asynchronously load the experiment in case we want to replay an episode later on.
@@ -119,6 +125,10 @@ onMounted(async () => {
     }).flat().sort((a, b) => a.logdir.localeCompare(b.logdir));
 });
 
+onUnmounted(() => {
+    window.removeEventListener('keydown', onEscapePressed);
+});
+
 </script>
 
 <style scoped>
@@ -137,7 +147,7 @@ onMounted(async () => {
 }
 
 .workspace.with-replay {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 42%);
+    grid-template-columns: minmax(20vw, 1fr) minmax(0, 4fr);
 }
 
 .workspace-main,
@@ -146,12 +156,23 @@ onMounted(async () => {
     border: 1px solid var(--bs-border-color);
     border-radius: 0.5rem;
     padding: 0.75rem;
+}
+
+.workspace-main {
+    min-width: 20vw;
+    overflow: auto;
+}
+
+.workspace-replay {
+    width: 100%;
+    overflow: auto;
     min-width: 0;
 }
 
 .table-scroll,
 .plot-scroll {
     max-height: 72vh;
+    min-width: 0;
     overflow: auto;
 }
 
