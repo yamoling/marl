@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, KW_ONLY
 from typing import Any, overload
 
 import numpy as np
@@ -15,25 +15,12 @@ class Action[T: Any]:
     """
 
     action: npt.NDArray[T]
+    _: KW_ONLY
     action_probabilities: npt.NDArray[np.float32] | None = None
     q_values: npt.NDArray[np.float32] | None = None
-    options: list | None = None
+    options: npt.ArrayLike | None = None
+    options_termination_probs: npt.ArrayLike | None = None
     meta_actions: npt.ArrayLike | None = None
-
-    def __init__(
-        self,
-        action: npt.NDArray[T],
-        *,
-        action_probabilities: npt.NDArray[np.float32] | None = None,
-        q_values: npt.NDArray[np.float32] | None = None,
-        options: list | None = None,
-        meta_actions: npt.ArrayLike | None = None,
-    ):
-        self.action = action
-        self.action_probabilities = action_probabilities
-        self.q_values = q_values
-        self.options = options
-        self.meta_actions = meta_actions
 
     def __array__(self, dtype=None):
         if dtype is None:

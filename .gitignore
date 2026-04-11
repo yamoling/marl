@@ -196,7 +196,9 @@ poetry.lock
 qplex/
 .zed
 .github/copilot-instructions.md
-
+.github/agents
+.github/skills
+.github/prompts
 
 # Include the marl/env package (excluded by 'env' above in this file)
 !src/marl/env
@@ -204,5 +206,4 @@ myenv/*
 uv.lock
 wandb
 logs.txt
-.github/agents
 papers/
