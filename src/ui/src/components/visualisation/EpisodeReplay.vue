@@ -26,22 +26,12 @@
             </section>
 
             <section class="replay-row row-divider controls-row">
-                <div ref="timelineContainer" class="timeline-wrap">
-                    <div class="timeline-header mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <button type="button" class="start-marker btn btn-sm"
-                                :class="{ selected: currentStep === 0 }" title="Step 0 (start state)"
-                                @click="selectStep(0)" @pointerdown="onStartPointerDown">
-                                S
-                            </button>
-                            <div class="slider-label">Step {{ currentStep }} / {{ episodeLength }}</div>
-                        </div>
-
-                        <div class="manual-step-input">
-                            <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
-                                @keyup.enter="changeStep" />
-                            <span class="text-muted">/ {{ episodeLength }}</span>
-                        </div>
+                <div class="timeline-wrap">
+                    <div class="manual-step-input mb-2">
+                        Step
+                        <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
+                            @keyup.enter="changeStep" />
+                        <span class="text-muted">/ {{ episodeLength }}</span>
                     </div>
 
                     <div class="track-visibility mb-2">
@@ -56,13 +46,15 @@
                         <span class="now-indicator" :style="nowIndicatorStyle" />
 
                         <div v-for="track in visibleTracks" :key="track.id" class="timeline-track-row">
-                            <span class="timeline-track-label">{{ track.label }}</span>
+                            <span class="timeline-track-label">
+                                {{ track.label }}
+                                <span class="timeline-track-value">{{ currentTrackValueLabel(track) }}</span>
+                            </span>
 
                             <div class="timeline-track-cells">
                                 <button v-for="cell in track.cells" :key="cell.key" type="button" class="timeline-cell"
                                     :class="{
                                         selected: isStepInsideCell(cell),
-                                        changed: track.kind === 'discrete' && !!cell.changedFromPrevious,
                                         reward: track.kind === 'continuous-bar',
                                         option: track.kind === 'discrete',
                                     }" :style="timelineCellStyle(track.kind, cell)"
@@ -79,12 +71,19 @@
             </section>
 
             <section class="replay-row row-divider replay-analysis">
-                <div class="row g-2">
-                    <div v-for="agent in nAgents" :key="agent" class="col-12 col-xl-6">
-                        <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
-                            :rainbow="rainbow" :experiment="experiment" />
-                    </div>
-                </div>
+                <Accordion class="agent-details-accordion" :value="null">
+                    <AccordionPanel value="agents">
+                        <AccordionHeader>Agent-wise information</AccordionHeader>
+                        <AccordionContent>
+                            <div class="agent-details-grid mt-3">
+                                <div v-for="agent in nAgents" :key="agent" class="agent-details-item">
+                                    <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
+                                        :experiment="experiment" />
+                                </div>
+                            </div>
+                        </AccordionContent>
+                    </AccordionPanel>
+                </Accordion>
             </section>
         </template>
     </div>
@@ -97,6 +96,10 @@ import AgentInfo from './AgentInfo.vue';
 import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Experiment } from '../../models/Experiment';
+import Accordion from 'primevue/accordion';
+import AccordionPanel from 'primevue/accordionpanel';
+import AccordionHeader from 'primevue/accordionheader';
+import AccordionContent from 'primevue/accordioncontent';
 import {
     ContinuousBarTrack,
     DiscreteTrack,
@@ -114,20 +117,16 @@ const replayStore = useReplayStore();
 const loading = ref(false);
 const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
-const timelineContainer = ref<HTMLElement | null>(null);
-const timelineWidth = ref(0);
 const isScrubbing = ref(false);
 const trackVisibility = ref({} as Record<string, boolean>);
 const rainbow = new Rainbow();
 rainbow.setSpectrum('red', 'yellow', 'olivedrab');
 
-let resizeObserver: ResizeObserver | null = null;
-
 type RenderTimelineCell = TimelineBin & {
     value?: number;
     normalized?: number;
     category?: string | null;
-    changedFromPrevious?: boolean;
+    colour?: string | null;
 };
 
 type RenderTrack = {
@@ -141,16 +140,11 @@ const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
-const maxVisibleBars = computed(() => {
-    // Keep bars readable; increase density automatically on wider containers.
-    const available = Math.max(0, timelineWidth.value - 112);
-    return Math.max(8, Math.floor(available / 6));
-});
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
-const timelineModel = computed(() => new TimelineModel(episodeLength.value, maxVisibleBars.value));
+const timelineModel = computed(() => new TimelineModel(episodeLength.value));
 const timelineBins = computed(() => timelineModel.value.buildBins(rewardValues.value.length));
 const trackToggles = computed(() => allTracks.value.map((track) => ({
     id: track.id,
@@ -236,6 +230,14 @@ function onKeyDown(event: KeyboardEvent) {
     if (isEditableTarget(event.target)) return;
 
     switch (event.key) {
+        case 'Home':
+            event.preventDefault();
+            selectStep(0);
+            break;
+        case 'End':
+            event.preventDefault();
+            selectStep(maxStep.value);
+            break;
         case 'ArrowLeft':
         case 'ArrowUp':
             event.preventDefault();
@@ -254,30 +256,11 @@ function onKeyDown(event: KeyboardEvent) {
 onMounted(() => {
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('pointerup', stopScrubbing);
-
-    if (timelineContainer.value != null) {
-        timelineWidth.value = timelineContainer.value.clientWidth;
-    }
-
-    resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-            timelineWidth.value = entry.contentRect.width;
-        }
-    });
-
-    if (timelineContainer.value != null) {
-        resizeObserver.observe(timelineContainer.value);
-    }
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', onKeyDown);
     window.removeEventListener('pointerup', stopScrubbing);
-
-    if (resizeObserver != null) {
-        resizeObserver.disconnect();
-        resizeObserver = null;
-    }
 });
 
 watch(
@@ -361,13 +344,13 @@ function rewardFillStyle(normalizedReward: number): { [key: string]: string } {
 
 function timelineCellStyle(kind: TimelineTrackKind, cell: RenderTimelineCell): { [key: string]: string } {
     if (kind === 'discrete') {
-        if (cell.category == null) {
+        if (cell.colour == null) {
             return {
                 backgroundColor: 'var(--bs-tertiary-bg)',
             };
         }
         return {
-            backgroundColor: optionColour(cell.category),
+            backgroundColor: cell.colour,
         };
     }
 
@@ -390,6 +373,23 @@ function timelineCellTitle(track: RenderTrack, cell: RenderTimelineCell): string
     return `${track.label} | ${range}`;
 }
 
+function currentTrackValueLabel(track: RenderTrack): string {
+    if (currentStep.value <= 0) return '-';
+
+    const currentCell = track.cells.find((cell) => isStepInsideCell(cell));
+    if (currentCell == null) return '-';
+
+    if (track.kind === 'continuous-bar') {
+        return formatNumber(currentCell.value ?? 0);
+    }
+
+    if (track.kind === 'discrete') {
+        return currentCell.category ?? 'none';
+    }
+
+    return '-';
+}
+
 function normalizeOption(value: unknown): string | null {
     if (value == null) return null;
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -400,17 +400,6 @@ function normalizeOption(value: unknown): string | null {
     } catch {
         return String(value);
     }
-}
-
-function optionColour(optionId: string): string {
-    let hash = 0;
-    for (let index = 0; index < optionId.length; index++) {
-        hash = ((hash << 5) - hash) + optionId.charCodeAt(index);
-        hash |= 0;
-    }
-
-    const hue = Math.abs(hash) % 360;
-    return `hsl(${hue} 65% 62%)`;
 }
 
 function changeStep(event: KeyboardEvent) {
@@ -576,6 +565,12 @@ function formatNumber(value: number): string {
     color: var(--bs-secondary-color);
 }
 
+.timeline-track-value {
+    margin-left: 0.35rem;
+    color: var(--bs-body-color);
+    font-weight: 600;
+}
+
 .timeline-track-cells {
     position: relative;
     display: flex;
@@ -628,15 +623,6 @@ function formatNumber(value: number): string {
     z-index: 2;
 }
 
-.timeline-cell.changed::after {
-    content: '';
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    border-right: 1px solid color-mix(in srgb, #000 35%, transparent);
-}
-
 .slider-label {
     font-size: 0.8rem;
     color: var(--bs-secondary-color);
@@ -650,6 +636,26 @@ function formatNumber(value: number): string {
 
 .manual-step-input input {
     width: 4rem;
+}
+
+.agent-details-accordion {
+    width: 100%;
+}
+
+.agent-details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+@media (max-width: 992px) {
+    .agent-details-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.agent-details-item {
+    min-width: 0;
 }
 
 @media (max-width: 1200px) {

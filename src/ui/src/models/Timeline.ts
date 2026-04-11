@@ -9,32 +9,23 @@ export type TimelineBin = {
 
 export class TimelineModel {
     readonly episodeLength: number;
-    readonly desiredBinCount: number;
 
-    constructor(episodeLength: number, desiredBinCount: number) {
+    constructor(episodeLength: number) {
         this.episodeLength = Math.max(0, episodeLength);
-        this.desiredBinCount = Math.max(1, desiredBinCount);
     }
 
     public buildBins(transitionCount: number): TimelineBin[] {
         const steps = Math.max(0, transitionCount);
         if (steps === 0) return [];
 
-        const binCount = Math.min(steps, this.desiredBinCount);
-        const binSize = Math.ceil(steps / binCount);
         const bins: TimelineBin[] = [];
 
-        for (let index = 0; index < binCount; index++) {
-            const startStep = index * binSize + 1;
-            const endStep = Math.min(steps, startStep + binSize - 1);
-            if (startStep > endStep) break;
-
-            const midpoint = Math.floor((startStep + endStep) / 2);
+        for (let step = 1; step <= steps; step++) {
             bins.push({
-                key: `${startStep}-${endStep}`,
-                startStep,
-                endStep,
-                representativeStep: midpoint,
+                key: `${step}`,
+                startStep: step,
+                endStep: step,
+                representativeStep: step,
             });
         }
 
@@ -44,6 +35,9 @@ export class TimelineModel {
     public nowPercent(currentStep: number): number {
         if (this.episodeLength <= 0) return 0;
         const clampedStep = Math.max(0, Math.min(this.episodeLength, currentStep));
+        if (clampedStep === 0) return 0;
+
+        // Align to the center of the selected step cell instead of its boundary.
         return (clampedStep / this.episodeLength) * 100;
     }
 }
@@ -78,15 +72,12 @@ export class ContinuousBarTrack extends TimelineTrack {
     buildCells(bins: TimelineBin[]): ContinuousBarCell[] {
         const absMax = this.absoluteMax();
         return bins.map((bin) => {
-            const segment = this.values.slice(bin.startStep - 1, bin.endStep);
-            const mean = segment.length > 0
-                ? segment.reduce((sum, value) => sum + value, 0) / segment.length
-                : 0;
+            const value = this.values[bin.startStep - 1] ?? 0;
 
             return {
                 ...bin,
-                value: mean,
-                normalized: mean / absMax,
+                value,
+                normalized: value / absMax,
             };
         });
     }
@@ -100,11 +91,32 @@ export class ContinuousBarTrack extends TimelineTrack {
 
 export type DiscreteCell = TimelineBin & {
     category: string | null;
-    changedFromPrevious: boolean;
+    colour: string | null;
 };
 
 export class DiscreteTrack extends TimelineTrack {
     readonly values: Array<string | null>;
+    private readonly colourByCategory = new Map<string, string>();
+    private nextPaletteIndex = 0;
+
+    private static readonly DISTINCT_COLOURS = [
+        '#1f77b4',
+        '#ff7f0e',
+        '#2ca02c',
+        '#d62728',
+        '#9467bd',
+        '#8c564b',
+        '#e377c2',
+        '#7f7f7f',
+        '#bcbd22',
+        '#17becf',
+        '#393b79',
+        '#637939',
+        '#8c6d31',
+        '#843c39',
+        '#7b4173',
+        '#3182bd',
+    ];
 
     constructor(id: string, label: string, values: Array<string | null>, visible = true) {
         super(id, label, 'discrete', visible);
@@ -112,38 +124,43 @@ export class DiscreteTrack extends TimelineTrack {
     }
 
     buildCells(bins: TimelineBin[]): DiscreteCell[] {
-        const cells = bins.map((bin) => {
-            const values = this.values.slice(bin.startStep - 1, bin.endStep);
+        const cells = [] as DiscreteCell[];
+
+        for (const bin of bins) {
+            const category = this.values[bin.startStep - 1] ?? null;
             const cell: DiscreteCell = {
                 ...bin,
-                category: dominantCategory(values),
-                changedFromPrevious: false,
+                category,
+                colour: category == null ? null : this.colourForCategory(category),
             };
-            return cell;
-        });
-
-        for (let index = 1; index < cells.length; index++) {
-            cells[index].changedFromPrevious = cells[index - 1].category !== cells[index].category;
+            cells.push(cell);
         }
+
         return cells;
+    }
+
+    private colourForCategory(category: string): string {
+        const existing = this.colourByCategory.get(category);
+        if (existing != null) return existing;
+
+        let colour: string;
+        if (this.nextPaletteIndex < DiscreteTrack.DISTINCT_COLOURS.length) {
+            colour = DiscreteTrack.DISTINCT_COLOURS[this.nextPaletteIndex];
+            this.nextPaletteIndex += 1;
+        } else {
+            colour = randomHexColour();
+        }
+
+        this.colourByCategory.set(category, colour);
+        return colour;
     }
 }
 
-function dominantCategory(values: Array<string | null>): string | null {
-    const counts = new Map<string, number>();
-    for (const value of values) {
-        if (value == null) continue;
-        counts.set(value, (counts.get(value) ?? 0) + 1);
-    }
-
-    let selected: string | null = null;
-    let maxCount = -1;
-    for (const [value, count] of counts.entries()) {
-        if (count > maxCount) {
-            maxCount = count;
-            selected = value;
-        }
-    }
-
-    return selected;
+function randomHexColour(): string {
+    const channel = () => Math.floor(Math.random() * 206) + 25;
+    const toHex = (value: number) => value.toString(16).padStart(2, '0');
+    const red = channel();
+    const green = channel();
+    const blue = channel();
+    return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
 }

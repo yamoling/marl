@@ -5,25 +5,15 @@
         </button>
 
         <div v-if="isOpen" class="details-content">
-            <h5 class="mb-3">Inspection Details</h5>
-
-            <div class="placeholder-card mb-2">
-                <h6 class="mb-1">Trainer</h6>
-                <p class="mb-0">{{ experiment.trainer.name }}</p>
-                <small class="text-muted">Trainer details placeholder</small>
-            </div>
-
-            <div class="placeholder-card">
-                <h6 class="mb-1">Environment</h6>
-                <p class="mb-0">{{ experiment.env.name }}</p>
-                <small class="text-muted">Environment details placeholder</small>
-            </div>
+            <JsonInspector class="mb-2" :title="experiment.trainer.name" :value="experiment.trainer" />
+            <JsonInspector :title="experiment.env.name" :value="experiment.env" />
         </div>
     </aside>
 </template>
 
 <script setup lang="ts">
 import { Experiment } from '../../models/Experiment';
+import JsonInspector from './JsonInspector.vue';
 
 defineProps<{
     experiment: Experiment,
@@ -37,14 +27,14 @@ const emits = defineEmits<{
 
 <style scoped>
 .details-pane {
-    width: 300px;
+    min-width: 300px;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.5rem;
     background: var(--bs-body-bg);
     padding: 0.5rem;
     transition: width 0.2s ease;
     position: relative;
-    overflow: hidden;
+    overflow: auto;
     flex-shrink: 0;
 }
 
@@ -63,12 +53,5 @@ const emits = defineEmits<{
 
 .details-content {
     margin-top: 0.75rem;
-}
-
-.placeholder-card {
-    border: 1px dashed var(--bs-border-color);
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 94%, var(--bs-secondary-bg) 6%);
 }
 </style>
