@@ -19,12 +19,6 @@
                 </button>
             </div>
         </div>
-
-        <div class="selection-summary">
-            <span>{{ selectedMetrics.length }} selected</span>
-            <span>{{ filteredMetrics.length }} visible</span>
-        </div>
-
         <div class="selector-columns">
             <div v-for="metrics in metricsByColumn" :key="metrics.join('-')" class="selector-column">
                 <ul>

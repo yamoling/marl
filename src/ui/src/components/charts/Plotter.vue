@@ -1,9 +1,14 @@
 <template>
-    <div class="plotter-shell">
+    <div class="plotter-shell" :class="{ 'plotter-shell--expanded': expanded }">
         <div class="plotter-header" v-if="title.length > 0">
             <h3 class="title">{{ title }}</h3>
             <div class="plotter-actions">
-                <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'" @click="showOptions = !showOptions">
+                <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')">
+                    <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
+                    {{ expanded ? 'Shrink' : 'Enlarge' }}
+                </button>
+                <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
+                    @click="showOptions = !showOptions">
                     <font-awesome-icon :icon="['fas', 'gear']" />
                     Options
                 </button>
@@ -50,11 +55,13 @@
                 <div class="series-row" v-for="label in seriesLabels" :key="label">
                     <span class="series-name">{{ label }}</span>
                     <label class="option-label compact">
-                        <input type="checkbox" :checked="isSeriesVisible(label)" @change="toggleSeriesVisibility(label)">
+                        <input type="checkbox" :checked="isSeriesVisible(label)"
+                            @change="toggleSeriesVisibility(label)">
                         Series
                     </label>
                     <label class="option-label compact" :class="{ disabled: !enablePlusMinus }">
-                        <input type="checkbox" :checked="isBandVisible(label)" :disabled="!enablePlusMinus || !isSeriesVisible(label)"
+                        <input type="checkbox" :checked="isBandVisible(label)"
+                            :disabled="!enablePlusMinus || !isSeriesVisible(label)"
                             @change="toggleBandVisibility(label)">
                         Band
                     </label>
@@ -77,6 +84,7 @@ const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 let chart: Chart | null = null;
 const emits = defineEmits<{
     (event: "episode-selected", datasetIndex: number, xIndex: number): void
+    (event: "toggle-expanded"): void
 }>();
 const canvas = ref({} as HTMLCanvasElement);
 
@@ -94,6 +102,7 @@ const props = defineProps<{
     datasets: readonly Dataset[]
     title: string
     showLegend: boolean
+    expanded?: boolean
 }>();
 const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
 
@@ -371,6 +380,14 @@ function rgbToAlpha(rgb: string, alpha: number) {
 .plotter-shell {
     display: grid;
     gap: 0.65rem;
+}
+
+.plotter-shell--expanded .plotter-canvas {
+    min-height: 30rem;
+}
+
+.plotter-shell--expanded canvas {
+    min-height: 30rem;
 }
 
 .plotter-header {
