@@ -1,26 +1,54 @@
 <template>
-    <div class="row">
-        <div class="col-6">
-            <ExperimentTable />
-        </div>
-        <div class="col-6" style="">
-            <div v-if="resultsStore.results.size == 0" class="text-center mt-5">
-                Click on an experiment to load its results
-                <br>
-                <font-awesome-icon :icon="['fas', 'chart-line']" class="fa-10x mt-5"
-                    style="color: rgba(211, 211, 211, 0.5);" />
+    <div class="home-workspace">
+        <aside class="home-sidebar panel-surface">
+            <div class="panel-header">
+                <h2>Experiments</h2>
+                <span class="panel-subtitle">Select runs to load metrics and q-values</span>
             </div>
-            <template v-else>
-                <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
-                <Plotter v-for="[label, ds] in datasetPerLabel" :datasets="ds" :title="label.replaceAll('_', ' ')"
-                    :showLegend="true" />
-                <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues"
-                    @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-for="[expName, qDs] in qvaluesDatasets" :datasets="qDs"
-                    :title="expName.replace('logs/', ' ')" :showLegend="true" />
-            </template>
+            <ExperimentTable />
+        </aside>
 
-        </div>
+        <main class="home-main">
+            <div v-if="resultsStore.results.size == 0" class="empty-state panel-surface">
+                <font-awesome-icon :icon="['fas', 'chart-line']" class="empty-icon" />
+                <h3>Analysis canvas is ready</h3>
+                <p>Load at least one experiment from the left panel to unlock metric visualizations.</p>
+            </div>
+
+            <template v-else>
+                <section class="panel-surface">
+                    <div class="panel-header panel-header-inline">
+                        <div>
+                            <h2>Metrics</h2>
+                            <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount }} loaded experiments</span>
+                        </div>
+                    </div>
+                    <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
+                </section>
+
+                <section class="chart-grid">
+                    <article class="panel-surface chart-card" v-for="[label, ds] in datasetPerLabel" :key="label">
+                        <Plotter :datasets="ds" :title="label.replaceAll('_', ' ')" :showLegend="true" />
+                    </article>
+                </section>
+
+                <section class="panel-surface" v-if="qvaluesSelected">
+                    <div class="panel-header panel-header-inline">
+                        <div>
+                            <h2>Q-values</h2>
+                            <span class="panel-subtitle">{{ selectedQvalues.length }} selected labels</span>
+                        </div>
+                    </div>
+                    <QvaluesPanel :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
+                </section>
+
+                <section class="chart-grid" v-if="qvaluesSelected">
+                    <article class="panel-surface chart-card" v-for="[expName, qDs] in qvaluesDatasets" :key="expName">
+                        <Qvalues :datasets="qDs" :title="expName.replace('logs/', ' ')" :showLegend="true" />
+                    </article>
+                </section>
+            </template>
+        </main>
     </div>
 </template>
 
@@ -37,6 +65,7 @@ const resultsStore = useResultsStore();
 
 const selectedMetrics = ref(["score [train]"]);
 const selectedQvalues = ref(["agent0-qvalue0"]);
+const loadedResultsCount = computed(() => resultsStore.results.size);
 
 const metrics = computed(() => {
     const res = new Set<string>();
@@ -88,8 +117,86 @@ const datasetPerLabel = computed(() => {
 
 </script>
 
-<style>
-.experiment-row:hover {
-    background-color: #eee;
+<style scoped>
+.home-workspace {
+    display: grid;
+    grid-template-columns: minmax(24rem, 34rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.home-sidebar {
+    position: sticky;
+    top: 0.5rem;
+    max-height: calc(100vh - 6rem);
+    overflow: auto;
+}
+
+.home-main {
+    display: grid;
+    gap: 1rem;
+}
+
+.panel-surface {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    background: var(--bs-body-bg);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+    padding: 0.9rem 1rem;
+}
+
+.panel-header {
+    display: grid;
+    gap: 0.2rem;
+    margin-bottom: 0.75rem;
+}
+
+.panel-header-inline {
+    margin-bottom: 0.5rem;
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.panel-subtitle {
+    color: var(--bs-secondary-color);
+    font-size: 0.87rem;
+}
+
+.empty-state {
+    min-height: 22rem;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 0.5rem;
+}
+
+.empty-state h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.empty-state p {
+    margin: 0;
+    color: var(--bs-secondary-color);
+    max-width: 36rem;
+}
+
+.empty-icon {
+    color: rgba(133, 145, 157, 0.7);
+    font-size: 4.5rem;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.chart-card {
+    padding: 0.75rem;
 }
 </style>
