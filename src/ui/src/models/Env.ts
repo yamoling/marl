@@ -6,14 +6,33 @@ export interface Env {
     state_shape: number[]
     extra_feature_shape: number[]
     extras_meanings: string[]
-    action_space: {
-        shape: number[]
-        labels: string[]
-    }
+    action_space: ActionSpace
     reward_space: {
         size: number,
         labels: string[]
     },
+}
+
+export type ActionSpace = DiscreteActionSpace | ContinuousActionSpace;
+
+export interface BaseActionSpace {
+    shape: number[]
+    size?: number
+    space_class?: string
+}
+
+export interface DiscreteActionSpace extends BaseActionSpace {
+    space_type?: "discrete"
+    labels: string[]
+    low?: number[] | null
+    high?: number[] | null
+}
+
+export interface ContinuousActionSpace extends BaseActionSpace {
+    space_type: "continuous"
+    labels?: string[]
+    low?: number[] | null
+    high?: number[] | null
 }
 
 

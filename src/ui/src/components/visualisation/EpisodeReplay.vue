@@ -10,18 +10,8 @@
                 </div>
 
                 <aside class="top-right">
-                    <h6 class="mb-2">Actions taken</h6>
-                    <div class="meta-line mb-2">
-                        <span v-if="currentReward != null" class="badge text-bg-success">
-                            Reward: {{ formatNumber(currentReward) }}
-                        </span>
-                    </div>
-                    <div class="agent-action-strip">
-                        <span v-for="summary in agentActionSummaries" :key="summary.agentNum"
-                            class="badge rounded-pill action-pill">
-                            Agent {{ summary.agentNum }}: {{ summary.actionLabel }}
-                        </span>
-                    </div>
+                    <ActionPanel v-if="episode != null" :episode="episode" :current-step="currentStep"
+                        :action-space="resolvedActionSpace" :n-agents="nAgents" />
                 </aside>
             </section>
 
@@ -93,13 +83,15 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import Rainbow from 'rainbowvis.js';
 import AgentInfo from './AgentInfo.vue';
-import { ReplayEpisode } from '../../models/Episode';
+import { ActionValue, ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Experiment } from '../../models/Experiment';
 import Accordion from 'primevue/accordion';
 import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
+import ActionPanel from './action/ActionPanel.vue';
+import { ActionSpace } from '../../models/Env';
 import {
     ContinuousBarTrack,
     DiscreteTrack,
@@ -211,16 +203,41 @@ const currentReward = computed(() => {
     if (episode.value == null || currentStep.value <= 0) return null;
     return episode.value.episode.rewards[currentStep.value - 1] ?? null;
 });
+const resolvedActionSpace = computed<ActionSpace>(() => {
+    const replaySpace = episode.value?.action_space;
+    const baseSpace = replaySpace ?? props.experiment.env.action_space;
+    if (baseSpace.space_type != null) return baseSpace;
+
+    const hasBounds = Array.isArray((baseSpace as { low?: unknown }).low)
+        || Array.isArray((baseSpace as { high?: unknown }).high);
+    return {
+        ...baseSpace,
+        space_type: hasBounds ? 'continuous' : 'discrete',
+    } as ActionSpace;
+});
 const agentActionSummaries = computed(() => {
     if (episode.value == null) return [] as Array<{ agentNum: number, actionLabel: string }>;
 
-    const actionLabels = props.experiment.env.action_space.labels ?? [];
+    const actionLabels = resolvedActionSpace.value.labels ?? [];
     const actions = episode.value.episode.actions[safeStep.value] ?? [];
     return actions.map((action, index) => ({
         agentNum: index + 1,
-        actionLabel: actionLabels[action] ?? `#${action}`,
+        actionLabel: formatActionLabel(action, actionLabels),
     }));
 });
+
+function formatActionLabel(action: ActionValue, labels: string[]): string {
+    if (typeof action === 'number') {
+        return labels[action] ?? `#${action}`;
+    }
+    if (Array.isArray(action)) {
+        const values = action
+            .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+            .map((value) => formatNumber(value));
+        return values.length > 0 ? `[${values.join(', ')}]` : '-';
+    }
+    return '-';
+}
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return target.matches('input, textarea, select, [contenteditable="true"]');
@@ -458,7 +475,7 @@ function formatNumber(value: number): string {
 
 .top-row {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1.25fr);
     gap: 0.75rem;
     align-items: start;
 }
@@ -471,7 +488,7 @@ function formatNumber(value: number): string {
 .top-right {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: 0.45rem;
 }
 
 .agent-action-strip {

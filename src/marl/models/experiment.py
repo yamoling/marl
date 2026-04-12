@@ -181,7 +181,7 @@ class Experiment[A: Space]:
 
         # episode = self.test_env.replay(actions, seed=seed)
         frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(episode_folder, episode, frames, action_details)
+        return ReplayEpisode(episode_folder, episode, frames, action_details, self.test_env.action_space)
 
     def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
         """Load the agent at a specific time step."""

@@ -13,8 +13,8 @@
                     <thead>
                         <tr>
                             <th scope="row">Available actions</th>
-                            <th scope="col" v-for="(meaning, action) in experiment.env.action_space.labels"
-                                :style="{ opacity: (availableActions[action] == 1) ? 1 : 0.5 }">
+                            <th scope="col" v-for="(meaning, action) in actionLabels"
+                                :style="{ opacity: isActionAvailable(availableActions[action]) ? 1 : 0.5 }">
                                 {{ meaning }}
                             </th>
                         </tr>
@@ -65,7 +65,7 @@
 <script setup lang="ts">
 
 import { computed } from "vue";
-import { ReplayEpisode } from "../../models/Episode";
+import { ActionValue, ReplayEpisode } from "../../models/Episode";
 import ThreeDimension from "./observation/3Dimensions.vue";
 import OneDimension from "./observation/1Dimension.vue";
 import { Experiment } from "../../models/Experiment";
@@ -115,6 +115,7 @@ const extras = computed(() => {
 });
 
 const extrasMeanings = computed(() => props.experiment.env.extras_meanings)
+const actionLabels = computed(() => props.experiment.env.action_space.labels ?? [])
 
 const availableActions = computed(() => {
     if (props.episode == null) return [];
@@ -123,13 +124,19 @@ const availableActions = computed(() => {
 
 const takenAction = computed(() => {
     if (props.episode == null) return -1;
-    return props.episode.episode.actions[safeStep.value][props.agentNum];
+    return props.episode.episode.actions[safeStep.value][props.agentNum] as ActionValue;
 });
 
 const takenActionLabel = computed(() => {
-    const actionLabel = props.experiment.env.action_space.labels[takenAction.value];
-    if (actionLabel == null) return takenAction.value < 0 ? "-" : `#${takenAction.value}`;
-    return actionLabel;
+    if (typeof takenAction.value === "number") {
+        const actionLabel = actionLabels.value[takenAction.value];
+        if (actionLabel == null) return takenAction.value < 0 ? "-" : `#${takenAction.value}`;
+        return actionLabel;
+    }
+    if (Array.isArray(takenAction.value)) {
+        return `[${takenAction.value.map((value) => formatValue(value)).join(", ")}]`;
+    }
+    return "-";
 });
 
 const currentActionDetails = computed(() => {
@@ -147,6 +154,8 @@ const actionProbabilitiesForAgent = computed(() => {
 });
 
 const decisionSections = computed(() => {
+    if (actionLabels.value.length === 0) return [];
+
     const sections: DecisionSection[] = [];
 
     if (qValuesForAgent.value != null) {
@@ -224,6 +233,12 @@ function getObjectiveLabels(section: DecisionSection): string[] {
 
 function formatValue(value: number): string {
     return Number.isFinite(value) ? value.toFixed(2) : "-";
+}
+
+function isActionAvailable(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "number") return value !== 0;
+    return Boolean(value);
 }
 
 </script>
