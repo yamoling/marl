@@ -27,19 +27,25 @@ const emits = defineEmits<{
 
 <style scoped>
 .details-pane {
+    width: 300px;
     min-width: 300px;
+    max-width: 300px;
+    flex-basis: 300px;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.5rem;
     background: var(--bs-body-bg);
     padding: 0.5rem;
-    transition: width 0.2s ease;
+    transition: width 0.2s ease, min-width 0.2s ease, max-width 0.2s ease, flex-basis 0.2s ease, padding 0.2s ease;
     position: relative;
-    overflow: auto;
+    overflow: hidden;
     flex-shrink: 0;
 }
 
 .details-pane.collapsed {
     width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    flex-basis: 44px;
     padding: 0.5rem 0.25rem;
 }
 

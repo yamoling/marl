@@ -44,11 +44,11 @@ class HardUpdate(TargetParametersUpdater):
         super().__init__(params, target_params)
         assert update_period > 0, "Update period must be positive"
         self.update_period = update_period
-        self.update_num = 0
+        self._update_num = 0
 
     def update(self, time_step: int) -> dict[str, float]:
-        self.update_num += 1
-        if self.update_num % self.update_period == 0:
+        self._update_num += 1
+        if self._update_num % self.update_period == 0:
             for param, target in zip(self.parameters, self.target_params):
                 target.data.copy_(param.data, non_blocking=True)
         return {}

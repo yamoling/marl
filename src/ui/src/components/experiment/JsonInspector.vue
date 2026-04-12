@@ -15,12 +15,17 @@
 
     <div v-else class="json-node" :style="nodeStyle">
         <div class="json-row">
-            <span class="json-key">{{ formatLabel(label) }}: &nbsp;</span>
+
+            <span class="json-key">
+                <span class="json-toggle-slot">
+                    <Button v-if="expandable" class="json-toggle" :label="expanded ? '-' : '+'" severity="secondary"
+                        text rounded size="small" @click="expanded = !expanded" />
+                </span>
+                {{ formatLabel(label) }}: &nbsp;
+            </span>
             <div class="json-value">
                 <span v-if="!expandable" class="json-primitive">{{ formatPrimitive(value) }}</span>
                 <span v-else-if="nameValue !== null" class="json-name">{{ nameValue }}</span>
-                <Button v-if="expandable" class="json-toggle" :label="expanded ? '-' : '+'" severity="secondary" text
-                    rounded size="small" @click="expanded = !expanded" />
             </div>
         </div>
 
@@ -166,6 +171,9 @@ function formatLabel(label: string | undefined): string {
 }
 
 .json-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
     font-weight: 600;
     color: var(--bs-body-color);
     line-height: 1.2;
@@ -201,9 +209,17 @@ function formatLabel(label: string | undefined): string {
 }
 
 .json-toggle {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.05rem;
+    height: 1.05rem;
     padding: 0;
+    flex-shrink: 0;
+}
+
+.json-toggle-slot {
+    width: 1.1rem;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
     flex-shrink: 0;
 }
 </style>

@@ -3,12 +3,18 @@
         <p v-if="rows.length === 0" class="text-muted mb-0">No discrete action labels found.</p>
 
         <div v-else class="matrix-scroll">
-            <table class="table table-sm align-middle mb-0 matrix-table">
+            <div class="matrix-toolbar mb-2">
+                <button class="btn btn-sm btn-outline-secondary" type="button" @click="toggleTranspose">
+                    Transpose
+                </button>
+            </div>
+
+            <table v-if="!isTransposed" class="table table-sm align-middle mb-0 matrix-table">
                 <thead>
                     <tr>
                         <th scope="col">Action</th>
                         <th v-for="agent in selectedAgents" :key="agent" scope="col" class="text-center">
-                            A{{ agent + 1 }}
+                            {{ agentLabel(agent) }}
                         </th>
                     </tr>
                 </thead>
@@ -33,6 +39,37 @@
                     </tr>
                 </tbody>
             </table>
+
+            <table v-else class="table table-sm align-middle mb-0 matrix-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Agent</th>
+                        <th v-for="actionIndex in actionIndices" :key="actionIndex" scope="col" class="text-center">
+                            {{ actionLabel(actionIndex) }}
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="row in transposedRows" :key="row.agent">
+                        <th scope="row" class="action-name">
+                            {{ agentLabel(row.agent) }}
+                        </th>
+                        <td v-for="(cell, cellIndex) in row.cells" :key="`${row.agent}-${cellIndex}`"
+                            class="matrix-cell" :class="{ taken: cell.isTaken, unavailable: !cell.isAvailable }">
+                            <div class="score-bar" :style="scoreBarStyle(cell.currentScore)"></div>
+                            <div class="cell-indicators">
+                                <span v-if="cell.isTaken" class="status-dot selected-dot" title="Selected action"
+                                    aria-label="Selected action" />
+                                <span v-if="!cell.isAvailable" class="status-dot unavailable-dot"
+                                    title="Action unavailable" aria-label="Action unavailable" />
+                            </div>
+                            <div class="score-value-row">
+                                <span class="score-value">{{ formatScore(cell.currentScore) }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <p class="legend mb-0">
@@ -42,7 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { DiscreteActionSpace } from '../../../models/Env';
 import { ActionDetails, ReplayEpisode } from '../../../models/Episode';
 
@@ -67,6 +104,7 @@ type MatrixRow = {
 };
 
 const safeStep = computed(() => clampStep(props.currentStep));
+const isTransposed = ref(false);
 
 const scoreSource = computed(() => {
     const detail = props.episode.action_details[safeStep.value];
@@ -121,6 +159,24 @@ const rows = computed<MatrixRow[]>(() => {
     });
 });
 
+const transposedRows = computed(() => {
+    return props.selectedAgents.map((agent) => {
+        const cells = actionIndices.value.map((actionIndex): MatrixCell => {
+            const currentScore = getScoreAt(safeStep.value, agent, actionIndex);
+            return {
+                agent,
+                currentScore,
+                isTaken: takenActionAt(safeStep.value, agent) === actionIndex,
+                isAvailable: availableAt(safeStep.value, agent, actionIndex),
+            };
+        });
+        return {
+            agent,
+            cells,
+        };
+    });
+});
+
 function clampStep(step: number): number {
     const max = Math.max(0, props.episode.episode.actions.length - 1);
     return Math.max(0, Math.min(max, step));
@@ -133,6 +189,10 @@ function actionLabel(actionIndex: number): string {
 function takenActionAt(step: number, agent: number): number | null {
     const value = props.episode.episode.actions[step]?.[agent];
     return typeof value === 'number' ? value : null;
+}
+
+function agentLabel(agent: number): string {
+    return `A${agent + 1}`;
 }
 
 function availableAt(step: number, agent: number, actionIndex: number): boolean {
@@ -196,12 +256,21 @@ function formatScore(value: number | null): string {
     return value.toFixed(3);
 }
 
+function toggleTranspose() {
+    isTransposed.value = !isTransposed.value;
+}
+
 </script>
 
 <style scoped>
 .matrix-scroll {
     max-height: 18rem;
     overflow: auto;
+}
+
+.matrix-toolbar {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .matrix-table {
