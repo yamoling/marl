@@ -598,17 +598,6 @@ function formatNumber(value: number): string {
     overflow: hidden;
 }
 
-.timeline-track-cells::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 50%;
-    border-top: 1px dashed color-mix(in srgb, var(--bs-secondary-color) 40%, transparent);
-    pointer-events: none;
-    z-index: 1;
-}
-
 .timeline-cell {
     flex: 1 1 auto;
     min-width: 2px;

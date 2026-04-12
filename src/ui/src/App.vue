@@ -1,6 +1,8 @@
 <template>
   <main>
-    <h1>RL dashboard</h1>
+    <h1 class="app-title">
+      <RouterLink to="/home" aria-label="Go to homepage">RL Dashboard</RouterLink>
+    </h1>
     <RouterView></RouterView>
     <footer>
       <SystemInfo />
@@ -40,6 +42,17 @@ main {
   padding-left: 1%;
   padding-right: 1%;
   padding-bottom: var(--footer-height);
+}
+
+
+.app-title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-title a:hover,
+.app-title a:focus-visible {
+  text-decoration: underline;
 }
 
 footer {

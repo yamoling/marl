@@ -168,7 +168,8 @@ onUnmounted(() => {
 
 .workspace-main {
     min-width: 20vw;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .workspace-replay {
@@ -186,7 +187,8 @@ onUnmounted(() => {
 .plot-scroll {
     max-height: 72vh;
     min-width: 0;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: auto;
 }
 
 @media (max-width: 1200px) {

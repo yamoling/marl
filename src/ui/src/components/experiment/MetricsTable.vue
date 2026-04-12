@@ -1,5 +1,5 @@
 <template>
-    <div v-if="dataset != null" class="row text-center">
+    <div v-if="dataset != null" class="metrics-table text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
             selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked">
             <Column expander style="width: 3rem" />
@@ -122,6 +122,14 @@ const emits = defineEmits<{
 </script>
 
 <style scoped>
+.metrics-table {
+    min-width: max-content;
+}
+
+:deep(.p-datatable-table) {
+    min-width: max-content;
+}
+
 :deep(.selected-replay-row) {
     background: color-mix(in srgb, var(--bs-primary) 18%, transparent);
 }
