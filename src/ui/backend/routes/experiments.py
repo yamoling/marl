@@ -119,25 +119,3 @@ def get_env_image(seed: str, logdir: str):
     image = exp.env.get_image()
     image = cv2.resize(image, (100, 100))
     return encode_b64_image(image)
-
-
-# @router.post("/experiment/test-on-other-env")
-# async def test_on_other_env(request: Request):
-#     json_data = await request.json()
-#     if json_data is None:
-#         return Response(status_code=HTTPStatus.BAD_REQUEST)
-#     logdir = json_data["logdir"]
-#     new_logdir = json_data["newLogdir"]
-#     env_logdir = json_data["envLogdir"]
-#     exp = state.get_experiment(logdir)
-#     test_env = state.get_experiment(env_logdir).test_env
-
-#     import threading
-
-#     def start():
-#         exp.test_on_other_env(test_env, new_logdir, quiet=True)
-
-#     threading.Thread(target=start).start()
-
-#     # The parent just returns
-#     return Response(content="")

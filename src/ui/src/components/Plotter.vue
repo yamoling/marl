@@ -33,20 +33,21 @@
 
         <div v-show="showOptions" class="plotter-options">
             <div class="options-row">
-                <label class="option-label">
-                    <b class="me-1">Colour by qvalue</b>
-                    <input type="checkbox" v-model="primaryColour">
-                </label>
-                <label class="option-label">
-                    <input type="checkbox" v-model="fixedYAxis">
-                    Fix Y axis to [-1, 1]
+                <b class="me-1">Y-scale:</b>
+                <label v-for="scale in SCALES" :key="scale" class="me-2 option-label">
+                    {{ scale }}
+                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
                 </label>
             </div>
 
             <div class="options-row">
                 <label class="option-label">
                     <input type="checkbox" v-model="enablePlusMinus">
-                    Show standard deviation band
+                    <b class="me-1">Show uncertainty</b>
+                </label>
+                <label v-for="pm in PLUS_MINUS" :key="pm" class="me-2 option-label">
+                    {{ pm }}
+                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" :disabled="!enablePlusMinus">
                 </label>
             </div>
 
@@ -73,9 +74,12 @@
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Dataset } from '../../models/Experiment';
-import { clip, alphaToHSL, downloadStringAsFile } from "../../utils";
-import { useColourStore } from '../../stores/ColourStore';
+import { Dataset } from '../models/Experiment';
+import { clip, downloadStringAsFile } from "../utils";
+import { useColourStore } from '../stores/ColourStore';
+
+const SCALES = ["Linear", "Logarithmic"] as const;
+const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 
 let chart: Chart | null = null;
 const emits = defineEmits<{
@@ -84,25 +88,24 @@ const emits = defineEmits<{
 }>();
 const canvas = ref({} as HTMLCanvasElement);
 
-
-const fixedYAxis = ref(true);
-const enablePlusMinus = ref(false);
-const primaryColour = ref(false);
+const yScaleType = ref("Linear" as typeof SCALES[number]);
+const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
+const enablePlusMinus = ref(true);
 const showOptions = ref(false);
 const hiddenSeries = ref({} as Record<string, boolean>);
 const hiddenBands = ref({} as Record<string, boolean>);
 const seriesIndicesByLabel = ref(new Map<string, number[]>());
 const bandIndicesByLabel = ref(new Map<string, number[]>());
 
-
 const colourStore = useColourStore();
 const props = defineProps<{
-    datasets: Dataset[]
+    datasets: readonly Dataset[]
     title: string
     showLegend: boolean
     expanded?: boolean
 }>();
-const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.label))).sort());
+console.log(props.datasets);
+const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
 
 watch(colourStore.colours, updateChartData);
 
@@ -130,19 +133,20 @@ function updateChartData() {
     const seriesIndices = new Map<string, number[]>();
     const bandIndices = new Map<string, number[]>();
     let index = 0;
-
     props.datasets.forEach(ds => {
         allTicks.push(...ds.ticks);
-        const match = ds.label.match(/^agent(\d+)-(.+)$/);
-        let colour;
-        if (primaryColour.value) colour = colourStore.getQColour(match?.[2] ?? ds.label, primaryColour.value);
-        else colour = colourStore.getQColour(match?.[1] ?? ds.label, primaryColour.value);
-        const legendLabel = ds.label;
-
+        const colour = colourStore.get(ds.logdir);
+        const legendLabel = ds.logdir.replace("logs/", "");
         if (enablePlusMinus.value) {
             let lower;
-            lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
-            const lowerColour = alphaToHSL(colour, 50);
+            if (plusMinus.value == "Standard deviation") {
+                lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+            } else if (plusMinus.value == "95% C.I.") {
+                lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
+            }
+            const lowerColour = rgbToAlpha(colour, 0.3);
             datasets.push({
                 data: tickedDataset(ds.ticks, lower),
                 backgroundColor: lowerColour,
@@ -151,7 +155,6 @@ function updateChartData() {
             bandIndices.set(legendLabel, [...(bandIndices.get(legendLabel) ?? []), index]);
             index += 1;
         }
-
         datasets.push({
             label: legendLabel,
             data: tickedDataset(ds.ticks, ds.mean),
@@ -160,11 +163,16 @@ function updateChartData() {
         });
         seriesIndices.set(legendLabel, [...(seriesIndices.get(legendLabel) ?? []), index]);
         index += 1;
-
         if (enablePlusMinus.value) {
             let upper;
-            upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
-            const upperColour = alphaToHSL(colour, 50);
+            if (plusMinus.value == "Standard deviation") {
+                upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+            } else if (plusMinus.value == "95% C.I.") {
+                upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+            } else {
+                throw new Error("Unknown plusMinus value: " + plusMinus.value);
+            }
+            const upperColour = rgbToAlpha(colour, 0.3);
             datasets.push({
                 data: tickedDataset(ds.ticks, upper),
                 backgroundColor: upperColour,
@@ -178,7 +186,6 @@ function updateChartData() {
     seriesIndicesByLabel.value = seriesIndices;
     bandIndicesByLabel.value = bandIndices;
     chart.data = { labels: ticks, datasets };
-    applyYAxisMode();
     applyVisibilityState();
     chart.update();
 }
@@ -201,26 +208,27 @@ function applyVisibilityState() {
     });
 }
 
-function applyYAxisMode() {
+watch(props, updateChartData);
+watch(yScaleType, () => {
     if (chart == null) {
         return;
     }
-    chart.options!.scales!.y = fixedYAxis.value ? { min: -1, max: 1 } : {};
-}
-
-watch(props, updateChartData);
-watch(enablePlusMinus, updateChartData);
-watch(primaryColour, updateChartData);
-watch(fixedYAxis, () => {
-    applyYAxisMode();
-    chart?.update();
+    if (yScaleType.value == "Linear") {
+        chart.options!.scales!.y!.type = "linear";
+    } else if (yScaleType.value == "Logarithmic") {
+        chart.options!.scales!.y!.type = "logarithmic";
+    } else {
+        alert("Unknown scale type: " + yScaleType.value)
+    }
+    chart.update()
 });
+watch(enablePlusMinus, updateChartData)
+watch(plusMinus, updateChartData);
 
 onMounted(() => {
     chart = initialiseChart();
     updateChartData();
 })
-
 
 function initialiseChart(): Chart {
     return new Chart(canvas.value, {
@@ -237,6 +245,8 @@ function initialiseChart(): Chart {
             animation: false,
             onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
+                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
+                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
                     let datasetIndex = datasetElement[0].datasetIndex;
                     if (enablePlusMinus.value) {
                         datasetIndex = Math.floor(datasetIndex / 3);
@@ -286,8 +296,11 @@ function initialiseChart(): Chart {
                 }
             },
             scales: {
-                y: fixedYAxis.value ? { min: -1, max: 1 } : {}
-            }
+                y: {
+                    display: true,
+                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
+                }
+            },
         },
     });
 }
@@ -323,7 +336,7 @@ function resetZoom() {
 }
 
 function fileStem() {
-    const raw = props.title.length > 0 ? props.title : 'qvalues';
+    const raw = props.title.length > 0 ? props.title : 'plot';
     return raw.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase();
 }
 
@@ -338,14 +351,16 @@ function downloadChartImage() {
 }
 
 function downloadChartData() {
-    const rows = ['series,tick,mean,std,min,max'];
+    const rows = ['series,tick,mean,std,ci95,min,max'];
     props.datasets.forEach((ds) => {
+        const series = ds.logdir.replace('logs/', '');
         for (let i = 0; i < ds.ticks.length; i++) {
             rows.push([
-                ds.label,
+                series,
                 ds.ticks[i],
                 ds.mean[i],
                 ds.std[i],
+                ds.ci95[i],
                 ds.min[i],
                 ds.max[i],
             ].join(','));
@@ -354,6 +369,12 @@ function downloadChartData() {
     downloadStringAsFile(rows.join('\n'), `${fileStem()}.csv`);
 }
 
+function rgbToAlpha(rgb: string, alpha: number) {
+    let R = parseInt(rgb.substring(1, 3), 16);
+    let G = parseInt(rgb.substring(3, 5), 16);
+    let B = parseInt(rgb.substring(5, 7), 16);
+    return `rgba(${R}, ${G}, ${B}, ${alpha})`
+}
 </script>
 
 <style>

@@ -1,3 +1,4 @@
+import { MetricSelection } from '../../models/Settings';
 <template>
     <div v-if="experiment == null" class="row mt-5">
         <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
@@ -23,7 +24,8 @@
                 </div>
 
                 <div v-show="plotOrTable == 'plot'" class="plot-scroll">
-                    <SettingsPanel :metrics="metrics" @change-selected-metrics="updateDatasets" />
+                    <MetricsPanel :metrics="metrics" :metricsByCategory="metricsByCategory"
+                        @change-selected-metrics="updateDatasets" />
                     <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets"
                         :title="metric" :showLegend="false" @episode-selected="onEpisodeSelected" />
                 </div>
@@ -48,12 +50,13 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
+import { MetricSelection } from '../../models/Settings';
 import MetricsTable from './MetricsTable.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
-import Plotter from '../charts/Plotter.vue';
-import SettingsPanel from '../home/SettingsPanel.vue';
+import Plotter from '../Plotter.vue';
+import MetricsPanel from '../home/MetricsPanel.vue';
 import EpisodeReplay from '../visualisation/EpisodeReplay.vue';
 import ExperimentDetailsPane from './ExperimentDetailsPane.vue';
 
@@ -62,7 +65,8 @@ const experimentStore = useExperimentStore()
 const plotOrTable = ref("table" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
 const metrics = ref(new Set<string>());
-const selectedMetrics = ref([] as string[]);
+const metricsByCategory = ref(new Map<string, Set<string>>());
+const selectedMetrics = ref<MetricSelection[]>([]);
 const datasets = ref([] as Dataset[]);
 const datasetByMetric = ref(new Map<string, Dataset[]>());
 const isDetailsPaneOpen = ref(true);
@@ -89,15 +93,21 @@ function onEscapePressed(event: KeyboardEvent) {
     }
 }
 
-function updateDatasets(newSelectedMetrics: string[]) {
+function updateDatasets(newSelectedMetrics: MetricSelection[]) {
     selectedMetrics.value = newSelectedMetrics;
-    const newDatasets = datasets.value.filter(d => selectedMetrics.value.includes(d.label));
+
+    const newDatasets = datasets.value.filter(d => {
+        return newSelectedMetrics.some(selection =>
+            d.label === selection.label && d.category === selection.category
+        );
+    });
     datasetByMetric.value = new Map<string, Dataset[]>();
     newDatasets.forEach(d => {
-        if (!datasetByMetric.value.has(d.label)) {
-            datasetByMetric.value.set(d.label, []);
+        const key = `${d.label}:${d.category}`;
+        if (!datasetByMetric.value.has(key)) {
+            datasetByMetric.value.set(key, []);
         }
-        datasetByMetric.value.get(d.label)?.push(d);
+        datasetByMetric.value.get(key)?.push(d);
     });
 }
 
@@ -127,6 +137,16 @@ onMounted(async () => {
         r.metricLabels().forEach(label => acc.add(label));
         return acc;
     }, new Set<string>());
+
+    const byCategory = new Map<string, Set<string>>();
+    runResults.value.forEach((r) => {
+        r.datasets.forEach(ds => {
+            if (!byCategory.has(ds.category)) byCategory.set(ds.category, new Set());
+            byCategory.get(ds.category)!.add(ds.label);
+        });
+    });
+    metricsByCategory.value = byCategory;
+
     datasets.value = runResults.value.map(r => {
         r.datasets.forEach(d => d.logdir = r.logdir);
         return r.datasets;

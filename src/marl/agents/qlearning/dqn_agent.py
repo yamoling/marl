@@ -46,11 +46,12 @@ class DQNAgent(Agent):
         qvalues = qvalues.numpy(force=True)
         if self.qnetwork.is_multi_objective:
             qvalues = qvalues.sum(axis=-1)
+        bonus = None
         if self._is_training and self.vbe is not None:
             bonus = self.vbe.compute_bonus(observation)
             qvalues = qvalues + bonus
-        action = self.policy.get_action(qvalues, observation.available_actions)
-        return Action(action, q_values=qvalues)
+        np_action = self.policy.get_action(qvalues, observation.available_actions)
+        return Action(np_action, q_values=qvalues, vbe=bonus)
 
     def set_testing(self):
         self.policy = self.test_policy

@@ -1,36 +1,18 @@
 <template>
     <div ref="workspaceRef" class="home-workspace" :style="workspaceStyle">
         <aside class="home-sidebar">
-            <section class="panel-surface home-panel home-panel-table">
+            <section class="panel-surface home-panel">
                 <div class="panel-header">
                     <div class="panel-header-row">
                         <h2>Experiments</h2>
-                        <span class="panel-subtitle">Select runs to load metrics and q-values</span>
+                        <span class="panel-subtitle">Select an experiment to load metrics</span>
                     </div>
                 </div>
                 <ExperimentTable />
             </section>
 
-            <section v-if="resultsStore.results.size > 0" class="panel-surface home-panel home-panel-metrics">
-                <div class="panel-header panel-header-inline">
-                    <div>
-                        <h2>Metrics</h2>
-                        <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                        }} loaded experiments</span>
-                    </div>
-                </div>
-                <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
-
-                <div class="home-subsection" v-if="qvaluesSelected">
-                    <div class="panel-header panel-header-inline home-subsection-header">
-                        <div>
-                            <h2>Q-values</h2>
-                            <span class="panel-subtitle">{{ selectedQvalues.length }} selected labels</span>
-                        </div>
-                    </div>
-                    <QvaluesPanel :qvalues="qvalues" @change-selected-qvalues="(q) => selectedQvalues = q" />
-                </div>
-            </section>
+            <MetricsPanel v-if="resultsStore.results.size > 0" :metrics="metrics" :metricsByCategory="metricsByCategory"
+                @change-selected-metrics="(m) => selectedMetrics = m" />
         </aside>
 
         <div class="home-divider" :class="{ 'home-divider--dragging': isDraggingDivider }" role="separator"
@@ -49,25 +31,19 @@
 
             <template v-else>
                 <section class="chart-grid">
-                    <article class="panel-surface chart-card" v-for="[label, ds] in datasetPerLabel"
-                        :key="metricPlotId(label)"
-                        :class="{ 'chart-card--expanded': focusedPlotId === metricPlotId(label) }">
-                        <Plotter :datasets="ds" :title="label.replaceAll('_', ' ')" :showLegend="true"
-                            :expanded="focusedPlotId === metricPlotId(label)"
-                            @toggle-expanded="toggleFocusedPlot(metricPlotId(label))" />
+                    <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
+                        :key="metricPlotId(metricId)"
+                        :class="{ 'chart-card--expanded': focusedPlotId === metricPlotId(metricId) }">
+                        <div class="chart-card-header">
+                            <h3>{{ extractMetricLabel(metricId).replaceAll('_', ' ') }}</h3>
+                            <span v-if="extractMetricCategory(metricId)" class="badge bg-info">{{
+                                extractMetricCategory(metricId) }}</span>
+                        </div>
+                        <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
+                            :showLegend="true" :expanded="focusedPlotId === metricPlotId(metricId)"
+                            @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" />
                     </article>
                 </section>
-
-                <section class="chart-grid" v-if="qvaluesSelected">
-                    <article class="panel-surface chart-card" v-for="[expName, qDs] in qvaluesDatasets"
-                        :key="qvaluePlotId(expName)"
-                        :class="{ 'chart-card--expanded': focusedPlotId === qvaluePlotId(expName) }">
-                        <Qvalues :datasets="qDs" :title="expName.replace('logs/', ' ')" :showLegend="true"
-                            :expanded="focusedPlotId === qvaluePlotId(expName)"
-                            @toggle-expanded="toggleFocusedPlot(qvaluePlotId(expName))" />
-                    </article>
-                </section>
-
             </template>
         </main>
     </div>
@@ -76,17 +52,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import Plotter from '../charts/Plotter.vue';
-import Qvalues from '../charts/Qvalues.vue';
-import SettingsPanel from './SettingsPanel.vue';
-import QvaluesPanel from './QvaluesPanel.vue';
+import { MetricSelection } from '../../models/Settings';
+import Plotter from '../Plotter.vue';
+import MetricsPanel from './MetricsPanel.vue';
 import ExperimentTable from './ExperimentTable.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
 const resultsStore = useResultsStore();
 
-const selectedMetrics = ref(["score [train]"]);
-const selectedQvalues = ref(["agent0-qvalue0"]);
-const loadedResultsCount = computed(() => resultsStore.results.size);
+const selectedMetrics = ref<MetricSelection[]>([]);
 const focusedPlotId = ref<string | null>(null);
 const workspaceSidebarPercent = ref(initWorkspaceSidebarPercent());
 const workspaceRef = ref<HTMLElement | null>(null);
@@ -97,54 +70,63 @@ const workspaceStyle = computed(() => ({
 
 const metrics = computed(() => {
     const res = new Set<string>();
+    console.log(resultsStore.results)
     resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
-    res.add("qvalues");
     return res;
 });
 
-const qvalues = computed(() => {
-    const res = new Set<string>();
-    resultsStore.results.forEach((r) => r.qvalueLabels().forEach(label => res.add(label)));
-    return res;
-});
-
-const qvaluesSelected = computed(() => {
-    return selectedMetrics.value.includes("qvalues")
-})
-
-const qvaluesDatasets = computed(() => {
-    const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, logdir) => {
-        const qvalueDatasets = [] as Dataset[];
-        selectedQvalues.value.forEach((label) => {
-            qvalueDatasets.push(...r.getQvalueDatasets(label));
+const metricsByCategory = computed(() => {
+    const res = new Map<string, Set<string>>();
+    resultsStore.results.forEach((r) => {
+        r.datasets.forEach(ds => {
+            if (!res.has(ds.category)) res.set(ds.category, new Set());
+            res.get(ds.category)!.add(ds.label);
         });
-        if (qvalueDatasets.length > 0) {
-            res.set(logdir, qvalueDatasets);
-        }
     });
     return res;
 });
+
+
+
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    selectedMetrics.value.forEach((label) => {
-        if (label === "qvalues") {
-            return;
-        }
+    selectedMetrics.value.forEach((selection: MetricSelection) => {
         const grouped = [] as Dataset[];
         resultsStore.results.forEach((r) => {
-            grouped.push(...r.getMetricDatasets(label));
+            const datasets = r.getMetricDatasets(selection.label);
+            // Filter by the specific category
+            grouped.push(...datasets.filter(ds => ds.category === selection.category));
         });
         if (grouped.length > 0) {
-            res.set(label, grouped);
+            const key = `${selection.label}:${selection.category}`;
+            res.set(key, grouped);
         }
     });
     return res;
 });
 
-function metricPlotId(label: string) {
-    return `metric:${label}`;
+function metricPlotId(metricId: string) {
+    return `metric:${metricId}`;
+}
+
+function extractMetricLabel(metricId: string): string {
+    const [label] = metricId.split(':');
+    return label;
+}
+
+function extractMetricCategory(metricId: string): string | undefined {
+    const [, categoryKey] = metricId.split(':');
+    if (!categoryKey) return undefined;
+
+    // Map lowercase key to capitalized title for display
+    const categoryMap = {
+        'train': 'Train',
+        'test': 'Test',
+        'other': 'Other',
+        'qvalues': 'Q-values'
+    };
+    return categoryMap[categoryKey as keyof typeof categoryMap];
 }
 
 function qvaluePlotId(expName: string) {
@@ -164,10 +146,6 @@ function initWorkspaceSidebarPercent() {
         }
     }
     return 34;
-}
-
-function resetWorkspaceRatio() {
-    workspaceSidebarPercent.value = 34;
 }
 
 watch(workspaceSidebarPercent, (value) => {
@@ -284,13 +262,6 @@ onBeforeUnmount(() => {
     border-color: rgba(13, 110, 253, 0.55);
 }
 
-.panel-surface {
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.75rem;
-    background: var(--bs-body-bg);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
-    padding: 0.9rem 1rem;
-}
 
 .home-panel {
     overflow: auto;
@@ -304,34 +275,6 @@ onBeforeUnmount(() => {
 
 .home-subsection-header {
     margin-bottom: 0.35rem;
-}
-
-.panel-header {
-    display: grid;
-    gap: 0.2rem;
-    margin-bottom: 0.75rem;
-}
-
-.panel-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    gap: 0.75rem;
-}
-
-.panel-header-inline {
-    margin-bottom: 0.5rem;
-}
-
-.panel-header h2 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-}
-
-.panel-subtitle {
-    color: var(--bs-secondary-color);
-    font-size: 0.87rem;
 }
 
 .empty-state {
@@ -366,6 +309,28 @@ onBeforeUnmount(() => {
 
 .chart-card {
     padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.chart-card-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
 }
 
 .chart-card--expanded {

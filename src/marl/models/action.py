@@ -21,6 +21,7 @@ class Action[T: Any]:
     options: npt.ArrayLike | None = None
     options_termination_probs: npt.ArrayLike | None = None
     meta_actions: npt.ArrayLike | None = None
+    vbe: npt.NDArray[np.float32] | None = None
 
     def __array__(self, dtype=None):
         if dtype is None:

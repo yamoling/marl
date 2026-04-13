@@ -273,15 +273,16 @@ class Experiment[A: Space]:
     def get_experiment_results(self, replace_inf=False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", suffix=" [test]")
+        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", category="Test")
         datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", suffix=" [train]"
+            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", category="Train"
         )
         datasets += stats.compute_datasets(
-            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training"
+            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training", category="Other"
         )
-        # qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
-        return datasets, []
+        # if self.env.is_multi_objective:
+        #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
+        return datasets
 
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)
