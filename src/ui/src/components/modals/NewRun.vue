@@ -1,44 +1,38 @@
 <template>
     <div ref="modal" class="modal fade" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal">
-            <div class="modal-content">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content launch-modal">
                 <div class="modal-header">
-                    <h5> Start a new runs at {{ experiment.logdir }} </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title mb-1">Start new runs for {{ experiment.logdir }}</h5>
+                    <button type="button" class="btn-close" @click="close" aria-label="Close"></button>
                 </div>
-                <div class="modal-body row">
-                    <div class="input-group mb-3">
-                        <span class="input-group-text"> Number of runs </span>
-                        <input type="number" class="form-control" v-model="nRuns" />
+                <div class="modal-body launch-body">
+                    <div class="launch-grid">
+                        <div class="input-group">
+                            <span class="input-group-text">Runs</span>
+                            <input type="number" class="form-control" v-model="nRuns" min="1" />
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text">Tests</span>
+                            <input type="number" class="form-control" v-model="nTests" min="1" />
+                        </div>
+                        <div class="input-group">
+                            <span class="input-group-text">Seed</span>
+                            <input type="number" class="form-control" v-model="seed" />
+                        </div>
                     </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text"> Number of tests </span>
-                        <input type="number" class="form-control" v-model="nTests" />
-                    </div>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text"> Seed </span>
-                        <input type="number" class="form-control" v-model="seed" />
-                    </div>
-                    <div class="input-group mb-2">
-                        <span class="input-group-text"> Device </span>
-                        <select class="form-select" v-model="device">
-                            <option v-for="option in deviceOptions" :key="option.value" :value="option.value">
-                                {{ option.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="small text-muted mb-2">
-                        Recommended: <strong>{{ recommendedDevice.label }}</strong>
-                    </div>
-                    <div v-if="deviceWarning != null" class="alert alert-warning py-2 mb-0">
-                        {{ deviceWarning }}
+                    <div class="launch-section">
+                        <div class="section-title">Device</div>
+                        <DeviceSelectionList v-model="device" :warning-text="deviceWarning" />
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" @click="close">
+                        Cancel
+                    </button>
                     <button class="btn btn-success" @click="start">
                         Start
                     </button>
-                    <button type="button" class="btn btn-outline-danger" data-bs-dismiss="modal">Cancel</button>
                 </div>
 
             </div>
@@ -54,10 +48,10 @@ import { Modal } from 'bootstrap';
 import { Experiment } from '../../models/Experiment';
 import {
     STRESS_WARNING_THRESHOLD,
-    buildDeviceOptions,
     getDeviceStress,
     getRecommendedDevice,
 } from '../../utils/systemStress';
+import DeviceSelectionList from './DeviceSelectionList.vue';
 
 const experiment = ref({} as Experiment);
 const store = useExperimentStore();
@@ -69,7 +63,6 @@ const nTests = ref(1);
 const seed = ref(0);
 const device = ref('auto');
 
-const deviceOptions = computed(() => buildDeviceOptions(systemStore.systemInfo));
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
 const selectedDeviceStress = computed(() => getDeviceStress(systemStore.systemInfo, device.value));
 const deviceWarning = computed(() => {
@@ -81,6 +74,10 @@ const deviceWarning = computed(() => {
     }
     return `Selected device is at ${selectedDeviceStress.value.toFixed(0)}% load. Suggested alternative: ${recommendedDevice.value.label}.`;
 });
+
+function close() {
+    modalInstance?.hide();
+}
 
 async function start() {
     if (deviceWarning.value != null) {
@@ -107,3 +104,44 @@ function showModal(exp: Experiment) {
 
 defineExpose({ showModal });
 </script>
+
+<style scoped>
+.launch-modal {
+    border: 1px solid rgb(221, 211, 197);
+    border-radius: 0.8rem;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+}
+
+.launch-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.launch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.launch-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.section-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: rgb(90, 90, 90);
+}
+
+@media (max-width: 768px) {
+    .launch-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>

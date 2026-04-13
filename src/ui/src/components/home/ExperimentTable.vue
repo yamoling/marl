@@ -8,7 +8,7 @@
             @row-expand="onRowExpanded" @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
             :rowsPerPageOptions="[5, 10, 20, 50]">
             <template #header>
-                <div class="input-group mb-3">
+                <div class="input-group">
                     <span class="input-group-text">
                         <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
                         Filter
