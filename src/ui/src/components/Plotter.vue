@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { Dataset } from '../models/Experiment';
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from '../stores/ColourStore';
@@ -98,6 +99,7 @@ const emits = defineEmits<{
     (event: "close"): void
 }>();
 const colourStore = useColourStore();
+const { colours } = storeToRefs(colourStore);
 const canvas = ref({} as HTMLCanvasElement);
 
 const props = defineProps<{
@@ -116,12 +118,9 @@ const seriesIndicesByLabel = ref(new Map<string, number[]>());
 const bandIndicesByLabel = ref(new Map<string, number[]>());
 const category = computed(() => props.datasets.at(0)?.category)
 
-
-
-console.log(props.datasets);
 const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
 
-watch(colourStore.colours, updateChartData);
+watch(colours, updateChartData);
 
 watch(seriesLabels, (labels) => {
     const nextSeries = {} as Record<string, boolean>;
@@ -515,5 +514,24 @@ function rgbToAlpha(rgb: string, alpha: number) {
     margin: 0;
     font-size: 1rem;
     font-weight: 700;
+}
+
+.plotter-title-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.plotter-category-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0b5ed7;
+    background-color: #d9ecff;
+    border: 1px solid #b9dcff;
 }
 </style>
