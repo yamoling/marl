@@ -84,6 +84,7 @@
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { Dataset } from '../models/Experiment';
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from '../stores/ColourStore';
@@ -98,6 +99,7 @@ const emits = defineEmits<{
     (event: "close"): void
 }>();
 const colourStore = useColourStore();
+const { colours } = storeToRefs(colourStore);
 const canvas = ref({} as HTMLCanvasElement);
 
 const props = defineProps<{
@@ -116,12 +118,9 @@ const seriesIndicesByLabel = ref(new Map<string, number[]>());
 const bandIndicesByLabel = ref(new Map<string, number[]>());
 const category = computed(() => props.datasets.at(0)?.category)
 
-
-
-console.log(props.datasets);
 const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
 
-watch(colourStore.colours, updateChartData);
+watch(colours, updateChartData);
 
 watch(seriesLabels, (labels) => {
     const nextSeries = {} as Record<string, boolean>;

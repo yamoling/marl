@@ -57,6 +57,9 @@
                             <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                         </RouterLink>
                         <span>{{ data.logdir.replace('logs/', '') }}</span>
+                        <input type="color" class="d-none" :value="experimentColour(data.logdir)"
+                            :ref="(element) => setColourInputRef(data.logdir, element)"
+                            @input="(event) => onExperimentColourChanged(data.logdir, event)" />
                     </div>
                 </template>
             </Column>
@@ -75,19 +78,6 @@
                     {{ new Date(data.creation_timestamp).toLocaleString() }}
                 </template>
             </Column>
-            <!-- <Column style="width: 5rem" header="Actions">
-                <template #body="{ data }">
-                    <button class="btn btn-sm btn-light border"
-                        @click.stop="openContextMenuForLogdir($event, data.logdir)" aria-label="More actions"
-                        title="More actions">
-                        <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" />
-                    </button>
-                    <input v-if="resultsStore.isLoaded(data.logdir)" type="color" class="d-none"
-                        :value="experimentColour(data.logdir)"
-                        :ref="(element) => setColourInputRef(data.logdir, element)"
-                        @input="(event) => onExperimentColourChanged(data.logdir, event)" />
-                </template>
-            </Column> -->
             <template #empty>
                 No experiments match the current filters.
             </template>
@@ -108,8 +98,7 @@ import {
     DataTable,
     DataTableRowClickEvent,
     DataTableRowContextMenuEvent,
-    DataTableRowExpandEvent,
-    InputText
+    DataTableRowExpandEvent
 } from 'primevue';
 import { Experiment, toCSV } from '../../models/Experiment';
 import { downloadStringAsFile } from '../../utils';
@@ -267,24 +256,11 @@ function onRowContextMenu(event: DataTableRowContextMenuEvent) {
     (contextMenuRef.value as any)?.show(event.originalEvent);
 }
 
-function openContextMenuForLogdir(event: Event, logdir: string) {
-    const mouseEvent = event as MouseEvent;
-    const experiment = experimentStore.experiments.find(exp => exp.logdir === logdir);
-    if (experiment == null) {
-        return;
-    }
-    selectedContextExperiment.value = experiment;
-    (contextMenuRef.value as any)?.show(mouseEvent);
-}
-
 function onExperimentClicked(logdir: string) {
     resultsStore.load(logdir);
     runStore.refresh(logdir);
 }
 
-function experimentColour(logdir: string): string {
-    return colourStore.get(logdir);
-}
 
 function setColourInputRef(logdir: string, element: unknown) {
     if (element instanceof HTMLInputElement) {
@@ -304,6 +280,10 @@ function onExperimentColourChanged(logdir: string, event: Event) {
         return;
     }
     colourStore.set(logdir, target.value);
+}
+
+function experimentColour(logdir: string): string {
+    return colourStore.get(logdir);
 }
 
 async function onRunClicked(logdir: string, rundir: string) {
