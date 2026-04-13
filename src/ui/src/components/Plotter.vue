@@ -79,7 +79,7 @@
 
 <script setup lang="ts">
 import { Chart, ChartDataset } from 'chart.js/auto';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Dataset } from '../models/Experiment';
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from '../stores/ColourStore';
@@ -233,6 +233,15 @@ watch(yScaleType, () => {
 });
 watch(enablePlusMinus, updateChartData)
 watch(plusMinus, updateChartData);
+watch(() => props.expanded, async () => {
+    if (chart == null) {
+        return;
+    }
+    // The card width changes outside of the canvas; trigger an explicit resize.
+    await nextTick();
+    chart.resize();
+    chart.update('none');
+});
 
 onMounted(() => {
     chart = initialiseChart();
@@ -247,6 +256,8 @@ function initialiseChart(): Chart {
             datasets: []
         },
         options: {
+            responsive: true,
+            maintainAspectRatio: false,
             interaction: {
                 intersect: false,
                 mode: "nearest",
@@ -446,6 +457,11 @@ function rgbToAlpha(rgb: string, alpha: number) {
 
 .plotter-canvas {
     width: 100%;
+}
+
+.plotter-canvas canvas {
+    display: block;
+    width: 100% !important;
 }
 
 .plotter-options {

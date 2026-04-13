@@ -175,11 +175,8 @@ class Experiment[A: Space]:
         episode_folder = run.test_dir(time_step, test_num)
         # runner = self.create_runner()
         seed = get_test_seed(time_step, test_num)
-        # actions = run.get_test_actions(time_step, test_num)
         agent = self.agent_at(time_step, run.seed)
         episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
-
-        # episode = self.test_env.replay(actions, seed=seed)
         frames = [encode_b64_image(f) for f in frames]
         return ReplayEpisode(episode_folder, episode, frames, action_details, self.test_env.action_space)
 

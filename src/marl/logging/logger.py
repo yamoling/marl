@@ -15,7 +15,6 @@ from marl.models.replay_episode import LightEpisodeSummary
 if TYPE_CHECKING:
     from marl import Agent, Trainer
 
-ACTIONS = "actions.json"
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
 
@@ -39,10 +38,6 @@ class LogHelper:
         """Return the file path where the weights of the model are saved for the given time step."""
         return os.path.join(self.logdir, "weights", str(time_step))
 
-    def get_test_actions_path(self, time_step: int, test_num: int):
-        """Return the file path where the actions taken during the test are saved for the given time step and test number."""
-        return os.path.join(self.test_dir(time_step, test_num), ACTIONS)
-
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
 
@@ -62,11 +57,6 @@ class LogReader(ABC, LogHelper):
     @property
     @abstractmethod
     def training_data(self) -> pl.DataFrame: ...
-
-    def get_test_actions(self, time_step: int, test_num: int) -> list[list]:
-        actions_file = self.get_test_actions_path(time_step, test_num)
-        with open(actions_file, "r") as f:
-            return orjson.loads(f.read())
 
     def get_test_episodes(self, time_step: int) -> list[LightEpisodeSummary]:
         try:
@@ -126,14 +116,8 @@ class Logger(ABC, LogHelper):
     def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
 
     def log_test_episodes(self, episodes: list[Episode], time_step: int):
-        for i, episode in enumerate(episodes):
-            episode_directory = self.test_dir(time_step, i)
+        for episode in episodes:
             self.log_test(episode.metrics, time_step)
-            if not os.path.exists(episode_directory):
-                os.makedirs(episode_directory)
-            with open(self.get_test_actions_path(time_step, i), "wb") as f:
-                bytes_data = orjson.dumps(np.array(episode.actions), option=orjson.OPT_SERIALIZE_NUMPY)
-                f.write(bytes_data)
 
     def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):
         directory = self.get_logdir(time_step)

@@ -110,23 +110,6 @@ function extractMetricLabel(metricId: string): string {
     return label;
 }
 
-function extractMetricCategory(metricId: string): string | undefined {
-    const [, categoryKey] = metricId.split(':');
-    if (!categoryKey) return undefined;
-
-    // Map lowercase key to capitalized title for display
-    const categoryMap = {
-        'train': 'Train',
-        'test': 'Test',
-        'other': 'Other',
-        'qvalues': 'Q-values'
-    };
-    return categoryMap[categoryKey as keyof typeof categoryMap];
-}
-
-function qvaluePlotId(expName: string) {
-    return `qvalue:${expName}`;
-}
 
 function toggleFocusedPlot(plotId: string) {
     focusedPlotId.value = focusedPlotId.value === plotId ? null : plotId;
