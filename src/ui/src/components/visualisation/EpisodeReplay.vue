@@ -17,11 +17,31 @@
 
             <section class="replay-row row-divider controls-row">
                 <div class="timeline-wrap">
-                    <div class="manual-step-input mb-2">
-                        Step
-                        <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
-                            @keyup.enter="changeStep" />
-                        <span class="text-muted">/ {{ episodeLength }}</span>
+                    <div style="display: flex;">
+                        <div class="manual-step-input me-5">
+                            Step
+                            <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
+                                @keyup.enter="changeStep" />
+                            <span class="text-muted">/ {{ episodeLength }}</span>
+                        </div>
+
+                        <div class="timeline-resolution">
+                            <span>Timeline</span>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Timeline resolution">
+                                <button type="button" class="btn btn-outline-secondary"
+                                    :class="{ active: timelineMode === 'overview' }" @click="timelineMode = 'overview'">
+                                    Overview
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                    :class="{ active: timelineMode === 'detail' }" @click="timelineMode = 'detail'">
+                                    Detail
+                                </button>
+                            </div>
+                            <span class="text-muted timeline-resolution-hint">
+                                {{ timelineMode === 'overview' ? `${timelineBins.length} bins` : 'Full resolution' }}
+                            </span>
+                        </div>
+
                     </div>
 
                     <div class="track-visibility mb-2">
@@ -111,6 +131,7 @@ const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
 const isScrubbing = ref(false);
 const trackVisibility = ref({} as Record<string, boolean>);
+const timelineMode = ref<'overview' | 'detail'>('overview');
 const rainbow = new Rainbow();
 rainbow.setSpectrum('red', 'yellow', 'olivedrab');
 
@@ -132,12 +153,16 @@ const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
+const timelineTargetBins = computed(() => {
+    if (timelineMode.value === 'detail') return rewardValues.value.length;
+    return Math.min(180, Math.max(1, rewardValues.value.length));
+});
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
 const timelineModel = computed(() => new TimelineModel(episodeLength.value));
-const timelineBins = computed(() => timelineModel.value.buildBins(rewardValues.value.length));
+const timelineBins = computed(() => timelineModel.value.buildBins(rewardValues.value.length, timelineTargetBins.value));
 const trackToggles = computed(() => allTracks.value.map((track) => ({
     id: track.id,
     label: track.label,
@@ -637,11 +662,23 @@ function formatNumber(value: number): string {
 .manual-step-input {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.2rem;
 }
 
 .manual-step-input input {
     width: 4rem;
+}
+
+.timeline-resolution {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+
+.timeline-resolution-hint {
+    font-size: 0.8rem;
 }
 
 .agent-details-accordion {
