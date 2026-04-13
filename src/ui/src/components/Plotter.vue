@@ -516,4 +516,23 @@ function rgbToAlpha(rgb: string, alpha: number) {
     font-size: 1rem;
     font-weight: 700;
 }
+
+.plotter-title-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.plotter-category-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0b5ed7;
+    background-color: #d9ecff;
+    border: 1px solid #b9dcff;
+}
 </style>
