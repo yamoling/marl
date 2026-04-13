@@ -16,7 +16,7 @@ class Arguments(tap.TypedArgs):
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
     render: bool = tap.arg(default=False, help="Render the tests")
-    disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices")
+    disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
 
     @property
     def device(self):

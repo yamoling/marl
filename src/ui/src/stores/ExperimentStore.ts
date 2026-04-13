@@ -116,8 +116,19 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
 
-    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number, device: string = "auto") {
-        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns, device }, "POST");
+    async function newRun(
+        logdir: string,
+        nRuns: number,
+        seed: number,
+        nTests: number,
+        gpuStrategy: "scatter" | "group" = "scatter",
+        disabledDevices: number[] = [],
+    ) {
+        const resp = await fetchWithJSON(
+            `${HTTP_URL}/runner/new/${logdir}`,
+            { seed, nTests, nRuns, gpuStrategy, disabledDevices },
+            "POST",
+        );
         if (!resp.ok) {
             alert("Failed to start new run: " + await resp.text());
             return false;

@@ -32,6 +32,7 @@ def list_runs(logdir: str):
                     "progress": run.get_progress(exp.n_steps),
                     "pid": run.pid,
                     "status": status,
+                    "n_tests": run.n_tests,
                 }
             )
         return Response(orjson.dumps(runs), media_type="application/json")

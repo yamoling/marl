@@ -124,6 +124,31 @@ export function buildDeviceOptions(systemInfo: SystemInfo | null): DeviceOption[
     return options;
 }
 
+export function buildGpuDeviceOptions(systemInfo: SystemInfo | null): DeviceOption[] {
+    return buildDeviceOptions(systemInfo).filter(option => option.value.startsWith("cuda:"));
+}
+
+export function getDefaultSelectedGpuDevices(systemInfo: SystemInfo | null): string[] {
+    if (systemInfo == null) {
+        return [];
+    }
+
+    return systemInfo.gpus
+        .filter(gpu => getStressLabel(getGpuStress(gpu)) !== "High" && getStressLabel(getGpuStress(gpu)) !== "Critical")
+        .map(gpu => `cuda:${gpu.index}`);
+}
+
+export function getDisabledDevicesFromSelected(systemInfo: SystemInfo | null, selectedDevices: string[]): number[] {
+    if (systemInfo == null) {
+        return [];
+    }
+
+    const selected = new Set(selectedDevices);
+    return systemInfo.gpus
+        .filter(gpu => !selected.has(`cuda:${gpu.index}`))
+        .map(gpu => gpu.index);
+}
+
 export function getDeviceStress(systemInfo: SystemInfo | null, device: string): number | null {
     if (systemInfo == null) {
         return null;

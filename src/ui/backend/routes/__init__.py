@@ -56,11 +56,13 @@ def register_routers():
     from .results import router as results_router
     from .runners import router as runner_router
     from .runs import router as runs_router
+    from .system_info import router as system_info_router
 
     app.include_router(experiment_router)
     app.include_router(runs_router)
     app.include_router(results_router)
     app.include_router(runner_router)
+    app.include_router(system_info_router)
 
 
 register_routers()
