@@ -7,7 +7,8 @@ export const useSystemStore = defineStore("SystemStore", () => {
 
 
     function updateSystemInfo() {
-        const address = `ws://${location.hostname}:5001`;
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        const address = `${protocol}://${location.host}/ws/system-info`;
         console.info("Connecting to system info websocket", address);
         const ws = new WebSocket(address);
         ws.onopen = () => {

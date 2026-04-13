@@ -1,15 +1,12 @@
 import logging
+import uvicorn
 
 
-def run(port: int = 5000, debug=False):
-    from . import system_info
-    from . import routes
-    # from . import watcher
+def run(port: int = 5000):
+    from .routes import app
 
     try:
-        system_info.run(port + 1)
-        # watcher.run()
-        routes.run(port=port, debug=debug)
+        uvicorn.run(app, host="0.0.0.0", port=port)
     except KeyboardInterrupt:
         logging.info("Shutting down server...")
         exit(0)
