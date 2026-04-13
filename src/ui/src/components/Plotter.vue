@@ -8,28 +8,32 @@
                         {{ category }}
                     </span>
                 </div>
-                <div class="plotter-meta">
-                    <button class="btn btn-sm" @click="$emit('toggle-expanded')"
-                        :title="expanded ? 'Shrink' : 'Expand'">
-                        <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
-                    </button>
+                <div class="plotter-button-group">
+                    <div class="btn-group">
+                        <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
+                            @click="showOptions = !showOptions" title="Toggle options">
+                            <font-awesome-icon :icon="['fas', 'gear']" />
+                        </button>
+                        <button class="btn btn-sm btn-light" @click="resetZoom" title="Reset zoom">
+                            <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
+                        </button>
+                        <button class="btn btn-sm btn-light" @click="downloadChartImage" title="Download as image">
+                            <font-awesome-icon :icon="['fas', 'image']" />
+                        </button>
+                        <button class="btn btn-sm btn-light" @click="downloadChartData" title="Download as CSV">
+                            <font-awesome-icon :icon="['fas', 'file-csv']" />
+                        </button>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')"
+                            :title="expanded ? 'Shrink' : 'Expand'">
+                            <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
+                        </button>
+                        <button class="btn btn-sm btn-light" @click="$emit('close')" title="Close and remove plot">
+                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <div class="plotter-actions">
-                <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
-                    @click="showOptions = !showOptions" title="Toggle options">
-                    <font-awesome-icon :icon="['fas', 'gear']" />
-                </button>
-                <button class="btn btn-sm btn-light" @click="resetZoom" title="Reset zoom">
-                    <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                </button>
-                <button class="btn btn-sm btn-light" @click="downloadChartImage" title="Download as image">
-                    <font-awesome-icon :icon="['fas', 'image']" />
-                </button>
-                <button class="btn btn-sm btn-light" @click="downloadChartData" title="Download as CSV">
-                    <font-awesome-icon :icon="['fas', 'file-csv']" />
-                </button>
             </div>
         </div>
 
@@ -91,6 +95,7 @@ let chart: Chart | null = null;
 const emits = defineEmits<{
     (event: "episode-selected", datasetIndex: number, xIndex: number): void
     (event: "toggle-expanded"): void
+    (event: "close"): void
 }>();
 const colourStore = useColourStore();
 const canvas = ref({} as HTMLCanvasElement);
@@ -412,8 +417,7 @@ function rgbToAlpha(rgb: string, alpha: number) {
 }
 
 .plotter-header {
-    display: grid;
-    gap: 0.45rem;
+    display: contents;
 }
 
 .plotter-header-top {
@@ -423,36 +427,24 @@ function rgbToAlpha(rgb: string, alpha: number) {
     gap: 0.75rem;
 }
 
-.plotter-title-row {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
+.plotter-button-group {
+    display: flex;
     gap: 0.45rem;
-}
-
-.plotter-meta {
-    display: inline-flex;
     align-items: center;
-    gap: 0.45rem;
-}
-
-.plotter-category-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #0b5ed7;
-    background-color: #d9ecff;
-    border: 1px solid #b9dcff;
 }
 
 .plotter-actions {
     display: flex;
-    justify-content: flex-end;
-    flex-wrap: wrap;
     gap: 0.45rem;
+    align-items: center;
+}
+
+.plotter-meta {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+    border-left: 1px solid var(--bs-border-color);
+    padding-left: 0.45rem;
 }
 
 .plotter-canvas {

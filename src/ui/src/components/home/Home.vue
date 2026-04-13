@@ -33,10 +33,11 @@
                 <section class="chart-grid">
                     <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
                         :key="metricPlotId(metricId)"
-                        :class="{ 'chart-card--expanded': focusedPlotId === metricPlotId(metricId) }">
+                        :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
                         <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
-                            :showLegend="true" :expanded="focusedPlotId === metricPlotId(metricId)"
-                            @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" />
+                            :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
+                            @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))"
+                            @close="closeMetric(metricId)" />
                     </article>
                 </section>
             </template>
@@ -52,10 +53,12 @@ import Plotter from '../Plotter.vue';
 import MetricsPanel from './MetricsPanel.vue';
 import ExperimentTable from './ExperimentTable.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
+import { useSettingsStore } from '../../stores/SettingsStore';
 const resultsStore = useResultsStore();
+const settingsStore = useSettingsStore();
 
 const selectedMetrics = ref<MetricSelection[]>([]);
-const focusedPlotId = ref<string | null>(null);
+const expandedPlotIds = ref<Set<string>>(new Set());
 const workspaceSidebarPercent = ref(initWorkspaceSidebarPercent());
 const workspaceRef = ref<HTMLElement | null>(null);
 const isDraggingDivider = ref(false);
@@ -112,7 +115,25 @@ function extractMetricLabel(metricId: string): string {
 
 
 function toggleFocusedPlot(plotId: string) {
-    focusedPlotId.value = focusedPlotId.value === plotId ? null : plotId;
+    const newSet = new Set(expandedPlotIds.value);
+    if (newSet.has(plotId)) {
+        newSet.delete(plotId);
+    } else {
+        newSet.add(plotId);
+    }
+    expandedPlotIds.value = newSet;
+}
+
+function closeMetric(metricId: string) {
+    const [label, category] = metricId.split(':');
+    settingsStore.removeSelectedMetric(label, category);
+    selectedMetrics.value = selectedMetrics.value.filter(
+        m => !(m.label === label && m.category === category)
+    );
+    const plotId = metricPlotId(metricId);
+    expandedPlotIds.value = new Set(
+        Array.from(expandedPlotIds.value).filter(id => id !== plotId)
+    );
 }
 
 function initWorkspaceSidebarPercent() {

@@ -191,7 +191,7 @@ nohup*
 files/
 saved/
 .ruff_cache
-src/ui/bun.lockb
+bun.lock
 poetry.lock
 qplex/
 .zed
