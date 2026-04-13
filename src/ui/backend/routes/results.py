@@ -15,9 +15,9 @@ def get_experiment_results(logdir: str):
         exp = state.get_experiment(logdir)
     except (ModuleNotFoundError, FileNotFoundError) as e:
         return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
-    metrics, qvalues = exp.get_experiment_results(replace_inf=True)
-    response_data = stats.build_results_payload(metrics, qvalues)
-    return Response(orjson.dumps(response_data), media_type="application/json")
+    metrics = exp.get_experiment_results(replace_inf=True)
+    # response_data = stats.build_results_payload(metrics, qvalues)
+    return Response(orjson.dumps(metrics), media_type="application/json")
 
 
 @router.get("/results/test/{time_step}/{logdir:path}")
@@ -33,9 +33,9 @@ def get_experiment_results_by_run(logdir: str):
     runs_results = []
     exp = state.get_experiment(logdir)
     for run in exp.runs:
-        datasets = stats.compute_datasets([run.test_metrics], logdir, True, source="test", suffix=" [test]")
-        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, source="train", suffix=" [train]")
-        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, source="training")
+        datasets = stats.compute_datasets([run.test_metrics], logdir, True, source="test", category="Test")
+        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, source="train", category="Train")
+        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, source="training", category="Other")
         # qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
-        runs_results.append(stats.build_results_payload(datasets, []) | {"logdir": run.rundir})
+        runs_results.append(datasets)
     return Response(orjson.dumps(runs_results), media_type="application/json")

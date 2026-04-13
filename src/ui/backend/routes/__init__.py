@@ -49,6 +49,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 def register_routers():
     # Register API routers before declaring the SPA fallback route.
     from .experiments import router as experiment_router
@@ -68,11 +69,7 @@ register_routers()
 def run(port: int, debug=False):
     import uvicorn
 
-    try:
-        uvicorn.run(app, host="0.0.0.0", port=port, reload=debug, log_level="debug")
-    except KeyboardInterrupt:
-        print("Shutting down server...")
-        exit(0)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=debug, log_level="debug")
 
 
 @app.get("/")

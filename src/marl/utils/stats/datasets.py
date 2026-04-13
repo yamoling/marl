@@ -12,8 +12,7 @@ class Dataset:
     logdir: str
     ticks: list[int]
     label: str
-    metric: str
-    source: str
+    category: str
     mean: list[float]
     min: list[float]
     max: list[float]
@@ -124,7 +123,7 @@ def compute_datasets(
     logdir: str,
     replace_inf: bool,
     source: str,
-    suffix: Optional[str] = None,
+    category: str,
 ) -> list[Dataset]:
     """
     Aggregates dataframes and computes the stats (mean, std, etc) for each column.
@@ -151,16 +150,12 @@ def compute_datasets(
     for col in df.columns:
         if col == "time_step":
             continue
-        label = col
-        if suffix is not None:
-            label = col + suffix
         res.append(
             Dataset(
                 logdir=logdir,
                 ticks=ticks,
-                label=label,
-                metric=col,
-                source=source,
+                label=col,
+                category=category,
                 mean=df_stats[f"mean-{col}"].to_list(),
                 std=df_stats[f"std-{col}"].to_list(),
                 min=df_stats[f"min-{col}"].to_list(),
@@ -204,11 +199,10 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
             label = f"{col_title[0]}-{reward_components[0]}"
         res.append(
             Dataset(
-                logdir=logdir,
+                logdir,
+                category="Q-values",
                 ticks=ticks,
                 label=label,
-                metric=label,
-                source="qvalues",
                 mean=df_stats[f"mean-{col}"].to_list(),
                 std=df_stats[f"std-{col}"].to_list(),
                 min=df_stats[f"min-{col}"].to_list(),
@@ -217,25 +211,6 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
             )
         )
     return res
-
-
-def build_results_payload(metrics: list[Dataset], qvalues: list[Dataset]) -> dict:
-    by_source: dict[str, int] = {}
-    for dataset in metrics:
-        by_source[dataset.source] = by_source.get(dataset.source, 0) + 1
-    return {
-        "version": 2,
-        "metrics": metrics,
-        "qvalues": qvalues,
-        "meta": {
-            "metric_labels": sorted({dataset.label for dataset in metrics}),
-            "qvalue_labels": sorted({dataset.label for dataset in qvalues}),
-            "metric_sources": sorted(by_source.keys()),
-            "metric_counts_by_source": by_source,
-            "n_metric_series": len(metrics),
-            "n_qvalue_series": len(qvalues),
-        },
-    }
 
 
 def agregate_metrics(

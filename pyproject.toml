@@ -38,7 +38,11 @@ dependencies = [
 legacy-gpu = ["torch<2.8"]
 
 [dependency-groups]
-dev = ["marker-pdf>=1.10.2", "pytest>=8.3.2"]
+dev = [
+    "marker-pdf>=1.10.2",
+    "pyinstrument>=5.1.2",
+    "pytest>=8.3.2",
+]
 
 [build-system]
 requires = ["hatchling"]

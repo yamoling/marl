@@ -46,7 +46,6 @@ export const useQvaluesStore = defineStore("QvaluesStore", () => {
     }
 
     function getExtraViewMode() {
-        console.log(qvalues_settings.value.extrasViewMode);
         return qvalues_settings.value.extrasViewMode;
     }
 

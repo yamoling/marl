@@ -1,0 +1,166 @@
+export type TimelineTrackKind = 'continuous-bar' | 'continuous-line' | 'discrete';
+
+export type TimelineBin = {
+    key: string;
+    startStep: number;
+    endStep: number;
+    representativeStep: number;
+};
+
+export class TimelineModel {
+    readonly episodeLength: number;
+
+    constructor(episodeLength: number) {
+        this.episodeLength = Math.max(0, episodeLength);
+    }
+
+    public buildBins(transitionCount: number): TimelineBin[] {
+        const steps = Math.max(0, transitionCount);
+        if (steps === 0) return [];
+
+        const bins: TimelineBin[] = [];
+
+        for (let step = 1; step <= steps; step++) {
+            bins.push({
+                key: `${step}`,
+                startStep: step,
+                endStep: step,
+                representativeStep: step,
+            });
+        }
+
+        return bins;
+    }
+
+    public nowPercent(currentStep: number): number {
+        if (this.episodeLength <= 0) return 0;
+        const clampedStep = Math.max(0, Math.min(this.episodeLength, currentStep));
+        if (clampedStep === 0) return 0;
+
+        // Align to the center of the selected step cell instead of its boundary.
+        return (clampedStep / this.episodeLength) * 100;
+    }
+}
+
+export abstract class TimelineTrack {
+    readonly id: string;
+    readonly label: string;
+    readonly kind: TimelineTrackKind;
+    visible: boolean;
+
+    public constructor(id: string, label: string, kind: TimelineTrackKind, visible = true) {
+        this.id = id;
+        this.label = label;
+        this.kind = kind;
+        this.visible = visible;
+    }
+}
+
+export type ContinuousBarCell = TimelineBin & {
+    value: number;
+    normalized: number;
+};
+
+export class ContinuousBarTrack extends TimelineTrack {
+    readonly values: number[];
+
+    constructor(id: string, label: string, values: number[], visible = true) {
+        super(id, label, 'continuous-bar', visible);
+        this.values = values;
+    }
+
+    buildCells(bins: TimelineBin[]): ContinuousBarCell[] {
+        const absMax = this.absoluteMax();
+        return bins.map((bin) => {
+            const value = this.values[bin.startStep - 1] ?? 0;
+
+            return {
+                ...bin,
+                value,
+                normalized: value / absMax,
+            };
+        });
+    }
+
+    private absoluteMax(): number {
+        if (this.values.length === 0) return 1;
+        const max = Math.max(...this.values.map((value) => Math.abs(value)));
+        return max > 0 ? max : 1;
+    }
+}
+
+export type DiscreteCell = TimelineBin & {
+    category: string | null;
+    colour: string | null;
+};
+
+export class DiscreteTrack extends TimelineTrack {
+    readonly values: Array<string | null>;
+    private readonly colourByCategory = new Map<string, string>();
+    private nextPaletteIndex = 0;
+
+    private static readonly DISTINCT_COLOURS = [
+        '#1f77b4',
+        '#ff7f0e',
+        '#2ca02c',
+        '#d62728',
+        '#9467bd',
+        '#8c564b',
+        '#e377c2',
+        '#7f7f7f',
+        '#bcbd22',
+        '#17becf',
+        '#393b79',
+        '#637939',
+        '#8c6d31',
+        '#843c39',
+        '#7b4173',
+        '#3182bd',
+    ];
+
+    constructor(id: string, label: string, values: Array<string | null>, visible = true) {
+        super(id, label, 'discrete', visible);
+        this.values = values;
+    }
+
+    buildCells(bins: TimelineBin[]): DiscreteCell[] {
+        const cells = [] as DiscreteCell[];
+
+        for (const bin of bins) {
+            const category = this.values[bin.startStep - 1] ?? null;
+            const cell: DiscreteCell = {
+                ...bin,
+                category,
+                colour: category == null ? null : this.colourForCategory(category),
+            };
+            cells.push(cell);
+        }
+
+        return cells;
+    }
+
+    private colourForCategory(category: string): string {
+        const existing = this.colourByCategory.get(category);
+        if (existing != null) return existing;
+
+        let colour: string;
+        if (this.nextPaletteIndex < DiscreteTrack.DISTINCT_COLOURS.length) {
+            colour = DiscreteTrack.DISTINCT_COLOURS[this.nextPaletteIndex];
+            this.nextPaletteIndex += 1;
+        } else {
+            colour = randomHexColour();
+        }
+
+        this.colourByCategory.set(category, colour);
+        return colour;
+    }
+}
+
+function randomHexColour(): string {
+    const channel = () => Math.floor(Math.random() * 206) + 25;
+    const toHex = (value: number) => value.toString(16).padStart(2, '0');
+    const red = channel();
+    const green = channel();
+    const blue = channel();
+    return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+}

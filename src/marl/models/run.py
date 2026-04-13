@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from signal import SIGINT, Signals
 from functools import cached_property
+import psutil
 
 import polars as pl
 
@@ -25,9 +26,9 @@ class Run:
     rundir: str
     log_specs: LogSpecs
 
-    def __init__(self, rundir: str, log_specs: LogSpecs):
-        self.rundir = rundir
-        self.log_specs = log_specs
+    @staticmethod
+    def load(rundir: str, log_specs: LogSpecs):
+        return Run(rundir, log_specs)
 
     @staticmethod
     def create(logdir: str, seed: int, log_specs: LogSpecs):
@@ -90,12 +91,23 @@ class Run:
 
     @property
     def is_running(self) -> bool:
-        return self.get_pid() is not None
+        return self.pid is not None
+
+    def is_completed(self, n_steps: int) -> bool:
+        return self.get_progress(n_steps) >= 1.0
 
     @property
     def latest_train_step(self) -> int:
         try:
-            return self.train_metrics(1).select(pl.last(TIME_STEP_COL)).item()
+            max_train = self.reader.train_metrics[TIME_STEP_COL].max()
+            if max_train is None:
+                max_train = 0
+            assert isinstance(max_train, int)
+            max_training_data = self.reader.training_data[TIME_STEP_COL].max()
+            if max_training_data is None:
+                max_training_data = 0
+            assert isinstance(max_training_data, int)
+            return max(max_train, max_training_data)
         except pl.exceptions.ColumnNotFoundError:
             return 0
 
@@ -123,38 +135,49 @@ class Run:
     def pid_filename(self):
         return os.path.join(self.rundir, PID_FILENAME)
 
-    def get_pid(self):
+    def _cleanup_pid_file(self):
+        try:
+            os.remove(self.pid_filename)
+        except FileNotFoundError:
+            pass
+
+    @property
+    def pid(self):
         pid_file = self.pid_filename
         try:
             with open(pid_file, "r") as f:
-                return int(f.read())
+                pid = int(f.read())
+            if not psutil.pid_exists(pid):
+                self._cleanup_pid_file()
+                return
+            return pid
         except FileNotFoundError:
             return None
+
+    def get_parent_pid(self):
+        pid = self.pid
+        if pid is None:
+            return None
+        return psutil.Process(self.pid).ppid()
 
     def kill(self, signal: Signals | int = SIGINT):
         if not isinstance(signal, int):
             signal = int(signal)
-        pid = self.get_pid()
+        pid = self.pid
         if pid is not None:
             try:
                 os.kill(pid, signal)
             except ProcessLookupError:
                 pass
-            try:
-                os.remove(self.pid_filename)
-            except FileNotFoundError:
-                pass
+        self._cleanup_pid_file()
 
     def __enter__(self):
         if self.is_running:
-            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.get_pid()}!")
+            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
         pid = os.getpid()
         with open(self.pid_filename, "w") as f:
             f.write(str(pid))
         return get_logger(self.rundir, self.log_specs)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            os.remove(self.pid_filename)
-        except FileNotFoundError:
-            pass
+        self._cleanup_pid_file()

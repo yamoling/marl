@@ -115,4 +115,4 @@ class Agent(ABC):
         if not self.__can_autosave:
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
         for nn in self.networks:
-            nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt")))
+            nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt"), map_location=self.device))

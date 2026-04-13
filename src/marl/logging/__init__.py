@@ -1,4 +1,4 @@
-from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL, ACTIONS
+from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL
 from .csv_logger import CSVLogger
 from .wandb import WABLogger
 from .neptune import NeptuneLogger
@@ -53,7 +53,6 @@ __all__ = [
     "LogReader",
     "TIME_STEP_COL",
     "TIMESTAMP_COL",
-    "ACTIONS",
     "WABLogger",
     "NeptuneLogger",
     "TBLogger",

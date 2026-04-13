@@ -1,301 +1,373 @@
 <template>
-    <div class="row">
-        <ContextMenu ref="contextMenu" />
-        <RunHover ref="runHover" />
-        <div class="col-6">
-            <div class="row">
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
-                        Filter
-                    </span>
-                    <input class="form-control" type="text" v-model="searchString" />
-                    <!-- Cross icon to delete the search string -->
-                    <button class="btn btn-secondary input-group-btn" @click="searchString = ''">
-                        <font-awesome-icon :icon="['fas', 'times']" />
-                    </button>
-                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
-                        :disabled="experimentStore.loading">
-                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
-                    </button>
+    <div ref="workspaceRef" class="home-workspace" :style="workspaceStyle">
+        <aside class="home-sidebar">
+            <section class="panel-surface home-panel">
+                <div class="panel-header">
+                    <div class="panel-header-row">
+                        <h2>Experiments</h2>
+                        <span class="panel-subtitle">Select an experiment to load metrics</span>
+                    </div>
                 </div>
-                <table class="table table-striped table-hover">
-                    <thead>
-                        <tr>
-                            <th> </th>
-                            <th> </th>
-                            <th> Progress </th>
-                            <th class="sortable" @click="() => sortBy('logdir')">
-                                Directory
-                                <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('env')">
-                                Env
-                                <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('algo')">
-                                Algo
-                                <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th class="sortable" @click="() => sortBy('date')">
-                                Start date
-                                <font-awesome-icon class="px-2" :icon="['fas', 'sort']" />
-                            </th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody style="cursor: pointer;">
-                        <template v-for="exp in sortedExperiments">
-                            <tr v-if="searchMatch(searchString, exp.logdir)"
-                                @click="() => onExperimentClicked(exp.logdir)"
-                                @contextmenu="(e) => openContextMenu(e, exp)">
-                                <td class="text-center">
-                                    <font-awesome-icon v-if="resultsStore.loading.get(exp.logdir)"
-                                        :icon="['fas', 'spinner']" spin />
-                                    <template v-if="resultsStore.results.has(exp.logdir)">
-                                        <input type="color" :value="colours.get(exp.logdir)" @click.stop
-                                            @change="(e) => colours.set(exp.logdir, (e.target as HTMLInputElement).value)">
-                                    </template>
-                                </td>
-                                <td>
-                                    <font-awesome-icon v-if="experimentStore.isRunning[exp.logdir]"
-                                        :icon="['fas', 'spinner']" class="fa-spin" />
-                                </td>
-                                <td>
-                                    <template v-if="experimentProgresses[exp.logdir]">
-                                        {{ (experimentProgresses[exp.logdir] * 100).toFixed(1) }}% <br>
-                                    </template>
-                                </td>
-                                <td>
-                                    {{ exp.logdir.replace("logs/", "") }}
-                                </td>
-                                <td>
-                                    {{ exp.env.name }}
-                                </td>
-                                <td>
-                                    {{ exp.trainer.name }}
-                                </td>
-                                <td> {{ new Date(exp.creation_timestamp).toLocaleString() }}
-                                </td>
-                                <td>
-                                    <RouterLink class="btn btn-sm btn-success me-1 mb-1" :to="'/inspect/' + exp.logdir"
-                                        @click.stop title="Inspect experiment">
-                                        <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
-                                    </RouterLink>
-                                    <button v-if="resultsStore.results.has(exp.logdir)"
-                                        class="btn btn-sm btn-outline-primary me-1 mb-1"
-                                        @click="() => downloadDatasets(exp.logdir)">
-                                        <font-awesome-icon :icon="['fas', 'download']" />
-                                    </button>
-                                    <button v-if="resultsStore.isLoaded(exp.logdir)" class="btn btn-sm btn-danger"
-                                        @click.stop="() => resultsStore.unload(exp.logdir)">
-                                        <font-awesome-icon :icon="['far', 'circle-xmark']" />
-                                    </button>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        <div class="col-6" style="">
-            <div v-if="resultsStore.results.size == 0" class="text-center mt-5">
-                Click on an experiment to load its results
-                <br>
-                <font-awesome-icon :icon="['fas', 'chart-line']" class="fa-10x mt-5"
-                    style="color: rgba(211, 211, 211, 0.5);" />
-            </div>
-            <template v-else>
-                <SettingsPanel :metrics="metrics" @change-selected-metrics="(m) => selectedMetrics = m" />
-                <Plotter v-for="[label, ds] in datasetPerLabel" :datasets="ds" :title="label.replaceAll('_', ' ')"
-                    :showLegend="true" />
-                <QvaluesPanel v-if="qvaluesSelected" :qvalues="qvalues"
-                    @change-selected-qvalues="(q) => selectedQvalues = q" />
-                <Qvalues v-for="[expName, qDs] in qvaluesDatasets" :datasets="qDs"
-                    :title="expName.replace('logs/', ' ')" :showLegend="true" />
-            </template>
+                <ExperimentTable />
+            </section>
 
+            <MetricsPanel v-if="resultsStore.results.size > 0" :metrics="metrics" :metricsByCategory="metricsByCategory"
+                @change-selected-metrics="(m) => selectedMetrics = m" />
+        </aside>
+
+        <div class="home-divider" :class="{ 'home-divider--dragging': isDraggingDivider }" role="separator"
+            aria-orientation="vertical" aria-label="Resize workspace panels" tabindex="0"
+            @pointerdown="startDividerDrag" @keydown.left.prevent="nudgeWorkspace(-1)"
+            @keydown.right.prevent="nudgeWorkspace(1)">
+            <span class="home-divider-handle"></span>
         </div>
+
+        <main class="home-main">
+            <div v-if="resultsStore.results.size == 0" class="empty-state panel-surface">
+                <font-awesome-icon :icon="['fas', 'chart-line']" class="empty-icon" />
+                <h3>Analysis canvas is ready</h3>
+                <p>Load at least one experiment from the left panel to unlock metric visualizations.</p>
+            </div>
+
+            <template v-else>
+                <section class="chart-grid">
+                    <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
+                        :key="metricPlotId(metricId)"
+                        :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
+                        <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
+                            :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
+                            @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))"
+                            @close="closeMetric(metricId)" />
+                    </article>
+                </section>
+            </template>
+        </main>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Dataset, Experiment, toCSV } from '../../models/Experiment';
-import Plotter from '../charts/Plotter.vue';
-import Qvalues from '../charts/Qvalues.vue';
-import { downloadStringAsFile } from "../../utils";
-import SettingsPanel from './SettingsPanel.vue';
-import QvaluesPanel from './QvaluesPanel.vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Dataset } from '../../models/Experiment';
+import { MetricSelection } from '../../models/Settings';
+import Plotter from '../Plotter.vue';
+import MetricsPanel from './MetricsPanel.vue';
+import ExperimentTable from './ExperimentTable.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { useExperimentStore } from '../../stores/ExperimentStore';
-import { useRunStore } from '../../stores/RunStore';
-import { useColourStore } from '../../stores/ColourStore';
-import { searchMatch } from '../../utils';
-import { RouterLink } from 'vue-router';
-import ContextMenu from './ContextMenu.vue';
-import RunHover from './RunHover.vue';
-import { Run } from '../../models/Run';
-
-const experimentStore = useExperimentStore();
+import { useSettingsStore } from '../../stores/SettingsStore';
 const resultsStore = useResultsStore();
-const colours = useColourStore();
-const runStore = useRunStore();
+const settingsStore = useSettingsStore();
 
-const sortKey = ref("date" as "logdir" | "env" | "algo" | "date");
-const sortOrder = ref("DESCENDING" as "ASCENDING" | "DESCENDING");
-const searchString = ref("");
-const contextMenu = ref({} as typeof ContextMenu);
-
-const selectedMetrics = ref(["score [train]"]);
-const selectedQvalues = ref(["agent0-qvalue0"]);
+const selectedMetrics = ref<MetricSelection[]>([]);
+const expandedPlotIds = ref<Set<string>>(new Set());
+const workspaceSidebarPercent = ref(initWorkspaceSidebarPercent());
+const workspaceRef = ref<HTMLElement | null>(null);
+const isDraggingDivider = ref(false);
+const workspaceHeightPx = ref(initWorkspaceHeightPx());
+const workspaceStyle = computed(() => ({
+    '--home-sidebar-width': `${workspaceSidebarPercent.value}%`,
+    '--home-workspace-height': `${workspaceHeightPx.value}px`,
+}));
 
 const metrics = computed(() => {
     const res = new Set<string>();
+    console.log(resultsStore.results)
     resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
-    res.add("qvalues");
     return res;
 });
 
-const qvalues = computed(() => {
-    const res = new Set<string>();
-    resultsStore.results.forEach((r) => r.qvalueLabels().forEach(label => res.add(label)));
-    return res;
-});
-
-
-const experimentProgresses = computed(() => {
-    const res = {} as { [key: string]: number };
-    experimentStore.experiments.forEach(exp => {
-        console.log(exp.logdir)
-        const runs = runStore.runs.get(exp.logdir) ?? [];
-        console.log(runs)
-        const nRuns = runs.length;
-        if (nRuns === 0) {
-            res[exp.logdir] = 0;
-            return;
-        }
-        for (const r of runs) {
-            console.log(r)
-        }
-        const progress = runs.map((r: Run) => r.progress).reduce((a: number, b: number) => a + b, 0) / nRuns;
-        res[exp.logdir] = progress;
-    });
-    return res;
-});
-
-const qvaluesSelected = computed(() => {
-    return selectedMetrics.value.includes("qvalues")
-})
-
-const qvaluesDatasets = computed(() => {
-    // Later use in the Qvalues component
-    const res = new Map<string, Dataset[]>();
-    resultsStore.results.forEach((r, logdir) => {
-        const qvalueDatasets = [] as Dataset[];
-        selectedQvalues.value.forEach((label) => {
-            qvalueDatasets.push(...r.getQvalueDatasets(label));
+const metricsByCategory = computed(() => {
+    const res = new Map<string, Set<string>>();
+    resultsStore.results.forEach((r) => {
+        r.datasets.forEach(ds => {
+            if (!res.has(ds.category)) res.set(ds.category, new Set());
+            res.get(ds.category)!.add(ds.label);
         });
-        if (qvalueDatasets.length > 0) {
-            res.set(logdir, qvalueDatasets);
-        }
     });
     return res;
 });
+
+
+
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
-    selectedMetrics.value.forEach((label) => {
-        if (label === "qvalues") {
-            return;
-        }
+    selectedMetrics.value.forEach((selection: MetricSelection) => {
         const grouped = [] as Dataset[];
         resultsStore.results.forEach((r) => {
-            grouped.push(...r.getMetricDatasets(label));
+            const datasets = r.getMetricDatasets(selection.label);
+            // Filter by the specific category
+            grouped.push(...datasets.filter(ds => ds.category === selection.category));
         });
         if (grouped.length > 0) {
-            res.set(label, grouped);
+            const key = `${selection.label}:${selection.category}`;
+            res.set(key, grouped);
         }
     });
     return res;
 });
 
-
-function onExperimentClicked(logdir: string) {
-    resultsStore.load(logdir);
-    runStore.refresh(logdir);
+function metricPlotId(metricId: string) {
+    return `metric:${metricId}`;
 }
 
-function downloadDatasets(logdir: string) {
-    const results = resultsStore.results.get(logdir);
-    if (results === undefined) {
-        alert("No such logdir to download");
-        return;
-    }
-    const csv_m = toCSV(results.datasets, results.datasets[0].ticks);
-    downloadStringAsFile(csv_m, `${logdir}_metrics.csv`);
-    if (!(results.qvaluesDs.length == 0)) {
-        const csv_q = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
-        downloadStringAsFile(csv_q, `${logdir}_qvalues.csv`);
-    }
+function extractMetricLabel(metricId: string): string {
+    const [label] = metricId.split(':');
+    return label;
 }
 
 
-const emits = defineEmits<{
-    (event: "experiment-selected", logdir: string): void
-    (event: "experiment-deleted", logdir: string): void
-    (event: "create-experiment"): void
-    (event: "compare-experiments"): void
-}>();
+function toggleFocusedPlot(plotId: string) {
+    const newSet = new Set(expandedPlotIds.value);
+    if (newSet.has(plotId)) {
+        newSet.delete(plotId);
+    } else {
+        newSet.add(plotId);
+    }
+    expandedPlotIds.value = newSet;
+}
 
-const sortedExperiments = computed(() => {
-    const entries = [...experimentStore.experiments];
-    switch (sortKey.value) {
-        case "logdir":
-            entries.sort((a, b) => a.logdir.localeCompare(b.logdir));
-            break;
-        case "env":
-            entries.sort((a, b) => a.env.name.localeCompare(b.env.name));
-            break;
-        case "algo":
-            entries.sort((a, b) => a.trainer.name.localeCompare(b.trainer.name));
-            break;
-        case "date":
-            entries.sort((a, b) => a.creation_timestamp - b.creation_timestamp);
-            break;
+function closeMetric(metricId: string) {
+    const [label, category] = metricId.split(':');
+    settingsStore.removeSelectedMetric(label, category);
+    selectedMetrics.value = selectedMetrics.value.filter(
+        m => !(m.label === label && m.category === category)
+    );
+    const plotId = metricPlotId(metricId);
+    expandedPlotIds.value = new Set(
+        Array.from(expandedPlotIds.value).filter(id => id !== plotId)
+    );
+}
+
+function initWorkspaceSidebarPercent() {
+    const saved = localStorage.getItem('home-workspace-sidebar-percent');
+    if (saved != null) {
+        const parsed = Number(saved);
+        if (!Number.isNaN(parsed)) {
+            return Math.min(48, Math.max(24, parsed));
+        }
     }
-    if (sortOrder.value === "DESCENDING") {
-        entries.reverse();
-    }
-    return entries;
+    return 34;
+}
+
+watch(workspaceSidebarPercent, (value) => {
+    localStorage.setItem('home-workspace-sidebar-percent', String(value));
 });
 
-function sortBy(key: "logdir" | "env" | "algo" | "date") {
-    if (sortKey.value === key) {
-        sortOrder.value = sortOrder.value === "ASCENDING" ? "DESCENDING" : "ASCENDING";
-    } else {
-        sortKey.value = key;
-        sortOrder.value = "ASCENDING";
+function startDividerDrag(event: PointerEvent) {
+    if (event.button !== 0) {
+        return;
     }
+    const element = workspaceRef.value;
+    if (element == null) {
+        return;
+    }
+    isDraggingDivider.value = true;
+    const pointerId = event.pointerId;
+    const updateFromPointer = (moveEvent: PointerEvent) => {
+        const rect = element.getBoundingClientRect();
+        const x = moveEvent.clientX - rect.left;
+        const percent = (x / rect.width) * 100;
+        workspaceSidebarPercent.value = clampWorkspacePercent(percent);
+    };
+    const stopDragging = () => {
+        isDraggingDivider.value = false;
+        window.removeEventListener('pointermove', updateFromPointer);
+        window.removeEventListener('pointerup', stopDragging);
+        window.removeEventListener('pointercancel', stopDragging);
+    };
+    updateFromPointer(event);
+    window.addEventListener('pointermove', updateFromPointer);
+    window.addEventListener('pointerup', stopDragging, { once: true });
+    window.addEventListener('pointercancel', stopDragging, { once: true });
+    event.preventDefault();
+    (event.currentTarget as HTMLElement | null)?.setPointerCapture(pointerId);
 }
 
-
-// Function to open context menu
-function openContextMenu(e: MouseEvent, exp: Experiment) {
-    e.preventDefault()
-    contextMenu.value.show(exp, e.x, e.y);
+function nudgeWorkspace(delta: number) {
+    workspaceSidebarPercent.value = clampWorkspacePercent(workspaceSidebarPercent.value + delta);
 }
 
+function clampWorkspacePercent(value: number) {
+    return Math.min(62, Math.max(24, Math.round(value)));
+}
+
+function initWorkspaceHeightPx() {
+    return Math.max(420, window.innerHeight - 190);
+}
+
+function updateWorkspaceHeight() {
+    const workspace = workspaceRef.value;
+    if (workspace == null) {
+        return;
+    }
+    const top = workspace.getBoundingClientRect().top;
+    const footer = document.querySelector('footer') as HTMLElement | null;
+    const footerHeight = footer?.offsetHeight ?? 0;
+    const nextHeight = Math.floor(window.innerHeight - top - footerHeight - 12);
+    workspaceHeightPx.value = Math.max(420, nextHeight);
+}
+
+onMounted(() => {
+    updateWorkspaceHeight();
+    window.addEventListener('resize', updateWorkspaceHeight);
+});
+
+onBeforeUnmount(() => {
+    isDraggingDivider.value = false;
+    window.removeEventListener('resize', updateWorkspaceHeight);
+});
 
 </script>
 
-<style>
-.experiment-row:hover {
-    background-color: #eee;
+<style scoped>
+.home-workspace {
+    display: grid;
+    grid-template-columns: minmax(24rem, var(--home-sidebar-width, 34%)) 0.9rem minmax(0, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+    height: var(--home-workspace-height, calc(100vh - 10rem));
+    overflow: hidden;
 }
 
-.sortable:hover {
-    cursor: pointer;
-    text-decoration: underline;
+.home-sidebar {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 1rem;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+}
+
+.home-main {
+    display: grid;
+    gap: 1rem;
+    margin-left: -0.9rem;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    padding-right: 0.2rem;
+}
+
+.home-divider {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+}
+
+.home-divider::before {
+    content: '';
+    width: 2px;
+    background: var(--bs-border-color);
+    border-radius: 999px;
+    margin: 0 auto;
+}
+
+.home-divider--dragging::before,
+.home-divider:hover::before,
+.home-divider:focus-visible::before {
+    background: rgba(13, 110, 253, 0.75);
+}
+
+.home-divider-handle {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0.85rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.home-divider--dragging .home-divider-handle,
+.home-divider:hover .home-divider-handle,
+.home-divider:focus-visible .home-divider-handle {
+    border-color: rgba(13, 110, 253, 0.55);
+}
+
+
+.home-panel {
+    overflow: auto;
+}
+
+.home-subsection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.home-subsection-header {
+    margin-bottom: 0.35rem;
+}
+
+.empty-state {
+    min-height: 22rem;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    gap: 0.5rem;
+}
+
+.empty-state h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.empty-state p {
+    margin: 0;
+    color: var(--bs-secondary-color);
+    max-width: 36rem;
+}
+
+.empty-icon {
+    color: rgba(133, 145, 157, 0.7);
+    font-size: 4.5rem;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: max-content;
+    gap: 1rem;
+    align-items: start;
+    align-content: start;
+}
+
+.chart-card {
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.chart-card-header h3 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    white-space: nowrap;
+}
+
+.chart-card--expanded {
+    grid-column: 1 / -1;
+    border-color: rgba(13, 110, 253, 0.35);
+    box-shadow: 0 14px 40px rgba(13, 110, 253, 0.12);
 }
 </style>

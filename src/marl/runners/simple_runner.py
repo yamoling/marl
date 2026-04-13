@@ -1,8 +1,6 @@
 import logging
 from copy import deepcopy
-from pprint import pprint
 from typing import TYPE_CHECKING, Literal
-
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -54,6 +52,32 @@ class SimpleRunner[A: Space]:
         self._test_env = test_env
         self._quiet = quiet
 
+    def start(self, run: "Run", render_tests: bool = False):
+        """Start the training loop."""
+        import marl
+
+        if run.is_running or run.is_completed(self.n_steps):
+            return
+
+        marl.seed(run.seed, self._env)
+        self._agent.randomize()
+        self._trainer.randomize()
+
+        with (
+            tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar,
+            run as logger,
+        ):
+            episode_num = 0
+            step = 0
+            while step < self.n_steps:
+                episode = self._train_episode(logger, step, episode_num, render_tests)
+                episode_num += 1
+                step += len(episode)
+                pbar.update(len(episode))
+            # Test the final agent
+            if self.n_tests > 0 and self.test_interval > 0:
+                self._test_and_log(logger, self.n_steps, render_tests)
+
     @staticmethod
     def from_experiment(
         exp: "Experiment[A]",
@@ -94,29 +118,6 @@ class SimpleRunner[A: Space]:
         logger.log_training_data(training_logs, step_num)
         return episode
 
-    def start(self, run: "Run", render_tests: bool = False):
-        """Start the training loop"""
-        import marl
-
-        marl.seed(run.seed, self._env)
-        self._agent.randomize()
-        self._trainer.randomize()
-
-        with (
-            tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar,
-            run as logger,
-        ):
-            episode_num = 0
-            step = 0
-            while step < self.n_steps:
-                episode = self._train_episode(logger, step, episode_num, render_tests)
-                episode_num += 1
-                step += len(episode)
-                pbar.update(len(episode))
-            # Test the final agent
-            if self.n_tests > 0 and self.test_interval > 0:
-                self._test_and_log(logger, self.n_steps, render_tests)
-
     def _test_and_log(self, logger: "Logger", time_step: int, render: bool):
         logger.save_agent(self._agent, time_step)
         logger.save_trainer(self._trainer, time_step)
@@ -125,6 +126,7 @@ class SimpleRunner[A: Space]:
 
     def perform_tests(self, time_step: int, render: bool = False):
         """Test the agent"""
+        self._agent.set_testing()
         episodes = list[Episode]()
         for test_num in tqdm(range(self.n_tests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
             seed = get_test_seed(time_step, test_num)
@@ -137,7 +139,7 @@ class SimpleRunner[A: Space]:
                     avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / self.n_tests
                 except TypeError:
                     pass
-            pprint(avg_metrics)
+            logging.info(avg_metrics)
         self._agent.set_training()
         return episodes
 

@@ -1,3 +1,6 @@
+import logging
+
+
 def run(port: int = 5000, debug=False):
     from . import system_info
     from . import routes
@@ -8,5 +11,5 @@ def run(port: int = 5000, debug=False):
         # watcher.run()
         routes.run(port=port, debug=debug)
     except KeyboardInterrupt:
-        print("Shutting down server...")
+        logging.info("Shutting down server...")
         exit(0)

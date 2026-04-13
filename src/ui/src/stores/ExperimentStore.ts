@@ -9,6 +9,7 @@ import { useRunStore } from "./RunStore";
 export const useExperimentStore = defineStore("ExperimentStore", () => {
     const loading = ref(false);
     const experiments = ref<Experiment[]>([]);
+    const runStore = useRunStore();
     const isRunning = computed(() => {
         const res = {} as { [logdir: string]: boolean };
         runStore.runs.forEach((runs, logdir) => {
@@ -17,7 +18,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         return res;
     });
     // const runningExperiments = ref(new Set<string>());
-    const runStore = useRunStore();
     refresh();
 
     async function refresh() {
@@ -109,10 +109,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         await runStore.refresh(logdir);
     }
 
-    async function testOnOtherEnvironment(logdir: string, newLogdir: string, envLogdir: string, nTests: number): Promise<void> {
-        await fetchWithJSON(`${HTTP_URL}/experiment/test-on-other-env`, { logdir, newLogdir, envLogdir, nTests });
-        refresh()
-    }
 
     async function getEnvImage(logdir: String, seed: number): Promise<string> {
         const resp = await fetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`);
@@ -140,7 +136,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         remove,
         stopRuns,
         rename,
-        testOnOtherEnvironment,
         getEnvImage,
     };
 });

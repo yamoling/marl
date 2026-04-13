@@ -100,6 +100,16 @@ class Experiment[A: Space]:
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
             pickle.dump(self, f)
 
+    def _prepare_runs(self, seeds: Sequence[int]):
+        """Create/load all the runs corresponding to the given seeds, and return them as a list."""
+        runs = list[Run]()
+        for seed in seeds:
+            run = self.get_run_with_seed(seed)
+            if run is None:
+                run = Run.create(self.logdir, seed, self.logger)
+            runs.append(run)
+        return runs
+
     def run(
         self,
         seeds: int | Sequence[int] = 0,
@@ -113,18 +123,18 @@ class Experiment[A: Space]:
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):
             seeds = list(range(seeds))
-        for seed in seeds:
-            Run.create(self.logdir, seed, self.logger)
-        if n_parallel <= 1:
+        runs = self._prepare_runs(seeds)
+        if n_parallel <= 1 or len(runs) <= 1:
             from marl.runners import SequentialRunner
 
             runner = SequentialRunner(self)
-            return runner.start(device, fill_strategy, quiet, n_tests, render_tests)
+            return runner.start(runs, device, fill_strategy, quiet, n_tests, render_tests)
 
         from marl.runners import ParallelRunner
 
-        runner = ParallelRunner(self)
+        runner = ParallelRunner(self.logdir)
         return runner.start(
+            runs,
             n_jobs=n_parallel,
             device=device,
             auto_device_strategy=fill_strategy,
@@ -165,13 +175,10 @@ class Experiment[A: Space]:
         episode_folder = run.test_dir(time_step, test_num)
         # runner = self.create_runner()
         seed = get_test_seed(time_step, test_num)
-        # actions = run.get_test_actions(time_step, test_num)
         agent = self.agent_at(time_step, run.seed)
         episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
-
-        # episode = self.test_env.replay(actions, seed=seed)
         frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(episode_folder, episode, frames, action_details)
+        return ReplayEpisode(episode_folder, episode, frames, action_details, self.test_env.action_space)
 
     def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
         """Load the agent at a specific time step."""
@@ -196,8 +203,9 @@ class Experiment[A: Space]:
 
     @property
     def runs(self):
+        """All the runs related to the experiment."""
         for rundir in self.rundirs:
-            yield Run(rundir, self.logger)
+            yield Run.load(rundir, self.logger)
 
     @property
     def rundirs(self):
@@ -262,15 +270,16 @@ class Experiment[A: Space]:
     def get_experiment_results(self, replace_inf=False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", suffix=" [test]")
+        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", category="Test")
         datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", suffix=" [train]"
+            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", category="Train"
         )
         datasets += stats.compute_datasets(
-            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training"
+            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training", category="Other"
         )
-        # qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
-        return datasets, []
+        # if self.env.is_multi_objective:
+        #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
+        return datasets
 
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)

@@ -1,5 +1,7 @@
 import os
+import logging
 import subprocess
+import sys
 import orjson
 import time
 from threading import Thread
@@ -31,17 +33,60 @@ class ServerState:
         self._experiments[logdir] = Experiment.load(logdir)
 
     def new_runs(self, logdir: str, n_runs: int, n_tests: int, seed: int):
-        command = f"python src/run.py {logdir} --n-runs={n_runs} --n-tests={n_tests} --seed={seed} --device=auto"
-        print(command)
-        return
-        # Start a completely detached new run
-        p = subprocess.Popen(command.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        command = [
+            sys.executable,
+            "src/start_run.py",
+            logdir,
+            f"--n-runs={n_runs}",
+            f"--n-tests={n_tests}",
+            f"--seed={seed}",
+            "--device=auto",
+        ]
+        logging.info("Starting new process with command: " + " ".join(command))
+        # Start a detached training process so runs continue even if the web server exits.
+        subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
+
+    def start_run(self, rundir: str):
+        logdir = Experiment.find_experiment_directory(rundir)
+        if logdir is None:
+            raise FileNotFoundError(f"Could not find experiment for run {rundir}")
+
+        experiment = self.get_experiment(logdir)
+        target_run = None
+        for run in experiment.runs:
+            if run.rundir == rundir:
+                target_run = run
+                break
+        if target_run is None:
+            raise FileNotFoundError(f"Could not find run {rundir}")
+
+        if target_run.is_running or target_run.is_completed(experiment.n_steps):
+            return
+        self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed)
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()
         if logdir not in self._experiments:
             self.load_experiment(logdir)
         return self._experiments[logdir]
+
+    def stop_run(self, rundir: str):
+        logdir = Experiment.find_experiment_directory(rundir)
+        if logdir is None:
+            raise FileNotFoundError(f"Could not find experiment for run {rundir}")
+        experiment = self.get_experiment(logdir)
+        for run in experiment.runs:
+            if run.rundir == rundir:
+                run.kill()
+                return
+        raise FileNotFoundError(f"Could not find run {rundir}")
 
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self._experiments.pop(logdir, None)

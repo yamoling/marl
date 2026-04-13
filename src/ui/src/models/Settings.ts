@@ -1,4 +1,9 @@
+export interface MetricSelection {
+    label: string;
+    category: string;
+}
+
 export interface Settings {
-    selectedMetrics: string[]
+    selectedMetrics: MetricSelection[]
     extrasViewMode: "table" | "colour"
 }

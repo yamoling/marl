@@ -1,4 +1,5 @@
 import logging
+import time
 from http import HTTPStatus
 
 import cv2
@@ -99,9 +100,12 @@ def delete_experiment(logdir: str):
 
 @router.post("/experiment/stop-runs/{logdir:path}")
 def stop_experiment_runs(logdir: str):
+    """Kill all running runs of an experiment. The loop accounts for queued runs that would start after killing the current ones."""
     try:
         exp = state.get_experiment(logdir)
-        exp.kill_runs()
+        while exp.is_running:
+            exp.kill_runs()
+            time.sleep(0.1)
         return Response(status_code=HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
@@ -115,25 +119,3 @@ def get_env_image(seed: str, logdir: str):
     image = exp.env.get_image()
     image = cv2.resize(image, (100, 100))
     return encode_b64_image(image)
-
-
-# @router.post("/experiment/test-on-other-env")
-# async def test_on_other_env(request: Request):
-#     json_data = await request.json()
-#     if json_data is None:
-#         return Response(status_code=HTTPStatus.BAD_REQUEST)
-#     logdir = json_data["logdir"]
-#     new_logdir = json_data["newLogdir"]
-#     env_logdir = json_data["envLogdir"]
-#     exp = state.get_experiment(logdir)
-#     test_env = state.get_experiment(env_logdir).test_env
-
-#     import threading
-
-#     def start():
-#         exp.test_on_other_env(test_env, new_logdir, quiet=True)
-
-#     threading.Thread(target=start).start()
-
-#     # The parent just returns
-#     return Response(content="")

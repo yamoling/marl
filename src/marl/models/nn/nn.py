@@ -19,10 +19,8 @@ def to[T: torch.nn.Module](module: T, device: torch.device) -> T:
         if isinstance(child, torch.nn.ModuleList):
             for subchild in child:
                 d = subchild.parameters().__next__().device
-                print(f"\tChild {subchild} was on {d}")
                 to(subchild, device)
                 d = subchild.parameters().__next__().device
-                print(f"\tChild {subchild} is now on {d}")
     return module
 
 

@@ -1,7 +1,7 @@
 <template>
-    <div v-if="dataset != null" class="row text-center">
+    <div v-if="dataset != null" class="metrics-table text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
-            @row-expand="onRowExpanded" @row-click="onRowClicked" selection-mode="single">
+            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked">
             <Column expander style="width: 3rem" />
             <Column field="step" header="Time step"></Column>
             <Column v-for="label in dataset.columns()" :field="label" :header="label">
@@ -10,11 +10,11 @@
                 </template>
             </Column>
             <template #expansion="slotProps">
-                <div class="p-4">
+                <div class="px-4 pb-4">
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        @row-select="e => emits('view-episode', e.data.directory)">
+                        :rowClass="getTestRowClass" @row-select="e => emits('view-episode', e.data.directory)">
                         <Column v-for="column in testColumns" :header="column" :field="column">
                             <template #body="{ data }">
                                 <template v-if="typeof data[column] === 'number'">
@@ -40,7 +40,8 @@ import { onMounted } from "vue";
 
 
 const props = defineProps<{
-    experiment: Experiment
+    experiment: Experiment,
+    selectedEpisodeDirectory?: string | null
 }>();
 
 const expanded = ref({} as Record<string, boolean>);
@@ -66,7 +67,17 @@ function formatFloat(value: number) {
     return value.toFixed(3);
 }
 
+function getTestRowClass(data: { directory?: string }) {
+    return {
+        'selected-replay-row': data.directory === props.selectedEpisodeDirectory,
+    };
+}
+
 async function onRowExpanded(event: DataTableRowExpandEvent) {
+    const step = String(event.data.step);
+    expanded.value = {
+        [step]: true,
+    };
     await loadTestsAtStep(event.data.step);
 }
 
@@ -75,13 +86,11 @@ async function onRowClicked(event: DataTableRowClickEvent) {
     const current = expanded.value ?? {};
 
     if (current[step]) {
-        const { [step]: _, ...rest } = current;
-        expanded.value = rest;
+        expanded.value = {};
         return;
     }
 
     expanded.value = {
-        ...current,
         [step]: true,
     };
     await loadTestsAtStep(event.data.step);
@@ -111,3 +120,21 @@ const emits = defineEmits<{
 }>();
 
 </script>
+
+<style scoped>
+.metrics-table {
+    min-width: max-content;
+}
+
+:deep(.p-datatable-table) {
+    min-width: max-content;
+}
+
+:deep(.selected-replay-row) {
+    background: color-mix(in srgb, var(--bs-primary) 18%, transparent);
+}
+
+:deep(.selected-replay-row:hover) {
+    background: color-mix(in srgb, var(--bs-primary) 24%, transparent);
+}
+</style>

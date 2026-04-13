@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { Settings } from "../models/Settings";
+import { MetricSelection } from "../models/Settings";
 
 export const useSettingsStore = defineStore("SettingsStore", () => {
 
@@ -30,13 +31,16 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
         saveSettingsToLocalStorage();
     }
 
-    function addSelectedMetric(metric: string) {
-        settings.value.selectedMetrics.push(metric);
-        saveSettingsToLocalStorage();
+    function addSelectedMetric(label: string, category: string) {
+        const selection: MetricSelection = { label, category };
+        if (!settings.value.selectedMetrics.some(m => m.label === label && m.category === category)) {
+            settings.value.selectedMetrics.push(selection);
+            saveSettingsToLocalStorage();
+        }
     }
 
-    function removeSelectedMetric(metric: string) {
-        settings.value.selectedMetrics = settings.value.selectedMetrics.filter((m) => m !== metric);
+    function removeSelectedMetric(label: string, category: string) {
+        settings.value.selectedMetrics = settings.value.selectedMetrics.filter((m) => m.label !== label || m.category !== category);
         saveSettingsToLocalStorage();
     }
 
@@ -46,7 +50,6 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
     }
 
     function getExtraViewMode() {
-        console.log(settings.value.extrasViewMode);
         return settings.value.extrasViewMode;
     }
 

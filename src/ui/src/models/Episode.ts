@@ -1,3 +1,5 @@
+import { ActionSpace } from "./Env"
+
 export interface ReplayEpisodeSummary {
     name: string,
     directory: string,
@@ -24,6 +26,7 @@ export interface ReplayEpisode {
     },
     frames: string[]
     action_details: ActionDetails[]
+    action_space?: ActionSpace
 
 }
 
@@ -31,15 +34,17 @@ export interface ReplayEpisode {
 
 
 export interface Episode {
-    all_available_actions: number[][][]
+    all_available_actions: boolean[][][]
     all_extras: number[][][]
     all_observations: number[][][] | number[][][][][]
-    actions: number[][]
+    actions: ActionValue[][]
     episode_len: number
     is_finished: boolean
     rewards: number[]
     states: number[][][]
 }
+
+export type ActionValue = number | number[];
 
 export interface Transition {
     obs: number[][],
