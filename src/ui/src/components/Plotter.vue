@@ -1,28 +1,34 @@
 <template>
     <div class="plotter-shell" :class="{ 'plotter-shell--expanded': expanded }">
         <div class="plotter-header" v-if="title.length > 0">
-            <h3 class="title">{{ title }}</h3>
+            <div class="plotter-header-top">
+                <div class="plotter-title-row">
+                    <h3 class="title">{{ title }}</h3>
+                    <span v-if="category" class="plotter-category-badge">
+                        {{ category }}
+                    </span>
+                </div>
+                <div class="plotter-meta">
+                    <button class="btn btn-sm" @click="$emit('toggle-expanded')"
+                        :title="expanded ? 'Shrink' : 'Expand'">
+                        <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
+                    </button>
+                </div>
+            </div>
+
             <div class="plotter-actions">
-                <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')">
-                    <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
-                    {{ expanded ? 'Shrink' : 'Enlarge' }}
-                </button>
                 <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
-                    @click="showOptions = !showOptions">
+                    @click="showOptions = !showOptions" title="Toggle options">
                     <font-awesome-icon :icon="['fas', 'gear']" />
-                    Options
                 </button>
-                <button class="btn btn-sm btn-light" @click="resetZoom">
+                <button class="btn btn-sm btn-light" @click="resetZoom" title="Reset zoom">
                     <font-awesome-icon :icon="['fas', 'magnifying-glass']" />
-                    Reset zoom
                 </button>
-                <button class="btn btn-sm btn-light" @click="downloadChartImage">
+                <button class="btn btn-sm btn-light" @click="downloadChartImage" title="Download as image">
                     <font-awesome-icon :icon="['fas', 'image']" />
-                    PNG
                 </button>
-                <button class="btn btn-sm btn-light" @click="downloadChartData">
+                <button class="btn btn-sm btn-light" @click="downloadChartData" title="Download as CSV">
                     <font-awesome-icon :icon="['fas', 'file-csv']" />
-                    CSV
                 </button>
             </div>
         </div>
@@ -86,8 +92,15 @@ const emits = defineEmits<{
     (event: "episode-selected", datasetIndex: number, xIndex: number): void
     (event: "toggle-expanded"): void
 }>();
+const colourStore = useColourStore();
 const canvas = ref({} as HTMLCanvasElement);
 
+const props = defineProps<{
+    datasets: readonly Dataset[]
+    title: string
+    showLegend: boolean
+    expanded?: boolean
+}>();
 const yScaleType = ref("Linear" as typeof SCALES[number]);
 const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
 const enablePlusMinus = ref(true);
@@ -96,14 +109,10 @@ const hiddenSeries = ref({} as Record<string, boolean>);
 const hiddenBands = ref({} as Record<string, boolean>);
 const seriesIndicesByLabel = ref(new Map<string, number[]>());
 const bandIndicesByLabel = ref(new Map<string, number[]>());
+const category = computed(() => props.datasets.at(0)?.category)
 
-const colourStore = useColourStore();
-const props = defineProps<{
-    datasets: readonly Dataset[]
-    title: string
-    showLegend: boolean
-    expanded?: boolean
-}>();
+
+
 console.log(props.datasets);
 const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
 
@@ -392,14 +401,46 @@ function rgbToAlpha(rgb: string, alpha: number) {
 }
 
 .plotter-header {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.plotter-header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 0.75rem;
 }
 
+.plotter-title-row {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.plotter-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.plotter-category-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #0b5ed7;
+    background-color: #d9ecff;
+    border: 1px solid #b9dcff;
+}
+
 .plotter-actions {
     display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 0.45rem;
 }
 

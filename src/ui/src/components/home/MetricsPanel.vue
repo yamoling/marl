@@ -4,7 +4,7 @@
             <div class="panel-header-row">
                 <h2>Metrics</h2>
                 <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                    }} loaded experiments</span>
+                }} loaded experiments</span>
             </div>
         </div>
         <section class="selector-panel">
@@ -189,9 +189,10 @@ onMounted(() => {
 }
 
 .selector-cards {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 0.7rem;
 }
 
 .selector-empty-state {
@@ -203,10 +204,14 @@ onMounted(() => {
 }
 
 .selector-card {
+    display: flex;
+    flex-direction: column;
     border-radius: 0.65rem;
     border: 1px solid var(--bs-border-color);
     background: var(--bs-body-bg);
-    padding: 0.65rem 0.7rem;
+    width: fit-content;
+    max-width: 100%;
+    flex: 0 1 auto;
 }
 
 .selector-card-header {
@@ -241,8 +246,8 @@ onMounted(() => {
 
 .selector-matrix {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.18rem 0.9rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.14rem;
 }
 
 .selector-item {
@@ -256,6 +261,7 @@ onMounted(() => {
 
 .selector-item span {
     line-height: 1.1;
+    overflow-wrap: anywhere;
 }
 
 .selector-item .form-check-input {
@@ -264,7 +270,11 @@ onMounted(() => {
 
 @media (max-width: 992px) {
     .selector-cards {
-        grid-template-columns: 1fr;
+        gap: 0.55rem;
+    }
+
+    .selector-card {
+        width: 100%;
     }
 }
 </style>

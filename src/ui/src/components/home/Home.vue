@@ -34,11 +34,6 @@
                     <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
                         :key="metricPlotId(metricId)"
                         :class="{ 'chart-card--expanded': focusedPlotId === metricPlotId(metricId) }">
-                        <div class="chart-card-header">
-                            <h3>{{ extractMetricLabel(metricId).replaceAll('_', ' ') }}</h3>
-                            <span v-if="extractMetricCategory(metricId)" class="badge bg-info">{{
-                                extractMetricCategory(metricId) }}</span>
-                        </div>
                         <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
                             :showLegend="true" :expanded="focusedPlotId === metricPlotId(metricId)"
                             @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" />
@@ -305,6 +300,7 @@ onBeforeUnmount(() => {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
+    align-items: start;
 }
 
 .chart-card {
