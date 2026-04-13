@@ -1,10 +1,10 @@
 <template>
-    <section class="panel-surface">
+    <section class="panel-surface metrics-pane">
         <div class="panel-header panel-header-inline">
             <div class="panel-header-row">
                 <h2>Metrics</h2>
                 <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                }} loaded experiments</span>
+                    }} loaded experiments</span>
             </div>
         </div>
         <section class="selector-panel">
@@ -161,9 +161,18 @@ onMounted(() => {
 
 </script>
 <style scoped>
+.metrics-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .selector-panel {
     display: grid;
     gap: 0.65rem;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .selector-toolbar {

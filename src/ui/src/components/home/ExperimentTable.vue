@@ -1,29 +1,30 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
-        <div class="input-group mb-3">
-            <span class="input-group-text">
-                <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
-                Filter
-            </span>
-            <InputText class="form-control" type="text" v-model="filters.global.value"
-                placeholder="Directory, env, algo" />
-            <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter"
-                :disabled="!filters.global.value">
-                <font-awesome-icon :icon="['fas', 'times']" />
-            </button>
-            <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
-                :disabled="experimentStore.loading">
-                <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
-            </button>
-        </div>
-
         <DataTable v-model:expandedRows="expandedRows" :value="experimentStore.experiments" dataKey="logdir"
             size="small" v-model:filters="filters" filterDisplay="menu"
             :globalFilterFields="['logdir', 'env.name', 'trainer.name']" :sortField="'creation_timestamp'"
             :sortOrder="-1" :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked"
             @row-expand="onRowExpanded" @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
             :rowsPerPageOptions="[5, 10, 20, 50]">
+            <template #header>
+                <div class="input-group mb-3">
+                    <span class="input-group-text">
+                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
+                        Filter
+                    </span>
+                    <input class="form-control" type="text" v-model="filters.global.value"
+                        placeholder="Directory, env, algo" />
+                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter"
+                        :disabled="!filters.global.value">
+                        <font-awesome-icon :icon="['fas', 'times']" />
+                    </button>
+                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
+                        :disabled="experimentStore.loading">
+                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
+                    </button>
+                </div>
+            </template>
             <Column header="Status">
                 <template #body="{ data }">
                     <button class="runs-matrix" :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
@@ -342,10 +343,6 @@ function downloadDatasets(logdir: string) {
     }
     const csvMetrics = toCSV(results.datasets, results.datasets[0].ticks);
     downloadStringAsFile(csvMetrics, `${logdir}_metrics.csv`);
-    if (results.qvaluesDs.length > 0) {
-        const csvQvalues = toCSV(results.qvaluesDs, results.qvaluesDs[0].ticks);
-        downloadStringAsFile(csvQvalues, `${logdir}_qvalues.csv`);
-    }
 }
 
 function clearGlobalFilter() {

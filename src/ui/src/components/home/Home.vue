@@ -46,7 +46,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
 import { MetricSelection } from '../../models/Settings';
 import Plotter from '../Plotter.vue';
@@ -62,8 +62,10 @@ const expandedPlotIds = ref<Set<string>>(new Set());
 const workspaceSidebarPercent = ref(initWorkspaceSidebarPercent());
 const workspaceRef = ref<HTMLElement | null>(null);
 const isDraggingDivider = ref(false);
+const workspaceHeightPx = ref(initWorkspaceHeightPx());
 const workspaceStyle = computed(() => ({
     '--home-sidebar-width': `${workspaceSidebarPercent.value}%`,
+    '--home-workspace-height': `${workspaceHeightPx.value}px`,
 }));
 
 const metrics = computed(() => {
@@ -189,8 +191,30 @@ function clampWorkspacePercent(value: number) {
     return Math.min(62, Math.max(24, Math.round(value)));
 }
 
+function initWorkspaceHeightPx() {
+    return Math.max(420, window.innerHeight - 190);
+}
+
+function updateWorkspaceHeight() {
+    const workspace = workspaceRef.value;
+    if (workspace == null) {
+        return;
+    }
+    const top = workspace.getBoundingClientRect().top;
+    const footer = document.querySelector('footer') as HTMLElement | null;
+    const footerHeight = footer?.offsetHeight ?? 0;
+    const nextHeight = Math.floor(window.innerHeight - top - footerHeight - 12);
+    workspaceHeightPx.value = Math.max(420, nextHeight);
+}
+
+onMounted(() => {
+    updateWorkspaceHeight();
+    window.addEventListener('resize', updateWorkspaceHeight);
+});
+
 onBeforeUnmount(() => {
     isDraggingDivider.value = false;
+    window.removeEventListener('resize', updateWorkspaceHeight);
 });
 
 </script>
@@ -200,27 +224,33 @@ onBeforeUnmount(() => {
     display: grid;
     grid-template-columns: minmax(24rem, var(--home-sidebar-width, 34%)) 0.9rem minmax(0, 1fr);
     gap: 1rem;
-    align-items: start;
+    align-items: stretch;
+    height: var(--home-workspace-height, calc(100vh - 10rem));
+    overflow: hidden;
 }
 
 .home-sidebar {
-    position: sticky;
-    top: 0.5rem;
-    max-height: calc(100vh - 6rem);
+    min-height: 0;
     display: grid;
-    grid-template-rows: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 1rem;
+    overflow-y: auto;
+    padding-right: 0.2rem;
 }
 
 .home-main {
     display: grid;
     gap: 1rem;
+    margin-left: -0.9rem;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    padding-right: 0.2rem;
 }
 
 .home-divider {
-    position: sticky;
-    top: 0.75rem;
-    height: calc(100vh - 6rem);
+    position: relative;
+    height: 100%;
     display: flex;
     align-items: stretch;
     justify-content: center;
@@ -303,8 +333,10 @@ onBeforeUnmount(() => {
 .chart-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: max-content;
     gap: 1rem;
     align-items: start;
+    align-content: start;
 }
 
 .chart-card {

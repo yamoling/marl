@@ -29,7 +29,7 @@
                             :title="expanded ? 'Shrink' : 'Expand'">
                             <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
                         </button>
-                        <button class="btn btn-sm btn-light" @click="$emit('close')" title="Close and remove plot">
+                        <button class="btn btn-sm btn-light" @click="$emit('close')" title="Close">
                             <font-awesome-icon :icon="['fas', 'xmark']" />
                         </button>
                     </div>
