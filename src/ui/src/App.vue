@@ -18,7 +18,7 @@ import SystemInfo from './components/SystemInfo.vue';
 
 <style>
 :root {
-  --footer-height: 1.5rem;
+  --footer-height: 3rem;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -65,8 +65,9 @@ footer {
   box-sizing: border-box;
   padding-left: 1%;
   padding-right: 1%;
-  background-color: rgb(250, 244, 232);
   z-index: 10;
+  display: flex;
+  align-items: center;
 }
 
 dialog {

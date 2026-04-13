@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { Dataset, ExperimentResults, ResultsResponse } from "../models/Experiment";
+import { Dataset, ExperimentResults } from "../models/Experiment";
 import { HTTP_URL } from "../constants";
 import { ReplayEpisodeSummary } from "../models/Episode";
 import { ref } from "vue";
@@ -33,11 +33,8 @@ export const useResultsStore = defineStore("ResultsStore", () => {
 
     async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
         const resp = await fetch(`${HTTP_URL}/results/load-by-run/${logdir}`);
-        const runs = await resp.json() as ResultsResponse[];
-        return runs.map(run => {
-            const runLogdir = run.logdir ?? logdir;
-            return new ExperimentResults(runLogdir, run.metrics);
-        });
+        const datasets = await resp.json() as Dataset[][];
+        return datasets.filter(ds => ds.length > 0).map(ds => new ExperimentResults(ds[0].logdir, ds));
     }
 
     function isLoaded(logdir: string): boolean {

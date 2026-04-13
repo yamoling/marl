@@ -136,7 +136,7 @@ const rainbow = new Rainbow();
 rainbow.setSpectrum('red', 'yellow', 'olivedrab');
 
 type RenderTimelineCell = TimelineBin & {
-    value?: number;
+    value?: number | string;
     normalized?: number;
     category?: string | null;
     colour?: string | null;
@@ -240,29 +240,8 @@ const resolvedActionSpace = computed<ActionSpace>(() => {
         space_type: hasBounds ? 'continuous' : 'discrete',
     } as ActionSpace;
 });
-const agentActionSummaries = computed(() => {
-    if (episode.value == null) return [] as Array<{ agentNum: number, actionLabel: string }>;
 
-    const actionLabels = resolvedActionSpace.value.labels ?? [];
-    const actions = episode.value.episode.actions[safeStep.value] ?? [];
-    return actions.map((action, index) => ({
-        agentNum: index + 1,
-        actionLabel: formatActionLabel(action, actionLabels),
-    }));
-});
 
-function formatActionLabel(action: ActionValue, labels: string[]): string {
-    if (typeof action === 'number') {
-        return labels[action] ?? `#${action}`;
-    }
-    if (Array.isArray(action)) {
-        const values = action
-            .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
-            .map((value) => formatNumber(value));
-        return values.length > 0 ? `[${values.join(', ')}]` : '-';
-    }
-    return '-';
-}
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     return target.matches('input, textarea, select, [contenteditable="true"]');
@@ -475,11 +454,19 @@ async function loadEpisode(episodeDirectory: string) {
     loading.value = false;
 }
 
-function formatNumber(value: number): string {
-    if (value == Math.floor(value)) {
-        return value.toString();
+function formatNumber(value: number | string): string {
+    // Convert to number if it's a string
+    const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // If conversion failed or value is not a number, return string representation
+    if (isNaN(numValue)) {
+        return String(value);
     }
-    return value.toFixed(3);
+    
+    if (numValue == Math.floor(numValue)) {
+        return numValue.toString();
+    }
+    return numValue.toFixed(3);
 }
 </script>
 

@@ -38,4 +38,5 @@ def get_experiment_results_by_run(logdir: str):
         datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, source="training", category="Other")
         # qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
         runs_results.append(datasets)
+    print(runs_results)
     return Response(orjson.dumps(runs_results), media_type="application/json")
