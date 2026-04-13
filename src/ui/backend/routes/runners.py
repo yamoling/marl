@@ -19,6 +19,8 @@ async def new_run(logdir: str, request: Request):
     data = await request.json()
     if data is None:
         return Response(content="", status_code=HTTPStatus.BAD_REQUEST)
-    print(data)
-    state.new_runs(logdir, data["nRuns"], data["nTests"], data["seed"])
+    if not all(key in data for key in ("nRuns", "nTests", "seed")):
+        return Response(content="Missing nRuns, nTests or seed", status_code=HTTPStatus.BAD_REQUEST)
+    device = data.get("device", "auto")
+    state.new_runs(logdir, data["nRuns"], data["nTests"], data["seed"], device=device)
     return Response(content="")

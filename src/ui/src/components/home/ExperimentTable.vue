@@ -87,6 +87,8 @@
                     @stop-run="(rundir) => stopRun(slotProps.data.logdir, rundir)" />
             </template>
         </DataTable>
+        <NewRun ref="newRunModalRef" />
+        <DevicePickerModal ref="devicePickerModalRef" />
     </div>
 </template>
 
@@ -109,6 +111,8 @@ import { useColourStore } from '../../stores/ColourStore';
 import { RunStatus } from '../../models/Run';
 import HomeRunsTable from './HomeRunsTable.vue';
 import { RouterLink, useRouter } from 'vue-router';
+import NewRun from '../modals/NewRun.vue';
+import DevicePickerModal from '../modals/DevicePickerModal.vue';
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
@@ -125,6 +129,8 @@ const startingRuns = ref({} as Record<string, boolean>);
 const contextMenuRef = ref();
 const selectedContextExperiment = ref<Experiment | null>(null);
 const colourInputs = new Map<string, HTMLInputElement>();
+const newRunModalRef = ref<{ showModal: (exp: Experiment) => void } | null>(null);
+const devicePickerModalRef = ref<{ showModal: (onConfirm: (device: string) => void) => void } | null>(null);
 
 const contextMenuItems = computed(() => {
     const exp = selectedContextExperiment.value;
@@ -139,6 +145,11 @@ const contextMenuItems = computed(() => {
             label: 'Inspect',
             icon: 'pi pi-external-link',
             command: () => router.push(`/inspect/${logdir}`),
+        },
+        {
+            label: 'Start new runs',
+            icon: 'pi pi-play',
+            command: () => newRunModalRef.value?.showModal(exp),
         },
         {
             label: isLoaded ? 'Unload' : 'Load',
@@ -287,16 +298,19 @@ function experimentColour(logdir: string): string {
 }
 
 async function onRunClicked(logdir: string, rundir: string) {
-    startingRuns.value = {
-        ...startingRuns.value,
-        [rundir]: true,
-    };
-    try {
-        await runStore.startRun(logdir, rundir);
-    } finally {
-        const { [rundir]: _ignored, ...rest } = startingRuns.value;
-        startingRuns.value = rest;
-    }
+    // Show device picker modal and call startRun with selected device
+    devicePickerModalRef.value?.showModal(async (device: string) => {
+        startingRuns.value = {
+            ...startingRuns.value,
+            [rundir]: true,
+        };
+        try {
+            await runStore.startRun(logdir, rundir, device);
+        } finally {
+            const { [rundir]: _ignored, ...rest } = startingRuns.value;
+            startingRuns.value = rest;
+        }
+    });
 }
 
 async function stopRun(logdir: string, rundir: string) {

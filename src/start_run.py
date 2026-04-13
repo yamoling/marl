@@ -1,5 +1,8 @@
 from typing import Literal, Optional
-
+import logging
+import os
+import sys
+import dotenv
 import typed_argparse as tap
 
 
@@ -77,4 +80,14 @@ def main(args: Arguments):
 
 
 if __name__ == "__main__":
-    tap.Parser(Arguments).bind(main).run()
+    dotenv.load_dotenv()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        handlers=[logging.FileHandler("logs.txt", mode="a"), logging.StreamHandler()],
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    try:
+        tap.Parser(Arguments).bind(main).run()
+    except Exception as e:
+        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)

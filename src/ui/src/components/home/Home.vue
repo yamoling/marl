@@ -23,24 +23,15 @@
         </div>
 
         <main class="home-main">
-            <div v-if="resultsStore.results.size == 0" class="empty-state panel-surface">
-                <font-awesome-icon :icon="['fas', 'chart-line']" class="empty-icon" />
-                <h3>Analysis canvas is ready</h3>
-                <p>Load at least one experiment from the left panel to unlock metric visualizations.</p>
-            </div>
-
-            <template v-else>
-                <section class="chart-grid">
-                    <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
-                        :key="metricPlotId(metricId)"
-                        :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
-                        <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
-                            :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
-                            @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))"
-                            @close="closeMetric(metricId)" />
-                    </article>
-                </section>
-            </template>
+            <section v-if="resultsStore.results.size > 0" class="chart-grid">
+                <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
+                    :key="metricPlotId(metricId)"
+                    :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
+                    <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
+                        :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
+                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)" />
+                </article>
+            </section>
         </main>
     </div>
 </template>

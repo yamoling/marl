@@ -116,12 +116,14 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     }
 
 
-    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number) {
-        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns }, "POST");
+    async function newRun(logdir: string, nRuns: number, seed: number, nTests: number, device: string = "auto") {
+        const resp = await fetchWithJSON(`${HTTP_URL}/runner/new/${logdir}`, { seed, nTests, nRuns, device }, "POST");
         if (!resp.ok) {
             alert("Failed to start new run: " + await resp.text());
-            return;
+            return false;
         }
+        await runStore.refresh(logdir);
+        return true;
     }
 
     return {
@@ -137,5 +139,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
         stopRuns,
         rename,
         getEnvImage,
+        newRun,
     };
 });
