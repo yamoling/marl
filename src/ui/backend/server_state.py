@@ -32,7 +32,18 @@ class ServerState:
     def load_experiment(self, logdir: str):
         self._experiments[logdir] = Experiment.load(logdir)
 
-    def new_runs(self, logdir: str, n_runs: int, n_tests: int, seed: int, device: str):
+    def new_runs(
+        self,
+        logdir: str,
+        n_runs: int,
+        n_tests: int,
+        seed: int,
+        device: str = "auto",
+        gpu_strategy: str = "scatter",
+        disabled_devices: list[int] | None = None,
+    ):
+        if disabled_devices is None:
+            disabled_devices = []
         command = [
             sys.executable,
             "src/start_run.py",
@@ -41,7 +52,10 @@ class ServerState:
             f"--n-tests={n_tests}",
             f"--seed={seed}",
             f"--device={device}",
+            f"--gpu-strategy={gpu_strategy}",
         ]
+        if disabled_devices:
+            command.extend(["--disabled-devices", *[str(device_id) for device_id in disabled_devices]])
         logging.info("Starting new process with command: " + " ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
         subprocess.Popen(

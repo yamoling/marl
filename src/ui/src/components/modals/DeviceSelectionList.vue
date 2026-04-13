@@ -1,9 +1,9 @@
 <template>
     <div class="device-picker">
         <div v-for="option in deviceOptions" :key="option.value" class="device-option"
-            :class="{ 'is-selected': device === option.value }" @click="selectDevice(option.value)">
-            <input type="radio" :id="`device-${option.value}`" :value="option.value" v-model="device"
-                class="form-check-input" />
+            :class="{ 'is-selected': isSelected(option.value) }">
+            <input :type="multiple ? 'checkbox' : 'radio'" :id="`device-${option.value}`" :value="option.value"
+                :checked="isSelected(option.value)" class="form-check-input" @change="toggleDevice(option.value)" />
             <label :for="`device-${option.value}`" class="device-label">
                 <span class="device-name">{{ option.label }}</span>
                 <span class="device-stress" :style="{ color: getStressColor(option.stress) }">
@@ -23,20 +23,47 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useSystemStore } from '../../stores/SystemStore';
-import { buildDeviceOptions, getRecommendedDevice, getStressColor, getStressLabel } from '../../utils/systemStress';
+import { buildDeviceOptions, buildGpuDeviceOptions, getRecommendedDevice, getStressColor, getStressLabel } from '../../utils/systemStress';
 
-const device = defineModel<string>({ required: true });
-
-defineProps<{
+const props = withDefaults(defineProps<{
+    multiple?: boolean;
+    includeSystemDevices?: boolean;
     warningText?: string | null;
-}>();
+}>(), {
+    multiple: false,
+    includeSystemDevices: true,
+    warningText: null,
+});
+
+const device = defineModel<string | string[]>({ required: true });
 
 const systemStore = useSystemStore();
 
-const deviceOptions = computed(() => buildDeviceOptions(systemStore.systemInfo));
+const deviceOptions = computed(() => {
+    return props.includeSystemDevices ? buildDeviceOptions(systemStore.systemInfo) : buildGpuDeviceOptions(systemStore.systemInfo);
+});
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
 
-function selectDevice(value: string) {
+function isSelected(value: string): boolean {
+    if (props.multiple) {
+        return Array.isArray(device.value) && device.value.includes(value);
+    }
+    return device.value === value;
+}
+
+function toggleDevice(value: string) {
+    if (props.multiple) {
+        const selected = Array.isArray(device.value) ? [...device.value] : [];
+        const index = selected.indexOf(value);
+        if (index >= 0) {
+            selected.splice(index, 1);
+        } else {
+            selected.push(value);
+        }
+        device.value = selected;
+        return;
+    }
+
     device.value = value;
 }
 

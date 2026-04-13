@@ -6,4 +6,5 @@ export interface Run {
     pid: number | null
     progress: number
     status: RunStatus
+    n_tests: number
 }

@@ -51,6 +51,13 @@ class Run:
         return self.reader.get_test_episodes(time_step)
 
     @property
+    def n_tests(self):
+        try:
+            return self.test_metrics.filter(pl.col(TIME_STEP_COL) == 0).height
+        except pl.exceptions.ColumnNotFoundError:
+            return 1
+
+    @property
     def seed(self) -> int:
         splits = self.rundir.split("seed=")
         return int(splits[-1])
