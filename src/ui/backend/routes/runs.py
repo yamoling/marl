@@ -1,7 +1,7 @@
 from http import HTTPStatus
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import Response
 from . import state
 import orjson
@@ -53,9 +53,17 @@ def stop_run(rundir: str):
 
 
 @router.post("/runs/start/{rundir:path}")
-def start_run(rundir: str):
+async def start_run(rundir: str, request: Request):
     try:
-        state.start_run(rundir)
+        device = "auto"
+        try:
+            data = await request.json()
+            if data is not None and "device" in data:
+                device = data["device"]
+        except Exception:
+            # If no JSON body, default to auto
+            pass
+        state.start_run(rundir, device=device)
         return Response(status_code=HTTPStatus.NO_CONTENT)
     except FileNotFoundError as e:
         return Response(content=str(e), status_code=HTTPStatus.NOT_FOUND)

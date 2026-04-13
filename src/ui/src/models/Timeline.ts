@@ -14,18 +14,36 @@ export class TimelineModel {
         this.episodeLength = Math.max(0, episodeLength);
     }
 
-    public buildBins(transitionCount: number): TimelineBin[] {
+    public buildBins(transitionCount: number, maxBins = transitionCount): TimelineBin[] {
         const steps = Math.max(0, transitionCount);
+        const targetBins = Math.max(1, Math.floor(maxBins));
         if (steps === 0) return [];
 
-        const bins: TimelineBin[] = [];
+        if (targetBins >= steps) {
+            const bins: TimelineBin[] = [];
 
-        for (let step = 1; step <= steps; step++) {
+            for (let step = 1; step <= steps; step++) {
+                bins.push({
+                    key: `${step}`,
+                    startStep: step,
+                    endStep: step,
+                    representativeStep: step,
+                });
+            }
+
+            return bins;
+        }
+
+        const bins: TimelineBin[] = [];
+        const binSize = Math.ceil(steps / targetBins);
+
+        for (let step = 1; step <= steps; step += binSize) {
+            const endStep = Math.min(steps, step + binSize - 1);
             bins.push({
-                key: `${step}`,
+                key: `${step}-${endStep}`,
                 startStep: step,
-                endStep: step,
-                representativeStep: step,
+                endStep,
+                representativeStep: Math.round((step + endStep) / 2),
             });
         }
 
@@ -72,7 +90,8 @@ export class ContinuousBarTrack extends TimelineTrack {
     buildCells(bins: TimelineBin[]): ContinuousBarCell[] {
         const absMax = this.absoluteMax();
         return bins.map((bin) => {
-            const value = this.values[bin.startStep - 1] ?? 0;
+            const window = this.values.slice(bin.startStep - 1, bin.endStep);
+            const value = window.reduce((sum, entry) => sum + (entry ?? 0), 0);
 
             return {
                 ...bin,
@@ -127,7 +146,8 @@ export class DiscreteTrack extends TimelineTrack {
         const cells = [] as DiscreteCell[];
 
         for (const bin of bins) {
-            const category = this.values[bin.startStep - 1] ?? null;
+            const window = this.values.slice(bin.startStep - 1, bin.endStep);
+            const category = mostFrequentCategory(window);
             const cell: DiscreteCell = {
                 ...bin,
                 category,
@@ -163,4 +183,25 @@ function randomHexColour(): string {
     const green = channel();
     const blue = channel();
     return `#${toHex(red)}${toHex(green)}${toHex(blue)}`;
+}
+
+function mostFrequentCategory(values: Array<string | null>): string | null {
+    const counts = new Map<string, number>();
+
+    for (const value of values) {
+        if (value == null) continue;
+        counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+
+    let bestCategory: string | null = null;
+    let bestCount = 0;
+
+    for (const [category, count] of counts) {
+        if (count > bestCount) {
+            bestCategory = category;
+            bestCount = count;
+        }
+    }
+
+    return bestCategory;
 }

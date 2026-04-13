@@ -53,23 +53,6 @@ export interface Dataset {
     ci95: number[]
 }
 
-export interface ResultsMeta {
-    metric_labels: string[]
-    qvalue_labels: string[]
-    metric_sources: string[]
-    metric_counts_by_source: Record<string, number>
-    n_metric_series: number
-    n_qvalue_series: number
-}
-
-export interface ResultsResponse {
-    version: number
-    metrics: Dataset[]
-    qvalues: Dataset[]
-    meta: ResultsMeta
-    logdir?: string
-}
-
 function groupByLabel(datasets: Dataset[]): Map<string, Dataset[]> {
     const grouped = new Map<string, Dataset[]>();
     datasets.forEach(ds => {

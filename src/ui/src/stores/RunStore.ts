@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { HTTP_URL } from "../constants";
-import {Run} from "../models/Run";
+import { Run } from "../models/Run";
 import { ref } from "vue";
 
 export const useRunStore = defineStore("RunStore", () => {
@@ -25,8 +25,12 @@ export const useRunStore = defineStore("RunStore", () => {
         await refresh(logdir);
     }
 
-    async function startRun(logdir: string, rundir: string) {
-        const resp = await fetch(`${HTTP_URL}/runs/start/${rundir}`, { method: "POST" });
+    async function startRun(logdir: string, rundir: string, device: string = "auto") {
+        const resp = await fetch(`${HTTP_URL}/runs/start/${rundir}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ device })
+        });
         if (!resp.ok) {
             alert("Failed to start run: " + await resp.text());
             return;

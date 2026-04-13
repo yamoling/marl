@@ -1,12 +1,12 @@
 <template>
   <main>
-    <h1 class="app-title">
-      <RouterLink to="/home" aria-label="Go to homepage">RL Dashboard</RouterLink>
-    </h1>
-    <RouterView></RouterView>
-    <footer>
+    <header class="app-header">
+      <h1 class="app-title">
+        <RouterLink to="/home" aria-label="Go to homepage">RL Dashboard</RouterLink>
+      </h1>
       <SystemInfo />
-    </footer>
+    </header>
+    <RouterView></RouterView>
   </main>
 </template>
 
@@ -18,7 +18,6 @@ import SystemInfo from './components/SystemInfo.vue';
 
 <style>
 :root {
-  --footer-height: 1.5rem;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -41,7 +40,18 @@ main {
   box-sizing: border-box;
   padding-left: 1%;
   padding-right: 1%;
-  padding-bottom: var(--footer-height);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.app-title {
+  margin: 0;
 }
 
 
@@ -53,20 +63,6 @@ main {
 .app-title a:hover,
 .app-title a:focus-visible {
   text-decoration: underline;
-}
-
-footer {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  height: var(--footer-height);
-  font-size: smaller;
-  width: 100%;
-  box-sizing: border-box;
-  padding-left: 1%;
-  padding-right: 1%;
-  background-color: rgb(250, 244, 232);
-  z-index: 10;
 }
 
 dialog {

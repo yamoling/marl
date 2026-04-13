@@ -32,7 +32,7 @@ class ServerState:
     def load_experiment(self, logdir: str):
         self._experiments[logdir] = Experiment.load(logdir)
 
-    def new_runs(self, logdir: str, n_runs: int, n_tests: int, seed: int):
+    def new_runs(self, logdir: str, n_runs: int, n_tests: int, seed: int, device: str):
         command = [
             sys.executable,
             "src/start_run.py",
@@ -40,7 +40,7 @@ class ServerState:
             f"--n-runs={n_runs}",
             f"--n-tests={n_tests}",
             f"--seed={seed}",
-            "--device=auto",
+            f"--device={device}",
         ]
         logging.info("Starting new process with command: " + " ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
@@ -53,7 +53,7 @@ class ServerState:
             close_fds=True,
         )
 
-    def start_run(self, rundir: str):
+    def start_run(self, rundir: str, device: str = "auto"):
         logdir = Experiment.find_experiment_directory(rundir)
         if logdir is None:
             raise FileNotFoundError(f"Could not find experiment for run {rundir}")
@@ -69,7 +69,7 @@ class ServerState:
 
         if target_run.is_running or target_run.is_completed(experiment.n_steps):
             return
-        self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed)
+        self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed, device=device)
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()
