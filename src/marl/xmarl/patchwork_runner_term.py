@@ -1,6 +1,7 @@
 # type: ignore
 
 import os
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -434,7 +435,7 @@ def main():
     try:
         Selector().run()
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logging.error(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

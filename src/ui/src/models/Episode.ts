@@ -13,6 +13,7 @@ export interface ActionDetails {
     action_probabilities?: number[][] | number[][][]
     q_values?: number[][] | number[][][]
     options?: number[]
+    options_termination_probs?: number[]
     meta_actions?: number[]
 }
 

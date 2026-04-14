@@ -1,23 +1,21 @@
 # type: ignore
-from marl.models import Experiment
+import logging
+import os
+import pathlib
+
+import numpy as np
 from marlenv.models import Episode
 
-import pathlib
-import os
-import numpy as np
-
-from marl.xmarl.distilers.sdt import SoftDecisionTree
+from marl.models import Experiment
 from marl.xmarl import FrameViewer, HeatmapXFrameViewer
-
+from marl.xmarl.distilers.sdt import SoftDecisionTree
 from marl.xmarl.distilers.utils import get_env_infos
 
 LOG_PATH = pathlib.Path("logs")
 
 
 def get_selection(cur_dir: str, file_list: str) -> pathlib.Path:
-    print("Select one of the following files (you may use the list index):")
-    print(file_list)
-    file_str = input()
+    file_str = input(f"Select one of the following files (you may use the list index):\n{file_list}")
     if file_str in file_list:
         file_path = cur_dir / file_str
     elif file_str.lstrip("-").isnumeric() and abs(int(file_str)) < len(file_list):
@@ -35,25 +33,21 @@ def handle_selection() -> tuple[Experiment, pathlib.Path, pathlib.Path]:
     experiment = Experiment.load(exp_path)
     if experiment.logdir != exp_path:
         experiment.logdir = exp_path
-    print()
 
     exp_cont = os.listdir(exp_path)
     run_list = [run for run in exp_cont if "run" in run]
     run_path = get_selection(exp_path, run_list)
-    print()
 
     test_path = run_path / "test"
     test_list = os.listdir(test_path)
     timestep_path = get_selection(test_path, test_list)
-    print()
 
     distil_path = None
     extra = False
     if "distil" in exp_cont:
         distil_list = [distil for distil in os.listdir(exp_path / "distil") if "distil" in distil]
         if len(distil_list) > 0:
-            print("Distillation(s) of the experiment's model found, do you want to visualize it? \n[Y/N]")
-            yn = input()
+            yn = input("Distillation(s) of the experiment's model found, do you want to visualize it? \n[Y/N]")
             if str.upper(yn) == "Y":
                 distil_path = get_selection(exp_path / "distil", distil_list)
             if "individual" in str(distil_path):
@@ -61,10 +55,9 @@ def handle_selection() -> tuple[Experiment, pathlib.Path, pathlib.Path]:
                     if "extra" in d:
                         extra = True
                 if extra:
-                    print(
+                    yn = input(
                         "For individual agent distillation there is a version with and without extras. Do you want extras (Y) or not (n)?"
                     )
-                    yn = input()
                     if str.upper(yn) != "Y":
                         extra = False
 
@@ -73,10 +66,12 @@ def handle_selection() -> tuple[Experiment, pathlib.Path, pathlib.Path]:
 
 def handle_distillation(episode: Episode, distil_path: pathlib.Path, extra: bool):
     if "sdt" in str(distil_path):
-        print(
-            "SDT has two types of explanations to provide, choose by inputting the index: \n0: Forward (Traverse greediest path to action) - 1: Backward (Filters of path to original action)"
+        e_type = (
+            input(
+                "SDT has two types of explanations to provide, choose by inputting the index: \n0: Forward (Traverse greediest path to action) - 1: Backward (Filters of path to original action)"
+            )
+            == "1"
         )
-        e_type = input() == "1"
         if "individual" in str(distil_path):
             distilled_filters = []
             distilled_extras = []
@@ -113,8 +108,6 @@ def handle_distillation(episode: Episode, distil_path: pathlib.Path, extra: bool
 
 
 def main():
-    print("Episode runner")
-
     experiment, timestep_path, distil_path, extra = handle_selection()
 
     episode_str = timestep_path / "0"

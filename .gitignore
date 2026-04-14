@@ -207,4 +207,5 @@ uv.lock
 wandb
 logs.txt
 papers/
+*.log
 .playwright-mcp

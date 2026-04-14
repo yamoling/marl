@@ -81,17 +81,22 @@ export type ContinuousBarCell = TimelineBin & {
 
 export class ContinuousBarTrack extends TimelineTrack {
     readonly values: number[];
+    readonly aggregation: 'sum' | 'mean';
 
-    constructor(id: string, label: string, values: number[], visible = true) {
+    constructor(id: string, label: string, values: number[], visible = true, aggregation: 'sum' | 'mean' = 'sum') {
         super(id, label, 'continuous-bar', visible);
         this.values = values;
+        this.aggregation = aggregation;
     }
 
     buildCells(bins: TimelineBin[]): ContinuousBarCell[] {
         const absMax = this.absoluteMax();
         return bins.map((bin) => {
             const window = this.values.slice(bin.startStep - 1, bin.endStep);
-            const value = window.reduce((sum, entry) => sum + (entry ?? 0), 0);
+            const sum = window.reduce((accumulator, entry) => accumulator + (entry ?? 0), 0);
+            const value = this.aggregation === 'mean' && window.length > 0
+                ? sum / window.length
+                : sum;
 
             return {
                 ...bin,

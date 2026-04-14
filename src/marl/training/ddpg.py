@@ -113,12 +113,6 @@ class DDPGTrainer(Trainer):
 
         self.policy_optimiser.zero_grad()
         actor_loss.backward()
-        for name, param in self.network.named_parameters():
-            if param.grad is not None:
-                pass
-                # print(f'Parameter: {name}, Gradient: {param.grad}')
-            else:
-                print(f"Parameter: {name}, Gradient: None")
         self.policy_optimiser.step()
 
         # self._update_networks()

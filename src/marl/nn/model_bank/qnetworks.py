@@ -85,7 +85,6 @@ class RNNQMix(RecurrentQNetwork):
             obs = obs.reshape(episode_length, -1, obs_size)
             extras = torch.reshape(extras, (*obs.shape[:-1], -1))
             x = torch.concat((obs, extras), dim=-1)
-            # print(x)
             x = self.fc1.forward(x)
             x, self.hidden_states = self.gru.forward(x, self.hidden_states)
             x = self.fc2.forward(x)

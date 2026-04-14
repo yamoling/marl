@@ -1,6 +1,7 @@
 from lle import World, LLE, exceptions
 import random
 import time
+import logging
 import os
 
 
@@ -80,7 +81,6 @@ def main():
     lvl6 = LLE.level(6).build()
     generator = Generator(num_agents=4, num_lasers=2, num_gems=lvl6.world.n_gems, wall_density=0.05, width=lvl6.width, height=lvl6.height)
     n_saved = len([f for f in os.listdir(".") if f.startswith("world-")])
-    print(n_saved)
     while True:
         try:
             world = generator.generate()
@@ -96,11 +96,11 @@ def main():
                     with open(f"world-{n_saved}", "w") as f:
                         f.write(s)
                     n_saved += 1
-                    print("Saved")
+                    logging.debug("Saved")
                 case _:
-                    print("Not saved")
+                    logging.debug("Not saved")
         except exceptions.ParsingError as e:
-            print("ParsingError:", e)
+            logging.error("ParsingError:", e)
 
 
 def remove_gems():
@@ -112,7 +112,7 @@ def remove_gems():
         n_gems = content.count("G")
         if n_gems == 5:
             content = content.replace("G", ".", count=1)
-            print(f"Removed a gem from {file}")
+            logging.debug(f"Removed a gem from {file}")
         with open(file, "w") as f:
             f.write(content)
 

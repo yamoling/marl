@@ -25,7 +25,7 @@
                             <span class="text-muted">/ {{ episodeLength }}</span>
                         </div>
 
-                        <div class="timeline-resolution">
+                        <div v-if="hasTimelineResolutionChoice" class="timeline-resolution">
                             <span>Timeline</span>
                             <div class="btn-group btn-group-sm" role="group" aria-label="Timeline resolution">
                                 <button type="button" class="btn btn-outline-secondary"
@@ -66,12 +66,13 @@
                                     :class="{
                                         selected: isStepInsideCell(cell),
                                         reward: track.kind === 'continuous-bar',
+                                        probability: isProbabilityTrack(track),
                                         option: track.kind === 'discrete',
                                     }" :style="timelineCellStyle(track.kind, cell)"
                                     :title="timelineCellTitle(track, cell)" @click="selectStep(cell.representativeStep)"
                                     @pointerdown="onCellPointerDown(cell)" @pointerenter="onCellPointerEnter(cell)">
                                     <span v-if="track.kind === 'continuous-bar'" class="reward-fill"
-                                        :style="rewardFillStyle(cell.normalized ?? 0)" />
+                                        :style="rewardFillStyle(track, cell.normalized ?? 0)" />
                                     <span class="visually-hidden">{{ timelineCellTitle(track, cell) }}</span>
                                 </button>
                             </div>
@@ -103,7 +104,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import Rainbow from 'rainbowvis.js';
 import AgentInfo from './AgentInfo.vue';
-import { ActionValue, ReplayEpisode } from '../../models/Episode';
+import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Experiment } from '../../models/Experiment';
 import Accordion from 'primevue/accordion';
@@ -157,6 +158,7 @@ const timelineTargetBins = computed(() => {
     if (timelineMode.value === 'detail') return rewardValues.value.length;
     return Math.min(180, Math.max(1, rewardValues.value.length));
 });
+const hasTimelineResolutionChoice = computed(() => rewardValues.value.length > 180);
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
@@ -182,6 +184,20 @@ const allTracks = computed(() => {
             const hasAnyOption = optionValues.some((option) => option != null);
             if (!hasAnyOption) continue;
             tracks.push(new DiscreteTrack(`options-agent-${agentNum + 1}`, `Option A${agentNum + 1}`, optionValues));
+
+            const terminationProbabilities = rewardValues.value.map((_, stepIndex) => {
+                const value = episode.value?.action_details[stepIndex]?.options_termination_probs?.[agentNum];
+                return normalizeContinuous(value);
+            });
+            const hasAnyTerminationProbability = terminationProbabilities.some((value) => value != null);
+            if (!hasAnyTerminationProbability) continue;
+            tracks.push(new ContinuousBarTrack(
+                `termination-prob-agent-${agentNum + 1}`,
+                `Option term. A${agentNum + 1}`,
+                terminationProbabilities.map((value) => value ?? 0),
+                true,
+                'mean',
+            ));
         }
     }
 
@@ -348,11 +364,21 @@ function stopScrubbing() {
     isScrubbing.value = false;
 }
 
-function rewardFillStyle(normalizedReward: number): { [key: string]: string } {
-    const clipped = Math.max(-1, Math.min(1, normalizedReward));
+function rewardFillStyle(track: RenderTrack, normalizedReward: number): { [key: string]: string } {
+    const isProbability = isProbabilityTrack(track);
+    const clipped = isProbability
+        ? Math.max(0, Math.min(1, normalizedReward))
+        : Math.max(-1, Math.min(1, normalizedReward));
     const style = {
-        height: `${Math.abs(clipped) * 50}%`,
+        height: isProbability
+            ? `${Math.abs(clipped) * 100}%`
+            : `${Math.abs(clipped) * 50}%`,
     } as { [key: string]: string };
+
+    if (isProbability) {
+        style.bottom = '0';
+        return style;
+    }
 
     if (clipped >= 0) {
         style.bottom = '50%';
@@ -411,6 +437,10 @@ function currentTrackValueLabel(track: RenderTrack): string {
     return '-';
 }
 
+function isProbabilityTrack(track: RenderTrack): boolean {
+    return track.id.startsWith('termination-prob-agent-');
+}
+
 function normalizeOption(value: unknown): string | null {
     if (value == null) return null;
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -421,6 +451,15 @@ function normalizeOption(value: unknown): string | null {
     } catch {
         return String(value);
     }
+}
+
+function normalizeContinuous(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return null;
 }
 
 function changeStep(event: KeyboardEvent) {
@@ -457,12 +496,12 @@ async function loadEpisode(episodeDirectory: string) {
 function formatNumber(value: number | string): string {
     // Convert to number if it's a string
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    
+
     // If conversion failed or value is not a number, return string representation
     if (isNaN(numValue)) {
         return String(value);
     }
-    
+
     if (numValue == Math.floor(numValue)) {
         return numValue.toString();
     }
@@ -639,6 +678,12 @@ function formatNumber(value: number | string): string {
             color-mix(in srgb, var(--bs-danger) 22%, transparent),
             color-mix(in srgb, var(--bs-success) 42%, transparent));
     z-index: 2;
+}
+
+.timeline-cell.probability .reward-fill {
+    background: linear-gradient(to top,
+            color-mix(in srgb, var(--bs-info) 26%, transparent),
+            color-mix(in srgb, var(--bs-primary) 56%, transparent));
 }
 
 .slider-label {
