@@ -1,5 +1,4 @@
 # type: ignore
-import logging
 import os
 import pathlib
 
@@ -7,9 +6,9 @@ import numpy as np
 from marlenv.models import Episode
 
 from marl.models import Experiment
-from marl.xmarl import FrameViewer, HeatmapXFrameViewer
-from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import get_env_infos
+from xmarl import FrameViewer, HeatmapXFrameViewer
+from xmarl.distilers.sdt import SoftDecisionTree
+from xmarl.distilers.utils import get_env_infos
 
 LOG_PATH = pathlib.Path("logs")
 

@@ -11,7 +11,7 @@ import torch.optim as optim
 from marlenv.models import Episode
 
 from marl.models.batch import Batch
-from marl.xmarl.distilers.utils import abstract_observation, flatten_observation, get_agent_pos, get_fixed_features
+from xmarl.distilers.utils import abstract_observation, flatten_observation, get_agent_pos, get_fixed_features
 
 EPS = 1e-6
 

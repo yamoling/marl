@@ -19,9 +19,9 @@ from textual.widgets import (
 )
 
 from marl.models import Experiment
-from marl.xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
-from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import feature_labels, get_env_infos
+from xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
+from xmarl.distilers.sdt import SoftDecisionTree
+from xmarl.distilers.utils import feature_labels, get_env_infos
 
 LOG_PATH = Path("logs")
 
