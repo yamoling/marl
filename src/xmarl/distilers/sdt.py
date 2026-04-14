@@ -38,7 +38,7 @@ class InnerNode(nn.Module):
         self.lmbda = lmbda * 2 ** (-depth)  # Lambda decays with depth
         self.device = device
         # Modules
-        self.fc = nn.Linear(self.input_shape[0], 1)
+        self.fc = nn.Linear(input_shape[0], 1)
         self.beta = nn.Parameter(torch.tensor(10.0))  # Fixed at one, to keep in check
         # Tree specific
         self.leaf = False

@@ -8,12 +8,12 @@
 <script setup lang="ts">
 import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ContinuousBarTrack, DiscreteTrack } from '../../models/Timeline';
+import { TimelineTrack } from '../../models/Timeline';
+import { formatNumber } from './numberFormat';
 
 const props = defineProps<{
-    track: ContinuousBarTrack | DiscreteTrack;
+    track: TimelineTrack;
     currentStep: number;
-    episodeLength: number;
 }>();
 
 const emits = defineEmits<{
@@ -26,7 +26,7 @@ const canvas = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<'line', ChartPoint[], number> | null = null;
 
 const nowIndicatorStyle = computed(() => {
-    const length = Math.max(1, props.episodeLength);
+    const length = Math.max(1, props.track.length());
     const ratio = Math.max(0, Math.min(1, props.currentStep / length));
     return {
         '--now-ratio': ratio.toString(),
@@ -34,7 +34,7 @@ const nowIndicatorStyle = computed(() => {
 });
 
 watch(
-    () => [props.track, props.episodeLength] as const,
+    () => [props.track] as const,
     () => {
         syncChart();
     },
@@ -55,7 +55,7 @@ onUnmounted(() => {
 function syncChart() {
     if (canvas.value == null) return;
 
-    const nextConfig = chartConfigForTrack(props.track, props.episodeLength);
+    const nextConfig = chartConfigForTrack(props.track);
     if (chart == null) {
         chart = new Chart(canvas.value, nextConfig);
         return;
@@ -69,76 +69,93 @@ function syncChart() {
 }
 
 function chartConfigForTrack(
-    track: ContinuousBarTrack | DiscreteTrack,
-    episodeLength: number,
+    track: TimelineTrack,
 ): ChartConfiguration<'line', ChartPoint[], number> {
-    const maxStep = Math.max(1, episodeLength);
+    if (track.kind === 'numeric') {
+        return makeNumericChartConfig(track)
+    }
+    return makeCategoricalChartConfig(track)
+}
 
-    if (track instanceof ContinuousBarTrack) {
-        const data = track.values.map((value, index) => ({
-            x: index + 1,
-            y: Number.isFinite(value) ? value : null,
-        }));
-
-        return {
-            type: 'line' as const,
-            data: {
-                datasets: [
-                    {
-                        label: track.label,
-                        data,
-                        borderColor: '#1f77b4',
-                        backgroundColor: 'rgba(31, 119, 180, 0.22)',
-                        pointRadius: 0,
-                        borderWidth: 1.5,
-                        tension: 0,
-                    } satisfies ChartDataset<'line', ChartPoint[]>,
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false as const,
-                normalized: true,
-                interaction: {
-                    intersect: false,
-                    mode: 'nearest' as const,
-                },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: (context) => `${track.label}: ${formatNumber(context.parsed.y ?? 0)}`,
-                        },
-                    },
-                },
-                scales: {
-                    x: {
-                        type: 'linear',
-                        display: false,
-                        min: 0,
-                        max: maxStep,
-                    },
-                    y: {
-                        display: false,
-                        ticks: {
-                            maxTicksLimit: 3,
-                        },
-                    },
-                },
-                onClick: (_event, elements) => {
-                    if (elements.length === 0) return;
-                    emits('select-step', elements[0].index + 1);
-                },
-            },
-        };
+function toNumberOrNull(value: unknown): number | null {
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
     }
 
-    const discreteTrack = track as DiscreteTrack;
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+}
+
+function makeNumericChartConfig(track: TimelineTrack): ChartConfiguration<'line', ChartPoint[], number> {
+    const data = track.values.map((value, index) => ({
+        x: index + 1,
+        y: toNumberOrNull(value),
+    }));
+
+    return {
+        type: 'line' as const,
+        data: {
+            datasets: [
+                {
+                    label: track.label,
+                    data,
+                    borderColor: '#1f77b4',
+                    backgroundColor: 'rgba(31, 119, 180, 0.22)',
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    tension: 0,
+                } satisfies ChartDataset<'line', ChartPoint[]>,
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false as const,
+            normalized: true,
+            interaction: {
+                intersect: false,
+                mode: 'nearest' as const,
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${track.label}: ${formatNumber(context.parsed.y ?? 0)}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    display: false,
+                    min: 0,
+                    max: track.length(),
+                },
+                y: {
+                    display: false,
+                    ticks: {
+                        maxTicksLimit: 3,
+                    },
+                },
+            },
+            onClick: (_event, elements) => {
+                if (elements.length === 0) return;
+                emits('select-step', elements[0].index + 1);
+            },
+        },
+    };
+}
+
+
+function makeCategoricalChartConfig(track: TimelineTrack): ChartConfiguration<'line', ChartPoint[], number> {
     const categoryToLevel = new Map<string, number>();
     const levelToCategory = {} as Record<number, string>;
 
-    const data = discreteTrack.values.map((value, index) => {
+    const data = track.values.map((value, index) => {
         if (value == null) {
             return {
                 x: index + 1,
@@ -173,7 +190,7 @@ function chartConfigForTrack(
                     borderWidth: 1.5,
                     tension: 0,
                     spanGaps: false,
-                    stepped: 'after',
+                    stepped: 'middle',
                 } satisfies ChartDataset<'line', ChartPoint[]>,
             ],
         },
@@ -203,7 +220,7 @@ function chartConfigForTrack(
                     type: 'linear',
                     display: false,
                     min: 0,
-                    max: maxStep,
+                    max: track.length(),
                 },
                 y: {
                     display: false,
@@ -225,20 +242,6 @@ function chartConfigForTrack(
             },
         },
     };
-}
-
-function formatNumber(value: number | string): string {
-    const numericValue = typeof value === 'string' ? Number.parseFloat(value) : value;
-
-    if (Number.isNaN(numericValue)) {
-        return String(value);
-    }
-
-    if (numericValue === Math.floor(numericValue)) {
-        return numericValue.toString();
-    }
-
-    return numericValue.toFixed(3);
 }
 </script>
 

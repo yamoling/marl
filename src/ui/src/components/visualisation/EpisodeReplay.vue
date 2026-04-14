@@ -5,17 +5,14 @@
 
         <template v-else-if="episode != null">
             <section class="replay-row top-row">
-                <div class="top-left text-center">
-                    <img class="img-fluid replay-frame" :src="'data:image/jpg;base64, ' + currentFrame" />
-                </div>
-
+                <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
-                    <ActionPanel v-if="episode != null" :episode="episode" :current-step="currentStep"
-                        :action-space="resolvedActionSpace" :n-agents="nAgents" />
+                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="resolvedActionSpace"
+                        :n-agents="nAgents" />
                 </aside>
             </section>
 
-            <section class="replay-row row-divider controls-row">
+            <section class="replay-row row-divider">
                 <div class="timeline-wrap">
                     <div style="display: flex;">
                         <div class="manual-step-input me-5">
@@ -23,23 +20,6 @@
                             <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
                                 @keyup.enter="changeStep" />
                             <span class="text-muted">/ {{ episodeLength }}</span>
-                        </div>
-
-                        <div v-if="hasTimelineResolutionChoice" class="timeline-resolution">
-                            <span>Timeline</span>
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Timeline resolution">
-                                <button type="button" class="btn btn-outline-secondary"
-                                    :class="{ active: timelineMode === 'overview' }" @click="timelineMode = 'overview'">
-                                    Overview
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary"
-                                    :class="{ active: timelineMode === 'detail' }" @click="timelineMode = 'detail'">
-                                    Detail
-                                </button>
-                            </div>
-                            <span class="text-muted timeline-resolution-hint">
-                                {{ timelineMode === 'overview' ? `${timelineBins.length} bins` : 'Full resolution' }}
-                            </span>
                         </div>
 
                     </div>
@@ -56,76 +36,43 @@
                         <div v-for="(view, index) in visibleTrackViews" :key="view.track.id"
                             class="timeline-track-item">
                             <div class="timeline-track-toolbar">
-                                <span class="timeline-track-label">
-                                    {{ view.track.label }}
-                                    <span class="timeline-track-value">{{ currentTrackValueLabel(view.track) }}</span>
-                                </span>
-
-                                <div class="timeline-track-toolbar-actions">
-                                    <div class="btn-group btn-group-sm" role="group"
-                                        :aria-label="`${view.track.label} visualization mode`">
-                                        <button type="button" class="btn btn-outline-secondary"
-                                            :class="{ active: trackMode(view.track.id) === 'cells' }"
-                                            @click="setTrackMode(view.track.id, 'cells')">
-                                            Cells
-                                        </button>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                            :class="{ active: trackMode(view.track.id) === 'line' }"
-                                            @click="setTrackMode(view.track.id, 'line')">
-                                            Line
-                                        </button>
-                                    </div>
-
-                                    <div class="btn-group btn-group-sm" role="group"
+                                <div class="timeline-track-toolbar-left">
+                                    <div class="btn-group btn-group-sm timeline-track-order" role="group"
                                         :aria-label="`${view.track.label} order controls`">
-                                        <button type="button" class="btn btn-outline-secondary" :disabled="index === 0"
-                                            @click="moveTrack(view.track.id, -1)">
-                                            Up
+                                        <button type="button"
+                                            class="btn btn-outline-secondary timeline-track-order-button"
+                                            :disabled="index === 0" @click="moveTrack(view.track.id, -1)">
+                                            <font-awesome-icon :icon="['fas', 'arrow-up']" />
                                         </button>
-                                        <button type="button" class="btn btn-outline-secondary"
+                                        <button type="button"
+                                            class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index === visibleTrackViews.length - 1"
                                             @click="moveTrack(view.track.id, 1)">
-                                            Down
+                                            <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
                                     </div>
+
+                                    <span class="timeline-track-label">
+                                        {{ view.track.label }}
+                                        <span class="timeline-track-value">{{ currentTrackValueLabel(view.track)
+                                        }}</span>
+                                    </span>
                                 </div>
                             </div>
-
-                            <TimelineChartTracks v-if="trackMode(view.track.id) === 'line'" :track="view.track"
-                                :current-step="currentStep" :episode-length="episodeLength" @select-step="selectStep" />
-
-                            <div v-else class="timeline-track-area" @pointerleave="onTimelinePointerLeave">
-                                <span class="now-indicator" :style="nowIndicatorStyle" />
-
-                                <div class="timeline-track-cells">
-                                    <button v-for="cell in view.cells" :key="cell.key" type="button"
-                                        class="timeline-cell" :class="{
-                                            selected: isStepInsideCell(cell),
-                                            reward: view.track.kind === 'continuous-bar',
-                                            probability: isProbabilityTrack(view.track),
-                                            option: view.track.kind === 'discrete',
-                                        }" :style="timelineCellStyle(view.track.kind, cell)"
-                                        :title="timelineCellTitle(view.track, cell)"
-                                        @click="selectStep(cell.representativeStep)"
-                                        @pointerdown="onCellPointerDown(cell)" @pointerenter="onCellPointerEnter(cell)">
-                                        <span v-if="view.track.kind === 'continuous-bar'" class="reward-fill"
-                                            :style="rewardFillStyle(view.track, cellNormalized(view.track, cell))" />
-                                        <span class="visually-hidden">{{ timelineCellTitle(view.track, cell) }}</span>
-                                    </button>
-                                </div>
-                            </div>
+                            <TimelineChartTracks :track="view.track" :current-step="currentStep"
+                                @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
             </section>
 
             <section class="replay-row row-divider replay-analysis">
-                <Accordion class="agent-details-accordion" :value="null">
+                <Accordion>
                     <AccordionPanel value="agents">
                         <AccordionHeader>Agent-wise information</AccordionHeader>
                         <AccordionContent>
                             <div class="agent-details-grid mt-3">
-                                <div v-for="agent in nAgents" :key="agent" class="agent-details-item">
+                                <div v-for="agent in nAgents" :key="agent">
                                     <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
                                         :experiment="experiment" />
                                 </div>
@@ -140,7 +87,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import Rainbow from 'rainbowvis.js';
 import AgentInfo from './AgentInfo.vue';
 import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
@@ -153,12 +99,12 @@ import ActionPanel from './action/ActionPanel.vue';
 import TimelineChartTracks from './TimelineChartTracks.vue';
 import { ActionSpace } from '../../models/Env';
 import {
-    ContinuousBarTrack,
-    DiscreteTrack,
-    TimelineBin,
-    TimelineModel,
-    TimelineTrackKind,
-} from '../../models/Timeline';
+    buildReplayTracks,
+    currentTrackValueLabelAtStep,
+    loadTimelineOrder,
+    persistTimelineOrder,
+    syncTimelineOrder,
+} from './replayTimeline';
 
 const props = defineProps<{
     experiment: Experiment,
@@ -169,81 +115,24 @@ const replayStore = useReplayStore();
 const loading = ref(false);
 const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
-const isScrubbing = ref(false);
 const trackVisibility = ref({} as Record<string, boolean>);
-const timelineMode = ref<'overview' | 'detail'>('overview');
 const trackOrder = ref<string[]>([]);
-const trackModes = ref({} as Record<string, 'cells' | 'line'>);
-const rainbow = new Rainbow();
-rainbow.setSpectrum('red', 'yellow', 'olivedrab');
 
-type RenderTimelineCell = TimelineBin & {
-    value?: number | string;
-    normalized?: number;
-    category?: string | null;
-    colour?: string | null;
-};
-
-type RenderTrack = {
-    id: string;
-    label: string;
-    kind: TimelineTrackKind;
-    cells: RenderTimelineCell[];
-};
 
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
-const timelineTargetBins = computed(() => {
-    if (timelineMode.value === 'detail') return rewardValues.value.length;
-    return Math.min(180, Math.max(1, rewardValues.value.length));
-});
-const hasTimelineResolutionChoice = computed(() => rewardValues.value.length > 180);
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
-const timelineModel = computed(() => new TimelineModel(episodeLength.value));
-const timelineBins = computed(() => timelineModel.value.buildBins(rewardValues.value.length, timelineTargetBins.value));
 const trackToggles = computed(() => allTracks.value.map((track) => ({
     id: track.id,
     label: track.label,
     visible: trackVisibility.value[track.id] ?? true,
 })));
-const allTracks = computed(() => {
-    const tracks = [] as Array<ContinuousBarTrack | DiscreteTrack>;
-
-    tracks.push(new ContinuousBarTrack('reward', 'Reward', rewardValues.value));
-
-    if (episode.value != null && nAgents.value > 0) {
-        for (let agentNum = 0; agentNum < nAgents.value; agentNum++) {
-            const optionValues = rewardValues.value.map((_, stepIndex) => {
-                const option = episode.value?.action_details[stepIndex]?.options?.[agentNum];
-                return normalizeOption(option);
-            });
-            const hasAnyOption = optionValues.some((option) => option != null);
-            if (!hasAnyOption) continue;
-            tracks.push(new DiscreteTrack(`options-agent-${agentNum + 1}`, `Option A${agentNum + 1}`, optionValues));
-
-            const terminationProbabilities = rewardValues.value.map((_, stepIndex) => {
-                const value = episode.value?.action_details[stepIndex]?.options_termination_probs?.[agentNum];
-                return normalizeContinuous(value);
-            });
-            const hasAnyTerminationProbability = terminationProbabilities.some((value) => value != null);
-            if (!hasAnyTerminationProbability) continue;
-            tracks.push(new ContinuousBarTrack(
-                `termination-prob-agent-${agentNum + 1}`,
-                `Option term. A${agentNum + 1}`,
-                terminationProbabilities.map((value) => value ?? 0),
-                true,
-                'mean',
-            ));
-        }
-    }
-
-    return tracks;
-});
+const allTracks = computed(() => buildReplayTracks(episode.value, rewardValues.value, nAgents.value));
 const timelineLayoutStorageKey = computed(() => `marl.replay.timeline-layout:${props.experiment.logdir}:${props.episodeDirectory}`);
 const orderedTrackViews = computed(() => {
     const trackById = new Map(allTracks.value.map((track) => [track.id, track] as const));
@@ -253,27 +142,11 @@ const orderedTrackViews = computed(() => {
 
     return orderedIds
         .map((trackId) => trackById.get(trackId))
-        .filter((track): track is ContinuousBarTrack | DiscreteTrack => track != null)
-        .map((track) => ({
-            track,
-            mode: trackModes.value[track.id] ?? 'cells',
-            cells: track.kind === 'continuous-bar' || track.kind === 'discrete'
-                ? track.buildCells(timelineBins.value)
-                : [],
-        }));
+        .filter((track) => track != null)
+        .map((track) => ({ track }));
 });
 const visibleTrackViews = computed(() => orderedTrackViews.value.filter((view) => trackVisibility.value[view.track.id] ?? true));
-const nowIndicatorStyle = computed(() => {
-    const ratio = Math.max(0, Math.min(1, timelineModel.value.nowPercent(currentStep.value) / 100));
-    return {
-        '--now-ratio': ratio.toString(),
-    } as Record<string, string>;
-});
 const currentFrame = computed(() => episode.value?.frames?.at(safeStep.value) || '');
-const currentReward = computed(() => {
-    if (episode.value == null || currentStep.value <= 0) return null;
-    return episode.value.episode.rewards[currentStep.value - 1] ?? null;
-});
 const resolvedActionSpace = computed<ActionSpace>(() => {
     const replaySpace = episode.value?.action_space;
     const baseSpace = replaySpace ?? props.experiment.env.action_space;
@@ -289,13 +162,13 @@ const resolvedActionSpace = computed<ActionSpace>(() => {
 
 watch(
     allTracks,
-    (tracks) => {
+    () => {
         const nextVisibility = {} as Record<string, boolean>;
-        for (const track of tracks) {
+        for (const track of allTracks.value) {
             nextVisibility[track.id] = trackVisibility.value[track.id] ?? true;
         }
         trackVisibility.value = nextVisibility;
-        syncTimelineLayout(tracks);
+        syncTimelineLayout();
     },
     { immediate: true }
 );
@@ -335,12 +208,10 @@ function onKeyDown(event: KeyboardEvent) {
 
 onMounted(() => {
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('pointerup', stopScrubbing);
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('pointerup', stopScrubbing);
 });
 
 watch(
@@ -359,10 +230,6 @@ function selectStep(step: number) {
     currentStep.value = Math.max(0, Math.min(maxStep.value, step));
 }
 
-function isStepInsideCell(cell: TimelineBin): boolean {
-    return currentStep.value >= cell.startStep && currentStep.value <= cell.endStep;
-}
-
 function onTrackToggle(trackId: string, event: Event) {
     const target = event.target as HTMLInputElement;
     trackVisibility.value = {
@@ -371,17 +238,6 @@ function onTrackToggle(trackId: string, event: Event) {
     };
 }
 
-function trackMode(trackId: string): 'cells' | 'line' {
-    return trackModes.value[trackId] ?? 'cells';
-}
-
-function setTrackMode(trackId: string, mode: 'cells' | 'line') {
-    trackModes.value = {
-        ...trackModes.value,
-        [trackId]: mode,
-    };
-    persistTimelineLayout();
-}
 
 function moveTrack(trackId: string, direction: -1 | 1) {
     const currentIndex = trackOrder.value.indexOf(trackId);
@@ -394,183 +250,17 @@ function moveTrack(trackId: string, direction: -1 | 1) {
     const [moved] = nextOrder.splice(currentIndex, 1);
     nextOrder.splice(nextIndex, 0, moved);
     trackOrder.value = nextOrder;
-    persistTimelineLayout();
+    persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
 }
 
-function currentTrackValueLabel(track: ContinuousBarTrack | DiscreteTrack): string {
-    if (currentStep.value <= 0) return '-';
-
-    const index = currentStep.value - 1;
-    if (index < 0 || index >= track.values.length) return '-';
-
-    const value = track.values[index];
-    if (track.kind === 'continuous-bar') {
-        return formatNumber(value ?? 0);
-    }
-
-    return value == null ? 'none' : String(value);
+function currentTrackValueLabel(track: (typeof allTracks.value)[number]): string {
+    return currentTrackValueLabelAtStep(track, currentStep.value);
 }
 
-function persistTimelineLayout() {
-    if (typeof window === 'undefined') return;
-
-    const payload = JSON.stringify({
-        order: trackOrder.value,
-        modes: trackModes.value,
-    });
-    window.localStorage.setItem(timelineLayoutStorageKey.value, payload);
-}
-
-function syncTimelineLayout(tracks: Array<ContinuousBarTrack | DiscreteTrack>) {
-    if (typeof window === 'undefined') return;
-
-    const storedLayout = loadTimelineLayout();
-    const trackIds = tracks.map((track) => track.id);
-    const nextOrderSource = storedLayout?.order ?? trackOrder.value;
-    const nextOrder = nextOrderSource.filter((trackId) => trackIds.includes(trackId));
-    for (const trackId of trackIds) {
-        if (!nextOrder.includes(trackId)) nextOrder.push(trackId);
-    }
-
-    const nextModes = {} as Record<string, 'cells' | 'line'>;
-    for (const trackId of trackIds) {
-        nextModes[trackId] = storedLayout?.modes?.[trackId] === 'line' ? 'line' : (trackModes.value[trackId] ?? 'cells');
-    }
-
-    trackOrder.value = nextOrder;
-    trackModes.value = nextModes;
-    persistTimelineLayout();
-}
-
-function loadTimelineLayout(): { order: string[]; modes: Record<string, 'cells' | 'line'> } | null {
-    if (typeof window === 'undefined') return null;
-
-    const raw = window.localStorage.getItem(timelineLayoutStorageKey.value);
-    if (raw == null) return null;
-
-    try {
-        const parsed = JSON.parse(raw) as Partial<{ order: unknown; modes: unknown }>;
-        const order = Array.isArray(parsed.order) ? parsed.order.filter((entry): entry is string => typeof entry === 'string') : [];
-        const modesInput = parsed.modes;
-        const modes = typeof modesInput === 'object' && modesInput != null
-            ? Object.fromEntries(
-                Object.entries(modesInput as Record<string, unknown>).filter(([, value]) => value === 'cells' || value === 'line'),
-            ) as Record<string, 'cells' | 'line'>
-            : {};
-        return { order, modes };
-    } catch {
-        return null;
-    }
-}
-
-function onStartPointerDown() {
-    isScrubbing.value = true;
-    selectStep(0);
-}
-
-function onCellPointerDown(cell: TimelineBin) {
-    isScrubbing.value = true;
-    selectStep(cell.representativeStep);
-}
-
-function onCellPointerEnter(cell: TimelineBin) {
-    if (!isScrubbing.value) return;
-    selectStep(cell.representativeStep);
-}
-
-function onTimelinePointerLeave() {
-    if (!isScrubbing.value) return;
-    // Keep scrub mode active while the pointer is down; it is reset globally on pointerup.
-}
-
-function stopScrubbing() {
-    isScrubbing.value = false;
-}
-
-function rewardFillStyle(track: ContinuousBarTrack | DiscreteTrack, normalizedReward: number): { [key: string]: string } {
-    const isProbability = isProbabilityTrack(track);
-    const clipped = isProbability
-        ? Math.max(0, Math.min(1, normalizedReward))
-        : Math.max(-1, Math.min(1, normalizedReward));
-    const style = {
-        height: isProbability
-            ? `${Math.abs(clipped) * 100}%`
-            : `${Math.abs(clipped) * 50}%`,
-    } as { [key: string]: string };
-
-    if (isProbability) {
-        style.bottom = '0';
-        return style;
-    }
-
-    if (clipped >= 0) {
-        style.bottom = '50%';
-    } else {
-        style.top = '50%';
-    }
-
-    return style;
-}
-
-function cellNormalized(track: ContinuousBarTrack | DiscreteTrack, cell: RenderTimelineCell): number {
-    if (track.kind !== 'continuous-bar') return 0;
-    return cell.normalized ?? 0;
-}
-
-function timelineCellStyle(kind: TimelineTrackKind, cell: RenderTimelineCell): { [key: string]: string } {
-    if (kind === 'discrete') {
-        if (cell.colour == null) {
-            return {
-                backgroundColor: 'var(--bs-tertiary-bg)',
-            };
-        }
-        return {
-            backgroundColor: cell.colour,
-        };
-    }
-
-    return {};
-}
-
-function timelineCellTitle(track: ContinuousBarTrack | DiscreteTrack, cell: RenderTimelineCell): string {
-    const range = (cell.startStep === cell.endStep)
-        ? `Step ${cell.startStep}`
-        : `Steps ${cell.startStep}-${cell.endStep}`;
-
-    if (track.kind === 'continuous-bar') {
-        return `${track.label} | ${range} | Value ${formatNumber(cell.value ?? 0)}`;
-    }
-
-    if (track.kind === 'discrete') {
-        return `${track.label} | ${range} | Value ${cell.category ?? 'none'}`;
-    }
-
-    return `${track.label} | ${range}`;
-}
-
-function isProbabilityTrack(track: ContinuousBarTrack | DiscreteTrack): boolean {
-    return track.id.startsWith('termination-prob-agent-');
-}
-
-function normalizeOption(value: unknown): string | null {
-    if (value == null) return null;
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return String(value);
-    }
-}
-
-function normalizeContinuous(value: unknown): number | null {
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-        const parsed = Number.parseFloat(value);
-        if (Number.isFinite(parsed)) return parsed;
-    }
-    return null;
+function syncTimelineLayout() {
+    const storedOrder = loadTimelineOrder(timelineLayoutStorageKey.value);
+    trackOrder.value = syncTimelineOrder(trackOrder.value, allTracks.value, storedOrder);
+    persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
 }
 
 function changeStep(event: KeyboardEvent) {
@@ -594,29 +284,7 @@ async function loadEpisode(episodeDirectory: string) {
     episode.value = replay;
     currentStep.value = 0;
 
-    const details = replay.action_details.flatMap((detail) => Object.values(detail)).flat(3);
-    if (details.length > 0) {
-        const min = Math.min(...details);
-        const max = Math.max(...details);
-        rainbow.setNumberRange(min, max);
-    }
-
     loading.value = false;
-}
-
-function formatNumber(value: number | string): string {
-    // Convert to number if it's a string
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-
-    // If conversion failed or value is not a number, return string representation
-    if (isNaN(numValue)) {
-        return String(value);
-    }
-
-    if (numValue == Math.floor(numValue)) {
-        return numValue.toString();
-    }
-    return numValue.toFixed(3);
 }
 </script>
 
@@ -642,59 +310,15 @@ function formatNumber(value: number | string): string {
     align-items: start;
 }
 
-.replay-frame {
-    max-height: 34vh;
-    object-fit: contain;
-}
-
 .top-right {
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
 }
 
-.agent-action-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-}
-
-.action-pill {
-    background: var(--bs-secondary-bg);
-    color: var(--bs-body-color);
-    border: 1px solid var(--bs-border-color);
-    font-weight: 600;
-}
-
-.controls-row {
-    --track-label-width: 7rem;
-    display: block;
-}
-
 .timeline-wrap {
     min-width: 0;
     user-select: none;
-}
-
-.start-marker {
-    width: 1.9rem;
-    padding: 0;
-    border: 1px solid var(--bs-border-color);
-    background: var(--bs-secondary-bg);
-    color: var(--bs-body-color);
-    font-weight: 700;
-}
-
-.start-marker.selected {
-    background: color-mix(in srgb, var(--bs-success) 20%, var(--bs-body-bg));
-    border-color: var(--bs-success);
-}
-
-.timeline-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
 }
 
 .track-visibility {
@@ -711,23 +335,15 @@ function formatNumber(value: number | string): string {
     color: var(--bs-secondary-color);
 }
 
-.timeline-track-area {
-    position: relative;
-    display: grid;
-    gap: 0.25rem;
-    padding: 0.35rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.375rem;
-}
-
 .timeline-track-list {
     display: grid;
-    gap: 0.75rem;
+    gap: 0.35rem;
 }
 
 .timeline-track-item {
     display: grid;
-    gap: 0.35rem;
+    gap: 0.2rem;
+    padding: 0.1rem 0;
 }
 
 .timeline-track-toolbar {
@@ -735,33 +351,27 @@ function formatNumber(value: number | string): string {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.35rem;
 }
 
-.timeline-track-toolbar-actions {
+.timeline-track-toolbar-left {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: flex-end;
-}
-
-.now-indicator {
-    position: absolute;
-    top: 0.35rem;
-    bottom: 0.35rem;
-    width: 2px;
-    left: calc(var(--track-label-width) + (100% - var(--track-label-width) - 0.7rem) * var(--now-ratio));
-    background: color-mix(in srgb, var(--bs-primary) 60%, #000);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
-    z-index: 4;
-    pointer-events: none;
-}
-
-.timeline-track-row {
-    display: grid;
-    grid-template-columns: var(--track-label-width) minmax(0, 1fr);
     align-items: center;
     gap: 0.45rem;
+    min-width: 0;
+}
+
+.timeline-track-order {
+    flex-shrink: 0;
+}
+
+.timeline-track-order-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    padding-inline: 0;
 }
 
 .timeline-track-label {
@@ -775,60 +385,8 @@ function formatNumber(value: number | string): string {
     font-weight: 600;
 }
 
-.timeline-track-cells {
-    position: relative;
-    display: flex;
-    gap: 1px;
-    min-height: 20px;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.25rem;
-    overflow: hidden;
-}
-
-.timeline-cell {
-    flex: 1 1 auto;
-    min-width: 2px;
-    border: 0;
-    background: color-mix(in srgb, var(--bs-body-color) 8%, transparent);
-    position: relative;
-    padding: 0;
-}
-
-.timeline-cell:hover {
-    background: color-mix(in srgb, var(--bs-success) 16%, transparent);
-}
-
-.timeline-cell.selected {
-    outline: 1px solid var(--bs-success);
-    outline-offset: -1px;
-    background: color-mix(in srgb, var(--bs-success) 24%, transparent);
-    z-index: 3;
-}
-
 .timeline-track-item :deep(.timeline-chart-canvas-shell) {
     min-height: 88px;
-}
-
-.reward-fill {
-    position: absolute;
-    left: 10%;
-    width: 80%;
-    border-radius: 2px;
-    background: linear-gradient(to top,
-            color-mix(in srgb, var(--bs-danger) 22%, transparent),
-            color-mix(in srgb, var(--bs-success) 42%, transparent));
-    z-index: 2;
-}
-
-.timeline-cell.probability .reward-fill {
-    background: linear-gradient(to top,
-            color-mix(in srgb, var(--bs-info) 26%, transparent),
-            color-mix(in srgb, var(--bs-primary) 56%, transparent));
-}
-
-.slider-label {
-    font-size: 0.8rem;
-    color: var(--bs-secondary-color);
 }
 
 .manual-step-input {
@@ -839,22 +397,6 @@ function formatNumber(value: number | string): string {
 
 .manual-step-input input {
     width: 4rem;
-}
-
-.timeline-resolution {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-
-.timeline-resolution-hint {
-    font-size: 0.8rem;
-}
-
-.agent-details-accordion {
-    width: 100%;
 }
 
 .agent-details-grid {
@@ -869,22 +411,9 @@ function formatNumber(value: number | string): string {
     }
 }
 
-.agent-details-item {
-    min-width: 0;
-}
-
 @media (max-width: 1200px) {
     .top-row {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .controls-row {
-        --track-label-width: 5.25rem;
-    }
-
-    .timeline-header {
-        flex-direction: column;
-        align-items: flex-start;
     }
 }
 </style>
