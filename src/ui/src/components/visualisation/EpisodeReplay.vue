@@ -54,8 +54,6 @@
 
                                     <span class="timeline-track-label">
                                         {{ view.track.label }}
-                                        <span class="timeline-track-value">{{ currentTrackValueLabel(view.track)
-                                        }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -253,9 +251,6 @@ function moveTrack(trackId: string, direction: -1 | 1) {
     persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
 }
 
-function currentTrackValueLabel(track: (typeof allTracks.value)[number]): string {
-    return currentTrackValueLabelAtStep(track, currentStep.value);
-}
 
 function syncTimelineLayout() {
     const storedOrder = loadTimelineOrder(timelineLayoutStorageKey.value);

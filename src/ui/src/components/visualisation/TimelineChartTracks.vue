@@ -10,6 +10,7 @@ import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { TimelineTrack } from '../../models/Timeline';
 import { formatNumber } from './numberFormat';
+import { CATEGORY_COLOURS } from '../../constants';
 
 const props = defineProps<{
     track: TimelineTrack;
@@ -23,7 +24,7 @@ const emits = defineEmits<{
 type ChartPoint = { x: number; y: number | null };
 
 const canvas = ref<HTMLCanvasElement | null>(null);
-let chart: Chart<'line', ChartPoint[], number> | null = null;
+let chart: Chart<'bar' | 'line', ChartPoint[], number> | null = null;
 
 const nowIndicatorStyle = computed(() => {
     const length = Math.max(1, props.track.length());
@@ -70,9 +71,17 @@ function syncChart() {
 
 function chartConfigForTrack(
     track: TimelineTrack,
-): ChartConfiguration<'line', ChartPoint[], number> {
+): ChartConfiguration<'bar' | 'line', ChartPoint[], number> {
     if (track.kind === 'numeric') {
         return makeNumericChartConfig(track)
+    }
+
+    // For categorical data, try to count unique categories
+    const uniqueCategories = new Set(track.values.filter(v => v != null).map(String));
+
+    // Use patches visualization if ≤16 categories, otherwise use line chart
+    if (uniqueCategories.size <= 16) {
+        return makeCategoricalPatchesChartConfig(track);
     }
     return makeCategoricalChartConfig(track)
 }
@@ -134,11 +143,149 @@ function makeNumericChartConfig(track: TimelineTrack): ChartConfiguration<'line'
                     display: false,
                     min: 0,
                     max: track.length(),
+                    grid: {
+                        display: true,
+                        color: 'rgba(0, 0, 0, 0.1)',
+                    },
+                },
+                y: {
+                    display: true,
+                    position: 'left' as const,
+                    ticks: {
+                        mirror: true,
+                        maxTicksLimit: 3,
+                        font: {
+                            size: 10,
+                        },
+                        color: 'var(--bs-secondary-color)',
+                        padding: -2,
+                        z: -1,
+                    },
+                    grid: {
+                        display: true,
+                        color: 'rgba(0, 0, 0, 0.05)',
+                        z: -1,
+                    },
+                },
+            },
+            onClick: (_event, elements) => {
+                if (elements.length === 0) return;
+                emits('select-step', elements[0].index + 1);
+            },
+        },
+    };
+}
+
+function toCategoryIndex(value: unknown): number | null {
+    if (value == null) return null;
+
+    // Try to parse as a number
+    if (typeof value === 'number') {
+        return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number.parseInt(value, 10);
+        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+    }
+
+    return null;
+}
+
+function makeCategoricalPatchesChartConfig(track: TimelineTrack): ChartConfiguration<'bar', ChartPoint[], number> {
+    // Extract all category indices and build color mapping
+    const categoryIndices = new Map<number, string>(); // index -> label
+    const categoryColors: string[] = [];
+
+    track.values.forEach((value) => {
+        if (value == null) return;
+        const idx = toCategoryIndex(value);
+        if (idx != null && !categoryIndices.has(idx)) {
+            categoryIndices.set(idx, String(value));
+            // Ensure we have colors for this index
+            while (categoryColors.length <= idx) {
+                categoryColors.push(CATEGORY_COLOURS[categoryColors.length % CATEGORY_COLOURS.length]);
+            }
+        }
+    });
+
+    // Build bar chart data with proper coloring per point
+    // All bars have the same height (y=1), color distinguishes categories
+    const data = track.values.map((value, index) => {
+        if (value == null) {
+            return {
+                x: index + 1,
+                y: null,
+            };
+        }
+        const idx = toCategoryIndex(value);
+        return {
+            x: index + 1,
+            y: idx == null ? null : 1,
+        };
+    });
+
+    // Extract the colors for each data point
+    const backgroundColors = track.values.map((value) => {
+        if (value == null) return 'transparent';
+        const idx = toCategoryIndex(value);
+        if (idx == null) return 'transparent';
+        return CATEGORY_COLOURS[idx % CATEGORY_COLOURS.length];
+    });
+
+    return {
+        type: 'bar' as const,
+        data: {
+            datasets: [
+                {
+                    label: track.label,
+                    data,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 0,
+                    borderRadius: 2,
+                    barPercentage: 0.95,
+                    categoryPercentage: 1.0,
+                } satisfies ChartDataset<'bar', ChartPoint[]>,
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false as const,
+            normalized: true,
+            interaction: {
+                intersect: false,
+                mode: 'nearest' as const,
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            if (context.parsed.y == null) return `${track.label}: none`;
+                            const idx = Math.round(context.parsed.y);
+                            const label = categoryIndices.get(idx) ?? String(idx);
+                            return `${track.label}: ${label}`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    display: false,
+                    min: 0,
+                    max: track.length(),
+                    offset: false,
                 },
                 y: {
                     display: false,
+                    min: -0.5,
+                    max: 1.5,
                     ticks: {
-                        maxTicksLimit: 3,
+                        callback: () => '',
+                        maxTicksLimit: 1,
                     },
                 },
             },
@@ -243,13 +390,13 @@ function makeCategoricalChartConfig(track: TimelineTrack): ChartConfiguration<'l
         },
     };
 }
+
 </script>
 
 <style scoped>
 .timeline-chart-canvas-shell {
     position: relative;
-    height: 88px;
-    padding: 0.25rem 0.35rem;
+    height: 50px;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.25rem;
     background: color-mix(in srgb, var(--bs-body-bg) 92%, var(--bs-body-color));
