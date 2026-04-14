@@ -42,6 +42,22 @@
                             </span>
                         </div>
 
+                        <div class="timeline-resolution">
+                            <span>Track style</span>
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Timeline track style">
+                                <button type="button" class="btn btn-outline-secondary"
+                                    :class="{ active: timelineTrackStyle === 'cells' }"
+                                    @click="timelineTrackStyle = 'cells'">
+                                    Cells
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                    :class="{ active: timelineTrackStyle === 'line' }"
+                                    @click="timelineTrackStyle = 'line'">
+                                    Line
+                                </button>
+                            </div>
+                        </div>
+
                     </div>
 
                     <div class="track-visibility mb-2">
@@ -52,7 +68,10 @@
                         </label>
                     </div>
 
-                    <div class="timeline-track-area" @pointerleave="onTimelinePointerLeave">
+                    <TimelineChartTracks v-if="timelineTrackStyle === 'line'" :tracks="visibleTimelineTracks"
+                        :current-step="currentStep" @select-step="selectStep" />
+
+                    <div v-else class="timeline-track-area" @pointerleave="onTimelinePointerLeave">
                         <span class="now-indicator" :style="nowIndicatorStyle" />
 
                         <div v-for="track in visibleTracks" :key="track.id" class="timeline-track-row">
@@ -112,6 +131,7 @@ import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
 import ActionPanel from './action/ActionPanel.vue';
+import TimelineChartTracks from './TimelineChartTracks.vue';
 import { ActionSpace } from '../../models/Env';
 import {
     ContinuousBarTrack,
@@ -133,6 +153,7 @@ const currentStep = ref(0);
 const isScrubbing = ref(false);
 const trackVisibility = ref({} as Record<string, boolean>);
 const timelineMode = ref<'overview' | 'detail'>('overview');
+const timelineTrackStyle = ref<'cells' | 'line'>('cells');
 const rainbow = new Rainbow();
 rainbow.setSpectrum('red', 'yellow', 'olivedrab');
 
@@ -203,9 +224,11 @@ const allTracks = computed(() => {
 
     return tracks;
 });
+const visibleTimelineTracks = computed(() => {
+    return allTracks.value.filter((track) => trackVisibility.value[track.id] ?? true);
+});
 const visibleTracks = computed(() => {
-    return allTracks.value
-        .filter((track) => trackVisibility.value[track.id] ?? true)
+    return visibleTimelineTracks.value
         .map((track): RenderTrack => {
             if (track.kind === 'continuous-bar') {
                 return {
