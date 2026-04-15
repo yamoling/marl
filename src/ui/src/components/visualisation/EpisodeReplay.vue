@@ -5,19 +5,16 @@
 
         <template v-else-if="episode != null">
             <section class="replay-row top-row">
-                <div class="top-left text-center">
-                    <img class="img-fluid replay-frame" :src="'data:image/jpg;base64, ' + currentFrame" />
-                </div>
-
+                <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
-                    <ActionPanel v-if="episode != null" :episode="episode" :current-step="currentStep"
-                        :action-space="resolvedActionSpace" :n-agents="nAgents" />
+                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="resolvedActionSpace"
+                        :n-agents="nAgents" />
                 </aside>
             </section>
 
-            <section class="replay-row row-divider controls-row">
+            <section class="replay-row row-divider">
                 <div class="timeline-wrap">
-                    <div style="display: flex;">
+                    <div class="timeline-toolbar">
                         <div class="manual-step-input me-5">
                             Step
                             <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
@@ -25,68 +22,63 @@
                             <span class="text-muted">/ {{ episodeLength }}</span>
                         </div>
 
-                        <div class="timeline-resolution">
-                            <span>Timeline</span>
-                            <div class="btn-group btn-group-sm" role="group" aria-label="Timeline resolution">
-                                <button type="button" class="btn btn-outline-secondary"
-                                    :class="{ active: timelineMode === 'overview' }" @click="timelineMode = 'overview'">
-                                    Overview
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary"
-                                    :class="{ active: timelineMode === 'detail' }" @click="timelineMode = 'detail'">
-                                    Detail
-                                </button>
-                            </div>
-                            <span class="text-muted timeline-resolution-hint">
-                                {{ timelineMode === 'overview' ? `${timelineBins.length} bins` : 'Full resolution' }}
-                            </span>
-                        </div>
-
+                        <button type="button" class="btn btn-outline-primary btn-sm" :disabled="episode == null"
+                            @click="trackWizardModal?.showModal">
+                            Choose tracks
+                        </button>
+                        <span v-if="tracks.length > 0" class="timeline-toolbar-summary text-secondary">
+                            {{ tracks.length }} track{{ tracks.length > 1 ? 's' : '' }} selected
+                        </span>
                     </div>
 
-                    <div class="track-visibility mb-2">
-                        <label v-for="toggle in trackToggles" :key="toggle.id" class="track-toggle">
-                            <input type="checkbox" :checked="toggle.visible"
-                                @change="onTrackToggle(toggle.id, $event)" />
-                            {{ toggle.label }}
-                        </label>
-                    </div>
+                    <div class="timeline-track-list">
+                        <div v-for="(track, index) in tracks" :key="track.label" class="timeline-track-item">
+                            <div class="timeline-track-toolbar">
+                                <div class="timeline-track-toolbar-left">
+                                    <div class="btn-group btn-group-sm timeline-track-order">
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @click.stop="() => tracksStore.remove(props.experiment.logdir, track)">
+                                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                                        </button>
+                                        <button type="button"
+                                            class="btn btn-outline-secondary timeline-track-order-button"
+                                            :disabled="index <= 0"
+                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index - 1)">
+                                            <font-awesome-icon :icon="['fas', 'arrow-up']" />
+                                        </button>
+                                        <button type="button"
+                                            class="btn btn-outline-secondary timeline-track-order-button"
+                                            :disabled="index >= tracks.length - 1"
+                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index + 1)">
+                                            <font-awesome-icon :icon="['fas', 'arrow-down']" />
+                                        </button>
+                                    </div>
 
-                    <div class="timeline-track-area" @pointerleave="onTimelinePointerLeave">
-                        <span class="now-indicator" :style="nowIndicatorStyle" />
+                                    <span class="timeline-track-label text-capitalize">
+                                        {{ track.label }}
+                                    </span>
 
-                        <div v-for="track in visibleTracks" :key="track.id" class="timeline-track-row">
-                            <span class="timeline-track-label">
-                                {{ track.label }}
-                                <span class="timeline-track-value">{{ currentTrackValueLabel(track) }}</span>
-                            </span>
-
-                            <div class="timeline-track-cells">
-                                <button v-for="cell in track.cells" :key="cell.key" type="button" class="timeline-cell"
-                                    :class="{
-                                        selected: isStepInsideCell(cell),
-                                        reward: track.kind === 'continuous-bar',
-                                        option: track.kind === 'discrete',
-                                    }" :style="timelineCellStyle(track.kind, cell)"
-                                    :title="timelineCellTitle(track, cell)" @click="selectStep(cell.representativeStep)"
-                                    @pointerdown="onCellPointerDown(cell)" @pointerenter="onCellPointerEnter(cell)">
-                                    <span v-if="track.kind === 'continuous-bar'" class="reward-fill"
-                                        :style="rewardFillStyle(cell.normalized ?? 0)" />
-                                    <span class="visually-hidden">{{ timelineCellTitle(track, cell) }}</span>
-                                </button>
+                                    <select class="form-select form-select-sm timeline-track-kind" :value="track.kind"
+                                        :aria-label="`${track.label} representation`"
+                                        @change="(event) => onTimelineTrackKindChange(track, event)">
+                                        <option value="numeric">Numerical</option>
+                                        <option value="categorical">Categorical</option>
+                                    </select>
+                                </div>
                             </div>
+                            <TimelineChartTracks :track="track" :current-step="currentStep" @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
             </section>
 
             <section class="replay-row row-divider replay-analysis">
-                <Accordion class="agent-details-accordion" :value="null">
+                <Accordion>
                     <AccordionPanel value="agents">
                         <AccordionHeader>Agent-wise information</AccordionHeader>
                         <AccordionContent>
                             <div class="agent-details-grid mt-3">
-                                <div v-for="agent in nAgents" :key="agent" class="agent-details-item">
+                                <div v-for="agent in nAgents" :key="agent">
                                     <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
                                         :experiment="experiment" />
                                 </div>
@@ -95,15 +87,16 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
+            <TrackWizard ref="trackWizardModal" :logdir="experiment.logdir" :episode="episode"
+                @applied="onTracksApplied" />
         </template>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import Rainbow from 'rainbowvis.js';
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import AgentInfo from './AgentInfo.vue';
-import { ActionValue, ReplayEpisode } from '../../models/Episode';
+import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
 import { Experiment } from '../../models/Experiment';
 import Accordion from 'primevue/accordion';
@@ -111,123 +104,49 @@ import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
 import ActionPanel from './action/ActionPanel.vue';
+import TimelineChartTracks from './TimelineChartTracks.vue';
 import { ActionSpace } from '../../models/Env';
-import {
-    ContinuousBarTrack,
-    DiscreteTrack,
-    TimelineBin,
-    TimelineModel,
-    TimelineTrackKind,
-} from '../../models/Timeline';
+import TrackWizard from '../modals/TrackWizard.vue';
+import { useTracksStore } from '../../stores/TracksStore';
+import { Track, type TimelineTrackKind } from '../../models/Timeline';
 
+const trackWizardModal = ref<InstanceType<typeof TrackWizard> | null>(null);
 const props = defineProps<{
     experiment: Experiment,
     episodeDirectory: string
 }>();
 
 const replayStore = useReplayStore();
+const tracksStore = useTracksStore();
+// Keep class instance shape intact for child component props typing.
+const episode = shallowRef<ReplayEpisode | null>(null);
+const tracksRefreshToken = ref(0);
+const selectedTracks = computed(() => tracksStore.get(props.experiment.logdir))
+const tracks = computed(() => {
+    tracksRefreshToken.value;
+    if (episode.value == null) return []
+    return selectedTracks.value
+        .map((trackConfig) => {
+            const track = episode.value?.getTrack(trackConfig.label);
+            if (track == null) {
+                return null;
+            }
+            track.kind = trackConfig.kind;
+            return track;
+        })
+        .filter(track => track != null) as Track[];
+})
 const loading = ref(false);
-const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
-const isScrubbing = ref(false);
-const trackVisibility = ref({} as Record<string, boolean>);
-const timelineMode = ref<'overview' | 'detail'>('overview');
-const rainbow = new Rainbow();
-rainbow.setSpectrum('red', 'yellow', 'olivedrab');
-
-type RenderTimelineCell = TimelineBin & {
-    value?: number | string;
-    normalized?: number;
-    category?: string | null;
-    colour?: string | null;
-};
-
-type RenderTrack = {
-    id: string;
-    label: string;
-    kind: TimelineTrackKind;
-    cells: RenderTimelineCell[];
-};
-
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
-const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
+const episodeLength = computed(() => episode.value?.length() || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
-const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
-const timelineTargetBins = computed(() => {
-    if (timelineMode.value === 'detail') return rewardValues.value.length;
-    return Math.min(180, Math.max(1, rewardValues.value.length));
-});
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
-const timelineModel = computed(() => new TimelineModel(episodeLength.value));
-const timelineBins = computed(() => timelineModel.value.buildBins(rewardValues.value.length, timelineTargetBins.value));
-const trackToggles = computed(() => allTracks.value.map((track) => ({
-    id: track.id,
-    label: track.label,
-    visible: trackVisibility.value[track.id] ?? true,
-})));
-const allTracks = computed(() => {
-    const tracks = [] as Array<ContinuousBarTrack | DiscreteTrack>;
 
-    tracks.push(new ContinuousBarTrack('reward', 'Reward', rewardValues.value));
-
-    if (episode.value != null && nAgents.value > 0) {
-        for (let agentNum = 0; agentNum < nAgents.value; agentNum++) {
-            const optionValues = rewardValues.value.map((_, stepIndex) => {
-                const option = episode.value?.action_details[stepIndex]?.options?.[agentNum];
-                return normalizeOption(option);
-            });
-            const hasAnyOption = optionValues.some((option) => option != null);
-            if (!hasAnyOption) continue;
-            tracks.push(new DiscreteTrack(`options-agent-${agentNum + 1}`, `Option A${agentNum + 1}`, optionValues));
-        }
-    }
-
-    return tracks;
-});
-const visibleTracks = computed(() => {
-    return allTracks.value
-        .filter((track) => trackVisibility.value[track.id] ?? true)
-        .map((track): RenderTrack => {
-            if (track.kind === 'continuous-bar') {
-                return {
-                    id: track.id,
-                    label: track.label,
-                    kind: track.kind,
-                    cells: track.buildCells(timelineBins.value),
-                };
-            }
-
-            if (track.kind === 'discrete') {
-                return {
-                    id: track.id,
-                    label: track.label,
-                    kind: track.kind,
-                    cells: track.buildCells(timelineBins.value),
-                };
-            }
-
-            return {
-                id: track.id,
-                label: track.label,
-                kind: track.kind,
-                cells: [],
-            };
-        });
-});
-const nowIndicatorStyle = computed(() => {
-    const ratio = Math.max(0, Math.min(1, timelineModel.value.nowPercent(currentStep.value) / 100));
-    return {
-        '--now-ratio': ratio.toString(),
-    } as Record<string, string>;
-});
-const currentFrame = computed(() => episode.value?.frames?.at(safeStep.value) || '');
-const currentReward = computed(() => {
-    if (episode.value == null || currentStep.value <= 0) return null;
-    return episode.value.episode.rewards[currentStep.value - 1] ?? null;
-});
+const currentFrame = computed(() => episode.value?.frameAt(safeStep.value));
 const resolvedActionSpace = computed<ActionSpace>(() => {
     const replaySpace = episode.value?.action_space;
     const baseSpace = replaySpace ?? props.experiment.env.action_space;
@@ -274,32 +193,17 @@ function onKeyDown(event: KeyboardEvent) {
     }
 }
 
-onMounted(() => {
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('pointerup', stopScrubbing);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', onKeyDown);
-    window.removeEventListener('pointerup', stopScrubbing);
-});
+onMounted(() => window.addEventListener('keydown', onKeyDown));
+onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
 
 watch(
     () => props.episodeDirectory,
     async (newDirectory) => {
-        await loadEpisode(newDirectory);
-    },
-    { immediate: true }
-);
-
-watch(
-    allTracks,
-    (tracks) => {
-        const nextVisibility = {} as Record<string, boolean>;
-        for (const track of tracks) {
-            nextVisibility[track.id] = trackVisibility.value[track.id] ?? true;
-        }
-        trackVisibility.value = nextVisibility;
+        episode.value = null;
+        loading.value = true;
+        episode.value = await replayStore.getEpisode(newDirectory);
+        currentStep.value = 0;
+        loading.value = false;
     },
     { immediate: true }
 );
@@ -310,117 +214,6 @@ function step(amount: number) {
 
 function selectStep(step: number) {
     currentStep.value = Math.max(0, Math.min(maxStep.value, step));
-}
-
-function isStepInsideCell(cell: TimelineBin): boolean {
-    return currentStep.value >= cell.startStep && currentStep.value <= cell.endStep;
-}
-
-function onTrackToggle(trackId: string, event: Event) {
-    const target = event.target as HTMLInputElement;
-    trackVisibility.value = {
-        ...trackVisibility.value,
-        [trackId]: target.checked,
-    };
-}
-
-function onStartPointerDown() {
-    isScrubbing.value = true;
-    selectStep(0);
-}
-
-function onCellPointerDown(cell: TimelineBin) {
-    isScrubbing.value = true;
-    selectStep(cell.representativeStep);
-}
-
-function onCellPointerEnter(cell: TimelineBin) {
-    if (!isScrubbing.value) return;
-    selectStep(cell.representativeStep);
-}
-
-function onTimelinePointerLeave() {
-    if (!isScrubbing.value) return;
-    // Keep scrub mode active while the pointer is down; it is reset globally on pointerup.
-}
-
-function stopScrubbing() {
-    isScrubbing.value = false;
-}
-
-function rewardFillStyle(normalizedReward: number): { [key: string]: string } {
-    const clipped = Math.max(-1, Math.min(1, normalizedReward));
-    const style = {
-        height: `${Math.abs(clipped) * 50}%`,
-    } as { [key: string]: string };
-
-    if (clipped >= 0) {
-        style.bottom = '50%';
-    } else {
-        style.top = '50%';
-    }
-
-    return style;
-}
-
-function timelineCellStyle(kind: TimelineTrackKind, cell: RenderTimelineCell): { [key: string]: string } {
-    if (kind === 'discrete') {
-        if (cell.colour == null) {
-            return {
-                backgroundColor: 'var(--bs-tertiary-bg)',
-            };
-        }
-        return {
-            backgroundColor: cell.colour,
-        };
-    }
-
-    return {};
-}
-
-function timelineCellTitle(track: RenderTrack, cell: RenderTimelineCell): string {
-    const range = (cell.startStep === cell.endStep)
-        ? `Step ${cell.startStep}`
-        : `Steps ${cell.startStep}-${cell.endStep}`;
-
-    if (track.kind === 'continuous-bar') {
-        return `${track.label} | ${range} | Value ${formatNumber(cell.value ?? 0)}`;
-    }
-
-    if (track.kind === 'discrete') {
-        return `${track.label} | ${range} | Value ${cell.category ?? 'none'}`;
-    }
-
-    return `${track.label} | ${range}`;
-}
-
-function currentTrackValueLabel(track: RenderTrack): string {
-    if (currentStep.value <= 0) return '-';
-
-    const currentCell = track.cells.find((cell) => isStepInsideCell(cell));
-    if (currentCell == null) return '-';
-
-    if (track.kind === 'continuous-bar') {
-        return formatNumber(currentCell.value ?? 0);
-    }
-
-    if (track.kind === 'discrete') {
-        return currentCell.category ?? 'none';
-    }
-
-    return '-';
-}
-
-function normalizeOption(value: unknown): string | null {
-    if (value == null) return null;
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-    try {
-        return JSON.stringify(value);
-    } catch {
-        return String(value);
-    }
 }
 
 function changeStep(event: KeyboardEvent) {
@@ -436,38 +229,17 @@ function changeStep(event: KeyboardEvent) {
     }
 }
 
-async function loadEpisode(episodeDirectory: string) {
-    episode.value = null;
-    loading.value = true;
-
-    const replay = await replayStore.getEpisode(episodeDirectory);
-    episode.value = replay;
-    currentStep.value = 0;
-
-    const details = replay.action_details.flatMap((detail) => Object.values(detail)).flat(3);
-    if (details.length > 0) {
-        const min = Math.min(...details);
-        const max = Math.max(...details);
-        rainbow.setNumberRange(min, max);
-    }
-
-    loading.value = false;
+function onTracksApplied() {
+    tracksRefreshToken.value += 1;
 }
 
-function formatNumber(value: number | string): string {
-    // Convert to number if it's a string
-    const numValue = typeof value === 'string' ? parseFloat(value) : value;
-    
-    // If conversion failed or value is not a number, return string representation
-    if (isNaN(numValue)) {
-        return String(value);
-    }
-    
-    if (numValue == Math.floor(numValue)) {
-        return numValue.toString();
-    }
-    return numValue.toFixed(3);
+function onTimelineTrackKindChange(track: Track, event: Event) {
+    const kind = (event.target as HTMLSelectElement).value as TimelineTrackKind;
+    track.kind = kind;
+    tracksStore.update(props.experiment.logdir, { label: track.label, kind });
 }
+
+
 </script>
 
 <style scoped>
@@ -492,33 +264,10 @@ function formatNumber(value: number | string): string {
     align-items: start;
 }
 
-.replay-frame {
-    max-height: 34vh;
-    object-fit: contain;
-}
-
 .top-right {
     display: flex;
     flex-direction: column;
     gap: 0.45rem;
-}
-
-.agent-action-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-}
-
-.action-pill {
-    background: var(--bs-secondary-bg);
-    color: var(--bs-body-color);
-    border: 1px solid var(--bs-border-color);
-    font-weight: 600;
-}
-
-.controls-row {
-    --track-label-width: 7rem;
-    display: block;
 }
 
 .timeline-wrap {
@@ -526,25 +275,15 @@ function formatNumber(value: number | string): string {
     user-select: none;
 }
 
-.start-marker {
-    width: 1.9rem;
-    padding: 0;
-    border: 1px solid var(--bs-border-color);
-    background: var(--bs-secondary-bg);
-    color: var(--bs-body-color);
-    font-weight: 700;
-}
-
-.start-marker.selected {
-    background: color-mix(in srgb, var(--bs-success) 20%, var(--bs-body-bg));
-    border-color: var(--bs-success);
-}
-
-.timeline-header {
+.timeline-toolbar {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.65rem;
+}
+
+.timeline-toolbar-summary {
+    line-height: 1.2;
 }
 
 .track-visibility {
@@ -561,37 +300,53 @@ function formatNumber(value: number | string): string {
     color: var(--bs-secondary-color);
 }
 
-.timeline-track-area {
-    position: relative;
+.timeline-track-list {
     display: grid;
-    gap: 0.25rem;
-    padding: 0.35rem;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.375rem;
+    gap: 0.35rem;
 }
 
-.now-indicator {
-    position: absolute;
-    top: 0.35rem;
-    bottom: 0.35rem;
-    width: 2px;
-    left: calc(var(--track-label-width) + (100% - var(--track-label-width) - 0.7rem) * var(--now-ratio));
-    background: color-mix(in srgb, var(--bs-primary) 60%, #000);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
-    z-index: 4;
-    pointer-events: none;
+.timeline-track-item {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.1rem 0;
 }
 
-.timeline-track-row {
-    display: grid;
-    grid-template-columns: var(--track-label-width) minmax(0, 1fr);
+.timeline-track-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.timeline-track-toolbar-left {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.45rem;
+    min-width: 0;
+}
+
+.timeline-track-order {
+    flex-shrink: 0;
+}
+
+.timeline-track-order-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    padding-inline: 0;
 }
 
 .timeline-track-label {
     font-size: 0.78rem;
     color: var(--bs-secondary-color);
+}
+
+.timeline-track-kind {
+    width: auto;
+    min-width: 8.5rem;
 }
 
 .timeline-track-value {
@@ -600,50 +355,8 @@ function formatNumber(value: number | string): string {
     font-weight: 600;
 }
 
-.timeline-track-cells {
-    position: relative;
-    display: flex;
-    gap: 1px;
-    min-height: 20px;
-    border: 1px solid var(--bs-border-color);
-    border-radius: 0.25rem;
-    overflow: hidden;
-}
-
-.timeline-cell {
-    flex: 1 1 auto;
-    min-width: 2px;
-    border: 0;
-    background: color-mix(in srgb, var(--bs-body-color) 8%, transparent);
-    position: relative;
-    padding: 0;
-}
-
-.timeline-cell:hover {
-    background: color-mix(in srgb, var(--bs-success) 16%, transparent);
-}
-
-.timeline-cell.selected {
-    outline: 1px solid var(--bs-success);
-    outline-offset: -1px;
-    background: color-mix(in srgb, var(--bs-success) 24%, transparent);
-    z-index: 3;
-}
-
-.reward-fill {
-    position: absolute;
-    left: 10%;
-    width: 80%;
-    border-radius: 2px;
-    background: linear-gradient(to top,
-            color-mix(in srgb, var(--bs-danger) 22%, transparent),
-            color-mix(in srgb, var(--bs-success) 42%, transparent));
-    z-index: 2;
-}
-
-.slider-label {
-    font-size: 0.8rem;
-    color: var(--bs-secondary-color);
+.timeline-track-item :deep(.timeline-chart-canvas-shell) {
+    min-height: 88px;
 }
 
 .manual-step-input {
@@ -654,22 +367,6 @@ function formatNumber(value: number | string): string {
 
 .manual-step-input input {
     width: 4rem;
-}
-
-.timeline-resolution {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-
-.timeline-resolution-hint {
-    font-size: 0.8rem;
-}
-
-.agent-details-accordion {
-    width: 100%;
 }
 
 .agent-details-grid {
@@ -684,22 +381,9 @@ function formatNumber(value: number | string): string {
     }
 }
 
-.agent-details-item {
-    min-width: 0;
-}
-
 @media (max-width: 1200px) {
     .top-row {
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .controls-row {
-        --track-label-width: 5.25rem;
-    }
-
-    .timeline-header {
-        flex-direction: column;
-        align-items: flex-start;
     }
 }
 </style>

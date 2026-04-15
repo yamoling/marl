@@ -1,4 +1,4 @@
-#type: ignore
+# type: ignore
 import os
 import pathlib
 import pickle
@@ -8,7 +8,7 @@ from typing import Literal, Optional
 import numpy as np
 import torch
 
-from marl.xmarl.distilers.sdt import SoftDecisionTree
+from xmarl.distilers.sdt import SoftDecisionTree
 
 from .utils import (
     get_fixed_features,

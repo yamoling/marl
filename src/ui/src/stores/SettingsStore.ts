@@ -1,56 +1,43 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { Settings } from "../models/Settings";
 import { MetricSelection } from "../models/Settings";
 
 export const useSettingsStore = defineStore("SettingsStore", () => {
 
-    const settings = ref(initSettingsFromLocalStorage());
+    const metrics = ref(initSettingsFromLocalStorage());
 
-    function initSettingsFromLocalStorage(): Settings {
+    function initSettingsFromLocalStorage(): MetricSelection[] {
         const saved = localStorage.getItem("settings");
         if (saved != null) {
-            return JSON.parse(saved) as Settings;
+            return JSON.parse(saved);
         }
-        return {
-            selectedMetrics: [],
-            extrasViewMode: "colour"
-        };
+        return [];
     }
 
     function saveSettingsToLocalStorage() {
-        localStorage.setItem("settings", JSON.stringify(settings.value));
+        localStorage.setItem("settings", JSON.stringify(metrics.value));
     }
 
-    function getSelectedMetrics() {
-        return settings.value.selectedMetrics;
+    function getSelectedMetrics(): MetricSelection[] {
+        return metrics.value;
     }
 
     function clearSelectedMetrics() {
-        settings.value.selectedMetrics = [];
+        metrics.value = [];
         saveSettingsToLocalStorage();
     }
 
     function addSelectedMetric(label: string, category: string) {
         const selection: MetricSelection = { label, category };
-        if (!settings.value.selectedMetrics.some(m => m.label === label && m.category === category)) {
-            settings.value.selectedMetrics.push(selection);
+        if (!metrics.value.some(m => m.label === label && m.category === category)) {
+            metrics.value.push(selection);
             saveSettingsToLocalStorage();
         }
     }
 
     function removeSelectedMetric(label: string, category: string) {
-        settings.value.selectedMetrics = settings.value.selectedMetrics.filter((m) => m.label !== label || m.category !== category);
+        metrics.value = metrics.value.filter((m) => m.label !== label || m.category !== category);
         saveSettingsToLocalStorage();
-    }
-
-    function setExtrasViewMode(mode: "table" | "colour") {
-        settings.value.extrasViewMode = mode;
-        saveSettingsToLocalStorage();
-    }
-
-    function getExtraViewMode() {
-        return settings.value.extrasViewMode;
     }
 
     return {
@@ -58,7 +45,5 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
         getSelectedMetrics,
         addSelectedMetric,
         removeSelectedMetric,
-        setExtrasViewMode,
-        getExtraViewMode
     };
 });

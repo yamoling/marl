@@ -175,7 +175,7 @@ const takenAction = computed(() => {
 const currentActionDetails = computed(() => {
     if (props.episode == null) return null;
     if (safeStep.value >= episodeLength.value) return null;
-    return props.episode.action_details[safeStep.value] ?? null;
+    return props.episode.agent_details[safeStep.value] ?? null;
 });
 
 const qValuesForAgent = computed(() => {

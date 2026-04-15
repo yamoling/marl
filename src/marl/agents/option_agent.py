@@ -61,20 +61,21 @@ class OptionAgent(Agent):
         else:
             self.options = np.where((r < end_probs), chosen_options, self.options).tolist()
         self.force_update_next_option = False
-        return end_probs
+        return end_probs, q_options
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
         with torch.no_grad():
             obs, extras, available = observation.as_tensors(self.device, batch_dim=True, actions=True)
-            term_probs = self.update_options(obs, extras)
+            term_probs, q_options = self.update_options(obs, extras)
             dist = self.oc.policy(obs, extras, available, self.options)
             action = dist.sample().squeeze(0)
 
         # Options must be provided in the action because the trainer requires them.
         action = Action(action.numpy(force=True), options=self.options.copy())
         if with_details:
-            action.action_probabilities = dist.probs.numpy(force=True).squeeze(0)
-            action.options_termination_probs = term_probs
+            action["action_probabilities"] = dist.probs.numpy(force=True).squeeze(0)
+            action["options_termination_probs"] = term_probs
+            action["q_options"] = q_options
         return action
 
     def new_episode(self):

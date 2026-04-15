@@ -83,7 +83,7 @@ if __name__ == "__main__":
     dotenv.load_dotenv()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
-        handlers=[logging.FileHandler("logs.txt", mode="a"), logging.StreamHandler()],
+        handlers=[logging.FileHandler("start_run.log", mode="a"), logging.StreamHandler()],
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )

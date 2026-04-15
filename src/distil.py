@@ -2,7 +2,7 @@ from typing import Literal
 
 import typed_argparse as tap
 
-from marl.xmarl.distilers import DistilHandler
+from xmarl.distilers import DistilHandler
 
 
 class Arguments(tap.TypedArgs):

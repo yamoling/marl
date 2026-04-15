@@ -1,6 +1,7 @@
 # type: ignore
 
 import os
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -18,9 +19,9 @@ from textual.widgets import (
 )
 
 from marl.models import Experiment
-from marl.xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
-from marl.xmarl.distilers.sdt import SoftDecisionTree
-from marl.xmarl.distilers.utils import feature_labels, get_env_infos
+from xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
+from xmarl.distilers.sdt import SoftDecisionTree
+from xmarl.distilers.utils import feature_labels, get_env_infos
 
 LOG_PATH = Path("logs")
 
@@ -434,7 +435,7 @@ def main():
     try:
         Selector().run()
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
+        logging.error(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 
