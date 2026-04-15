@@ -37,6 +37,14 @@
                                         <span class="option-label">{{ option.label }}</span>
                                     </label>
 
+                                    <select class="form-select form-select-sm option-kind"
+                                        :disabled="!isSelected(option.key)" :value="getFamilyKind(option.key)"
+                                        :aria-label="`${option.label} family representation`"
+                                        @change="setFamilyKind(option.key, $event)">
+                                        <option value="numeric">Numerical</option>
+                                        <option value="categorical">Categorical</option>
+                                    </select>
+
                                     <input class="form-control form-control-sm option-alias"
                                         :value="getAlias(option.key)" :disabled="!isSelected(option.key)"
                                         placeholder="Optional alias" @input="setAlias(option.key, $event)" />
@@ -72,6 +80,7 @@
 import { computed, ref } from 'vue';
 import { Modal } from 'bootstrap';
 import { ReplayEpisode } from '../../models/Episode';
+import { type TimelineTrackKind } from '../../models/Timeline';
 import {
     discoverReplayTrackOptions,
     ReplayTrackOption,
@@ -118,6 +127,7 @@ function selectAll() {
         key: option.key,
         alias: getSelection(option.key)?.alias ?? null,
         componentPaths: option.components.map((component) => component.path),
+        componentKinds: option.components.map((_, index) => getSelection(option.key)?.componentKinds[index] ?? ('numeric' as TimelineTrackKind)),
     }));
 }
 
@@ -137,6 +147,13 @@ function getAlias(key: string): string {
     return getSelection(key)?.alias ?? '';
 }
 
+function getFamilyKind(key: string): TimelineTrackKind {
+    const selection = getSelection(key);
+    if (selection == null) return 'numeric';
+
+    return selection.componentKinds[0] ?? 'numeric';
+}
+
 function toggleTrack(key: string, event: Event) {
     const target = event.target as HTMLInputElement;
 
@@ -149,6 +166,7 @@ function toggleTrack(key: string, event: Event) {
                 key,
                 alias: null,
                 componentPaths: option.components.map((component) => component.path),
+                componentKinds: option.components.map(() => 'numeric'),
             }];
         }
         return;
@@ -162,9 +180,12 @@ function toggleComponent(key: string, path: number[], event: Event) {
     const selection = getSelection(key);
     if (selection == null) return;
 
+    const removedIndex = selection.componentPaths.findIndex((candidate) => arePathsEqual(candidate, path));
     let componentPaths = selection.componentPaths.filter((candidate) => !arePathsEqual(candidate, path));
+    let componentKinds = selection.componentKinds.filter((_, index) => index !== removedIndex);
     if (target.checked) {
         componentPaths = [...componentPaths, path];
+        componentKinds = [...componentKinds, getFamilyKind(key)];
     }
 
     if (componentPaths.length === 0) {
@@ -173,7 +194,16 @@ function toggleComponent(key: string, path: number[], event: Event) {
     }
 
     draftSelections.value = draftSelections.value.map((entry) => entry.key === key
-        ? { ...entry, componentPaths }
+        ? { ...entry, componentPaths, componentKinds }
+        : entry);
+}
+
+function setFamilyKind(key: string, event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const kind = normalizeKind(target.value);
+
+    draftSelections.value = draftSelections.value.map((entry) => entry.key === key
+        ? { ...entry, componentKinds: entry.componentKinds.map(() => kind) }
         : entry);
 }
 
@@ -200,17 +230,18 @@ function sanitizeSelections(selections: ReplayTrackSelection[], options: ReplayT
         const option = optionByKey.get(selection.key);
         if (option == null) continue;
 
-        const validPaths = selection.componentPaths.filter((path, index, paths) => {
-            return paths.findIndex((candidate) => arePathsEqual(candidate, path)) === index
-                && option.components.some((component) => arePathsEqual(component.path, path));
-        });
+        const validEntries = selection.componentPaths
+            .map((path, index) => ({ path, kind: normalizeKind(selection.componentKinds[index]) }))
+            .filter((entry, index, entries) => entries.findIndex((candidate) => arePathsEqual(candidate.path, entry.path)) === index)
+            .filter((entry) => option.components.some((component) => arePathsEqual(component.path, entry.path)));
 
-        if (validPaths.length === 0) continue;
+        if (validEntries.length === 0) continue;
 
         nextSelections.push({
             key: selection.key,
             alias: selection.alias?.trim().length ? selection.alias.trim() : null,
-            componentPaths: validPaths,
+            componentPaths: validEntries.map((entry) => entry.path),
+            componentKinds: validEntries.map((entry) => entry.kind),
         });
     }
 
@@ -220,6 +251,10 @@ function sanitizeSelections(selections: ReplayTrackSelection[], options: ReplayT
 function arePathsEqual(left: number[], right: number[]): boolean {
     if (left.length !== right.length) return false;
     return left.every((value, index) => value === right[index]);
+}
+
+function normalizeKind(kind: string): TimelineTrackKind {
+    return kind === 'categorical' ? 'categorical' : 'numeric';
 }
 
 defineExpose({ showModal });

@@ -1,5 +1,5 @@
 import { ActionDetails, ReplayEpisode } from '../../models/Episode';
-import { TimelineTrack } from '../../models/Timeline';
+import { TimelineTrack, type TimelineTrackKind } from '../../models/Timeline';
 import { formatNumber } from './numberFormat';
 
 export type ReplayTrack = TimelineTrack;
@@ -7,7 +7,6 @@ export type ReplayTrack = TimelineTrack;
 export interface ReplayTrackOption {
     key: string;
     label: string;
-    kind: 'numeric' | 'categorical';
     trackCount: number;
     trackLabels: string[];
     components: ReplayTrackComponentOption[];
@@ -22,6 +21,7 @@ export interface ReplayTrackSelection {
     key: string;
     alias: string | null;
     componentPaths: number[][];
+    componentKinds: TimelineTrackKind[];
 }
 
 type DetailLeafKind = 'numeric' | 'categorical';
@@ -62,8 +62,16 @@ export function buildReplayTracks(
         if (option == null) continue;
 
         const selectedComponents = selection.componentPaths
-            .map((path) => option.components.find((component) => arePathsEqual(component.path, path)))
-            .filter((component): component is ReplayTrackComponentOption => component != null);
+            .map((path, index) => {
+                const component = option.components.find((entry) => arePathsEqual(entry.path, path));
+                if (component == null) return null;
+
+                return {
+                    component,
+                    kind: normalizeTrackKind(selection.componentKinds[index]),
+                };
+            })
+            .filter((component): component is { component: ReplayTrackComponentOption; kind: TimelineTrackKind } => component != null);
 
         if (selectedComponents.length === 0) continue;
 
@@ -82,7 +90,6 @@ export function discoverReplayTrackOptions(replayEpisode: ReplayEpisode | null, 
         return {
             key,
             label: formatDetailKeyLabel(key),
-            kind: shape?.leafKind ?? 'categorical',
             trackCount: components.length,
             trackLabels: components.map((entry) => entry.label),
             components,
@@ -144,12 +151,12 @@ function buildTracksForDetailSelection(
     details: ActionDetails[],
     option: ReplayTrackOption,
     selection: ReplayTrackSelection,
-    selectedComponents: ReplayTrackComponentOption[],
+    selectedComponents: Array<{ component: ReplayTrackComponentOption; kind: TimelineTrackKind }>,
 ): ReplayTrack[] {
     const baseLabel = selection.alias?.trim().length ? selection.alias.trim() : option.label;
 
-    return selectedComponents.map((component) => {
-        const values = details.map((detail) => normalizeSeriesValue(extractPathValue(detail[option.key], component.path), option.kind));
+    return selectedComponents.map(({ component, kind }) => {
+        const values = details.map((detail) => normalizeSeriesValue(extractPathValue(detail[option.key], component.path), kind));
         if (!values.some((value) => value != null)) return null;
 
         const label = component.label === baseLabel
@@ -159,7 +166,7 @@ function buildTracksForDetailSelection(
         return new TimelineTrack(
             buildTrackId(option.key, component.path),
             label,
-            option.kind === 'numeric' ? 'numeric' : 'categorical',
+            kind,
             values,
         );
     }).filter((track): track is ReplayTrack => track != null);
@@ -170,6 +177,7 @@ function defaultTrackSelections(options: ReplayTrackOption[]): ReplayTrackSelect
         key: option.key,
         alias: null,
         componentPaths: option.components.map((component) => component.path),
+        componentKinds: option.components.map(() => 'numeric' as const),
     }));
 }
 
@@ -181,14 +189,18 @@ function sanitizeTrackSelections(selections: ReplayTrackSelection[], options: Re
         const option = optionByKey.get(selection.key);
         if (option == null) continue;
 
-        const uniquePaths = selection.componentPaths.filter((path, index, paths) => paths.findIndex((candidate) => arePathsEqual(candidate, path)) === index);
-        const validPaths = uniquePaths.filter((path) => option.components.some((component) => arePathsEqual(component.path, path)));
-        if (validPaths.length === 0) continue;
+        const validEntries = selection.componentPaths
+            .map((path, index) => ({ path, kind: normalizeTrackKind(selection.componentKinds[index]) }))
+            .filter((entry, index, entries) => entries.findIndex((candidate) => arePathsEqual(candidate.path, entry.path)) === index)
+            .filter((entry) => option.components.some((component) => arePathsEqual(component.path, entry.path)));
+
+        if (validEntries.length === 0) continue;
 
         nextSelections.push({
             key: selection.key,
             alias: selection.alias?.trim() ? selection.alias.trim() : null,
-            componentPaths: validPaths,
+            componentPaths: validEntries.map((entry) => entry.path),
+            componentKinds: validEntries.map((entry) => entry.kind),
         });
     }
 
@@ -372,6 +384,27 @@ function buildTrackId(key: string, path: number[]): string {
     return `detail:${key}:${path.length === 0 ? 'scalar' : path.join('.')}`;
 }
 
+export function parseTrackId(trackId: string): { key: string; path: number[] } | null {
+    if (!trackId.startsWith('detail:')) return null;
+
+    const encoded = trackId.slice('detail:'.length);
+    const separatorIndex = encoded.lastIndexOf(':');
+    if (separatorIndex < 0) return null;
+
+    const key = encoded.slice(0, separatorIndex);
+    const suffix = encoded.slice(separatorIndex + 1);
+    if (key.length === 0) return null;
+
+    if (suffix === 'scalar') {
+        return { key, path: [] };
+    }
+
+    const path = suffix.split('.').map((part) => Number.parseInt(part, 10));
+    if (path.some((part) => Number.isNaN(part) || part < 0)) return null;
+
+    return { key, path };
+}
+
 function formatDetailKeyLabel(key: string): string {
     switch (key) {
         case 'q_values':
@@ -399,4 +432,8 @@ function formatSeriesIndexLabel(index: number, total: number, nAgents: number): 
     }
 
     return `${index + 1}`;
+}
+
+function normalizeTrackKind(kind: TimelineTrackKind | undefined): TimelineTrackKind {
+    return kind === 'categorical' ? 'categorical' : 'numeric';
 }

@@ -59,6 +59,14 @@
                                         {{ view.track.label }}
                                     </span>
 
+                                    <select v-if="view.track.id !== 'reward'"
+                                        class="form-select form-select-sm timeline-track-kind" :value="view.track.kind"
+                                        :aria-label="`${view.track.label} representation`"
+                                        @change="onTrackKindChange(view.track.id, $event)">
+                                        <option value="numeric">Numerical</option>
+                                        <option value="categorical">Categorical</option>
+                                    </select>
+
                                     <span class="timeline-track-value">
                                         {{ currentTrackValueLabelAtStep(view.track, currentStep) }}
                                     </span>
@@ -116,6 +124,7 @@ import {
 } from './replayTimeline';
 import ReplayTimelineWizardModal from '../modals/ReplayTimelineWizardModal.vue';
 import { useReplayTimelineStore } from '../../stores/ReplayTimelineStore';
+import { type TimelineTrackKind } from '../../models/Timeline';
 import type { ReplayTrackSelection } from './replayTimeline';
 
 const props = defineProps<{
@@ -258,6 +267,16 @@ function applyTrackSelection(selections: ReplayTrackSelection[]) {
     replayTimelineStore.setSelectedTracks(props.experiment.logdir, selections, timelineTrackOptions.value);
 }
 
+function onTrackKindChange(trackId: string, event: Event) {
+    const target = event.target as HTMLSelectElement;
+    replayTimelineStore.updateTrackKind(
+        props.experiment.logdir,
+        trackId,
+        target.value as TimelineTrackKind,
+        timelineTrackOptions.value,
+    );
+}
+
 
 function syncTimelineLayout() {
     const storedOrder = loadTimelineOrder(timelineLayoutStorageKey.value);
@@ -390,6 +409,11 @@ async function loadEpisode(episodeDirectory: string) {
 .timeline-track-label {
     font-size: 0.78rem;
     color: var(--bs-secondary-color);
+}
+
+.timeline-track-kind {
+    width: auto;
+    min-width: 8.5rem;
 }
 
 .timeline-track-value {

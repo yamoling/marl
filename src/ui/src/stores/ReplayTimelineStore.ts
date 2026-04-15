@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { ReplayTrackOption, ReplayTrackSelection } from '../components/visualisation/replayTimeline';
+import { parseTrackId, ReplayTrackOption, ReplayTrackSelection } from '../components/visualisation/replayTimeline';
+import { type TimelineTrackKind } from '../models/Timeline';
 
 type ReplayTimelineSelectionMap = Record<string, unknown>;
 
@@ -34,6 +35,38 @@ export const useReplayTimelineStore = defineStore('ReplayTimelineStore', () => {
         return sanitizedSelections;
     }
 
+    function updateTrackKind(logdir: string, trackId: string, kind: TimelineTrackKind, availableOptions: ReplayTrackOption[]): ReplayTrackSelection[] {
+        const parsed = parseTrackId(trackId);
+        if (parsed == null) {
+            return resolveSelectedTracks(logdir, availableOptions);
+        }
+
+        const currentSelections = resolveSelectedTracks(logdir, availableOptions);
+        const selectionIndex = currentSelections.findIndex((selection) => selection.key === parsed.key);
+        if (selectionIndex < 0) {
+            return currentSelections;
+        }
+
+        const selection = currentSelections[selectionIndex];
+        const componentIndex = selection.componentPaths.findIndex((path) => arePathsEqual(path, parsed.path));
+        if (componentIndex < 0) {
+            return currentSelections;
+        }
+
+        const nextSelections = currentSelections.map((entry, index) => {
+            if (index !== selectionIndex) return entry;
+
+            const componentKinds = entry.componentKinds.slice();
+            componentKinds[componentIndex] = kind;
+            return {
+                ...entry,
+                componentKinds,
+            };
+        });
+
+        return setSelectedTracks(logdir, nextSelections, availableOptions);
+    }
+
     function clearSelectedTracks(logdir: string) {
         if (!(logdir in selections.value)) return;
 
@@ -47,6 +80,7 @@ export const useReplayTimelineStore = defineStore('ReplayTimelineStore', () => {
         clearSelectedTracks,
         resolveSelectedTracks,
         setSelectedTracks,
+        updateTrackKind,
     };
 });
 
@@ -81,6 +115,7 @@ function defaultSelections(availableOptions: ReplayTrackOption[]): ReplayTrackSe
         key: option.key,
         alias: null,
         componentPaths: option.components.map((component) => component.path),
+        componentKinds: option.components.map(() => 'numeric' as const),
     }));
 }
 
@@ -92,14 +127,18 @@ function sanitizeSelectedTracks(selections: ReplayTrackSelection[], availableOpt
         const option = optionByKey.get(selection.key);
         if (option == null) continue;
 
-        const uniquePaths = selection.componentPaths.filter((path, index, paths) => paths.findIndex((candidate) => arePathsEqual(candidate, path)) === index);
-        const validPaths = uniquePaths.filter((path) => option.components.some((component) => arePathsEqual(component.path, path)));
-        if (validPaths.length === 0) continue;
+        const validEntries = selection.componentPaths
+            .map((path, index) => ({ path, kind: normalizeTrackKind(selection.componentKinds[index]) }))
+            .filter((entry, index, entries) => entries.findIndex((candidate) => arePathsEqual(candidate.path, entry.path)) === index)
+            .filter((entry) => option.components.some((component) => arePathsEqual(component.path, entry.path)));
+
+        if (validEntries.length === 0) continue;
 
         nextSelections.push({
             key: selection.key,
             alias: selection.alias?.trim() ? selection.alias.trim() : null,
-            componentPaths: validPaths,
+            componentPaths: validEntries.map((entry) => entry.path),
+            componentKinds: validEntries.map((entry) => entry.kind),
         });
     }
 
@@ -116,11 +155,17 @@ function parseSelections(value: unknown): ReplayTrackSelection[] {
         if (typeof candidate.key !== 'string') return null;
         if (!Array.isArray(candidate.componentPaths)) return null;
 
+        const rawComponentKinds = (candidate as { componentKinds?: unknown }).componentKinds;
+        const componentKinds = Array.isArray(rawComponentKinds)
+            ? rawComponentKinds.filter((value): value is TimelineTrackKind => value === 'numeric' || value === 'categorical')
+            : [];
+
         const componentPaths = candidate.componentPaths.filter((path): path is number[] => Array.isArray(path) && path.every((value) => typeof value === 'number' && Number.isInteger(value)));
         return {
             key: candidate.key,
             alias: typeof candidate.alias === 'string' && candidate.alias.trim().length > 0 ? candidate.alias.trim() : null,
             componentPaths,
+            componentKinds,
         };
     }).filter((entry): entry is ReplayTrackSelection => entry != null);
 }
@@ -129,4 +174,8 @@ function arePathsEqual(left: number[], right: number[]): boolean {
     if (left.length !== right.length) return false;
 
     return left.every((value, index) => value === right[index]);
+}
+
+function normalizeTrackKind(kind: TimelineTrackKind | undefined): TimelineTrackKind {
+    return kind === 'categorical' ? 'categorical' : 'numeric';
 }
