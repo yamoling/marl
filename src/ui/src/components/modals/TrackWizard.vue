@@ -25,7 +25,10 @@
                                         <label class="track-toggle">
                                             <input class="form-check-input" type="checkbox" :checked="isSelected(track)"
                                                 @change="(event) => onGroupToggle(track, event)" />
-                                            <span class="option-label">{{ track.label }}</span>
+                                            <span class="option-label text-capitalize"
+                                                :class="{ dimmed: !hasAnySelected(track) }">
+                                                {{ track.label }}
+                                            </span>
                                         </label>
 
                                         <select class="form-select form-select-sm" :disabled="!isSelected(track)"
@@ -36,9 +39,9 @@
                                         </select>
 
                                     </div>
-                                    <div class="component-grid" :class="{ disabled: !isSelected(track) }">
+                                    <div class="component-grid">
                                         <label v-for="subtrack in track.subTracks" :key="subtrack.label"
-                                            class="component-option">
+                                            class="component-option text-capitalize">
                                             <input class="form-check-input" type="checkbox"
                                                 :checked="isSelected(subtrack)"
                                                 @change="(event) => onTrackToggle(subtrack, event)" />
@@ -109,6 +112,10 @@ function isSelected(track: TrackConfig | TrackGroup): boolean {
         return track.subTracks.every(t => isSelected(t));
     }
     return draftSelections.value.some(t => t.label === track.label);
+}
+
+function hasAnySelected(track: TrackGroup): boolean {
+    return track.subTracks.some((subTrack) => isSelected(subTrack));
 }
 
 function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
@@ -251,15 +258,15 @@ defineExpose({ showModal });
     gap: 0.35rem 0.75rem;
 }
 
-.component-grid.disabled {
-    opacity: 0.55;
-}
-
 .component-option {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
     min-width: 0;
+}
+
+.option-label.dimmed {
+    opacity: 0.55;
 }
 
 .empty-state {

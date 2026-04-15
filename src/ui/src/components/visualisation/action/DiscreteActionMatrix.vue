@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { DiscreteActionSpace } from '../../../models/Env';
-import { ActionDetails, ReplayEpisode } from '../../../models/Episode';
+import { AgentDetails, ReplayEpisode } from '../../../models/Episode';
 
 const props = defineProps<{
     episode: ReplayEpisode
@@ -220,7 +220,7 @@ function getScoreAt(step: number, agent: number, actionIndex: number): number | 
     return null;
 }
 
-function decisionVector(detail: ActionDetails, key: 'q_values' | 'action_probabilities', agent: number): number[] | null {
+function decisionVector(detail: AgentDetails, key: 'q_values' | 'action_probabilities', agent: number): number[] | null {
     const raw = detail[key];
     if (!Array.isArray(raw)) return null;
     const valuesForAgent = raw[agent];

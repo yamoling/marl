@@ -26,15 +26,18 @@
                             @click="trackWizardModal?.showModal">
                             Choose tracks
                         </button>
+                        <span v-if="tracks.length > 0" class="timeline-toolbar-summary text-secondary">
+                            {{ tracks.length }} track{{ tracks.length > 1 ? 's' : '' }} selected
+                        </span>
                     </div>
 
                     <div class="timeline-track-list">
                         <div v-for="(track, index) in tracks" :key="track.label" class="timeline-track-item">
                             <div class="timeline-track-toolbar">
                                 <div class="timeline-track-toolbar-left">
-                                    <div class="btn-group btn-group-sm timeline-track-order" role="group"
-                                        :aria-label="`${track.label} order controls`">
-                                        <button type="button" class="btn btn-sm btn-outline-danger">
+                                    <div class="btn-group btn-group-sm timeline-track-order">
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @click.stop="() => tracksStore.remove(props.experiment.logdir, track)">
                                             <font-awesome-icon :icon="['fas', 'xmark']" />
                                         </button>
                                         <button type="button"
@@ -51,7 +54,7 @@
                                         </button>
                                     </div>
 
-                                    <span class="timeline-track-label">
+                                    <span class="timeline-track-label text-capitalize">
                                         {{ track.label }}
                                     </span>
 
@@ -91,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import AgentInfo from './AgentInfo.vue';
 import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
@@ -115,7 +118,8 @@ const props = defineProps<{
 
 const replayStore = useReplayStore();
 const tracksStore = useTracksStore();
-const episode = ref(null as ReplayEpisode | null);
+// Keep class instance shape intact for child component props typing.
+const episode = shallowRef<ReplayEpisode | null>(null);
 const tracksRefreshToken = ref(0);
 const selectedTracks = computed(() => tracksStore.get(props.experiment.logdir))
 const tracks = computed(() => {

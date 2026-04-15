@@ -25,6 +25,7 @@ type ChartPoint = { x: number; y: number | null };
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<'bar' | 'line', ChartPoint[], number> | null = null;
+let chartType: 'bar' | 'line' | null = null;
 
 const nowIndicatorStyle = computed(() => {
     const length = Math.max(1, props.track.length());
@@ -35,7 +36,7 @@ const nowIndicatorStyle = computed(() => {
 });
 
 watch(
-    () => [props.track] as const,
+    () => [props.track.kind, props.track.values] as const,
     () => {
         syncChart();
     },
@@ -50,15 +51,27 @@ onUnmounted(() => {
     if (chart != null) {
         chart.destroy();
         chart = null;
+        chartType = null;
     }
 });
 
 function syncChart() {
     if (canvas.value == null) return;
 
+    const nextType = chartTypeForTrack(props.track);
     const nextConfig = chartConfigForTrack(props.track);
     if (chart == null) {
         chart = new Chart(canvas.value, nextConfig);
+        chartType = nextType;
+        return;
+    }
+
+    // Chart.js cannot reliably switch between fundamentally different chart
+    // types (e.g. line <-> bar) via data/options mutation only.
+    if (chartType !== nextType) {
+        chart.destroy();
+        chart = new Chart(canvas.value, nextConfig);
+        chartType = nextType;
         return;
     }
 
@@ -66,7 +79,16 @@ function syncChart() {
     if (nextConfig.options != null) {
         chart.options = nextConfig.options;
     }
+    chartType = nextType;
     chart.update('none');
+}
+
+function chartTypeForTrack(track: Track): 'bar' | 'line' {
+    if (track.kind === 'numeric') {
+        return 'line';
+    }
+
+    return track.nDistinctValues() <= 16 ? 'bar' : 'line';
 }
 
 function chartConfigForTrack(
