@@ -12,11 +12,11 @@ export interface ReplayEpisodeSummary {
 
 /**
  * Step-wise agent details can be:
- *  - 0D i.e. common to all agents;
+ *  - 0D directly a datapoint
  *  - 1D agent-wise scalar (agent-wise state-value estimation, agent-wise option selected, ...);
  *  - 2D agent-wise and <extra dimension>-wise (e.g. q-values, action probabilities, ...).
  */
-export type AgentDetails = Record<string, number[] | number[][] | number[][][]>;
+export type AgentDetails = Record<string, number | number[] | number[][]>;
 
 
 export class ReplayEpisode {
@@ -27,7 +27,7 @@ export class ReplayEpisode {
         [key: string]: number
     }
     readonly frames: string[]
-    readonly agent_details: AgentDetails
+    readonly agent_details: AgentDetails[]
     readonly action_space: ActionSpace
     readonly tracks: (Track | TrackGroup)[]
 
@@ -39,7 +39,7 @@ export class ReplayEpisode {
             [key: string]: number
         },
         frames: string[],
-        agent_details: AgentDetails,
+        agent_details: AgentDetails[],
         action_space: ActionSpace
     ) {
         this.name = name;
@@ -49,7 +49,7 @@ export class ReplayEpisode {
         this.frames = frames;
         this.agent_details = agent_details;
         this.action_space = action_space;
-        this.tracks = this.getTracks();
+        this.tracks = this.computeTracks();
     }
 
     public static fromJSON(json: any): ReplayEpisode {
@@ -64,13 +64,35 @@ export class ReplayEpisode {
         );
     }
 
-    public getTracks(): (Track | TrackGroup)[] {
+    private computeTracks() {
         const tracks = [
             new Track("Rewards", "numeric", this.episode.rewards),
-            new TrackGroup("Available actions", this.episode.all_available_actions.map((agentActions, agentIndex) => {
-                return new Track(`Agent ${agentIndex + 1}`, 'categorical', agentActions.map((actions) => actions.map((a) => a ? 1 : 0)).flat());
-            }))
-        ];
+        ] as (Track | TrackGroup)[];
+        const keys = Object.keys(this.agent_details[0]);
+        for (const key of keys) {
+            // Gather the logs by key across all time steps
+            const values = this.agent_details.map((details) => details[key]);
+            if (typeof values[0] === "number") {
+                tracks.push(new Track(key, "numeric", values as number[]));
+            } else if (Array.isArray(values[0]) && typeof values[0][0] === "number") {
+                const values2D = values as number[][];
+                const group = new TrackGroup(key, []);
+                for (let i = 0; i < this.nAgents(); i++) {
+                    group.subTracks.push(new Track(`${key} Agent ${i}`, "numeric", values2D.map((v) => v[i])));
+                }
+                tracks.push(group);
+            } else {
+                const values3D = values as number[][][];
+                const group = new TrackGroup(key, []);
+                for (let i = 0; i < this.nAgents(); i++) {
+                    for (let j = 0; j < values3D[0][i].length; j++) {
+                        group.subTracks.push(new Track(`${key} Agent ${i}/${j})`, "numeric", values3D.map((v) => v[i][j])));
+                    }
+                }
+                tracks.push(group);
+            }
+            return tracks
+        }
         return tracks
     }
 

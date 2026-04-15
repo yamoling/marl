@@ -57,7 +57,7 @@
 
                                     <select class="form-select form-select-sm timeline-track-kind" :value="track.kind"
                                         :aria-label="`${track.label} representation`"
-                                        @change="() => tracksStore.update(props.experiment.logdir, track)">
+                                        @change="(event) => onTimelineTrackKindChange(track, event)">
                                         <option value="numeric">Numerical</option>
                                         <option value="categorical">Categorical</option>
                                     </select>
@@ -84,7 +84,8 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
-            <TrackWizard ref="trackWizardModal" :logdir="experiment.logdir" :episode="episode" />
+            <TrackWizard ref="trackWizardModal" :logdir="experiment.logdir" :episode="episode"
+                @applied="onTracksApplied" />
         </template>
     </div>
 </template>
@@ -104,7 +105,7 @@ import TimelineChartTracks from './TimelineChartTracks.vue';
 import { ActionSpace } from '../../models/Env';
 import TrackWizard from '../modals/TrackWizard.vue';
 import { useTracksStore } from '../../stores/TracksStore';
-import { Track } from '../../models/Timeline';
+import { Track, type TimelineTrackKind } from '../../models/Timeline';
 
 const trackWizardModal = ref<InstanceType<typeof TrackWizard> | null>(null);
 const props = defineProps<{
@@ -115,10 +116,21 @@ const props = defineProps<{
 const replayStore = useReplayStore();
 const tracksStore = useTracksStore();
 const episode = ref(null as ReplayEpisode | null);
+const tracksRefreshToken = ref(0);
 const selectedTracks = computed(() => tracksStore.get(props.experiment.logdir))
 const tracks = computed(() => {
+    tracksRefreshToken.value;
     if (episode.value == null) return []
-    return selectedTracks.value.map(track => episode.value?.getTrack(track.label)).filter(track => track != null) as Track[];
+    return selectedTracks.value
+        .map((trackConfig) => {
+            const track = episode.value?.getTrack(trackConfig.label);
+            if (track == null) {
+                return null;
+            }
+            track.kind = trackConfig.kind;
+            return track;
+        })
+        .filter(track => track != null) as Track[];
 })
 const loading = ref(false);
 const currentStep = ref(0);
@@ -211,6 +223,16 @@ function changeStep(event: KeyboardEvent) {
     if (!Number.isNaN(newValue)) {
         currentStep.value = Math.max(0, Math.min(maxStep.value, newValue));
     }
+}
+
+function onTracksApplied() {
+    tracksRefreshToken.value += 1;
+}
+
+function onTimelineTrackKindChange(track: Track, event: Event) {
+    const kind = (event.target as HTMLSelectElement).value as TimelineTrackKind;
+    track.kind = kind;
+    tracksStore.update(props.experiment.logdir, { label: track.label, kind });
 }
 
 

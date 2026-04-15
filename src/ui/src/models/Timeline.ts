@@ -30,24 +30,19 @@ export class Track implements TrackConfig {
 
 export class TrackGroup {
     readonly label: string;
-    readonly subTracks: Track[] | TrackGroup[];
+    readonly subTracks: Track[];
 
-    public constructor(label: string, tracks: Track[] | TrackGroup[]) {
+    public constructor(label: string, tracks: Track[]) {
         this.label = label;
         this.subTracks = tracks;
     }
 
-    public static fromRaw(label: string, data: number[][] | number[][][]): TrackGroup {
+    public static fromRaw(label: string, data: number[][]): TrackGroup {
         if (data.length === 0) {
             return new TrackGroup(label, []);
         }
-        // 2D: the first dimension is the track index, the second dimension is the time dimension
-        if (data[0][0] instanceof Number) {
-            const tracks = (data as number[][]).map((values, index) => new Track(`${label}/${index + 1}`, 'numeric', values));
-            return new TrackGroup(label, tracks);
-        }
-        const subGroups = (data as number[][][]).map((groupData, index) => TrackGroup.fromRaw(`${label}/${index + 1}`, groupData));
-        return new TrackGroup(label, subGroups);
+        const tracks = (data as number[][]).map((values, index) => new Track(`${label}/${index + 1}`, 'numeric', values));
+        return new TrackGroup(label, tracks);
     }
 
     public getTracks(): Track[] {
@@ -67,23 +62,10 @@ export class TrackGroup {
     }
 
     public getMajorityKind(): TimelineTrackKind {
-        const kindCounts: { [key in TimelineTrackKind]: number } = {
-            'numeric': 0,
-            'categorical': 0
-        };
-        for (const subTrack of this.subTracks) {
-            if (subTrack instanceof TrackGroup) {
-                const subKind = subTrack.getMajorityKind();
-                kindCounts[subKind]++;
-            }
-            else {
-                kindCounts[subTrack.kind]++;
-            }
-        }
-        if (kindCounts['numeric'] > kindCounts['categorical']) {
-            return 'numeric';
-        }
-        return 'categorical';
+        const kinds = this.getTracks().map(t => t.kind);
+        const numeric = kinds.filter((kind) => kind === 'numeric').length;
+        const categorical = kinds.length - numeric;
+        return numeric > categorical ? 'numeric' : 'categorical';
     }
 
     public setKind(kind: TimelineTrackKind) {

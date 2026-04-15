@@ -23,8 +23,8 @@
                                 <template v-if="isGroup(track)">
                                     <div class=" option-card-head">
                                         <label class="track-toggle">
-                                            <input class="form-check-input" type="checkbox"
-                                                :checked="isSelected(track)" />
+                                            <input class="form-check-input" type="checkbox" :checked="isSelected(track)"
+                                                @change="(event) => onGroupToggle(track, event)" />
                                             <span class="option-label">{{ track.label }}</span>
                                         </label>
 
@@ -40,11 +40,27 @@
                                         <label v-for="subtrack in track.subTracks" :key="subtrack.label"
                                             class="component-option">
                                             <input class="form-check-input" type="checkbox"
-                                                :checked="isSelected(subtrack)" />
+                                                :checked="isSelected(subtrack)"
+                                                @change="(event) => onTrackToggle(subtrack, event)" />
                                             <span>{{ subtrack.label }}</span>
                                         </label>
                                     </div>
 
+                                </template>
+                                <template v-else>
+                                    <div class="option-card-head">
+                                        <label class="track-toggle">
+                                            <input class="form-check-input" type="checkbox" :checked="isSelected(track)"
+                                                @change="(event) => onTrackToggle(track, event)" />
+                                            <span class="option-label">{{ track.label }}</span>
+                                        </label>
+                                        <select class="form-select form-select-sm" :disabled="!isSelected(track)"
+                                            :value="kindForTrack(track)"
+                                            @change="(event) => onTrackKindChange(track, event)">
+                                            <option value="numeric">Numerical</option>
+                                            <option value="categorical">Categorical</option>
+                                        </select>
+                                    </div>
                                 </template>
 
 
@@ -77,6 +93,10 @@ const props = defineProps<{
     readonly logdir: string,
 }>();
 
+const emits = defineEmits<{
+    (event: 'applied'): void,
+}>();
+
 const trackStore = useTracksStore();
 const modal = ref({} as HTMLDivElement);
 let modalInstance: Modal | null = null;
@@ -96,7 +116,7 @@ function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
 }
 
 function showModal() {
-    draftSelections.value = trackStore.get(props.logdir);
+    draftSelections.value = trackStore.get(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
@@ -108,15 +128,53 @@ function close() {
     modalInstance?.hide();
 }
 
+
 function confirm() {
-    // TODO persist data
+    trackStore.set(props.logdir, draftSelections.value.map((track) => ({ label: track.label, kind: track.kind })));
+    emits('applied');
     close();
 }
 
 function onFamilyKindChange(track: TrackGroup, event: Event) {
     const newKind = (event.target as HTMLSelectElement).value as TimelineTrackKind;
-    track.setKind(newKind);
+    for (const subTrack of track.getTracks()) {
+        setDraftKind(subTrack, newKind);
+    }
 }
+
+function onGroupToggle(track: TrackGroup, event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    for (const subTrack of track.getTracks()) {
+        onTrackToggle(subTrack, event);
+    }
+}
+
+function onTrackKindChange(track: TrackConfig, event: Event) {
+    const newKind = (event.target as HTMLSelectElement).value as TimelineTrackKind;
+    setDraftKind(track, newKind);
+}
+
+function onTrackToggle(track: TrackConfig, event: Event) {
+    const isChecked = (event.target as HTMLInputElement).checked;
+    if (isChecked) {
+        draftSelections.value.push({ label: track.label, kind: track.kind });
+    } else {
+        draftSelections.value = draftSelections.value.filter((entry) => entry.label !== track.label);
+    }
+}
+
+function setDraftKind(track: TrackConfig, kind: TimelineTrackKind) {
+    const existing = draftSelections.value.find((entry) => entry.label === track.label);
+    if (existing == null) {
+        return;
+    }
+    existing.kind = kind;
+}
+
+function kindForTrack(track: TrackConfig): TimelineTrackKind {
+    return draftSelections.value.find((entry) => entry.label === track.label)?.kind ?? track.kind;
+}
+
 
 
 
@@ -164,14 +222,23 @@ defineExpose({ showModal });
 }
 
 .option-card-head {
-    display: grid;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.5rem;
 }
 
 .track-toggle {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 0.45rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.option-card-head .form-select {
+    width: auto;
+    min-width: 10rem;
 }
 
 .option-label {

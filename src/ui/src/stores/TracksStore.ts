@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { Track, TrackConfig, type TimelineTrackKind } from '../models/Timeline';
+import { TrackConfig, type TimelineTrackKind } from '../models/Timeline';
 
 const STORAGE_KEY = 'tracksStore';
 
@@ -13,14 +13,20 @@ const STORAGE_KEY = 'tracksStore';
 export const useTracksStore = defineStore('TracksStore', () => {
     const selectedTracks = ref(load());
 
-    function add(logdir: string, track: Track) {
+    function commit(nextMap: Map<string, TrackConfig[]>) {
+        selectedTracks.value = new Map(nextMap);
+        save();
+    }
+
+    function add(logdir: string, track: TrackConfig) {
         const tracks = selectedTracks.value.get(logdir) ?? [];
         const existing = tracks.find((entry) => entry.label === track.label);
         if (existing !== undefined) {
             return
         }
-        selectedTracks.value.set(logdir, [...tracks, track]);
-        save();
+        const nextMap = new Map(selectedTracks.value);
+        nextMap.set(logdir, [...tracks, { label: track.label, kind: track.kind }]);
+        commit(nextMap);
     }
 
     function update(logdir: string, track: TrackConfig) {
@@ -30,9 +36,27 @@ export const useTracksStore = defineStore('TracksStore', () => {
         const trackIndex = tracks.findIndex((entry) => entry.label === track.label);
         if (trackIndex === -1) return;
 
-        tracks[trackIndex] = track;
-        selectedTracks.value.set(logdir, tracks);
-        save();
+        const nextTracks = [...tracks];
+        nextTracks[trackIndex] = { label: track.label, kind: track.kind };
+        const nextMap = new Map(selectedTracks.value);
+        nextMap.set(logdir, nextTracks);
+        commit(nextMap);
+    }
+
+    function set(logdir: string, tracks: TrackConfig[]) {
+        const nextMap = new Map(selectedTracks.value);
+        if (tracks.length === 0) {
+            nextMap.delete(logdir);
+            commit(nextMap);
+            return;
+        }
+
+        const deduplicated = new Map<string, TrackConfig>();
+        for (const track of tracks) {
+            deduplicated.set(track.label, { label: track.label, kind: track.kind });
+        }
+        nextMap.set(logdir, Array.from(deduplicated.values()));
+        commit(nextMap);
     }
 
     function remove(logdir: string, track: TrackConfig) {
@@ -40,12 +64,13 @@ export const useTracksStore = defineStore('TracksStore', () => {
         if (tracks == null) return;
 
         const nextTracks = tracks.filter((entry) => entry.label !== track.label);
+        const nextMap = new Map(selectedTracks.value);
         if (nextTracks.length === 0) {
-            selectedTracks.value.delete(logdir);
+            nextMap.delete(logdir);
         } else {
-            selectedTracks.value.set(logdir, nextTracks);
+            nextMap.set(logdir, nextTracks);
         }
-        save();
+        commit(nextMap);
     }
 
     function save() {
@@ -68,12 +93,14 @@ export const useTracksStore = defineStore('TracksStore', () => {
         const tmp = tracks[index1];
         tracks[index1] = tracks[index2];
         tracks[index2] = tmp;
-        selectedTracks.value.set(logdir, tracks);
-        save();
+        const nextMap = new Map(selectedTracks.value);
+        nextMap.set(logdir, [...tracks]);
+        commit(nextMap);
     }
 
     return {
         get,
+        set,
         add,
         remove,
         swap,
