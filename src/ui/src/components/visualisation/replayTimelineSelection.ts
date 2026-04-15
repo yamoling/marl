@@ -15,7 +15,6 @@ export interface ReplayTrackOption {
 
 export interface ReplayTrackSelection {
     key: string;
-    alias: string | null;
     componentPaths: number[][];
     componentKinds: TimelineTrackKind[];
 }
@@ -23,7 +22,6 @@ export interface ReplayTrackSelection {
 export function defaultTrackSelections(options: ReplayTrackOption[]): ReplayTrackSelection[] {
     return options.map((option) => ({
         key: option.key,
-        alias: null,
         componentPaths: option.components.map((component) => component.path),
         componentKinds: option.components.map(() => 'numeric' as const),
     }));
@@ -46,7 +44,6 @@ export function sanitizeTrackSelections(selections: ReplayTrackSelection[], opti
 
         nextSelections.push({
             key: selection.key,
-            alias: selection.alias?.trim() ? selection.alias.trim() : null,
             componentPaths: validEntries.map((entry) => entry.path),
             componentKinds: validEntries.map((entry) => entry.kind),
         });

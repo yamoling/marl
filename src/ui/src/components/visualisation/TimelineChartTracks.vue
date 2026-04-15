@@ -8,12 +8,12 @@
 <script setup lang="ts">
 import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { TimelineTrack } from '../../models/Timeline';
+import { Track } from '../../models/Timeline';
 import { formatNumber } from './numberFormat';
 import { CATEGORY_COLOURS } from '../../constants';
 
 const props = defineProps<{
-    track: TimelineTrack;
+    track: Track;
     currentStep: number;
 }>();
 
@@ -70,17 +70,14 @@ function syncChart() {
 }
 
 function chartConfigForTrack(
-    track: TimelineTrack,
+    track: Track,
 ): ChartConfiguration<'bar' | 'line', ChartPoint[], number> {
     if (track.kind === 'numeric') {
         return makeNumericChartConfig(track)
     }
 
-    // For categorical data, try to count unique categories
-    const uniqueCategories = new Set(track.values.filter(v => v != null).map(String));
-
     // Use patches visualization if ≤16 categories, otherwise use line chart
-    if (uniqueCategories.size <= 16) {
+    if (track.nDistinctValues() <= 16) {
         return makeCategoricalPatchesChartConfig(track);
     }
     return makeCategoricalChartConfig(track)
@@ -99,7 +96,7 @@ function toNumberOrNull(value: unknown): number | null {
     return null;
 }
 
-function makeNumericChartConfig(track: TimelineTrack): ChartConfiguration<'line', ChartPoint[], number> {
+function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartPoint[], number> {
     const data = track.values.map((value, index) => ({
         x: index + 1,
         y: toNumberOrNull(value),
@@ -191,7 +188,7 @@ function toCategoryIndex(value: unknown): number | null {
     return null;
 }
 
-function makeCategoricalPatchesChartConfig(track: TimelineTrack): ChartConfiguration<'bar', ChartPoint[], number> {
+function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'bar', ChartPoint[], number> {
     // Extract all category indices and build color mapping
     const categoryIndices = new Map<number, string>(); // index -> label
     const categoryColors: string[] = [];
@@ -297,7 +294,7 @@ function makeCategoricalPatchesChartConfig(track: TimelineTrack): ChartConfigura
 }
 
 
-function makeCategoricalChartConfig(track: TimelineTrack): ChartConfiguration<'line', ChartPoint[], number> {
+function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', ChartPoint[], number> {
     const categoryToLevel = new Map<string, number>();
     const levelToCategory = {} as Record<number, string>;
 

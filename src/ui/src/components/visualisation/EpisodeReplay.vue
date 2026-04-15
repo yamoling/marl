@@ -26,54 +26,44 @@
                             @click="trackWizardModal?.showModal">
                             Choose tracks
                         </button>
-
-                        <span class="timeline-toolbar-summary text-muted small">
-                            {{ trackSummary }}
-                        </span>
                     </div>
 
                     <div class="timeline-track-list">
-                        <div v-for="(view, index) in orderedTrackViews" :key="view.track.id"
-                            class="timeline-track-item">
+                        <div v-for="(track, index) in tracks" :key="track.label" class="timeline-track-item">
                             <div class="timeline-track-toolbar">
                                 <div class="timeline-track-toolbar-left">
                                     <div class="btn-group btn-group-sm timeline-track-order" role="group"
-                                        :aria-label="`${view.track.label} order controls`">
+                                        :aria-label="`${track.label} order controls`">
                                         <button type="button" class="btn btn-sm btn-outline-danger">
                                             <font-awesome-icon :icon="['fas', 'xmark']" />
                                         </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
-                                            :disabled="index === 0" @click="moveTrack(view.track.id, -1)">
+                                            :disabled="index <= 0"
+                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index - 1)">
                                             <font-awesome-icon :icon="['fas', 'arrow-up']" />
                                         </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
-                                            :disabled="index === orderedTrackViews.length - 1"
-                                            @click="moveTrack(view.track.id, 1)">
+                                            :disabled="index >= tracks.length - 1"
+                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index + 1)">
                                             <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
                                     </div>
 
                                     <span class="timeline-track-label">
-                                        {{ view.track.label }}
+                                        {{ track.label }}
                                     </span>
 
-                                    <select v-if="view.track.id !== 'reward'"
-                                        class="form-select form-select-sm timeline-track-kind" :value="view.track.kind"
-                                        :aria-label="`${view.track.label} representation`"
-                                        @change="onTrackKindChange(view.track.id, $event)">
+                                    <select class="form-select form-select-sm timeline-track-kind" :value="track.kind"
+                                        :aria-label="`${track.label} representation`"
+                                        @change="() => tracksStore.update(props.experiment.logdir, track)">
                                         <option value="numeric">Numerical</option>
                                         <option value="categorical">Categorical</option>
                                     </select>
-
-                                    <span class="timeline-track-value">
-                                        {{ currentTrackValueLabelAtStep(view.track, currentStep) }}
-                                    </span>
                                 </div>
                             </div>
-                            <TimelineChartTracks :track="view.track" :current-step="currentStep"
-                                @select-step="selectStep" />
+                            <TimelineChartTracks :track="track" :current-step="currentStep" @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
@@ -94,9 +84,7 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
-
-            <ReplayTimelineWizardModal ref="trackWizardModal" :episode="episode" :n-agents="nAgents"
-                :selected-tracks="selectedTrackSelections" @confirm="applyTrackSelection" />
+            <TrackWizard ref="trackWizardModal" :logdir="experiment.logdir" :episode="episode" />
         </template>
     </div>
 </template>
@@ -114,63 +102,35 @@ import AccordionContent from 'primevue/accordioncontent';
 import ActionPanel from './action/ActionPanel.vue';
 import TimelineChartTracks from './TimelineChartTracks.vue';
 import { ActionSpace } from '../../models/Env';
-import {
-    buildReplayTracks,
-    currentTrackValueLabelAtStep,
-    discoverReplayTrackOptions,
-} from './replayTimeline';
-import { loadTimelineOrder, persistTimelineOrder, syncTimelineOrder } from './replayTimelineOrder';
-import ReplayTimelineWizardModal from '../modals/ReplayTimelineWizardModal.vue';
-import { useReplayTimelineStore } from '../../stores/ReplayTimelineStore';
-import { type TimelineTrackKind } from '../../models/Timeline';
-import type { ReplayTrackSelection } from './replayTimelineSelection';
+import TrackWizard from '../modals/TrackWizard.vue';
+import { useTracksStore } from '../../stores/TracksStore';
+import { Track } from '../../models/Timeline';
 
+const trackWizardModal = ref<InstanceType<typeof TrackWizard> | null>(null);
 const props = defineProps<{
     experiment: Experiment,
     episodeDirectory: string
 }>();
 
 const replayStore = useReplayStore();
-const replayTimelineStore = useReplayTimelineStore();
-const loading = ref(false);
+const tracksStore = useTracksStore();
 const episode = ref(null as ReplayEpisode | null);
+const selectedTracks = computed(() => tracksStore.get(props.experiment.logdir))
+const tracks = computed(() => {
+    if (episode.value == null) return []
+    return selectedTracks.value.map(track => episode.value?.getTrack(track.label)).filter(track => track != null) as Track[];
+})
+const loading = ref(false);
 const currentStep = ref(0);
-const trackOrder = ref<string[]>([]);
-const trackWizardModal = ref<InstanceType<typeof ReplayTimelineWizardModal> | null>(null);
-
-
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
-const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
+const episodeLength = computed(() => episode.value?.length() || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
-const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
-const timelineTrackOptions = computed(() => discoverReplayTrackOptions(episode.value, nAgents.value));
-const selectedTrackSelections = computed(() => {
-    if (episode.value == null) return [];
-    return replayTimelineStore.resolveSelectedTracks(props.experiment.logdir, timelineTrackOptions.value);
-});
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
-const allTracks = computed(() => buildReplayTracks(episode.value, rewardValues.value, nAgents.value, selectedTrackSelections.value));
-const trackSummary = computed(() => {
-    if (episode.value == null) return 'Load an episode to choose optional tracks.';
-    const detailTrackCount = Math.max(0, allTracks.value.length - 1);
-    return `${selectedTrackSelections.value.length} track${selectedTrackSelections.value.length === 1 ? '' : 's'} selected, ${detailTrackCount} component track${detailTrackCount === 1 ? '' : 's'} shown.`;
-});
-const timelineLayoutStorageKey = computed(() => `marl.replay.timeline-layout:${props.experiment.logdir}:${props.episodeDirectory}`);
-const orderedTrackViews = computed(() => {
-    const trackById = new Map(allTracks.value.map((track) => [track.id, track] as const));
-    const orderedIds = trackOrder.value.length > 0
-        ? trackOrder.value
-        : allTracks.value.map((track) => track.id);
 
-    return orderedIds
-        .map((trackId) => trackById.get(trackId))
-        .filter((track) => track != null)
-        .map((track) => ({ track }));
-});
-const currentFrame = computed(() => episode.value?.frames?.at(safeStep.value) || '');
+const currentFrame = computed(() => episode.value?.frameAt(safeStep.value));
 const resolvedActionSpace = computed<ActionSpace>(() => {
     const replaySpace = episode.value?.action_space;
     const baseSpace = replaySpace ?? props.experiment.env.action_space;
@@ -184,11 +144,6 @@ const resolvedActionSpace = computed<ActionSpace>(() => {
     } as ActionSpace;
 });
 
-watch(
-    allTracks,
-    () => syncTimelineLayout(),
-    { immediate: true }
-);
 
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -222,18 +177,17 @@ function onKeyDown(event: KeyboardEvent) {
     }
 }
 
-onMounted(() => {
-    window.addEventListener('keydown', onKeyDown);
-});
-
-onUnmounted(() => {
-    window.removeEventListener('keydown', onKeyDown);
-});
+onMounted(() => window.addEventListener('keydown', onKeyDown));
+onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
 
 watch(
     () => props.episodeDirectory,
     async (newDirectory) => {
-        await loadEpisode(newDirectory);
+        episode.value = null;
+        loading.value = true;
+        episode.value = await replayStore.getEpisode(newDirectory);
+        currentStep.value = 0;
+        loading.value = false;
     },
     { immediate: true }
 );
@@ -244,42 +198,6 @@ function step(amount: number) {
 
 function selectStep(step: number) {
     currentStep.value = Math.max(0, Math.min(maxStep.value, step));
-}
-
-
-function moveTrack(trackId: string, direction: -1 | 1) {
-    const currentIndex = trackOrder.value.indexOf(trackId);
-    if (currentIndex < 0) return;
-
-    const nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= trackOrder.value.length) return;
-
-    const nextOrder = [...trackOrder.value];
-    const [moved] = nextOrder.splice(currentIndex, 1);
-    nextOrder.splice(nextIndex, 0, moved);
-    trackOrder.value = nextOrder;
-    persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
-}
-
-function applyTrackSelection(selections: ReplayTrackSelection[]) {
-    replayTimelineStore.setSelectedTracks(props.experiment.logdir, selections, timelineTrackOptions.value);
-}
-
-function onTrackKindChange(trackId: string, event: Event) {
-    const target = event.target as HTMLSelectElement;
-    replayTimelineStore.updateTrackKind(
-        props.experiment.logdir,
-        trackId,
-        target.value as TimelineTrackKind,
-        timelineTrackOptions.value,
-    );
-}
-
-
-function syncTimelineLayout() {
-    const storedOrder = loadTimelineOrder(timelineLayoutStorageKey.value);
-    trackOrder.value = syncTimelineOrder(trackOrder.value, allTracks.value, storedOrder);
-    persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
 }
 
 function changeStep(event: KeyboardEvent) {
@@ -295,16 +213,7 @@ function changeStep(event: KeyboardEvent) {
     }
 }
 
-async function loadEpisode(episodeDirectory: string) {
-    episode.value = null;
-    loading.value = true;
 
-    const replay = await replayStore.getEpisode(episodeDirectory);
-    episode.value = replay;
-    currentStep.value = 0;
-
-    loading.value = false;
-}
 </script>
 
 <style scoped>

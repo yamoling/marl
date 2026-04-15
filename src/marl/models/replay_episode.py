@@ -22,7 +22,7 @@ class LightEpisodeSummary:
 class ReplayEpisode(LightEpisodeSummary):
     episode: Episode
     frames: list[str]
-    action_details: list[dict[str, Any]]
+    agent_details: list[dict[str, Any]]
     action_space: Space
 
     def __init__(
@@ -36,5 +36,5 @@ class ReplayEpisode(LightEpisodeSummary):
         super().__init__(directory=directory, metrics=episode.metrics)
         self.episode = episode
         self.frames = frames
-        self.action_details = [a.details for a in detailed_actions]
+        self.agent_details = [a.details for a in detailed_actions]
         self.action_space = action_space

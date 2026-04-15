@@ -107,7 +107,7 @@ const safeStep = computed(() => clampStep(props.currentStep));
 const isTransposed = ref(false);
 
 const scoreSource = computed(() => {
-    const detail = props.episode.action_details[safeStep.value];
+    const detail = props.episode.agent_details[safeStep.value];
     if (detail?.q_values != null) return 'q_values';
     if (detail?.action_probabilities != null) return 'action_probabilities';
     return 'action signal unavailable';
@@ -208,7 +208,7 @@ function maxAvailableActionCountAt(step: number): number {
 }
 
 function getScoreAt(step: number, agent: number, actionIndex: number): number | null {
-    const detail = props.episode.action_details[step];
+    const detail = props.episode.agent_details[step];
     if (detail == null) return null;
 
     const fromQ = decisionVector(detail, 'q_values', agent)?.[actionIndex];
