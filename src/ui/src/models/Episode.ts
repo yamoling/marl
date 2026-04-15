@@ -9,13 +9,7 @@ export interface ReplayEpisodeSummary {
 }
 
 
-export interface ActionDetails {
-    action_probabilities?: number[][] | number[][][]
-    q_values?: number[][] | number[][][]
-    options?: number[]
-    options_termination_probs?: number[]
-    meta_actions?: number[]
-}
+
 
 
 export interface ReplayEpisode {
@@ -26,7 +20,15 @@ export interface ReplayEpisode {
         [key: string]: number
     },
     frames: string[]
-    action_details: ActionDetails[]
+    /**
+     * Ste-wise action details can be:
+     *  - 0D i.e. common to all agents;
+     *  - 1D agent-wise scalar (state-value estimation, ...);
+     *  - 2D because agent-wise and <extra dimension>-wise (e.g. q-values, action probabilities, ...).
+     */
+    action_details: {
+        [key: string]: number | number[] | number[][]
+    }[]
     action_space?: ActionSpace
 
 }

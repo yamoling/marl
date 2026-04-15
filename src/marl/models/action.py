@@ -1,4 +1,4 @@
-from dataclasses import dataclass, KW_ONLY
+from dataclasses import dataclass
 from typing import Any, overload
 
 import numpy as np
@@ -15,13 +15,22 @@ class Action[T: Any]:
     """
 
     action: npt.NDArray[T]
-    _: KW_ONLY
-    action_probabilities: npt.NDArray[np.float32] | None = None
-    q_values: npt.NDArray[np.float32] | None = None
-    options: npt.ArrayLike | None = None
-    options_termination_probs: npt.ArrayLike | None = None
-    meta_actions: npt.ArrayLike | None = None
-    vbe: npt.NDArray[np.float32] | None = None
+    options: npt.ArrayLike | None
+    meta_actions: npt.ArrayLike | None
+
+    def __init__(
+        self,
+        action: npt.NDArray[T],
+        *,
+        options: npt.ArrayLike | None = None,
+        meta_actions: npt.ArrayLike | None = None,
+        **kwargs: npt.ArrayLike,
+    ):
+        self.action = action
+        self.options = options
+        self.meta_actions = meta_actions
+        for name, value in kwargs.items():
+            setattr(self, name, value)
 
     def __array__(self, dtype=None):
         if dtype is None:
@@ -40,10 +49,13 @@ class Action[T: Any]:
     def __getitem__(self, item: str) -> np.ndarray:
         """Get the keyword argument with the given name."""
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int | str):
         if isinstance(item, int):
             return self.action[item]
         return getattr(self, item)
+
+    def __setitem__(self, key: str, value: npt.ArrayLike):
+        setattr(self, key, value)
 
     @property
     def details(self):
