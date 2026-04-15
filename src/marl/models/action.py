@@ -24,7 +24,7 @@ class Action[T: Any]:
         *,
         options: npt.ArrayLike | None = None,
         meta_actions: npt.ArrayLike | None = None,
-        **kwargs: npt.ArrayLike,
+        **kwargs: npt.ArrayLike | None,
     ):
         self.action = action
         self.options = options
@@ -59,4 +59,4 @@ class Action[T: Any]:
 
     @property
     def details(self):
-        return {name: value for name, value in self.__dict__.items() if name != "action" and value is not None}
+        return {key: value for key, value in self.__dict__.items() if key != "action" and value is not None}

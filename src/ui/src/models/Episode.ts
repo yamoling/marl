@@ -1,5 +1,7 @@
 import { ActionSpace } from "./Env"
 
+export type ActionDetails = Record<string, unknown>;
+
 export interface ReplayEpisodeSummary {
     name: string,
     directory: string,
@@ -26,9 +28,7 @@ export interface ReplayEpisode {
      *  - 1D agent-wise scalar (state-value estimation, ...);
      *  - 2D because agent-wise and <extra dimension>-wise (e.g. q-values, action probabilities, ...).
      */
-    action_details: {
-        [key: string]: number | number[] | number[][]
-    }[]
+    action_details: ActionDetails[]
     action_space?: ActionSpace
 
 }

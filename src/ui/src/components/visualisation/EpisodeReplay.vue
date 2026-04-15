@@ -14,7 +14,7 @@
 
             <section class="replay-row row-divider">
                 <div class="timeline-wrap">
-                    <div style="display: flex;">
+                    <div class="timeline-toolbar">
                         <div class="manual-step-input me-5">
                             Step
                             <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
@@ -22,23 +22,26 @@
                             <span class="text-muted">/ {{ episodeLength }}</span>
                         </div>
 
-                    </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" :disabled="episode == null"
+                            @click="trackWizardModal?.showModal">
+                            Choose tracks
+                        </button>
 
-                    <div class="track-visibility mb-2">
-                        <label v-for="toggle in trackToggles" :key="toggle.id" class="track-toggle">
-                            <input type="checkbox" :checked="toggle.visible"
-                                @change="onTrackToggle(toggle.id, $event)" />
-                            {{ toggle.label }}
-                        </label>
+                        <span class="timeline-toolbar-summary text-muted small">
+                            {{ trackSummary }}
+                        </span>
                     </div>
 
                     <div class="timeline-track-list">
-                        <div v-for="(view, index) in visibleTrackViews" :key="view.track.id"
+                        <div v-for="(view, index) in orderedTrackViews" :key="view.track.id"
                             class="timeline-track-item">
                             <div class="timeline-track-toolbar">
                                 <div class="timeline-track-toolbar-left">
                                     <div class="btn-group btn-group-sm timeline-track-order" role="group"
                                         :aria-label="`${view.track.label} order controls`">
+                                        <button type="button" class="btn btn-sm btn-outline-danger">
+                                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                                        </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index === 0" @click="moveTrack(view.track.id, -1)">
@@ -46,7 +49,7 @@
                                         </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
-                                            :disabled="index === visibleTrackViews.length - 1"
+                                            :disabled="index === orderedTrackViews.length - 1"
                                             @click="moveTrack(view.track.id, 1)">
                                             <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
@@ -54,6 +57,10 @@
 
                                     <span class="timeline-track-label">
                                         {{ view.track.label }}
+                                    </span>
+
+                                    <span class="timeline-track-value">
+                                        {{ currentTrackValueLabelAtStep(view.track, currentStep) }}
                                     </span>
                                 </div>
                             </div>
@@ -79,6 +86,9 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
+
+            <ReplayTimelineWizardModal ref="trackWizardModal" :episode="episode" :n-agents="nAgents"
+                :selected-tracks="selectedTrackSelections" @confirm="applyTrackSelection" />
         </template>
     </div>
 </template>
@@ -99,10 +109,14 @@ import { ActionSpace } from '../../models/Env';
 import {
     buildReplayTracks,
     currentTrackValueLabelAtStep,
+    discoverReplayTrackOptions,
     loadTimelineOrder,
     persistTimelineOrder,
     syncTimelineOrder,
 } from './replayTimeline';
+import ReplayTimelineWizardModal from '../modals/ReplayTimelineWizardModal.vue';
+import { useReplayTimelineStore } from '../../stores/ReplayTimelineStore';
+import type { ReplayTrackSelection } from './replayTimeline';
 
 const props = defineProps<{
     experiment: Experiment,
@@ -110,27 +124,33 @@ const props = defineProps<{
 }>();
 
 const replayStore = useReplayStore();
+const replayTimelineStore = useReplayTimelineStore();
 const loading = ref(false);
 const episode = ref(null as ReplayEpisode | null);
 const currentStep = ref(0);
-const trackVisibility = ref({} as Record<string, boolean>);
 const trackOrder = ref<string[]>([]);
+const trackWizardModal = ref<InstanceType<typeof ReplayTimelineWizardModal> | null>(null);
 
 
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.metrics.episode_len || 0);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const rewardValues = computed(() => episode.value?.episode.rewards ?? []);
+const timelineTrackOptions = computed(() => discoverReplayTrackOptions(episode.value, nAgents.value));
+const selectedTrackSelections = computed(() => {
+    if (episode.value == null) return [];
+    return replayTimelineStore.resolveSelectedTracks(props.experiment.logdir, timelineTrackOptions.value);
+});
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
     return Math.max(0, Math.min(episodeLength.value, currentStep.value));
 });
-const trackToggles = computed(() => allTracks.value.map((track) => ({
-    id: track.id,
-    label: track.label,
-    visible: trackVisibility.value[track.id] ?? true,
-})));
-const allTracks = computed(() => buildReplayTracks(episode.value, rewardValues.value, nAgents.value));
+const allTracks = computed(() => buildReplayTracks(episode.value, rewardValues.value, nAgents.value, selectedTrackSelections.value));
+const trackSummary = computed(() => {
+    if (episode.value == null) return 'Load an episode to choose optional tracks.';
+    const detailTrackCount = Math.max(0, allTracks.value.length - 1);
+    return `${selectedTrackSelections.value.length} track${selectedTrackSelections.value.length === 1 ? '' : 's'} selected, ${detailTrackCount} component track${detailTrackCount === 1 ? '' : 's'} shown.`;
+});
 const timelineLayoutStorageKey = computed(() => `marl.replay.timeline-layout:${props.experiment.logdir}:${props.episodeDirectory}`);
 const orderedTrackViews = computed(() => {
     const trackById = new Map(allTracks.value.map((track) => [track.id, track] as const));
@@ -143,7 +163,6 @@ const orderedTrackViews = computed(() => {
         .filter((track) => track != null)
         .map((track) => ({ track }));
 });
-const visibleTrackViews = computed(() => orderedTrackViews.value.filter((view) => trackVisibility.value[view.track.id] ?? true));
 const currentFrame = computed(() => episode.value?.frames?.at(safeStep.value) || '');
 const resolvedActionSpace = computed<ActionSpace>(() => {
     const replaySpace = episode.value?.action_space;
@@ -160,17 +179,9 @@ const resolvedActionSpace = computed<ActionSpace>(() => {
 
 watch(
     allTracks,
-    () => {
-        const nextVisibility = {} as Record<string, boolean>;
-        for (const track of allTracks.value) {
-            nextVisibility[track.id] = trackVisibility.value[track.id] ?? true;
-        }
-        trackVisibility.value = nextVisibility;
-        syncTimelineLayout();
-    },
+    () => syncTimelineLayout(),
     { immediate: true }
 );
-
 
 function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
@@ -228,14 +239,6 @@ function selectStep(step: number) {
     currentStep.value = Math.max(0, Math.min(maxStep.value, step));
 }
 
-function onTrackToggle(trackId: string, event: Event) {
-    const target = event.target as HTMLInputElement;
-    trackVisibility.value = {
-        ...trackVisibility.value,
-        [trackId]: target.checked,
-    };
-}
-
 
 function moveTrack(trackId: string, direction: -1 | 1) {
     const currentIndex = trackOrder.value.indexOf(trackId);
@@ -249,6 +252,10 @@ function moveTrack(trackId: string, direction: -1 | 1) {
     nextOrder.splice(nextIndex, 0, moved);
     trackOrder.value = nextOrder;
     persistTimelineOrder(timelineLayoutStorageKey.value, trackOrder.value);
+}
+
+function applyTrackSelection(selections: ReplayTrackSelection[]) {
+    replayTimelineStore.setSelectedTracks(props.experiment.logdir, selections, timelineTrackOptions.value);
 }
 
 
@@ -314,6 +321,17 @@ async function loadEpisode(episodeDirectory: string) {
 .timeline-wrap {
     min-width: 0;
     user-select: none;
+}
+
+.timeline-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.timeline-toolbar-summary {
+    line-height: 1.2;
 }
 
 .track-visibility {

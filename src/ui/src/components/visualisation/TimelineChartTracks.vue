@@ -113,7 +113,6 @@ function makeNumericChartConfig(track: TimelineTrack): ChartConfiguration<'line'
                     label: track.label,
                     data,
                     borderColor: '#1f77b4',
-                    backgroundColor: 'rgba(31, 119, 180, 0.22)',
                     pointRadius: 0,
                     borderWidth: 1.5,
                     tension: 0,
@@ -332,7 +331,6 @@ function makeCategoricalChartConfig(track: TimelineTrack): ChartConfiguration<'l
                     label: track.label,
                     data,
                     borderColor: '#e15759',
-                    backgroundColor: 'rgba(225, 87, 89, 0.22)',
                     pointRadius: 0,
                     borderWidth: 1.5,
                     tension: 0,
@@ -399,7 +397,6 @@ function makeCategoricalChartConfig(track: TimelineTrack): ChartConfiguration<'l
     height: 50px;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.25rem;
-    background: color-mix(in srgb, var(--bs-body-bg) 92%, var(--bs-body-color));
 }
 
 .timeline-chart-canvas {
