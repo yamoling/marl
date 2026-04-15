@@ -1,28 +1,17 @@
 import { ActionDetails, ReplayEpisode } from '../../models/Episode';
 import { TimelineTrack, type TimelineTrackKind } from '../../models/Timeline';
 import { formatNumber } from './numberFormat';
+import {
+    arePathsEqual,
+    defaultTrackSelections,
+    normalizeTrackKind,
+    ReplayTrackComponentOption,
+    ReplayTrackOption,
+    ReplayTrackSelection,
+    sanitizeTrackSelections,
+} from './replayTimelineSelection';
 
 export type ReplayTrack = TimelineTrack;
-
-export interface ReplayTrackOption {
-    key: string;
-    label: string;
-    trackCount: number;
-    trackLabels: string[];
-    components: ReplayTrackComponentOption[];
-}
-
-export interface ReplayTrackComponentOption {
-    path: number[];
-    label: string;
-}
-
-export interface ReplayTrackSelection {
-    key: string;
-    alias: string | null;
-    componentPaths: number[][];
-    componentKinds: TimelineTrackKind[];
-}
 
 type DetailLeafKind = 'numeric' | 'categorical';
 type DetailShapeKind = 'scalar' | 'vector' | 'matrix';
@@ -114,39 +103,6 @@ export function currentTrackValueLabelAtStep(track: ReplayTrack, currentStep: nu
     return value == null ? 'none' : String(value);
 }
 
-export function loadTimelineOrder(storageKey: string): string[] | null {
-    if (typeof window === 'undefined') return null;
-
-    const raw = window.localStorage.getItem(storageKey);
-    if (raw == null) return null;
-
-    try {
-        const parsed = JSON.parse(raw) as Partial<{ order: unknown }>;
-        if (!Array.isArray(parsed.order)) return null;
-        return parsed.order.filter((entry): entry is string => typeof entry === 'string');
-    } catch {
-        return null;
-    }
-}
-
-export function persistTimelineOrder(storageKey: string, order: string[]): void {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.setItem(storageKey, JSON.stringify({ order }));
-}
-
-export function syncTimelineOrder(currentOrder: string[], tracks: ReplayTrack[], storedOrder: string[] | null): string[] {
-    const trackIds = tracks.map((track) => track.id);
-    const nextOrderSource = storedOrder ?? currentOrder;
-    const nextOrder = nextOrderSource.filter((trackId) => trackIds.includes(trackId));
-
-    for (const trackId of trackIds) {
-        if (!nextOrder.includes(trackId)) nextOrder.push(trackId);
-    }
-
-    return nextOrder;
-}
-
 function buildTracksForDetailSelection(
     details: ActionDetails[],
     option: ReplayTrackOption,
@@ -170,41 +126,6 @@ function buildTracksForDetailSelection(
             values,
         );
     }).filter((track): track is ReplayTrack => track != null);
-}
-
-function defaultTrackSelections(options: ReplayTrackOption[]): ReplayTrackSelection[] {
-    return options.map((option) => ({
-        key: option.key,
-        alias: null,
-        componentPaths: option.components.map((component) => component.path),
-        componentKinds: option.components.map(() => 'numeric' as const),
-    }));
-}
-
-function sanitizeTrackSelections(selections: ReplayTrackSelection[], options: ReplayTrackOption[]): ReplayTrackSelection[] {
-    const optionByKey = new Map(options.map((option) => [option.key, option] as const));
-    const nextSelections: ReplayTrackSelection[] = [];
-
-    for (const selection of selections) {
-        const option = optionByKey.get(selection.key);
-        if (option == null) continue;
-
-        const validEntries = selection.componentPaths
-            .map((path, index) => ({ path, kind: normalizeTrackKind(selection.componentKinds[index]) }))
-            .filter((entry, index, entries) => entries.findIndex((candidate) => arePathsEqual(candidate.path, entry.path)) === index)
-            .filter((entry) => option.components.some((component) => arePathsEqual(component.path, entry.path)));
-
-        if (validEntries.length === 0) continue;
-
-        nextSelections.push({
-            key: selection.key,
-            alias: selection.alias?.trim() ? selection.alias.trim() : null,
-            componentPaths: validEntries.map((entry) => entry.path),
-            componentKinds: validEntries.map((entry) => entry.kind),
-        });
-    }
-
-    return nextSelections;
 }
 
 function collectDetailKeys(details: ActionDetails[]): string[] {
@@ -240,12 +161,6 @@ function buildSeriesDescriptors(key: string, shape: DetailShape, nAgents: number
         path: [rowIndex, columnIndex],
         label: `${baseLabel} ${formatSeriesIndexLabel(rowIndex, shape.dimensions[0], nAgents)} / ${columnIndex + 1}`,
     }))).flat();
-}
-
-function arePathsEqual(left: number[], right: number[]): boolean {
-    if (left.length !== right.length) return false;
-
-    return left.every((value, index) => value === right[index]);
 }
 
 function inferDetailShape(details: ActionDetails[], key: string): DetailShape | null {
@@ -384,27 +299,6 @@ function buildTrackId(key: string, path: number[]): string {
     return `detail:${key}:${path.length === 0 ? 'scalar' : path.join('.')}`;
 }
 
-export function parseTrackId(trackId: string): { key: string; path: number[] } | null {
-    if (!trackId.startsWith('detail:')) return null;
-
-    const encoded = trackId.slice('detail:'.length);
-    const separatorIndex = encoded.lastIndexOf(':');
-    if (separatorIndex < 0) return null;
-
-    const key = encoded.slice(0, separatorIndex);
-    const suffix = encoded.slice(separatorIndex + 1);
-    if (key.length === 0) return null;
-
-    if (suffix === 'scalar') {
-        return { key, path: [] };
-    }
-
-    const path = suffix.split('.').map((part) => Number.parseInt(part, 10));
-    if (path.some((part) => Number.isNaN(part) || part < 0)) return null;
-
-    return { key, path };
-}
-
 function formatDetailKeyLabel(key: string): string {
     switch (key) {
         case 'q_values':
@@ -432,8 +326,4 @@ function formatSeriesIndexLabel(index: number, total: number, nAgents: number): 
     }
 
     return `${index + 1}`;
-}
-
-function normalizeTrackKind(kind: TimelineTrackKind | undefined): TimelineTrackKind {
-    return kind === 'categorical' ? 'categorical' : 'numeric';
 }

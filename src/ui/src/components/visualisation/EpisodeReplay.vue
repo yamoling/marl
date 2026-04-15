@@ -118,14 +118,12 @@ import {
     buildReplayTracks,
     currentTrackValueLabelAtStep,
     discoverReplayTrackOptions,
-    loadTimelineOrder,
-    persistTimelineOrder,
-    syncTimelineOrder,
 } from './replayTimeline';
+import { loadTimelineOrder, persistTimelineOrder, syncTimelineOrder } from './replayTimelineOrder';
 import ReplayTimelineWizardModal from '../modals/ReplayTimelineWizardModal.vue';
 import { useReplayTimelineStore } from '../../stores/ReplayTimelineStore';
 import { type TimelineTrackKind } from '../../models/Timeline';
-import type { ReplayTrackSelection } from './replayTimeline';
+import type { ReplayTrackSelection } from './replayTimelineSelection';
 
 const props = defineProps<{
     experiment: Experiment,

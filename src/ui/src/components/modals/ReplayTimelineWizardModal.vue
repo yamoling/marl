@@ -82,10 +82,13 @@ import { Modal } from 'bootstrap';
 import { ReplayEpisode } from '../../models/Episode';
 import { type TimelineTrackKind } from '../../models/Timeline';
 import {
-    discoverReplayTrackOptions,
+    arePathsEqual,
+    normalizeTrackKind,
     ReplayTrackOption,
     ReplayTrackSelection,
-} from '../visualisation/replayTimeline';
+    sanitizeTrackSelections,
+} from '../visualisation/replayTimelineSelection';
+import { discoverReplayTrackOptions } from '../visualisation/replayTimeline';
 
 const props = defineProps<{
     episode: ReplayEpisode | null;
@@ -104,7 +107,7 @@ const draftSelections = ref<ReplayTrackSelection[]>([]);
 const availableOptions = computed(() => discoverReplayTrackOptions(props.episode, props.nAgents));
 
 function showModal() {
-    draftSelections.value = sanitizeSelections(props.selectedTracks, availableOptions.value);
+    draftSelections.value = sanitizeTrackSelections(props.selectedTracks, availableOptions.value);
 
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
@@ -200,7 +203,7 @@ function toggleComponent(key: string, path: number[], event: Event) {
 
 function setFamilyKind(key: string, event: Event) {
     const target = event.target as HTMLSelectElement;
-    const kind = normalizeKind(target.value);
+    const kind = normalizeTrackKind(target.value);
 
     draftSelections.value = draftSelections.value.map((entry) => entry.key === key
         ? { ...entry, componentKinds: entry.componentKinds.map(() => kind) }
@@ -220,41 +223,6 @@ function isComponentSelected(key: string, path: number[]): boolean {
 
 function componentKey(path: number[]): string {
     return path.length === 0 ? 'scalar' : path.join('.');
-}
-
-function sanitizeSelections(selections: ReplayTrackSelection[], options: ReplayTrackOption[]): ReplayTrackSelection[] {
-    const optionByKey = new Map(options.map((option) => [option.key, option] as const));
-    const nextSelections: ReplayTrackSelection[] = [];
-
-    for (const selection of selections) {
-        const option = optionByKey.get(selection.key);
-        if (option == null) continue;
-
-        const validEntries = selection.componentPaths
-            .map((path, index) => ({ path, kind: normalizeKind(selection.componentKinds[index]) }))
-            .filter((entry, index, entries) => entries.findIndex((candidate) => arePathsEqual(candidate.path, entry.path)) === index)
-            .filter((entry) => option.components.some((component) => arePathsEqual(component.path, entry.path)));
-
-        if (validEntries.length === 0) continue;
-
-        nextSelections.push({
-            key: selection.key,
-            alias: selection.alias?.trim().length ? selection.alias.trim() : null,
-            componentPaths: validEntries.map((entry) => entry.path),
-            componentKinds: validEntries.map((entry) => entry.kind),
-        });
-    }
-
-    return nextSelections;
-}
-
-function arePathsEqual(left: number[], right: number[]): boolean {
-    if (left.length !== right.length) return false;
-    return left.every((value, index) => value === right[index]);
-}
-
-function normalizeKind(kind: string): TimelineTrackKind {
-    return kind === 'categorical' ? 'categorical' : 'numeric';
 }
 
 defineExpose({ showModal });
