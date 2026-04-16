@@ -21,7 +21,7 @@ async def new_run(logdir: str, request: Request):
         return Response(content="", status_code=HTTPStatus.BAD_REQUEST)
     if not all(key in data for key in ("nRuns", "nTests", "seed")):
         return Response(content="Missing nRuns, nTests or seed", status_code=HTTPStatus.BAD_REQUEST)
-    gpu_strategy = data.get("gpuStrategy", "scatter")
+    gpu_strategy = data.get("gpuStrategy", "group")
     disabled_devices = data.get("disabledDevices", [])
     state.new_runs(
         logdir,

@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 import numpy as np
+import numpy.typing as npt
 import scipy.stats as sp
 import polars as pl
 import polars.exceptions as pl_errors
@@ -13,11 +14,11 @@ class Dataset:
     ticks: list[int]
     label: str
     category: str
-    mean: list[float]
-    min: list[float]
-    max: list[float]
-    std: list[float]
-    ci95: list[float]
+    mean: npt.NDArray[np.float32]
+    min: npt.NDArray[np.float32]
+    max: npt.NDArray[np.float32]
+    std: npt.NDArray[np.float32]
+    ci95: npt.NDArray[np.float32]
 
 
 @dataclass
@@ -122,7 +123,6 @@ def compute_datasets(
     dfs: list[pl.DataFrame],
     logdir: str,
     replace_inf: bool,
-    source: str,
     category: str,
 ) -> list[Dataset]:
     """
@@ -156,11 +156,11 @@ def compute_datasets(
                 ticks=ticks,
                 label=col,
                 category=category,
-                mean=df_stats[f"mean-{col}"].to_list(),
-                std=df_stats[f"std-{col}"].to_list(),
-                min=df_stats[f"min-{col}"].to_list(),
-                max=df_stats[f"max-{col}"].to_list(),
-                ci95=df_stats[f"ci95-{col}"].to_list(),
+                mean=df_stats[f"mean-{col}"].to_numpy().astype(np.float32),
+                std=df_stats[f"std-{col}"].to_numpy().astype(np.float32),
+                min=df_stats[f"min-{col}"].to_numpy().astype(np.float32),
+                max=df_stats[f"max-{col}"].to_numpy().astype(np.float32),
+                ci95=df_stats[f"ci95-{col}"].to_numpy().astype(np.float32),
             )
         )
     return res
@@ -203,11 +203,11 @@ def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, rew
                 category="Q-values",
                 ticks=ticks,
                 label=label,
-                mean=df_stats[f"mean-{col}"].to_list(),
-                std=df_stats[f"std-{col}"].to_list(),
-                min=df_stats[f"min-{col}"].to_list(),
-                max=df_stats[f"max-{col}"].to_list(),
-                ci95=df_stats[f"ci95-{col}"].to_list(),
+                mean=df_stats[f"mean-{col}"].to_numpy().astype(np.float32),
+                std=df_stats[f"std-{col}"].to_numpy().astype(np.float32),
+                min=df_stats[f"min-{col}"].to_numpy().astype(np.float32),
+                max=df_stats[f"max-{col}"].to_numpy().astype(np.float32),
+                ci95=df_stats[f"ci95-{col}"].to_numpy().astype(np.float32),
             )
         )
     return res

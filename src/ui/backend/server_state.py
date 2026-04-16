@@ -39,7 +39,7 @@ class ServerState:
         n_tests: int,
         seed: int,
         device: str = "auto",
-        gpu_strategy: str = "scatter",
+        gpu_strategy: str = "group",
         disabled_devices: list[int] | None = None,
     ):
         if disabled_devices is None:

@@ -14,7 +14,7 @@ class Arguments(tap.TypedArgs):
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     delay: float = tap.arg(default=5.0, help="Delay in seconds between two consecutive runs")
     _device: Literal["auto", "cpu"] | str = tap.arg("--device", default="auto", help="The device to use (auto, cpu or cuda:<gpu_id>)")
-    gpu_strategy: Literal["scatter", "group"] = tap.arg(default="scatter")
+    gpu_strategy: Literal["scatter", "group"] = tap.arg(default="group")
     render: bool = tap.arg(default=False, help="Render the tests")
     disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
 

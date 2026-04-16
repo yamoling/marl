@@ -258,7 +258,7 @@ class DistilHandler:
     def run(
         self,
         # seed: int =0,
-        fill_strategy: Literal["scatter", "group"] = "scatter",
+        fill_strategy: Literal["scatter", "group"] = "group",
         required_memory_MB: int = 0,
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
