@@ -1,21 +1,21 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { MetricSelection } from "../models/Settings";
+import { MetricSelection, MetricSelectionSchema } from "../models/Metrics";
+import { fromJsonString } from "../utils";
 
-export const useSettingsStore = defineStore("SettingsStore", () => {
+const LOCAL_STORAGE_KEY = "metrics";
 
-    const metrics = ref(initSettingsFromLocalStorage());
+export const useMetricsStore = defineStore("MetricsStore", () => {
 
-    function initSettingsFromLocalStorage(): MetricSelection[] {
-        const saved = localStorage.getItem("settings");
-        if (saved != null) {
-            return JSON.parse(saved);
-        }
-        return [];
+    const metrics = ref(load());
+
+    function load(): MetricSelection[] {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        return fromJsonString(saved, MetricSelectionSchema.array(), [])
     }
 
     function saveSettingsToLocalStorage() {
-        localStorage.setItem("settings", JSON.stringify(metrics.value));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(metrics.value));
     }
 
     function getSelectedMetrics(): MetricSelection[] {

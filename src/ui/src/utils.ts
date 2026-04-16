@@ -1,4 +1,20 @@
-import { ExperimentResults, Dataset } from "./models/Experiment";
+import { z } from "zod";
+
+/**
+ * Deserializes a JSON string into a validated Zod type.
+ * @param json - The raw JSON string
+ * @param schema - The Zod schema to validate against
+ */
+export function fromJsonString<T>(json: string | null | undefined, schema: z.ZodType<T>, fallback: T) {
+    return z.string().transform((str, ctx) => {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            ctx.addIssue({ code: 'custom', message: 'Invalid JSON' });
+            return z.NEVER;
+        }
+    }).pipe(schema).catch(fallback).parse(json);
+}
 
 /**
  * Compute the shape of a multi-dimensional array.
@@ -106,15 +122,15 @@ export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
     return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
-export function updateHSL(hsl: string, sat_factor: number=0, lum_factor: number=0,): string {
+export function updateHSL(hsl: string, sat_factor: number = 0, lum_factor: number = 0,): string {
     const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
     if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
-    const s = parseInt(match[2], 10)+sat_factor;
-    const l = parseInt(match[3], 10)+lum_factor;
+    const s = parseInt(match[2], 10) + sat_factor;
+    const l = parseInt(match[3], 10) + lum_factor;
     return `hsl(${match[2]}, ${s}%, ${l}%)`;
 }
 
-export function alphaToHSL(hsl: string, alpha: number=0): string {
+export function alphaToHSL(hsl: string, alpha: number = 0): string {
     const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
     if (!match) throw new Error(`Invalid HSL format to add alpha: ${hsl}`);
     return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;

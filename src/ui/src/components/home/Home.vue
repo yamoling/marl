@@ -39,14 +39,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Dataset } from '../../models/Experiment';
-import { MetricSelection } from '../../models/Settings';
+import { MetricSelection } from '../../models/Metrics';
 import Plotter from '../Plotter.vue';
 import MetricsPanel from './MetricsPanel.vue';
 import ExperimentTable from './ExperimentTable.vue';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { useSettingsStore } from '../../stores/SettingsStore';
+import { useMetricsStore } from '../../stores/MetricsStore';
 const resultsStore = useResultsStore();
-const settingsStore = useSettingsStore();
+const metricsStore = useMetricsStore();
 
 const selectedMetrics = ref<MetricSelection[]>([]);
 const expandedPlotIds = ref<Set<string>>(new Set());
@@ -61,7 +61,6 @@ const workspaceStyle = computed(() => ({
 
 const metrics = computed(() => {
     const res = new Set<string>();
-    console.log(resultsStore.results)
     resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
     return res;
 });
@@ -119,7 +118,7 @@ function toggleFocusedPlot(plotId: string) {
 
 function closeMetric(metricId: string) {
     const [label, category] = metricId.split(':');
-    settingsStore.removeSelectedMetric(label, category);
+    metricsStore.removeSelectedMetric(label, category);
     selectedMetrics.value = selectedMetrics.value.filter(
         m => !(m.label === label && m.category === category)
     );

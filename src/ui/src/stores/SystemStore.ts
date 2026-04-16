@@ -1,6 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
-import { SystemInfo } from "../models/SystemInfo";
+import { SystemInfo, SystemInfoSchema } from "../models/SystemInfo";
+import { fromJsonString } from "../utils";
 
 export const useSystemStore = defineStore("SystemStore", () => {
     const systemInfo = ref(null as SystemInfo | null);
@@ -45,11 +46,7 @@ export const useSystemStore = defineStore("SystemStore", () => {
         nextWs.onmessage = async (event) => {
             const blob = event.data as Blob;
             const text = await blob.text();
-            try {
-                systemInfo.value = JSON.parse(text) as SystemInfo;
-            } catch (e) {
-                console.error(`Failed to parse system info.\nReceived: ${text}\nError: ${e}`);
-            }
+            systemInfo.value = fromJsonString(text, SystemInfoSchema, null);
         }
 
         nextWs.onerror = () => {

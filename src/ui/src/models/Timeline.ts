@@ -1,9 +1,14 @@
-export type TimelineTrackKind = 'numeric' | 'categorical';
+import { z } from "zod";
 
-export interface TrackConfig {
-    label: string;
-    kind: TimelineTrackKind;
-}
+export const TimelineTrackKindSchema = z.enum(['numeric', 'categorical']);
+export type TimelineTrackKind = z.infer<typeof TimelineTrackKindSchema>;
+
+export const TrackConfigSchema = z.object({
+    label: z.string(),
+    kind: TimelineTrackKindSchema,
+});
+export type TrackConfig = z.infer<typeof TrackConfigSchema>;
+
 
 export class Track implements TrackConfig {
     readonly label: string;

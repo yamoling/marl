@@ -1,14 +1,15 @@
 import { defineStore } from "pinia";
 import { stringToRGB, qvalueLabelToHSL } from "../utils";
 import { ref } from "vue";
+import { fromJsonString } from "../utils";
 
 export const useColourStore = defineStore("ColourStore", () => {
 
     const colours = ref(initColoursFromLocalStorage());
 
     function initColoursFromLocalStorage() {
-        const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
         try {
+            const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
             return new Map<string, string>(entries);
         } catch (e) {
             return new Map<string, string>();

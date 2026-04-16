@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { TrackConfig, type TimelineTrackKind } from '../models/Timeline';
-
+import { TrackConfig, type TimelineTrackKind, TrackConfigSchema } from '../models/Timeline';
+import { fromJsonString } from '../utils';
 const STORAGE_KEY = 'tracksStore';
 
 
@@ -110,10 +110,16 @@ export const useTracksStore = defineStore('TracksStore', () => {
 
 function load(): Map<string, TrackConfig[]> {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw == null) return new Map();
+    if (raw == null) {
+        return new Map();
+    }
+    try {
+        const parsed = JSON.parse(raw) as { [logdir: string]: { label: string; kind: TimelineTrackKind }[] };
+        return new Map(Object.entries(parsed).map(([logdir, tracks]) => [logdir, TrackConfigSchema.array().catch([]).parse(tracks)]))
+    } catch (e) {
+        return new Map();
+    }
 
-    const parsed = JSON.parse(raw) as { [logdir: string]: { label: string; kind: TimelineTrackKind }[] };
-    return new Map(Object.entries(parsed).map(([logdir, tracks]) => [logdir, tracks.map((track) => ({ label: track.label, kind: track.kind }))]));
 }
 
 
