@@ -1,6 +1,6 @@
 import subprocess
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Sequence
 
 import torch
 
@@ -28,7 +28,7 @@ class GPU:
         self.utilization = utilization / 100
 
 
-def list_gpus(disabled_devices: list[int] | None = None) -> list[GPU]:
+def list_gpus(disabled_devices: Sequence[int] | None = None) -> list[GPU]:
     """List all available GPU devices except disabled ones"""
     if disabled_devices is None:
         disabled_devices = []
@@ -88,7 +88,7 @@ def get_device(
     device: Literal["auto", "cpu"] | int | torch.device | str = "auto",
     fit_strategy: Literal["scatter", "group"] = "group",
     estimated_memory_MB: int = 0,
-    disabled_devices: list[int] | None = None,
+    disabled_devices: Sequence[int] | None = None,
 ):
     """
     Get the given (GPU) device that fits the requirements.

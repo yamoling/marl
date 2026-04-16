@@ -4,7 +4,7 @@
             <div class="panel-header-row">
                 <h2>Metrics</h2>
                 <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                    }} loaded experiments</span>
+                }} loaded experiments</span>
             </div>
         </div>
         <section class="selector-panel">
@@ -67,8 +67,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { useSettingsStore } from '../../stores/SettingsStore';
-import { MetricSelection } from '../../models/Settings';
+import { useMetricsStore } from '../../stores/MetricsStore';
+import { MetricSelection } from '../../models/Metrics';
 import { searchMatch } from '../../utils';
 import { useResultsStore } from '../../stores/ResultsStore';
 const resultsStore = useResultsStore();
@@ -78,8 +78,8 @@ const props = defineProps<{
 }>();
 const searchString = ref("");
 
-const settingsStore = useSettingsStore();
-const selectedMetrics = computed(() => settingsStore.getSelectedMetrics());
+const metricsStore = useMetricsStore();
+const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
 
 type MetricGroup = {
@@ -123,14 +123,14 @@ function isMetricSelected(metricName: string, category: string): boolean {
 }
 
 function clearSelectedMetrics() {
-    settingsStore.clearSelectedMetrics();
+    metricsStore.clearSelectedMetrics();
     emits("change-selected-metrics", selectedMetrics.value);
 }
 
 function selectGroup(metrics: string[], category: string) {
     metrics.forEach((metricName) => {
         if (!isMetricSelected(metricName, category)) {
-            settingsStore.addSelectedMetric(metricName, category);
+            metricsStore.addSelectedMetric(metricName, category);
         }
     });
     emits("change-selected-metrics", selectedMetrics.value);
@@ -139,7 +139,7 @@ function selectGroup(metrics: string[], category: string) {
 function clearGroup(metrics: string[], category: string) {
     metrics.forEach((metricName) => {
         if (isMetricSelected(metricName, category)) {
-            settingsStore.removeSelectedMetric(metricName, category);
+            metricsStore.removeSelectedMetric(metricName, category);
         }
     });
     emits("change-selected-metrics", selectedMetrics.value);
@@ -147,9 +147,9 @@ function clearGroup(metrics: string[], category: string) {
 
 function toggleMetric(metricName: string, category: string) {
     if (isMetricSelected(metricName, category)) {
-        settingsStore.removeSelectedMetric(metricName, category);
+        metricsStore.removeSelectedMetric(metricName, category);
     } else {
-        settingsStore.addSelectedMetric(metricName, category);
+        metricsStore.addSelectedMetric(metricName, category);
     }
     emits("change-selected-metrics", selectedMetrics.value);
 }

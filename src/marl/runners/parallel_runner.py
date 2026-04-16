@@ -28,6 +28,7 @@ class ParallelRunner:
         n_tests: int = 1,
         render_tests: bool = False,
         delay: int = 5,
+        disabled_gpus: Sequence[int] = (),
     ):
         # If there are multiple GPUs, the first N_GPU runs will all try to fit on the same device.
         # For that reason, we sleep for delay seconds between each run to let the time to the
@@ -38,7 +39,7 @@ class ParallelRunner:
         with get_context("spawn").Pool(n_jobs) as pool:
             handles = list[AsyncResult]()
             for run_num, run in enumerate(runs):
-                run_device = get_device(device, auto_device_strategy, estimated_gpu_memory)
+                run_device = get_device(device, auto_device_strategy, estimated_gpu_memory, disabled_devices=disabled_gpus)
                 # We want each child process to ignore the SIGINT signal so that if the user presses Ctrl+C, only the main process is killed and the children with it.
                 original_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
                 h = pool.apply_async(

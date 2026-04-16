@@ -50,7 +50,7 @@ import { MetricSelection } from '../../models/Settings';
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
-import { MetricSelection } from '../../models/Settings';
+import { MetricSelection } from '../../models/Metrics';
 import MetricsTable from './MetricsTable.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';

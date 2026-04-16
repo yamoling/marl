@@ -17,14 +17,14 @@ def get_experiment_results(logdir: str):
         return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
     metrics = exp.get_experiment_results(replace_inf=True)
     # response_data = stats.build_results_payload(metrics, qvalues)
-    return Response(orjson.dumps(metrics), media_type="application/json")
+    return Response(orjson.dumps(metrics, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
 
 
 @router.get("/results/test/{time_step}/{logdir:path}")
 def get_test_results_at(time_step: str, logdir: str):
     exp = state.get_experiment(logdir)
     res = exp.get_tests_at(int(time_step))
-    res = orjson.dumps(res)
+    res = orjson.dumps(res, option=orjson.OPT_SERIALIZE_NUMPY)
     return Response(res, media_type="application/json")
 
 
@@ -38,4 +38,4 @@ def get_experiment_results_by_run(logdir: str):
         datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, category="Other")
         # qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
         runs_results.append(datasets)
-    return Response(orjson.dumps(runs_results), media_type="application/json")
+    return Response(orjson.dumps(runs_results, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")

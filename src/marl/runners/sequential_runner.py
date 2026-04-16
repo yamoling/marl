@@ -22,9 +22,10 @@ class SequentialRunner:
         quiet: bool = False,
         n_tests: int = 1,
         render_tests: bool = False,
+        disabled_gpus: Sequence[int] = (),
     ):
 
-        device = get_device(device, auto_device_strategy)
+        device = get_device(device, auto_device_strategy, disabled_devices=disabled_gpus)
         for run in runs:
             runner = SimpleRunner.from_experiment(self.exp, n_tests, quiet).to(device)
             runner.start(run, render_tests)

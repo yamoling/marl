@@ -119,6 +119,7 @@ class Experiment[A: Space]:
         n_tests: int = 1,
         render_tests: bool = False,
         n_parallel: int = torch.cuda.device_count(),
+        disabled_gpus: Sequence[int] = (),
     ):
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):
@@ -128,7 +129,7 @@ class Experiment[A: Space]:
             from marl.runners import SequentialRunner
 
             runner = SequentialRunner(self)
-            return runner.start(runs, device, fill_strategy, quiet, n_tests, render_tests)
+            return runner.start(runs, device, fill_strategy, quiet, n_tests, render_tests, disabled_gpus)
 
         from marl.runners import ParallelRunner
 
@@ -140,6 +141,7 @@ class Experiment[A: Space]:
             auto_device_strategy=fill_strategy,
             n_tests=n_tests,
             render_tests=render_tests,
+            disabled_gpus=disabled_gpus,
         )
 
     @overload
