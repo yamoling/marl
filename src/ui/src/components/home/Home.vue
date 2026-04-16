@@ -29,7 +29,8 @@
                     :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
                     <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
                         :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
-                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)" />
+                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)"
+                        @datapoint-clicked="onTestEpisodeClicked" />
                 </article>
             </section>
         </main>
@@ -95,6 +96,13 @@ const datasetPerLabel = computed(() => {
     });
     return res;
 });
+
+function onTestEpisodeClicked(logdir: string, timeStep: number) {
+    console.log(`Episode clicked: logdir=${logdir}, timeStep=${timeStep}`);
+    if (confirm(`Open ${logdir} at time step ${timeStep} ?`)) {
+        const url = `/inspect/${logdir}/${timeStep}`;
+    }
+}
 
 function metricPlotId(metricId: string) {
     return `metric:${metricId}`;

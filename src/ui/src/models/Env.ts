@@ -1,46 +1,49 @@
-export interface Env {
-    name: string
-    n_agents: number
-    n_actions: number
-    observation_shape: number[]
-    state_shape: number[]
-    extra_feature_shape: number[]
-    extras_meanings: string[]
-    action_space: ActionSpace
-    reward_space: {
-        size: number,
-        labels: string[]
-    },
+import { z } from "zod";
+
+export const RewardSpaceSchema = z.object({
+    size: z.number(),
+    labels: z.array(z.string()),
+});
+
+export const ActionSpaceSchema = z.object({
+    space_type: z.union([z.literal("discrete").optional(), z.literal("continuous")]),
+    shape: z.array(z.number()),
+    size: z.number().optional(),
+    labels: z.array(z.string()),
+    low: z.array(z.number()).nullable().optional(),
+    high: z.array(z.number()).nullable().optional(),
+    space_class: z.string().optional(),
+});
+
+
+const envBase = {
+    name: z.string(),
+    n_agents: z.number(),
+    n_actions: z.number(),
+    observation_shape: z.array(z.number()),
+    state_shape: z.array(z.number()),
+    extras_shape: z.array(z.number()),
+    extras_meanings: z.array(z.string()),
+    action_space: ActionSpaceSchema,
+    reward_space: RewardSpaceSchema,
 }
 
-export type ActionSpace = DiscreteActionSpace | ContinuousActionSpace;
+export const EnvSchema = z.object(envBase);
 
-export interface BaseActionSpace {
-    shape: number[]
-    size?: number
-    space_class?: string
-}
-
-export interface DiscreteActionSpace extends BaseActionSpace {
-    space_type?: "discrete"
-    labels: string[]
-    low?: number[] | null
-    high?: number[] | null
-}
-
-export interface ContinuousActionSpace extends BaseActionSpace {
-    space_type: "continuous"
-    labels?: string[]
-    low?: number[] | null
-    high?: number[] | null
-}
+export const EnvWrapperSchema = z.object(envBase).extend({
+    full_name: z.string(),
+    wrapped: z.union([EnvSchema, z.any()]),
+});
 
 
+
+export type Env = z.infer<typeof EnvSchema>;
 export interface EnvWrapper extends Env {
+    full_name: string,
     wrapped: Env | EnvWrapper
-    full_name: string
-    [key: string]: any
 }
+export type ActionSpace = z.infer<typeof ActionSpaceSchema>;
+export type RewardSpace = z.infer<typeof RewardSpaceSchema>;
 
 
 

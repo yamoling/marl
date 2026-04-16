@@ -1,4 +1,3 @@
-import { MetricSelection } from '../../models/Settings';
 <template>
     <div v-if="experiment == null" class="row mt-5">
         <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
@@ -7,27 +6,9 @@ import { MetricSelection } from '../../models/Settings';
         <ExperimentDetailsPane :experiment="experiment" :is-open="isDetailsPaneOpen" @toggle="toggleDetailsPane" />
         <div class="workspace" :class="{ 'with-replay': hasSelectedEpisode }">
             <section class="workspace-main">
-                <div class="input-group mb-2">
-                    <label class="btn" :class="plotOrTable == 'plot' ? 'btn-success' : 'btn-outline-dark'">
-                        Plot
-                        <input type="radio" value="plot" class="btn-check" v-model="plotOrTable">
-                    </label>
-                    <label class="btn" :class="plotOrTable == 'table' ? 'btn-success' : 'btn-outline-dark'">
-                        Table
-                        <input type="radio" value="table" class="btn-check" v-model="plotOrTable">
-                    </label>
-                </div>
-
-                <div v-show="plotOrTable == 'table'" class="table-scroll">
+                <div class="table-scroll">
                     <MetricsTable :experiment="experiment" :selected-episode-directory="selectedEpisodeDirectory"
                         @view-episode="onEpisodeDirectorySelected" />
-                </div>
-
-                <div v-show="plotOrTable == 'plot'" class="plot-scroll">
-                    <MetricsPanel :metrics="metrics" :metricsByCategory="metricsByCategory"
-                        @change-selected-metrics="updateDatasets" />
-                    <Plotter v-for="[metric, datasets] in datasetByMetric.entries()" :datasets="datasets"
-                        :title="metric" :showLegend="false" @episode-selected="onEpisodeSelected" />
                 </div>
             </section>
 
@@ -50,26 +31,18 @@ import { MetricSelection } from '../../models/Settings';
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
-import { MetricSelection } from '../../models/Metrics';
 import MetricsTable from './MetricsTable.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';
 import { useResultsStore } from '../../stores/ResultsStore';
-import Plotter from '../Plotter.vue';
-import MetricsPanel from '../home/MetricsPanel.vue';
 import EpisodeReplay from '../visualisation/EpisodeReplay.vue';
 import ExperimentDetailsPane from './ExperimentDetailsPane.vue';
 
 const experiment = ref(null as Experiment | null);
 const experimentStore = useExperimentStore()
-const plotOrTable = ref("table" as "plot" | "table");
 const runResults = ref([] as ExperimentResults[]);
-const metrics = ref(new Set<string>());
-const metricsByCategory = ref(new Map<string, Set<string>>());
-const selectedMetrics = ref<MetricSelection[]>([]);
 const datasets = ref([] as Dataset[]);
-const datasetByMetric = ref(new Map<string, Dataset[]>());
-const isDetailsPaneOpen = ref(true);
+const isDetailsPaneOpen = ref(false);
 const selectedEpisodeDirectory = ref(null as string | null);
 
 const hasSelectedEpisode = computed(() => selectedEpisodeDirectory.value != null);
@@ -88,33 +61,9 @@ function clearSelectedEpisode() {
 }
 
 function onEscapePressed(event: KeyboardEvent) {
-    if (event.key === 'Escape' && hasSelectedEpisode.value) {
+    if (event.key === 'Escape') {
         clearSelectedEpisode();
     }
-}
-
-function updateDatasets(newSelectedMetrics: MetricSelection[]) {
-    selectedMetrics.value = newSelectedMetrics;
-
-    const newDatasets = datasets.value.filter(d => {
-        return newSelectedMetrics.some(selection =>
-            d.label === selection.label && d.category === selection.category
-        );
-    });
-    datasetByMetric.value = new Map<string, Dataset[]>();
-    newDatasets.forEach(d => {
-        const key = `${d.label}:${d.category}`;
-        if (!datasetByMetric.value.has(key)) {
-            datasetByMetric.value.set(key, []);
-        }
-        datasetByMetric.value.get(key)?.push(d);
-    });
-}
-
-function onEpisodeSelected(datasetIndex: number, xIndex: number) {
-    const run = runResults.value[datasetIndex];
-    const tick = run.datasets[0].ticks[xIndex];
-    selectedEpisodeDirectory.value = `${run.logdir}/test/${tick}/0`;
 }
 
 
@@ -133,10 +82,6 @@ onMounted(async () => {
     experiment.value = res;
     const resultsStore = useResultsStore();
     runResults.value = await resultsStore.getResultsByRun(res.logdir);
-    metrics.value = runResults.value.reduce((acc, r) => {
-        r.metricLabels().forEach(label => acc.add(label));
-        return acc;
-    }, new Set<string>());
 
     const byCategory = new Map<string, Set<string>>();
     runResults.value.forEach((r) => {
@@ -145,7 +90,6 @@ onMounted(async () => {
             byCategory.get(ds.category)!.add(ds.label);
         });
     });
-    metricsByCategory.value = byCategory;
 
     datasets.value = runResults.value.map(r => {
         r.datasets.forEach(d => d.logdir = r.logdir);

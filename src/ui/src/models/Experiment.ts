@@ -1,23 +1,34 @@
-import { Trainer } from "./Trainer"
-import { Env, EnvWrapper } from "./Env"
+import { EnvSchema, EnvWrapperSchema } from "./Env"
+import { z } from "zod";
 
-export interface Experiment {
-    logdir: string
-    trainer: Trainer
-    env: Env | EnvWrapper
-    test_env?: Env | EnvWrapper
-    test_interval: number
-    n_steps: number
-    creation_timestamp: number
-    runs: Run[]
-}
 
-export interface Run {
-    rundir: string
-    port: number | null
-    current_step: number
-    pid: number | null
-}
+export const TrainerSchema = z.object({
+    name: z.string(),
+}).catchall(z.any());
+
+
+export const RunSchema = z.object({
+    rundir: z.string(),
+    port: z.number().nullable(),
+    current_step: z.number(),
+    pid: z.number().nullable(),
+})
+
+export const ExperimentSchema = z.object({
+    logdir: z.string(),
+    trainer: TrainerSchema,
+    env: z.union([EnvSchema, EnvWrapperSchema]),
+    test_env: z.union([EnvSchema, EnvWrapperSchema]).optional(),
+    test_interval: z.number(),
+    n_steps: z.number(),
+    creation_timestamp: z.number(),
+})
+
+
+export type Run = z.infer<typeof RunSchema>;
+export type Trainer = z.infer<typeof TrainerSchema>;
+export type Experiment = z.infer<typeof ExperimentSchema>;
+
 
 export class ExperimentResults {
     public logdir: string

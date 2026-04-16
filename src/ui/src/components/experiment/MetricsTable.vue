@@ -33,10 +33,10 @@
 </template>
 <script setup lang="ts">
 import { DataTable, Column, DataTableRowClickEvent, DataTableRowExpandEvent } from "primevue";
-import { ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { DatasetTable, Experiment } from '../../models/Experiment';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { onMounted } from "vue";
+import { useRoute } from 'vue-router';
 
 
 const props = defineProps<{
@@ -49,11 +49,38 @@ const resultsStore = useResultsStore();
 const dataset = ref(null as DatasetTable | null);
 const testsAtStep = ref({} as { [key: number]: any })
 const testColumns = ref(new Set<string>());
+const route = useRoute();
+
+const expandedStepFromQuery = computed(() => {
+    const rawStep = route.query.step;
+    const stepValue = Array.isArray(rawStep) ? rawStep[0] : rawStep;
+    if (typeof stepValue !== 'string') {
+        return null;
+    }
+    const parsedStep = Number(stepValue);
+    return Number.isFinite(parsedStep) ? parsedStep : null;
+});
 
 onMounted(async () => {
     const experimentResults = await resultsStore.load(props.experiment.logdir);
     dataset.value = DatasetTable.fromTestDatasets(experimentResults.datasets);
-})
+});
+
+watch([dataset, expandedStepFromQuery], async ([currentDataset, step]) => {
+    if (currentDataset == null) {
+        return;
+    }
+    if (step == null) {
+        expanded.value = {};
+        return;
+    }
+
+    const stepKey = String(step);
+    expanded.value = {
+        [stepKey]: true,
+    };
+    await loadTestsAtStep(step);
+}, { immediate: true });
 
 
 
@@ -106,6 +133,10 @@ async function loadTestsAtStep(step: number) {
             directory: res.directory,
             ...res.metrics
         })
+    }
+    if (testsDataset.length == 0) {
+        testsAtStep.value[step] = testsDataset;
+        return;
     }
     for (const column of Object.keys(testsDataset[0])) {
         testColumns.value.add(column);

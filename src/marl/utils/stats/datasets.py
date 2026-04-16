@@ -137,7 +137,7 @@ def compute_datasets(
     if "timestamp_sec" in df.columns:
         df = df.drop("timestamp_sec")
     score_cols = [col for col in df.columns if col.startswith("score")]
-    if len(score_cols) != 0:
+    if len(score_cols) > 1:
         df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
     to_drop = list[str]()
     for col, dtype in zip(df.columns, df.dtypes):

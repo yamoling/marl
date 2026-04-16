@@ -94,7 +94,7 @@ const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 
 let chart: Chart | null = null;
 const emits = defineEmits<{
-    (event: "episode-selected", datasetIndex: number, xIndex: number): void
+    (event: "datapoint-clicked", logdir: string, timeStep: number): void
     (event: "toggle-expanded"): void
     (event: "close"): void
 }>();
@@ -269,13 +269,17 @@ function initialiseChart(): Chart {
             animation: false,
             onClick: (event, datasetElement, chart) => {
                 if (datasetElement.length > 0) {
-                    // Since we use {interaction.mode = "neaest"}, we receive the point that we clicked on
-                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper
+                    // Since we use {interaction.mode = "nearest"}, we receive the point that we clicked on.
+                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper.
                     let datasetIndex = datasetElement[0].datasetIndex;
                     if (enablePlusMinus.value) {
                         datasetIndex = Math.floor(datasetIndex / 3);
                     }
-                    emits("episode-selected", datasetIndex, datasetElement[0].index);
+                    const dataset = props.datasets[datasetIndex];
+                    if (dataset == null) {
+                        return;
+                    }
+                    emits("datapoint-clicked", dataset.logdir, props.datasets[datasetIndex].ticks[datasetElement[datasetIndex].index]);
                 }
             },
             plugins: {
