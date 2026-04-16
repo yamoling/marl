@@ -62,9 +62,16 @@ class ParallelRunner:
                     time.sleep(delay)
                     new_pids = get_gpu_processes() - initial_pids
                     estimated_gpu_memory = get_max_gpu_usage(new_pids)
-
-            for h in handles:
-                h.get()
+            # Actively loop over the results to free up memory as soon as a run is finished
+            while len(handles) > 0:
+                ready_indices = [(i, h) for i, h in enumerate(handles) if h.ready()]
+                for index, handle in reversed(ready_indices):
+                    try:
+                        handle.get(timeout=1)
+                        handles.pop(index)
+                    except Exception as e:
+                        print(f"Error in one of the runs: {e}")
+                time.sleep(1)
 
 
 def _start_run(logdir: str, seed: int, device_index: int | None, n_tests: int, quiet: bool, render_tests: bool):
