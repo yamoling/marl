@@ -76,6 +76,7 @@ def main(args: Arguments):
         n_tests=args.n_tests,
         render_tests=args.render,
         n_parallel=args.n_jobs,
+        disabled_gpus=args.disabled_devices,
     )
 
 
