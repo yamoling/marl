@@ -18,7 +18,7 @@ class SequentialRunner:
         self,
         runs: "Sequence[Run]",
         device: int | torch.device | str | Literal["auto", "cpu"] = "auto",
-        auto_device_strategy: Literal["scatter", "group"] = "scatter",
+        auto_device_strategy: Literal["scatter", "group"] = "group",
         quiet: bool = False,
         n_tests: int = 1,
         render_tests: bool = False,

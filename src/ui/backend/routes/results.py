@@ -33,9 +33,9 @@ def get_experiment_results_by_run(logdir: str):
     runs_results = []
     exp = state.get_experiment(logdir)
     for run in exp.runs:
-        datasets = stats.compute_datasets([run.test_metrics], logdir, True, source="test", category="Test")
-        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, source="train", category="Train")
-        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, source="training", category="Other")
+        datasets = stats.compute_datasets([run.test_metrics], logdir, True, category="Test")
+        datasets += stats.compute_datasets([run.train_metrics(exp.test_interval)], logdir, True, category="Train")
+        datasets += stats.compute_datasets([run.training_data(exp.test_interval)], logdir, True, category="Other")
         # qvalues = stats.compute_qvalues([run.qvalues_data(exp.test_interval)], logdir, True, exp.qvalue_labels)
         runs_results.append(datasets)
     return Response(orjson.dumps(runs_results), media_type="application/json")

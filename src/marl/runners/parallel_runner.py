@@ -24,7 +24,7 @@ class ParallelRunner:
         runs: "Sequence[Run]",
         n_jobs: int | None = None,
         device: int | device | str | Literal["auto", "cpu"] = "auto",
-        auto_device_strategy: Literal["scatter", "group"] = "scatter",
+        auto_device_strategy: Literal["scatter", "group"] = "group",
         n_tests: int = 1,
         render_tests: bool = False,
         delay: int = 5,

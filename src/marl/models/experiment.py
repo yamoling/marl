@@ -113,7 +113,7 @@ class Experiment[A: Space]:
     def run(
         self,
         seeds: int | Sequence[int] = 0,
-        fill_strategy: Literal["scatter", "group"] = "scatter",
+        fill_strategy: Literal["scatter", "group"] = "group",
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
@@ -253,14 +253,6 @@ class Experiment[A: Space]:
         return summary
 
     @property
-    def train_dir(self):
-        return os.path.join(self.logdir, "train")
-
-    @property
-    def test_dir(self):
-        return os.path.join(self.logdir, "test")
-
-    @property
     def qvalue_infos(self):
         return (self.env.reward_space.labels, self.env.n_agents)
 
@@ -270,12 +262,12 @@ class Experiment[A: Space]:
     def get_experiment_results(self, replace_inf=False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, source="test", category="Test")
+        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, category="Test")
         datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, source="train", category="Train"
+            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, category="Train"
         )
         datasets += stats.compute_datasets(
-            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, source="training", category="Other"
+            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, category="Other"
         )
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)

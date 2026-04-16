@@ -44,8 +44,8 @@
                             <label class="launch-field strategy-group">
                                 <span class="launch-field-label">GPU strategy</span>
                                 <select class="form-select launch-control" v-model="gpuStrategy">
-                                    <option value="scatter">scatter</option>
                                     <option value="group">group</option>
+                                    <option value="scatter">scatter</option>
                                 </select>
                             </label>
                         </div>
@@ -99,7 +99,7 @@ let modalInstance: Modal | null = null;
 const nRuns = ref(1);
 const nTests = ref(1);
 const seed = ref(0);
-const gpuStrategy = ref<'scatter' | 'group'>('scatter');
+const gpuStrategy = ref<'scatter' | 'group'>('group');
 const selectedDevices = ref<string[]>([]);
 
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
@@ -171,7 +171,7 @@ function showModal(exp: Experiment) {
     setDefaultSeed(exp.logdir);
     experiment.value = exp;
     selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemInfo);
-    gpuStrategy.value = 'scatter';
+    gpuStrategy.value = 'group';
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
