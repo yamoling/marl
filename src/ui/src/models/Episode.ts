@@ -70,6 +70,7 @@ export class ReplayEpisode {
         ] as (Track | TrackGroup)[];
         const keys = Object.keys(this.agent_details[0]);
         for (const key of keys) {
+            console.log(key)
             // Gather the logs by key across all time steps
             const values = this.agent_details.map((details) => details[key]);
             if (typeof values[0] === "number") {

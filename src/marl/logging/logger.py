@@ -68,7 +68,7 @@ class LogReader(ABC, LogHelper):
                 episode = LightEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
-        except pl.exceptions.ColumnNotFoundError:
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             # There is no log at all in the file, return an empty list
             return []
 
