@@ -92,7 +92,6 @@ export class ReplayEpisode {
                 }
                 tracks.push(group);
             }
-            return tracks
         }
         return tracks
     }
