@@ -1,27 +1,16 @@
 <template>
-    <div v-if="experiment == null" class="row mt-5">
-        <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
-    </div>
-    <div v-else class="experiment-panel">
-        <ExperimentDetailsPane :experiment="experiment" :is-open="isDetailsPaneOpen" @toggle="toggleDetailsPane" />
-        <div class="workspace" :class="{ 'with-replay': hasSelectedEpisode }">
+    <div class="experiment-panel">
+        <ExperimentDetailsPane v-if="experiment != null" :experiment="experiment" :is-open="isDetailsPaneOpen"
+            @toggle="toggleDetailsPane" />
+        <div class="workspace" :class="{ 'with-replay': showReplayPane }">
             <section class="workspace-main">
-                <div class="table-scroll">
-                    <MetricsTable :experiment="experiment" :selected-episode-directory="selectedEpisodeDirectory"
-                        @view-episode="onEpisodeDirectorySelected" />
-                </div>
+                <MetricsTable :logdir="logdir" @view-episode="onViewEpisode" />
             </section>
 
-            <section v-if="hasSelectedEpisode" class="workspace-replay">
+            <section v-show="showReplayPane" class="workspace-replay">
                 <div class="inline-replay">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <h5 class="mb-0">Replay episode {{ activeEpisodeDirectory }}</h5>
-                        <button type="button" class="btn btn-outline-danger btn-sm" @click="clearSelectedEpisode">
-                            Close
-                        </button>
-                    </div>
-
-                    <EpisodeReplay :experiment="experiment" :episode-directory="activeEpisodeDirectory" />
+                    <EpisodeReplay ref="episodeReplay" :logdir="logdir" :experiment="experiment"
+                        @close="() => showReplayPane = false" />
                 </div>
             </section>
         </div>
@@ -29,72 +18,49 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { Dataset, Experiment, ExperimentResults } from '../../models/Experiment';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { Experiment } from '../../models/Experiment';
 import MetricsTable from './MetricsTable.vue';
 import { useRoute } from 'vue-router';
 import { useExperimentStore } from '../../stores/ExperimentStore';
-import { useResultsStore } from '../../stores/ResultsStore';
 import EpisodeReplay from '../visualisation/EpisodeReplay.vue';
 import ExperimentDetailsPane from './ExperimentDetailsPane.vue';
 
+const route = useRoute();
+const logdir = (route.params.logdir as string[]).join('/');
 const experiment = ref(null as Experiment | null);
 const experimentStore = useExperimentStore()
-const runResults = ref([] as ExperimentResults[]);
-const datasets = ref([] as Dataset[]);
 const isDetailsPaneOpen = ref(false);
-const selectedEpisodeDirectory = ref(null as string | null);
-
-const hasSelectedEpisode = computed(() => selectedEpisodeDirectory.value != null);
-const activeEpisodeDirectory = computed(() => selectedEpisodeDirectory.value ?? "");
+const loading = ref(true);
+const showReplayPane = ref(false);
+const episodeReplay = ref();
 
 function toggleDetailsPane() {
     isDetailsPaneOpen.value = !isDetailsPaneOpen.value;
 }
 
-function onEpisodeDirectorySelected(episodeDirectory: string) {
-    selectedEpisodeDirectory.value = episodeDirectory;
-}
-
-function clearSelectedEpisode() {
-    selectedEpisodeDirectory.value = null;
-}
-
 function onEscapePressed(event: KeyboardEvent) {
     if (event.key === 'Escape') {
-        clearSelectedEpisode();
+        showReplayPane.value = false
     }
+}
+
+function onViewEpisode(episodeDirectory: string) {
+    showReplayPane.value = true;
+    episodeReplay.value.load(episodeDirectory);
 }
 
 
 onMounted(async () => {
+    loading.value = true;
     window.addEventListener('keydown', onEscapePressed);
-
-    const route = useRoute();
-    const logdir = (route.params.logdir as string[]).join('/');
-    // Asynchronously load the experiment in case we want to replay an episode later on.
-    experimentStore.loadExperiment(logdir);
     const res = await experimentStore.getExperiment(logdir);
     if (res == null) {
         alert("Error while loading the experiment");
         return;
     }
     experiment.value = res;
-    const resultsStore = useResultsStore();
-    runResults.value = await resultsStore.getResultsByRun(res.logdir);
-
-    const byCategory = new Map<string, Set<string>>();
-    runResults.value.forEach((r) => {
-        r.datasets.forEach(ds => {
-            if (!byCategory.has(ds.category)) byCategory.set(ds.category, new Set());
-            byCategory.get(ds.category)!.add(ds.label);
-        });
-    });
-
-    datasets.value = runResults.value.map(r => {
-        r.datasets.forEach(d => d.logdir = r.logdir);
-        return r.datasets;
-    }).flat().sort((a, b) => a.logdir.localeCompare(b.logdir));
+    loading.value = false;
 });
 
 onUnmounted(() => {

@@ -21,7 +21,7 @@ class TBReader(LogReader):
         ea.Reload()
         keys = [k for k in ea.Tags()["scalars"] if k.startswith(prefix)]
         cols = {k: ea.Scalars(k) for k in keys}
-        return pl.DataFrame(cols)
+        return pl.LazyFrame(cols)
 
     @property
     def test_metrics(self):
