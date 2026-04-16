@@ -1,9 +1,11 @@
 import { z } from "zod";
 
 export const GpuInfoSchema = z.object({
+    free_memory: z.number(),
     index: z.number(),
-    name: z.string(),
     memory_usage: z.number(),
+    total_memory: z.number(),
+    used_memory: z.number(),
     utilization: z.number(),
 });
 

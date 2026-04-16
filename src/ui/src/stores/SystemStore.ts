@@ -34,7 +34,6 @@ export const useSystemStore = defineStore("SystemStore", () => {
         const addresses = getAddresses();
         const safeIndex = Math.min(addressIndex, addresses.length - 1);
         const address = addresses[safeIndex];
-        console.info("Connecting to system info websocket", address);
         const nextWs = new WebSocket(address);
         ws = nextWs;
 
@@ -46,7 +45,8 @@ export const useSystemStore = defineStore("SystemStore", () => {
         nextWs.onmessage = async (event) => {
             const blob = event.data as Blob;
             const text = await blob.text();
-            systemInfo.value = fromJsonString(text, SystemInfoSchema, null);
+            const data = JSON.parse(text);
+            systemInfo.value = SystemInfoSchema.parse(data);
         }
 
         nextWs.onerror = () => {
@@ -63,7 +63,7 @@ export const useSystemStore = defineStore("SystemStore", () => {
 
             if (safeIndex < addresses.length - 1) {
                 addressIndex = safeIndex + 1;
-                console.warn("Lost system info websocket connection, trying fallback endpoint")
+                console.warn(`Lost system info websocket connection to ${address}, trying fallback endpoint`)
                 scheduleReconnect(0);
                 return;
             }
@@ -74,7 +74,7 @@ export const useSystemStore = defineStore("SystemStore", () => {
         }
     }
 
-    updateSystemInfo();
+    setTimeout(updateSystemInfo, 1000);
 
     return { systemInfo };
 });
