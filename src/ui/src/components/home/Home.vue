@@ -39,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { Dataset } from '../../models/Experiment';
 import { MetricSelection } from '../../models/Metrics';
 import Plotter from '../Plotter.vue';
@@ -48,6 +49,7 @@ import { useResultsStore } from '../../stores/ResultsStore';
 import { useMetricsStore } from '../../stores/MetricsStore';
 const resultsStore = useResultsStore();
 const metricsStore = useMetricsStore();
+const router = useRouter();
 
 const selectedMetrics = ref<MetricSelection[]>([]);
 const expandedPlotIds = ref<Set<string>>(new Set());
@@ -98,9 +100,12 @@ const datasetPerLabel = computed(() => {
 });
 
 function onTestEpisodeClicked(logdir: string, timeStep: number) {
-    console.log(`Episode clicked: logdir=${logdir}, timeStep=${timeStep}`);
     if (confirm(`Open ${logdir} at time step ${timeStep} ?`)) {
-        const url = `/inspect/${logdir}/${timeStep}`;
+        const target = router.resolve({
+            path: `/inspect/${logdir}`,
+            query: { step: String(timeStep) },
+        });
+        window.open(target.href, '_blank', 'noopener');
     }
 }
 
