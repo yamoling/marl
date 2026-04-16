@@ -1,5 +1,11 @@
 <template>
     <div class="replay-shell">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <h5 class="mb-0">Replay episode </h5>
+            <button type="button" class="btn btn-outline-danger btn-sm" @click="() => emits('close')">
+                Close
+            </button>
+        </div>
         <font-awesome-icon v-if="loading" class="mx-auto d-block my-5" icon="spinner" spin
             style="height:100px; width: 100px;" />
 
@@ -7,7 +13,7 @@
             <section class="replay-row top-row">
                 <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
-                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="resolvedActionSpace"
+                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="episode.action_space"
                         :n-agents="nAgents" />
                 </aside>
             </section>
@@ -37,19 +43,19 @@
                                 <div class="timeline-track-toolbar-left">
                                     <div class="btn-group btn-group-sm timeline-track-order">
                                         <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @click.stop="() => tracksStore.remove(props.experiment.logdir, track)">
+                                            @click.stop="() => tracksStore.remove(props.logdir, track)">
                                             <font-awesome-icon :icon="['fas', 'xmark']" />
                                         </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index <= 0"
-                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index - 1)">
+                                            @click="() => tracksStore.swap(props.logdir, index, index - 1)">
                                             <font-awesome-icon :icon="['fas', 'arrow-up']" />
                                         </button>
                                         <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index >= tracks.length - 1"
-                                            @click="() => tracksStore.swap(props.experiment.logdir, index, index + 1)">
+                                            @click="() => tracksStore.swap(props.logdir, index, index + 1)">
                                             <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
                                     </div>
@@ -72,7 +78,7 @@
                 </div>
             </section>
 
-            <section class="replay-row row-divider replay-analysis">
+            <section v-if="experiment != null" class="replay-row row-divider replay-analysis">
                 <Accordion>
                     <AccordionPanel value="agents">
                         <AccordionHeader>Agent-wise information</AccordionHeader>
@@ -87,14 +93,13 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
-            <TrackWizard ref="trackWizardModal" :logdir="experiment.logdir" :episode="episode"
-                @applied="onTracksApplied" />
+            <TrackWizard ref="trackWizardModal" :logdir="logdir" :episode="episode" @applied="onTracksApplied" />
         </template>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import AgentInfo from './AgentInfo.vue';
 import { ReplayEpisode } from '../../models/Episode';
 import { useReplayStore } from '../../stores/ReplayStore';
@@ -112,8 +117,8 @@ import { Track, type TimelineTrackKind } from '../../models/Timeline';
 
 const trackWizardModal = ref<InstanceType<typeof TrackWizard> | null>(null);
 const props = defineProps<{
-    experiment: Experiment,
-    episodeDirectory: string
+    logdir: string
+    experiment: Experiment | null
 }>();
 
 const replayStore = useReplayStore();
@@ -121,7 +126,7 @@ const tracksStore = useTracksStore();
 // Keep class instance shape intact for child component props typing.
 const episode = shallowRef<ReplayEpisode | null>(null);
 const tracksRefreshToken = ref(0);
-const selectedTracks = computed(() => tracksStore.get(props.experiment.logdir))
+const selectedTracks = computed(() => tracksStore.get(props.logdir))
 const tracks = computed(() => {
     tracksRefreshToken.value;
     if (episode.value == null) return []
@@ -147,18 +152,10 @@ const safeStep = computed(() => {
 });
 
 const currentFrame = computed(() => episode.value?.frameAt(safeStep.value));
-const resolvedActionSpace = computed<ActionSpace>(() => {
-    const replaySpace = episode.value?.action_space;
-    const baseSpace = replaySpace ?? props.experiment.env.action_space;
-    if (baseSpace.space_type != null) return baseSpace;
 
-    const hasBounds = Array.isArray((baseSpace as { low?: unknown }).low)
-        || Array.isArray((baseSpace as { high?: unknown }).high);
-    return {
-        ...baseSpace,
-        space_type: hasBounds ? 'continuous' : 'discrete',
-    } as ActionSpace;
-});
+const emits = defineEmits<{
+    (e: 'close'): void,
+}>();
 
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -196,18 +193,6 @@ function onKeyDown(event: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKeyDown));
 onUnmounted(() => window.removeEventListener('keydown', onKeyDown));
 
-watch(
-    () => props.episodeDirectory,
-    async (newDirectory) => {
-        episode.value = null;
-        loading.value = true;
-        episode.value = await replayStore.getEpisode(newDirectory);
-        currentStep.value = 0;
-        loading.value = false;
-    },
-    { immediate: true }
-);
-
 function step(amount: number) {
     selectStep(currentStep.value + amount);
 }
@@ -236,8 +221,21 @@ function onTracksApplied() {
 function onTimelineTrackKindChange(track: Track, event: Event) {
     const kind = (event.target as HTMLSelectElement).value as TimelineTrackKind;
     track.kind = kind;
-    tracksStore.update(props.experiment.logdir, { label: track.label, kind });
+    tracksStore.update(props.logdir, { label: track.label, kind });
 }
+
+async function load(directory: string) {
+    episode.value = null;
+    loading.value = true;
+    const ep = await replayStore.getEpisode(directory);
+    episode.value = ep;
+    currentStep.value = 0;
+    loading.value = false;
+}
+
+defineExpose({
+    load,
+});
 
 
 </script>

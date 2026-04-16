@@ -29,7 +29,8 @@
                     :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
                     <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
                         :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
-                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)" />
+                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)"
+                        @datapoint-clicked="onTestEpisodeClicked" />
                 </article>
             </section>
         </main>
@@ -38,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { Dataset } from '../../models/Experiment';
 import { MetricSelection } from '../../models/Metrics';
 import Plotter from '../Plotter.vue';
@@ -47,6 +49,7 @@ import { useResultsStore } from '../../stores/ResultsStore';
 import { useMetricsStore } from '../../stores/MetricsStore';
 const resultsStore = useResultsStore();
 const metricsStore = useMetricsStore();
+const router = useRouter();
 
 const selectedMetrics = ref<MetricSelection[]>([]);
 const expandedPlotIds = ref<Set<string>>(new Set());
@@ -95,6 +98,16 @@ const datasetPerLabel = computed(() => {
     });
     return res;
 });
+
+function onTestEpisodeClicked(logdir: string, timeStep: number) {
+    if (confirm(`Open ${logdir} at time step ${timeStep} ?`)) {
+        const target = router.resolve({
+            path: `/inspect/${logdir}`,
+            query: { step: String(timeStep) },
+        });
+        window.open(target.href, '_blank', 'noopener');
+    }
+}
 
 function metricPlotId(metricId: string) {
     return `metric:${metricId}`;

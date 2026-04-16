@@ -1,8 +1,13 @@
 <template>
-    <div v-if="dataset != null" class="metrics-table text-center">
+    <div v-if="dataset == null" class="row mt-5 text-center">
+        <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
+        <span class="text-secondary">Loading results of {{ props.logdir }}...</span>
+    </div>
+    <div v-else class="metrics-table text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
-            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked">
-            <Column expander style="width: 3rem" />
+            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked" scrollable
+            scroll-height="80vh" :virtualScrollerOptions="{ itemSize: 44 }">
+            <Column expander style="width: 1rem" />
             <Column field="step" header="Time step"></Column>
             <Column v-for="label in dataset.columns()" :field="label" :header="label">
                 <template #body="{ data }">
@@ -14,7 +19,7 @@
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        :rowClass="getTestRowClass" @row-select="e => emits('view-episode', e.data.directory)">
+                        @row-select="e => emits('view-episode', e.data.directory)">
                         <Column v-for="column in testColumns" :header="column" :field="column">
                             <template #body="{ data }">
                                 <template v-if="typeof data[column] === 'number'">
@@ -33,15 +38,14 @@
 </template>
 <script setup lang="ts">
 import { DataTable, Column, DataTableRowClickEvent, DataTableRowExpandEvent } from "primevue";
-import { ref } from 'vue';
-import { DatasetTable, Experiment } from '../../models/Experiment';
+import { computed, onMounted, ref, watch } from 'vue';
+import { DatasetTable } from '../../models/Experiment';
 import { useResultsStore } from '../../stores/ResultsStore';
-import { onMounted } from "vue";
+import { useRoute } from 'vue-router';
 
 
 const props = defineProps<{
-    experiment: Experiment,
-    selectedEpisodeDirectory?: string | null
+    logdir: string
 }>();
 
 const expanded = ref({} as Record<string, boolean>);
@@ -49,12 +53,38 @@ const resultsStore = useResultsStore();
 const dataset = ref(null as DatasetTable | null);
 const testsAtStep = ref({} as { [key: number]: any })
 const testColumns = ref(new Set<string>());
+const route = useRoute();
+
+const expandedStepFromQuery = computed(() => {
+    const rawStep = route.query.step;
+    const stepValue = Array.isArray(rawStep) ? rawStep[0] : rawStep;
+    if (typeof stepValue !== 'string') {
+        return null;
+    }
+    const parsedStep = Number(stepValue);
+    return Number.isFinite(parsedStep) ? parsedStep : null;
+});
 
 onMounted(async () => {
-    const experimentResults = await resultsStore.load(props.experiment.logdir);
+    const experimentResults = await resultsStore.load(props.logdir);
     dataset.value = DatasetTable.fromTestDatasets(experimentResults.datasets);
-})
+});
 
+watch([dataset, expandedStepFromQuery], async ([currentDataset, step]) => {
+    if (currentDataset == null) {
+        return;
+    }
+    if (step == null) {
+        expanded.value = {};
+        return;
+    }
+
+    const stepKey = String(step);
+    expanded.value = {
+        [stepKey]: true,
+    };
+    await loadTestsAtStep(step);
+}, { immediate: true });
 
 
 
@@ -67,11 +97,6 @@ function formatFloat(value: number) {
     return value.toFixed(3);
 }
 
-function getTestRowClass(data: { directory?: string }) {
-    return {
-        'selected-replay-row': data.directory === props.selectedEpisodeDirectory,
-    };
-}
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
     const step = String(event.data.step);
@@ -99,13 +124,17 @@ async function onRowClicked(event: DataTableRowClickEvent) {
 async function loadTestsAtStep(step: number) {
     if (testsAtStep.value[step] != undefined) return;
     const testsDataset = [];
-    const results = await resultsStore.getTestsResultsAt(props.experiment.logdir, step);
+    const results = await resultsStore.getTestsResultsAt(props.logdir, step);
     for (const res of results) {
         testsDataset.push({
             testNum: res.name,
             directory: res.directory,
             ...res.metrics
         })
+    }
+    if (testsDataset.length == 0) {
+        testsAtStep.value[step] = testsDataset;
+        return;
     }
     for (const column of Object.keys(testsDataset[0])) {
         testColumns.value.add(column);

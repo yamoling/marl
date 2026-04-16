@@ -24,8 +24,7 @@ def get_experiment_results(logdir: str):
 def get_test_results_at(time_step: str, logdir: str):
     exp = state.get_experiment(logdir)
     res = exp.get_tests_at(int(time_step))
-    res = orjson.dumps(res, option=orjson.OPT_SERIALIZE_NUMPY)
-    return Response(res, media_type="application/json")
+    return Response(orjson.dumps(res, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
 
 
 @router.get("/results/load-by-run/{logdir:path}")

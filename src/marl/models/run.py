@@ -53,8 +53,8 @@ class Run:
     @property
     def n_tests(self):
         try:
-            return self.test_metrics.filter(pl.col(TIME_STEP_COL) == 0).height
-        except pl.exceptions.ColumnNotFoundError:
+            return self.reader.test_metrics.head(100).filter(pl.col(TIME_STEP_COL) == 0).collect().height
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 1
 
     @property
@@ -64,7 +64,10 @@ class Run:
 
     @property
     def test_metrics(self):
-        return self.reader.test_metrics
+        try:
+            return self.reader.test_metrics.collect()
+        except pl.exceptions.NoDataError:
+            return pl.DataFrame()
 
     def train_metrics(self, granularity: int):
         """
@@ -72,14 +75,14 @@ class Run:
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
-        df = self.reader.train_metrics
-        if df.is_empty():
-            return df
-        # Round the time step to match the closest test interval
-        df = stats.round_col(df, TIME_STEP_COL, granularity)
-        # Compute the mean of the metrics for each time step
-        df = df.group_by(TIME_STEP_COL).mean()
-        return df
+        try:
+            # Round the time step to match the closest test interval
+            df = stats.round_col(self.reader.train_metrics, TIME_STEP_COL, granularity)
+            # Compute the mean of the metrics for each time step
+            df = df.group_by(TIME_STEP_COL).mean()
+            return df.collect()
+        except pl.exceptions.ColumnNotFoundError:
+            return pl.DataFrame()
 
     def training_data(self, granularity: int):
         """
@@ -87,14 +90,15 @@ class Run:
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
-        df = self.reader.training_data
-        if df.is_empty():
-            return df
-        # Make sure we are working with numerical values
-        df = stats.ensure_numerical(df, drop_non_numeric=True)
-        df = stats.round_col(df, TIME_STEP_COL, granularity)
-        df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
-        return df
+        try:
+            df = self.reader.training_data
+            # Make sure we are working with numerical values
+            df = stats.ensure_numerical(df, drop_non_numeric=True)
+            df = stats.round_col(df, TIME_STEP_COL, granularity)
+            df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
+            return df.collect()
+        except pl.exceptions.ColumnNotFoundError:
+            return pl.DataFrame()
 
     @property
     def is_running(self) -> bool:
@@ -106,11 +110,11 @@ class Run:
     @property
     def latest_train_step(self) -> int:
         try:
-            max_train = self.reader.train_metrics[TIME_STEP_COL].max()
+            max_train = self.reader.train_metrics.last().select(TIME_STEP_COL).max().collect().item()
             if max_train is None:
                 max_train = 0
             assert isinstance(max_train, int)
-            max_training_data = self.reader.training_data[TIME_STEP_COL].max()
+            max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).max().collect().item()
             if max_training_data is None:
                 max_training_data = 0
             assert isinstance(max_training_data, int)
@@ -121,8 +125,8 @@ class Run:
     @property
     def latest_test_step(self) -> int:
         try:
-            return self.test_metrics.select(pl.last(TIME_STEP_COL)).item()
-        except pl.exceptions.ColumnNotFoundError:
+            return self.reader.test_metrics.last().select(TIME_STEP_COL).collect().item()
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 0
 
     @property

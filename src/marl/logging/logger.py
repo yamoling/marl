@@ -48,20 +48,19 @@ class LogReader(ABC, LogHelper):
 
     @property
     @abstractmethod
-    def test_metrics(self) -> pl.DataFrame: ...
+    def test_metrics(self) -> pl.LazyFrame: ...
 
     @property
     @abstractmethod
-    def train_metrics(self) -> pl.DataFrame: ...
+    def train_metrics(self) -> pl.LazyFrame: ...
 
     @property
     @abstractmethod
-    def training_data(self) -> pl.DataFrame: ...
+    def training_data(self) -> pl.LazyFrame: ...
 
     def get_test_episodes(self, time_step: int) -> list[LightEpisodeSummary]:
         try:
-            test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).sort(TIMESTAMP_COL)
-            test_metrics = test_metrics.drop([TIME_STEP_COL, TIMESTAMP_COL])
+            test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).drop([TIME_STEP_COL, TIMESTAMP_COL]).collect()
             episodes = []
             for test_num, row in enumerate(test_metrics.rows()):
                 episode_dir = self.test_dir(time_step, test_num)
@@ -69,7 +68,7 @@ class LogReader(ABC, LogHelper):
                 episode = LightEpisodeSummary(episode_dir, metrics)
                 episodes.append(episode)
             return episodes
-        except pl.exceptions.ColumnNotFoundError:
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             # There is no log at all in the file, return an empty list
             return []
 

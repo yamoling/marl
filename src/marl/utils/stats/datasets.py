@@ -42,7 +42,7 @@ def _concat_with_missing_columns(dfs: list[pl.DataFrame]) -> pl.DataFrame:
     return pl.concat(aligned)
 
 
-def round_col(df: pl.DataFrame, col_name: str, round_value: int):
+def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
     """
     Round the values of `col_name` to the closest multiple of `round_value`.
 
@@ -51,11 +51,7 @@ def round_col(df: pl.DataFrame, col_name: str, round_value: int):
     if round_value == 0:
         raise ValueError("round_value must be different from 0")
     try:
-        col = df[col_name] / round_value
-        col = col.round(0)
-        col = col * round_value
-        col = col.cast(pl.Int64)
-        return df.with_columns(col.alias(col_name))
+        return df.with_columns(((pl.col(col_name) / round_value).round(0) * round_value).cast(pl.Int64))
     except pl_errors.ColumnNotFoundError:
         return df
 
@@ -137,7 +133,7 @@ def compute_datasets(
     if "timestamp_sec" in df.columns:
         df = df.drop("timestamp_sec")
     score_cols = [col for col in df.columns if col.startswith("score")]
-    if len(score_cols) != 0:
+    if len(score_cols) > 1:
         df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
     to_drop = list[str]()
     for col, dtype in zip(df.columns, df.dtypes):
@@ -250,8 +246,8 @@ def moving_average(x: np.ndarray, window_size: int) -> np.ndarray:
     return np.convolve(x, ones, "valid") / window_size
 
 
-def ensure_numerical(df: pl.DataFrame, drop_non_numeric: bool = True):
-    non_numerical = [col for col in df.select(~pl.selectors.numeric()).columns]
+def ensure_numerical(df: pl.LazyFrame, drop_non_numeric: bool = True):
+    non_numerical = [col for col in df.select(~pl.selectors.numeric()).collect_schema().names()]
     to_drop = []
     for col in non_numerical:
         try:

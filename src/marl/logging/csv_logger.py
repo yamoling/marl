@@ -76,24 +76,26 @@ class CSVLogReader(LogReader):
         self.train_filename = os.path.join(logdir, TRAIN)
         self.training_data_filename = os.path.join(logdir, TRAINING_DATA)
 
-    def _read(self, filename: str) -> pl.DataFrame:
+    def _read(self, filename: str) -> pl.LazyFrame:
+        if not os.path.exists(filename):
+            return pl.LazyFrame()
         try:
             # With SMAC, there are sometimes episodes that are not finished and that produce
             # None values for some metrics. We ignore these episodes.
-            return pl.read_csv(filename, ignore_errors=True)
-        except (pl.exceptions.NoDataError, FileNotFoundError):
-            return pl.DataFrame()
+            return pl.scan_csv(filename, ignore_errors=True)
+        except pl.exceptions.NoDataError:
+            return pl.LazyFrame()
 
     @property
-    def test_metrics(self) -> pl.DataFrame:
+    def test_metrics(self):
         return self._read(self.test_filename)
 
     @property
-    def train_metrics(self) -> pl.DataFrame:
+    def train_metrics(self):
         return self._read(self.train_filename)
 
     @property
-    def training_data(self) -> pl.DataFrame:
+    def training_data(self):
         return self._read(self.training_data_filename)
 
 
