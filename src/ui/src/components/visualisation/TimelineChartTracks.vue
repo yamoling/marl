@@ -1,46 +1,70 @@
 <template>
-    <div class="timeline-chart-canvas-shell">
+    <div class="timeline-chart-canvas-shell" style="min-height: 50px;">
         <canvas ref="canvas" class="timeline-chart-canvas" />
-        <span class="timeline-chart-now" :style="nowIndicatorStyle" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { Chart, type ActiveElement, type ChartConfiguration, type ChartDataset, type Plugin } from 'chart.js/auto';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { Track } from '../../models/Timeline';
-import { formatNumber } from './numberFormat';
 import { CATEGORY_COLOURS } from '../../constants';
 
 const props = defineProps<{
     track: Track;
     currentStep: number;
 }>();
-
 const emits = defineEmits<{
     (event: 'select-step', step: number): void;
 }>();
+
 
 type ChartPoint = { x: number; y: number | null };
 
 const canvas = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<'bar' | 'line', ChartPoint[], number> | null = null;
 let chartType: 'bar' | 'line' | null = null;
+const NOW_LINE_PADDING = 4;
 
-const nowIndicatorStyle = computed(() => {
-    const length = Math.max(1, props.track.length());
-    const ratio = Math.max(0, Math.min(1, props.currentStep / length));
-    return {
-        '--now-ratio': ratio.toString(),
-    } as Record<string, string>;
-});
+const nowIndicatorPlugin: Plugin<'bar' | 'line'> = {
+    id: 'now-indicator',
+    afterDatasetsDraw(chartInstance) {
+        const xScale = chartInstance.scales.x;
+        if (xScale == null) {
+            return;
+        }
+
+        const currentType = chartTypeForTrack(props.track);
+        const xValue = props.currentStep
+        let zzz = currentType === 'bar'
+            ? currentStepForBarPlot(props.track, props.currentStep)
+            : currentStepForLinePlot(props.track, props.currentStep);
+        const x = xScale.getPixelForValue(xValue);
+        const { top, bottom } = chartInstance.chartArea;
+
+        chartInstance.ctx.save();
+        chartInstance.ctx.beginPath();
+        chartInstance.ctx.moveTo(x, top + NOW_LINE_PADDING);
+        chartInstance.ctx.lineTo(x, bottom - NOW_LINE_PADDING);
+        chartInstance.ctx.lineWidth = 2;
+        chartInstance.ctx.strokeStyle = 'color-mix(in srgb, var(--bs-primary) 60%, #000)';
+        chartInstance.ctx.stroke();
+        chartInstance.ctx.restore();
+    },
+};
+
 
 watch(
     () => [props.track.kind, props.track.values] as const,
-    () => {
-        syncChart();
-    },
+    syncChart,
     { deep: true, immediate: true },
+);
+
+watch(
+    () => props.currentStep,
+    () => {
+        chart?.update('none');
+    },
 );
 
 onMounted(() => {
@@ -83,11 +107,29 @@ function syncChart() {
     chart.update('none');
 }
 
+function onChartClick(_event: unknown, activeElements: ActiveElement[]) {
+    const selected = activeElements[0];
+    if (selected == null) {
+        return;
+    }
+    emits('select-step', selected.index + 1);
+}
+
+function currentStepForLinePlot(track: Track, step: number): number {
+    return Math.max(0, Math.min(track.length(), step));
+}
+
+function currentStepForBarPlot(track: Track, step: number): number {
+    if (step >= track.length()) {
+        return track.length() + 1;
+    }
+    return Math.max(0, step + 0.5);
+}
+
 function chartTypeForTrack(track: Track): 'bar' | 'line' {
     if (track.kind === 'numeric') {
         return 'line';
     }
-
     return track.nDistinctValues() <= 16 ? 'bar' : 'line';
 }
 
@@ -105,27 +147,15 @@ function chartConfigForTrack(
     return makeCategoricalChartConfig(track)
 }
 
-function toNumberOrNull(value: unknown): number | null {
-    if (typeof value === 'number') {
-        return Number.isFinite(value) ? value : null;
-    }
-
-    if (typeof value === 'string') {
-        const parsed = Number.parseFloat(value);
-        return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    return null;
-}
-
 function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartPoint[], number> {
     const data = track.values.map((value, index) => ({
         x: index + 1,
-        y: toNumberOrNull(value),
+        y: value,
     }));
 
     return {
         type: 'line' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
@@ -134,7 +164,6 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                     borderColor: '#1f77b4',
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    tension: 0,
                 } satisfies ChartDataset<'line', ChartPoint[]>,
             ],
         },
@@ -143,6 +172,7 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
@@ -150,8 +180,9 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    displayColors: true,
                     callbacks: {
-                        label: (context) => `${track.label}: ${formatNumber(context.parsed.y ?? 0)}`,
+                        label: (context) => `${track.label}: ${context.parsed.y}`,
                     },
                 },
             },
@@ -159,8 +190,7 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                 x: {
                     type: 'linear',
                     display: false,
-                    min: 0,
-                    max: track.length(),
+                    max: track.length() + 1,
                     grid: {
                         display: true,
                         color: 'rgba(0, 0, 0, 0.1)',
@@ -186,83 +216,32 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                     },
                 },
             },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
-            },
         },
     };
 }
 
-function toCategoryIndex(value: unknown): number | null {
-    if (value == null) return null;
-
-    // Try to parse as a number
-    if (typeof value === 'number') {
-        return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
-    }
-
-    if (typeof value === 'string') {
-        const parsed = Number.parseInt(value, 10);
-        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-    }
-
-    return null;
-}
-
+/**
+ * Build bar chart data with proper coloring per point. 
+ * All bars have the same height (y=1), color distinguishes categories.
+ */
 function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'bar', ChartPoint[], number> {
-    // Extract all category indices and build color mapping
-    const categoryIndices = new Map<number, string>(); // index -> label
-    const categoryColors: string[] = [];
-
-    track.values.forEach((value) => {
-        if (value == null) return;
-        const idx = toCategoryIndex(value);
-        if (idx != null && !categoryIndices.has(idx)) {
-            categoryIndices.set(idx, String(value));
-            // Ensure we have colors for this index
-            while (categoryColors.length <= idx) {
-                categoryColors.push(CATEGORY_COLOURS[categoryColors.length % CATEGORY_COLOURS.length]);
-            }
-        }
-    });
-
-    // Build bar chart data with proper coloring per point
-    // All bars have the same height (y=1), color distinguishes categories
-    const data = track.values.map((value, index) => {
-        if (value == null) {
-            return {
-                x: index + 1,
-                y: null,
-            };
-        }
-        const idx = toCategoryIndex(value);
-        return {
-            x: index + 1,
-            y: idx == null ? null : 1,
-        };
-    });
-
-    // Extract the colors for each data point
     const backgroundColors = track.values.map((value) => {
         if (value == null) return 'transparent';
-        const idx = toCategoryIndex(value);
-        if (idx == null) return 'transparent';
-        return CATEGORY_COLOURS[idx % CATEGORY_COLOURS.length];
+        return CATEGORY_COLOURS[value % CATEGORY_COLOURS.length];
     });
+    const X_OFFSET = 1;
+    const Y_SIZE = 0.5;
 
     return {
         type: 'bar' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
                     label: track.label,
-                    data,
+                    data: track.values.map((_, index) => { return { x: index + X_OFFSET, y: Y_SIZE } }),
                     backgroundColor: backgroundColors,
-                    borderColor: backgroundColors,
-                    borderWidth: 0,
-                    borderRadius: 2,
-                    barPercentage: 0.95,
+                    borderRadius: 1,
                     categoryPercentage: 1.0,
                 } satisfies ChartDataset<'bar', ChartPoint[]>,
             ],
@@ -272,6 +251,7 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
@@ -280,12 +260,8 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            if (context.parsed.y == null) return `${track.label}: none`;
-                            const idx = Math.round(context.parsed.y);
-                            const label = categoryIndices.get(idx) ?? String(idx);
-                            return `${track.label}: ${label}`;
-                        },
+                        title: () => "",
+                        label: (context) => `Step ${context.dataIndex + 1}: ${track.valueAt(context.dataIndex)}`,
                     },
                 },
             },
@@ -293,23 +269,16 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
                 x: {
                     type: 'linear',
                     display: false,
-                    min: 0,
-                    max: track.length(),
+                    max: track.length() + 1,
                     offset: false,
                 },
                 y: {
                     display: false,
-                    min: -0.5,
-                    max: 1.5,
                     ticks: {
                         callback: () => '',
                         maxTicksLimit: 1,
                     },
                 },
-            },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
             },
         },
     };
@@ -344,6 +313,7 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
 
     return {
         type: 'line' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
@@ -363,6 +333,7 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
@@ -400,13 +371,13 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
                     },
                 },
             },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
-            },
         },
     };
 }
+
+defineExpose({
+    update: syncChart,
+});
 
 </script>
 
@@ -422,17 +393,5 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
     width: 100%;
     height: 100%;
     display: block;
-}
-
-.timeline-chart-now {
-    position: absolute;
-    top: 0.25rem;
-    bottom: 0.25rem;
-    width: 2px;
-    left: calc(0.35rem + (100% - 0.7rem) * var(--now-ratio));
-    background: color-mix(in srgb, var(--bs-primary) 60%, #000);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
-    pointer-events: none;
-    z-index: 2;
 }
 </style>

@@ -32,7 +32,7 @@
                                         </label>
 
                                         <select class="form-select form-select-sm" :disabled="!isSelected(track)"
-                                            :value="track.getMajorityKind()"
+                                            :value="kindForGroup(track)"
                                             @change="(event) => onFamilyKindChange(track, event)">
                                             <option value="numeric">Numerical</option>
                                             <option value="categorical">Categorical</option>
@@ -95,7 +95,6 @@ const props = defineProps<{
     readonly episode: ReplayEpisode,
     readonly logdir: string,
 }>();
-
 const emits = defineEmits<{
     (event: 'applied'): void,
 }>();
@@ -123,7 +122,7 @@ function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
 }
 
 function showModal() {
-    draftSelections.value = trackStore.get(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
+    draftSelections.value = trackStore.forLogdir(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
@@ -138,7 +137,7 @@ function close() {
 
 function confirm() {
     trackStore.set(props.logdir, draftSelections.value.map((track) => ({ label: track.label, kind: track.kind })));
-    emits('applied');
+    emits("applied")
     close();
 }
 
@@ -150,7 +149,6 @@ function onFamilyKindChange(track: TrackGroup, event: Event) {
 }
 
 function onGroupToggle(track: TrackGroup, event: Event) {
-    const isChecked = (event.target as HTMLInputElement).checked;
     for (const subTrack of track.getTracks()) {
         onTrackToggle(subTrack, event);
     }
@@ -164,22 +162,35 @@ function onTrackKindChange(track: TrackConfig, event: Event) {
 function onTrackToggle(track: TrackConfig, event: Event) {
     const isChecked = (event.target as HTMLInputElement).checked;
     if (isChecked) {
-        draftSelections.value.push({ label: track.label, kind: track.kind });
+        if (isSelected(track)) {
+            return;
+        }
+        draftSelections.value = [...draftSelections.value, { label: track.label, kind: kindForTrack(track) }];
     } else {
         draftSelections.value = draftSelections.value.filter((entry) => entry.label !== track.label);
     }
 }
 
 function setDraftKind(track: TrackConfig, kind: TimelineTrackKind) {
-    const existing = draftSelections.value.find((entry) => entry.label === track.label);
-    if (existing == null) {
+    if (!isSelected(track)) {
         return;
     }
-    existing.kind = kind;
+
+    draftSelections.value = draftSelections.value.map((entry) =>
+        entry.label === track.label
+            ? { label: entry.label, kind }
+            : entry,
+    );
 }
 
 function kindForTrack(track: TrackConfig): TimelineTrackKind {
     return draftSelections.value.find((entry) => entry.label === track.label)?.kind ?? track.kind;
+}
+
+function kindForGroup(group: TrackGroup): TimelineTrackKind {
+    const kinds = group.subTracks.map((track) => kindForTrack(track));
+    const numericCount = kinds.filter((kind) => kind === 'numeric').length;
+    return numericCount > kinds.length - numericCount ? 'numeric' : 'categorical';
 }
 
 

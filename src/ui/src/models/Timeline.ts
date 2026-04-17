@@ -29,6 +29,10 @@ export class Track implements TrackConfig {
     public nDistinctValues() {
         return new Set(this.values).size;
     }
+
+    public valueAt(index: number) {
+        return this.values[index];
+    }
 }
 
 

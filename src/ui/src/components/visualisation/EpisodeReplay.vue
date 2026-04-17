@@ -72,7 +72,8 @@
                                     </select>
                                 </div>
                             </div>
-                            <TimelineChartTracks :track="track" :current-step="currentStep" @select-step="selectStep" />
+                            <TimelineChartTracks :key="`${track.label}:${track.kind}`" :track="track"
+                                :current-step="currentStep" @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
@@ -93,7 +94,7 @@
                     </AccordionPanel>
                 </Accordion>
             </section>
-            <TrackWizard ref="trackWizardModal" :logdir="logdir" :episode="episode" @applied="onTracksApplied" />
+            <TrackWizard ref="trackWizardModal" :logdir="logdir" :episode="episode" />
         </template>
     </div>
 </template>
@@ -110,7 +111,6 @@ import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
 import ActionPanel from './action/ActionPanel.vue';
 import TimelineChartTracks from './TimelineChartTracks.vue';
-import { ActionSpace } from '../../models/Env';
 import TrackWizard from '../modals/TrackWizard.vue';
 import { useTracksStore } from '../../stores/TracksStore';
 import { Track, type TimelineTrackKind } from '../../models/Timeline';
@@ -123,24 +123,24 @@ const props = defineProps<{
 
 const replayStore = useReplayStore();
 const tracksStore = useTracksStore();
-// Keep class instance shape intact for child component props typing.
 const episode = shallowRef<ReplayEpisode | null>(null);
-const tracksRefreshToken = ref(0);
-const selectedTracks = computed(() => tracksStore.get(props.logdir))
 const tracks = computed(() => {
-    tracksRefreshToken.value;
-    if (episode.value == null) return []
-    return selectedTracks.value
-        .map((trackConfig) => {
-            const track = episode.value?.getTrack(trackConfig.label);
+    const e = episode.value;
+    if (e === null) return []
+
+    return tracksStore
+        .forLogdir(props.logdir)
+        .map((config) => {
+            const track = e.getTrack(config.label);
             if (track == null) {
-                return null;
+                return undefined;
             }
-            track.kind = trackConfig.kind;
+            track.kind = config.kind;
             return track;
         })
-        .filter(track => track != null) as Track[];
+        .filter((track) => track !== undefined);
 })
+
 const loading = ref(false);
 const currentStep = ref(0);
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
@@ -212,10 +212,6 @@ function changeStep(event: KeyboardEvent) {
     if (!Number.isNaN(newValue)) {
         currentStep.value = Math.max(0, Math.min(maxStep.value, newValue));
     }
-}
-
-function onTracksApplied() {
-    tracksRefreshToken.value += 1;
 }
 
 function onTimelineTrackKindChange(track: Track, event: Event) {
