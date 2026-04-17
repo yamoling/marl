@@ -12,13 +12,17 @@ const STORAGE_KEY = 'tracksStore';
 export const useTracksStore = defineStore('TracksStore', () => {
     const selectedTracks = ref(load());
 
+    function forLogdir(logdir: string): TrackConfig[] {
+        return selectedTracks.value[logdir] ?? [];
+    }
+
     function commit(nextMap: { [logdir: string]: TrackConfig[] }) {
         selectedTracks.value = nextMap;
         save();
     }
 
     function add(logdir: string, track: TrackConfig) {
-        const tracks = selectedTracks.value[logdir] ?? [];
+        const tracks = forLogdir(logdir);
         const existing = tracks.find((entry) => entry.label === track.label);
         if (existing !== undefined) {
             return
@@ -29,9 +33,7 @@ export const useTracksStore = defineStore('TracksStore', () => {
     }
 
     function update(logdir: string, track: TrackConfig) {
-        const tracks = selectedTracks.value[logdir];
-        if (tracks == null) return;
-
+        const tracks = forLogdir(logdir);
         const trackIndex = tracks.findIndex((entry) => entry.label === track.label);
         if (trackIndex === -1) return;
 
@@ -57,8 +59,8 @@ export const useTracksStore = defineStore('TracksStore', () => {
     }
 
     function remove(logdir: string, track: TrackConfig) {
-        const tracks = selectedTracks.value[logdir];
-        if (tracks == null) return;
+        const tracks = forLogdir(logdir);
+        if (tracks.length === 0) return;
 
         const nextTracks = tracks.filter((entry) => entry.label !== track.label);
         const nextMap = { ...selectedTracks.value };
@@ -76,17 +78,18 @@ export const useTracksStore = defineStore('TracksStore', () => {
 
 
     function swap(logdir: string, index1: number, index2: number) {
-        const tracks = selectedTracks.value[logdir];
-        if (tracks == null) return;
+        const tracks = forLogdir(logdir);
+        if (tracks.length === 0) return;
 
         if (index1 < 0 || index1 >= tracks.length || index2 < 0 || index2 >= tracks.length) return;
         if (index1 === -1 || index2 === -1) return;
 
-        const tmp = tracks[index1];
-        tracks[index1] = tracks[index2];
-        tracks[index2] = tmp;
+        const nextTracks = [...tracks];
+        const tmp = nextTracks[index1];
+        nextTracks[index1] = nextTracks[index2];
+        nextTracks[index2] = tmp;
         const nextMap = { ...selectedTracks.value };
-        nextMap[logdir] = [...tracks];
+        nextMap[logdir] = nextTracks;
         commit(nextMap);
     }
 
@@ -96,7 +99,8 @@ export const useTracksStore = defineStore('TracksStore', () => {
         add,
         remove,
         swap,
-        update
+        update,
+        forLogdir,
     };
 });
 

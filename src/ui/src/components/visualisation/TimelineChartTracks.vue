@@ -355,6 +355,10 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
     };
 }
 
+defineExpose({
+    update: syncChart,
+});
+
 </script>
 
 <style scoped>

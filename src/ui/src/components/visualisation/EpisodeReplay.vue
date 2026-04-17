@@ -72,7 +72,8 @@
                                     </select>
                                 </div>
                             </div>
-                            <TimelineChartTracks :track="track" :current-step="currentStep" @select-step="selectStep" />
+                            <TimelineChartTracks :key="`${track.label}:${track.kind}`" :track="track"
+                                :current-step="currentStep" @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
@@ -126,7 +127,18 @@ const episode = shallowRef<ReplayEpisode | null>(null);
 const tracks = computed(() => {
     const e = episode.value;
     if (e === null) return []
-    return tracksStore.selectedTracks[props.logdir].map(tc => e.getTrack(tc.label)).filter(t => t !== undefined)
+
+    return tracksStore
+        .forLogdir(props.logdir)
+        .map((config) => {
+            const track = e.getTrack(config.label);
+            if (track == null) {
+                return undefined;
+            }
+            track.kind = config.kind;
+            return track;
+        })
+        .filter((track) => track !== undefined);
 })
 
 const loading = ref(false);
