@@ -1,5 +1,6 @@
 import subprocess
 from dataclasses import dataclass
+import time
 from typing import Literal, Sequence
 
 import torch
@@ -33,18 +34,20 @@ def list_gpus(disabled_devices: Sequence[int] | None = None) -> list[GPU]:
     if disabled_devices is None:
         disabled_devices = []
     try:
-        cmd = "nvidia-smi  --format=csv,noheader,nounits --query-gpu=memory.total,memory.used,memory.free,utilization.gpu"
+        cmd = "nvidia-smi --format=csv,noheader,nounits --query-gpu=index,memory.total,memory.used,memory.free,utilization.gpu"
         csv = subprocess.check_output(cmd, shell=True).decode().strip()
     except subprocess.CalledProcessError:
         return []
     res = []
-    for i, line in enumerate(csv.split("\n")):
-        if i in disabled_devices:
+    if len(csv) == 0:
+        return res
+    for line in csv.split("\n"):
+        index, total_memory, used_memory, free_memory, utilization = map(int, line.split(","))
+        if index in disabled_devices:
             continue
-        total_memory, used_memory, free_memory, utilization = map(int, line.split(","))
         res.append(
             GPU(
-                index=i,
+                index=index,
                 total_memory=total_memory,
                 used_memory=used_memory,
                 free_memory=free_memory,
@@ -67,6 +70,22 @@ def get_gpu_processes() -> set[int]:
         return set[int]()
 
 
+def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Sequence[int] = ()):
+    gpus = list_gpus(disabled_gpus)
+    devices = list[int]()
+    for _ in range(n_runs):
+        min_gpu = None
+        for i, gpu in enumerate(gpus):
+            if gpu.free_memory > required_memory_mb:
+                if min_gpu is None or gpu.free_memory > gpus[min_gpu].free_memory:
+                    min_gpu = i
+        if min_gpu is None:
+            raise RuntimeError("No GPU can fit the required memory")
+        devices.append(gpus[min_gpu].index)
+        gpus[min_gpu].free_memory -= required_memory_mb
+    return devices
+
+
 def get_max_gpu_usage(pids: set[int]):
     try:
         cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
@@ -82,6 +101,72 @@ def get_max_gpu_usage(pids: set[int]):
     except ValueError:
         # There is no process and int('') raises a ValueError
         return 0
+
+
+def get_gpu_usage_by_pid() -> dict[int, int]:
+    """Return per-process GPU memory usage (MB) for the provided pids."""
+    try:
+        cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
+        csv = subprocess.check_output(cmd, shell=True).decode().strip()
+        if csv == "":
+            return {}
+        usage = dict[int, int]()
+        for line in csv.split("\n"):
+            pid, used_memory = map(int, line.split(","))
+            usage[pid] = used_memory
+        return usage
+    except subprocess.CalledProcessError:
+        return {}
+    except ValueError:
+        return {}
+
+
+def select_gpu(
+    fit_strategy: Literal["scatter", "group"] = "group",
+    estimated_memory_MB: int = 0,
+    disabled_devices: Sequence[int] | None = None,
+):
+    """Select a GPU that can fit the estimated memory requirements."""
+
+    def grouped_fit(gpus: list[GPU], estimated_memory: int):
+        gpus.sort(key=lambda gpu: gpu.free_memory)
+        for gpu in gpus:
+            if gpu.free_memory > estimated_memory:
+                return gpu
+        return None
+
+    def scattered_fit(gpus: list[GPU], estimated_memory: int):
+        # The more utilization, the less the sorting score.
+        gpus.sort(key=lambda gpu: gpu.free_memory * (1.1 - gpu.utilization), reverse=True)
+        for gpu in gpus:
+            if gpu.free_memory > estimated_memory:
+                return gpu
+
+    devices = list_gpus(disabled_devices)
+    match fit_strategy:
+        case "group":
+            return grouped_fit(devices, estimated_memory_MB)
+        case "scatter":
+            return scattered_fit(devices, estimated_memory_MB)
+        case _:
+            raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'group' or 'scatter'")
+
+
+def wait_for_fitting_gpu(
+    fit_strategy: Literal["scatter", "group"],
+    estimated_memory_MB: int,
+    disabled_devices: Sequence[int] | None = None,
+    timeout_s: float = 300.0,
+    poll_interval_s: float = 1.0,
+):
+    """Wait until a GPU can fit the required memory and return it, else None on timeout."""
+    start = time.time()
+    while time.time() - start < timeout_s:
+        gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices)
+        if gpu is not None:
+            return gpu
+        time.sleep(poll_interval_s)
+    return None
 
 
 def get_device(
@@ -102,34 +187,16 @@ def get_device(
     """
     if isinstance(device, torch.device):
         return device
+    if isinstance(device, int):
+        return torch.device(f"cuda:{device}")
     if device != "auto":
+        if device == "cuda":
+            return torch.device("cuda:0")
         return torch.device(device)
-
-    def grouped_fit(gpus: list[GPU], estimated_memory: int):
-        gpus.sort(key=lambda gpu: gpu.free_memory)
-        for gpu in gpus:
-            if gpu.free_memory > estimated_memory:
-                return gpu
-        return None
-
-    def scattered_fit(gpus: list[GPU], estimated_memory: int):
-        # The more utilization, the less the sorting score
-        gpus.sort(key=lambda gpu: gpu.free_memory * (1.1 - gpu.utilization), reverse=True)
-        for gpu in gpus:
-            if gpu.free_memory > estimated_memory:
-                return gpu
-        return None
 
     if not torch.cuda.is_available():
         return torch.device("cpu")
-    devices = list_gpus(disabled_devices)
-    match fit_strategy:
-        case "group":
-            gpu = grouped_fit(devices, estimated_memory_MB)
-        case "scatter":
-            gpu = scattered_fit(devices, estimated_memory_MB)
-        case _:
-            raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'fill' or 'conservative'")
+    gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices)
     if gpu is None:
         return torch.device("cpu")
-    return torch.device(gpu.index)
+    return torch.device(f"cuda:{gpu.index}")
