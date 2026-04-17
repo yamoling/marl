@@ -1,13 +1,12 @@
 <template>
-    <div class="timeline-chart-canvas-shell" :style="shellStyle">
+    <div class="timeline-chart-canvas-shell" style="min-height: 50px;">
         <canvas ref="canvas" class="timeline-chart-canvas" />
-        <span class="timeline-chart-now" :style="nowIndicatorStyle" />
     </div>
 </template>
 
 <script setup lang="ts">
-import { Chart, type ActiveElement, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { Chart, type ActiveElement, type ChartConfiguration, type ChartDataset, type Plugin } from 'chart.js/auto';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
 import { Track } from '../../models/Timeline';
 import { CATEGORY_COLOURS } from '../../constants';
 
@@ -25,38 +24,47 @@ type ChartPoint = { x: number; y: number | null };
 const canvas = ref<HTMLCanvasElement | null>(null);
 let chart: Chart<'bar' | 'line', ChartPoint[], number> | null = null;
 let chartType: 'bar' | 'line' | null = null;
+const NOW_LINE_PADDING = 4;
 
-const nowIndicatorStyle = computed(() => {
-    const length = Math.max(1, props.track.length());
-    const ratio = Math.max(0, Math.min(1, props.currentStep / length));
-    return {
-        '--now-ratio': ratio.toString(),
-    } as Record<string, string>;
-});
+const nowIndicatorPlugin: Plugin<'bar' | 'line'> = {
+    id: 'now-indicator',
+    afterDatasetsDraw(chartInstance) {
+        const xScale = chartInstance.scales.x;
+        if (xScale == null) {
+            return;
+        }
 
-const isCompactCategoricalPatches = computed(
-    () => props.track.kind === 'categorical' && props.track.nDistinctValues() < 16,
-);
+        const currentType = chartTypeForTrack(props.track);
+        const xValue = props.currentStep
+        let zzz = currentType === 'bar'
+            ? currentStepForBarPlot(props.track, props.currentStep)
+            : currentStepForLinePlot(props.track, props.currentStep);
+        const x = xScale.getPixelForValue(xValue);
+        const { top, bottom } = chartInstance.chartArea;
 
-const shellStyle = computed<Record<string, string>>(() => {
-    if (!isCompactCategoricalPatches.value) {
-        return {
-            height: '50px',
-            minHeight: '50px',
-        };
-    }
-    return {
-        height: '50px',
-        minHeight: '50px',
-    };
-});
+        chartInstance.ctx.save();
+        chartInstance.ctx.beginPath();
+        chartInstance.ctx.moveTo(x, top + NOW_LINE_PADDING);
+        chartInstance.ctx.lineTo(x, bottom - NOW_LINE_PADDING);
+        chartInstance.ctx.lineWidth = 2;
+        chartInstance.ctx.strokeStyle = 'color-mix(in srgb, var(--bs-primary) 60%, #000)';
+        chartInstance.ctx.stroke();
+        chartInstance.ctx.restore();
+    },
+};
+
 
 watch(
     () => [props.track.kind, props.track.values] as const,
-    () => {
-        syncChart();
-    },
+    syncChart,
     { deep: true, immediate: true },
+);
+
+watch(
+    () => props.currentStep,
+    () => {
+        chart?.update('none');
+    },
 );
 
 onMounted(() => {
@@ -107,11 +115,21 @@ function onChartClick(_event: unknown, activeElements: ActiveElement[]) {
     emits('select-step', selected.index + 1);
 }
 
+function currentStepForLinePlot(track: Track, step: number): number {
+    return Math.max(0, Math.min(track.length(), step));
+}
+
+function currentStepForBarPlot(track: Track, step: number): number {
+    if (step >= track.length()) {
+        return track.length() + 1;
+    }
+    return Math.max(0, step + 0.5);
+}
+
 function chartTypeForTrack(track: Track): 'bar' | 'line' {
     if (track.kind === 'numeric') {
         return 'line';
     }
-
     return track.nDistinctValues() <= 16 ? 'bar' : 'line';
 }
 
@@ -129,27 +147,15 @@ function chartConfigForTrack(
     return makeCategoricalChartConfig(track)
 }
 
-function toNumberOrNull(value: unknown): number | null {
-    if (typeof value === 'number') {
-        return Number.isFinite(value) ? value : null;
-    }
-
-    if (typeof value === 'string') {
-        const parsed = Number.parseFloat(value);
-        return Number.isFinite(parsed) ? parsed : null;
-    }
-
-    return null;
-}
-
 function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartPoint[], number> {
     const data = track.values.map((value, index) => ({
         x: index + 1,
-        y: toNumberOrNull(value),
+        y: value,
     }));
 
     return {
         type: 'line' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
@@ -158,7 +164,6 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                     borderColor: '#1f77b4',
                     pointRadius: 0,
                     borderWidth: 1.5,
-                    tension: 0,
                 } satisfies ChartDataset<'line', ChartPoint[]>,
             ],
         },
@@ -185,8 +190,7 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                 x: {
                     type: 'linear',
                     display: false,
-                    min: 0,
-                    max: track.length(),
+                    max: track.length() + 1,
                     grid: {
                         display: true,
                         color: 'rgba(0, 0, 0, 0.1)',
@@ -225,11 +229,12 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
         if (value == null) return 'transparent';
         return CATEGORY_COLOURS[value % CATEGORY_COLOURS.length];
     });
-    const X_OFFSET = 1.5;
+    const X_OFFSET = 1;
     const Y_SIZE = 0.5;
 
     return {
         type: 'bar' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
@@ -308,6 +313,7 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
 
     return {
         type: 'line' as const,
+        plugins: [nowIndicatorPlugin],
         data: {
             datasets: [
                 {
@@ -387,17 +393,5 @@ defineExpose({
     width: 100%;
     height: 100%;
     display: block;
-}
-
-.timeline-chart-now {
-    position: absolute;
-    top: 0.25rem;
-    bottom: 0.25rem;
-    width: 2px;
-    left: calc(0.35rem + (100% - 0.7rem) * var(--now-ratio));
-    background: color-mix(in srgb, var(--bs-primary) 60%, #000);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bs-body-bg) 70%, transparent);
-    pointer-events: none;
-    z-index: 2;
 }
 </style>
