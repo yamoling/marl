@@ -96,9 +96,6 @@ const props = defineProps<{
     readonly logdir: string,
 }>();
 
-const emits = defineEmits<{
-    (event: 'applied'): void,
-}>();
 
 const trackStore = useTracksStore();
 const modal = ref({} as HTMLDivElement);
@@ -123,7 +120,7 @@ function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
 }
 
 function showModal() {
-    draftSelections.value = trackStore.get(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
+    draftSelections.value = trackStore.selectedTracks[props.logdir].map((track) => ({ label: track.label, kind: track.kind }));
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
@@ -138,7 +135,6 @@ function close() {
 
 function confirm() {
     trackStore.set(props.logdir, draftSelections.value.map((track) => ({ label: track.label, kind: track.kind })));
-    emits('applied');
     close();
 }
 
