@@ -63,9 +63,8 @@ class CNNOptionCritic(OptionCriticNetwork):
             # To avoid looping on the whole batch, we perform one forward pass for each policy and
             # then gather the relevant logits according to the options tensor.
             logits = torch.stack([policy.forward(obs, extras) for policy in self.policies])
-            index = options.unsqueeze(0).unsqueeze(-1).expand(-1, -1, logits.shape[-1])
-            logits = torch.gather(logits, dim=0, index=index).squeeze(0)
-            raise NotImplementedError("Batching policies with tensor options has not been tested yet.")
+            index = options.unsqueeze(0).unsqueeze(-1)
+            logits = torch.gather(logits, dim=0, index=index).squeeze(0).squeeze(-1)
         logits[~available_actions] = -torch.inf
         dist = torch.distributions.Categorical(logits=logits)
         return dist
