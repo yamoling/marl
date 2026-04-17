@@ -5,10 +5,16 @@ import { ref } from "vue";
 
 export const useRunStore = defineStore("RunStore", () => {
     const runs = ref(new Map<string, Run[]>());
+    const loading = ref(new Map<string, boolean>());
 
     async function refresh(logdir: string) {
-        const updatedRuns = await getRuns(logdir);
-        runs.value.set(logdir, updatedRuns);
+        loading.value.set(logdir, true);
+        try {
+            const updatedRuns = await getRuns(logdir);
+            runs.value.set(logdir, updatedRuns);
+        } finally {
+            loading.value.set(logdir, false);
+        }
     }
 
     async function getRuns(logdir: string): Promise<Run[]> {
@@ -44,6 +50,7 @@ export const useRunStore = defineStore("RunStore", () => {
 
     return {
         runs,
+        loading,
         getRuns,
         refresh,
         stopRun,

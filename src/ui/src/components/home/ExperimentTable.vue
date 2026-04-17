@@ -28,24 +28,30 @@
             <Column header="Status">
                 <template #body="{ data }">
                     <button class="runs-matrix" :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
-                        @click.stop="toggleRunsExpansion(data.logdir)" title="Show run details"
-                        aria-label="Show run details">
-                        <span class="runs-cell runs-cell-running"
-                            :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
-                            {{ runStatusCounts(data.logdir).RUNNING }}
-                        </span>
-                        <span class="runs-cell runs-cell-completed"
-                            :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
-                            {{ runStatusCounts(data.logdir).COMPLETED }}
-                        </span>
-                        <span class="runs-cell runs-cell-cancelled"
-                            :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
-                            {{ runStatusCounts(data.logdir).CANCELLED }}
-                        </span>
-                        <span class="runs-cell runs-cell-created"
-                            :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
-                            {{ runStatusCounts(data.logdir).CREATED }}
-                        </span>
+                        @click.stop="toggleRunsExpansion(data.logdir)" title="Show run details">
+                        <template v-if="isRunsLoading(data.logdir)">
+                            <span class="runs-loading">
+                                <font-awesome-icon :icon="['fas', 'spinner']" spin />
+                            </span>
+                        </template>
+                        <template v-else>
+                            <span class="runs-cell runs-cell-running"
+                                :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
+                                {{ runStatusCounts(data.logdir).RUNNING }}
+                            </span>
+                            <span class="runs-cell runs-cell-completed"
+                                :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
+                                {{ runStatusCounts(data.logdir).COMPLETED }}
+                            </span>
+                            <span class="runs-cell runs-cell-cancelled"
+                                :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
+                                {{ runStatusCounts(data.logdir).CANCELLED }}
+                            </span>
+                            <span class="runs-cell runs-cell-created"
+                                :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
+                                {{ runStatusCounts(data.logdir).CREATED }}
+                            </span>
+                        </template>
                     </button>
                 </template>
             </Column>
@@ -205,9 +211,8 @@ function runsForExperiment(logdir: string) {
     return runStore.runs.get(logdir) ?? [];
 }
 
-
-function runningRuns(logdir: string) {
-    return runsForExperiment(logdir).filter(run => run.status === 'RUNNING');
+function isRunsLoading(logdir: string) {
+    return runStore.loading.get(logdir) ?? false;
 }
 
 
@@ -391,6 +396,15 @@ function stopAllRuns(logdir: string) {
     padding: 0;
     background: white;
     overflow: hidden;
+}
+
+.runs-loading {
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    display: grid;
+    place-items: center;
+    color: rgba(13, 110, 253, 0.85);
+    font-size: 0.9rem;
 }
 
 .runs-matrix-expanded {

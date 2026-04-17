@@ -23,7 +23,7 @@
             <font-awesome-icon :icon="['fas', isExpanded ? 'chevron-up' : 'chevron-down']" class="chip-chevron" />
         </button>
 
-        <div v-if="isExpanded && hasSystemInfo" class="details-popover" role="dialog" aria-label="System usage details">
+        <div v-if="isExpanded && hasSystemInfo" class="details-popover" role="dialog">
             <div class="metric-card cpu-card">
                 <div class="card-header">
                     <font-awesome-icon icon="microchip" class="metric-icon" />
