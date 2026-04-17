@@ -82,6 +82,7 @@ def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Sequence[i
         if min_gpu is None:
             raise RuntimeError("No GPU can fit the required memory")
         devices.append(gpus[min_gpu].index)
+        gpus[min_gpu].free_memory -= required_memory_mb
     return devices
 
 
@@ -102,7 +103,7 @@ def get_max_gpu_usage(pids: set[int]):
         return 0
 
 
-def get_gpu_usage_by_pid(pids: set[int] | None = None) -> dict[int, int]:
+def get_gpu_usage_by_pid() -> dict[int, int]:
     """Return per-process GPU memory usage (MB) for the provided pids."""
     try:
         cmd = "nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits"
@@ -112,9 +113,7 @@ def get_gpu_usage_by_pid(pids: set[int] | None = None) -> dict[int, int]:
         usage = dict[int, int]()
         for line in csv.split("\n"):
             pid, used_memory = map(int, line.split(","))
-            if pids is not None and pid not in pids:
-                continue
-            usage[pid] = max(usage.get(pid, 0), used_memory)
+            usage[pid] = used_memory
         return usage
     except subprocess.CalledProcessError:
         return {}

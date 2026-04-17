@@ -2,21 +2,19 @@ import logging
 import signal
 import time
 import multiprocessing as mp
-from multiprocessing.pool import AsyncResult, Pool
+from multiprocessing.pool import Pool
+from multiprocessing.pool import AsyncResult
 from typing import TYPE_CHECKING, Literal, Sequence
 from contextlib import contextmanager
 
 import torch
 
-from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
+from marl.utils.gpu import get_device, get_gpu_usage_by_pid, scatter_plan, get_gpu_processes
 
 from .simple_runner import SimpleRunner
 
 if TYPE_CHECKING:
     from marl import Run
-
-
-mp.set_start_method("spawn", force=True)
 
 
 @contextmanager
@@ -40,39 +38,26 @@ class ParallelRunner:
         auto_device_strategy: Literal["scatter", "group"] = "group",
         n_tests: int = 1,
         render_tests: bool = False,
-        delay: int = 5,
         disabled_gpus: Sequence[int] = (),
     ):
-        initial_pids = get_gpu_processes()
         if n_jobs is None:
             n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
-        estimated_gpu_memory: int | None = None
-        with Pool(n_jobs) as pool:
-            handles = list[AsyncResult]()
-            selected_device = get_device(device, auto_device_strategy)
-            with ignore_sigint():
-                h = pool.apply_async(
-                    _start_run,
-                    kwds={
-                        "logdir": self.logdir,
-                        "seed": runs[0].seed,
-                        "device_type": selected_device.index,
-                        "n_tests": n_tests,
-                        "quiet": False,
-                        "render_tests": render_tests,
-                    },
-                )
-                handles.append(h)
-            logging.info(f"Started first run on device {selected_device} to warm up and measure memory usage.")
-            while estimated_gpu_memory is None:
-                estimated_gpu_memory = _observe_new_process_memory(initial_pids, delay)
-                logging.info(f"Estimated GPU memory usage of a single run: {estimated_gpu_memory} MB")
+        with mp.get_context("spawn").Pool(n_jobs) as pool:
+            estimated_gpu_memory, h = self._start_first_run(
+                pool,
+                runs[0],
+                n_tests,
+                render_tests,
+                device,
+                auto_device_strategy,
+                disabled_gpus,
+            )
+            handles = [h]
             preplanned_devices = []
             if auto_device_strategy == "scatter":
                 preplanned_devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus)
                 logging.info(f"Preplanned device assignments for scatter strategy: {preplanned_devices}")
             preplanned_devices += [device] * (len(runs) - 1 - len(preplanned_devices))
-            logging.info(f"Final device assignments for all runs: {preplanned_devices}")
             for i, run in enumerate(runs[1:]):
                 with ignore_sigint():
                     h = pool.apply_async(
@@ -96,13 +81,47 @@ class ParallelRunner:
                 for index, handle in reversed(ready_indices):
                     try:
                         handle.get(timeout=1)
-                        handles.pop(index)
                     except Exception as e:
                         print(f"Error in one of the runs: {e}")
+                    finally:
+                        # Always remove completed handles (including failures)
+                        # to avoid waiting forever on an already-failed run.
+                        handles.pop(index)
                 time.sleep(1)
 
-    def _start_run(self):
-        pass
+    def _start_first_run(
+        self,
+        pool: Pool,
+        run: "Run",
+        n_tests: int,
+        render_tests: bool,
+        device,
+        auto_device_strategy: Literal["scatter", "group"],
+        disabled_gpus: Sequence[int],
+    ):
+        selected_device = get_device(device, auto_device_strategy, disabled_devices=disabled_gpus)
+        initial_pids = get_gpu_processes()
+        with ignore_sigint():
+            h = pool.apply_async(
+                _start_run,
+                kwds={
+                    "logdir": self.logdir,
+                    "seed": run.seed,
+                    "device_type": selected_device.index,
+                    "n_tests": n_tests,
+                    "quiet": False,
+                    "render_tests": render_tests,
+                    "estimated_gpu_memory": 0,
+                    "auto_device_strategy": auto_device_strategy,
+                    "disabled_gpus": disabled_gpus,
+                },
+            )
+            logging.info(f"Started first run on device {selected_device} to warm up and measure memory usage.")
+        estimated_gpu_memory = _estimate_required_gpu_memory(initial_pids, h)
+        if estimated_gpu_memory is None:
+            raise RuntimeError("Failed to estimate GPU memory usage of the first run.")
+        logging.info(f"Estimated GPU memory usage of a single run: {estimated_gpu_memory} MB")
+        return estimated_gpu_memory, h
 
 
 def _start_run(
@@ -132,18 +151,24 @@ def _start_run(
             device = get_device("auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus)
         case other:
             raise ValueError(f"Invalid device_type: {other}")
+    logging.info(f"Selected device {device} for {run.rundir}")
     return runner.to(device).start(run, render_tests)
 
 
-def _observe_new_process_memory(initial_pids: set[int], wait_s: float, poll_interval_s: float = 0.5):
-    end_time = time.time() + max(wait_s, poll_interval_s)
-    max_observed = 0
+def _estimate_required_gpu_memory(ignored_pids: set[int], run_0_handle: AsyncResult, poll_interval_s: float = 3.0):
+    """
+    Estimate the required GPU memory for a single run.
+
+    This function monitors the GPU memory consumption of every process whose PID is not in the `ignored_pids` set (i.e. the processes that were already running before starting the first run). Once the same reading is observed twice in a row, it returns this value.
+    """
+    max_observed = None
     prev_max_observed = None
-    while time.time() < end_time or (max_observed != prev_max_observed):
-        current_pids = get_gpu_processes() - initial_pids
-        usage = get_gpu_usage_by_pid(current_pids)
-        if len(usage) > 0:
-            max_observed = max(max_observed, max(usage.values()))
-            prev_max_observed = max_observed
+    while not run_0_handle.ready() and (max_observed is None or max_observed != prev_max_observed):
         time.sleep(poll_interval_s)
-    return max_observed if max_observed > 0 else None
+        prev_max_observed = max_observed
+        usage = get_gpu_usage_by_pid()
+        for pid, usage in usage.items():
+            if pid not in ignored_pids:
+                if max_observed is None or usage > max_observed:
+                    max_observed = usage
+    return max_observed
