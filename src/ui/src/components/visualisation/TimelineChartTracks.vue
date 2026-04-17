@@ -1,5 +1,5 @@
 <template>
-    <div class="timeline-chart-canvas-shell">
+    <div class="timeline-chart-canvas-shell" :style="shellStyle">
         <canvas ref="canvas" class="timeline-chart-canvas" />
         <span class="timeline-chart-now" :style="nowIndicatorStyle" />
     </div>
@@ -9,7 +9,6 @@
 import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Track } from '../../models/Timeline';
-import { formatNumber } from './numberFormat';
 import { CATEGORY_COLOURS } from '../../constants';
 
 const props = defineProps<{
@@ -17,9 +16,6 @@ const props = defineProps<{
     currentStep: number;
 }>();
 
-const emits = defineEmits<{
-    (event: 'select-step', step: number): void;
-}>();
 
 type ChartPoint = { x: number; y: number | null };
 
@@ -33,6 +29,23 @@ const nowIndicatorStyle = computed(() => {
     return {
         '--now-ratio': ratio.toString(),
     } as Record<string, string>;
+});
+
+const isCompactCategoricalPatches = computed(
+    () => props.track.kind === 'categorical' && props.track.nDistinctValues() < 16,
+);
+
+const shellStyle = computed<Record<string, string>>(() => {
+    if (!isCompactCategoricalPatches.value) {
+        return {
+            height: '50px',
+            minHeight: '50px',
+        };
+    }
+    return {
+        height: '50px',
+        minHeight: '50px',
+    };
 });
 
 watch(
@@ -150,8 +163,9 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    displayColors: true,
                     callbacks: {
-                        label: (context) => `${track.label}: ${formatNumber(context.parsed.y ?? 0)}`,
+                        label: (context) => `${track.label}: ${context.parsed.y}`,
                     },
                 },
             },
@@ -186,70 +200,21 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
                     },
                 },
             },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
-            },
         },
     };
 }
 
-function toCategoryIndex(value: unknown): number | null {
-    if (value == null) return null;
-
-    // Try to parse as a number
-    if (typeof value === 'number') {
-        return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
-    }
-
-    if (typeof value === 'string') {
-        const parsed = Number.parseInt(value, 10);
-        return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-    }
-
-    return null;
-}
-
+/**
+ * Build bar chart data with proper coloring per point. 
+ * All bars have the same height (y=1), color distinguishes categories.
+ */
 function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'bar', ChartPoint[], number> {
-    // Extract all category indices and build color mapping
-    const categoryIndices = new Map<number, string>(); // index -> label
-    const categoryColors: string[] = [];
-
-    track.values.forEach((value) => {
-        if (value == null) return;
-        const idx = toCategoryIndex(value);
-        if (idx != null && !categoryIndices.has(idx)) {
-            categoryIndices.set(idx, String(value));
-            // Ensure we have colors for this index
-            while (categoryColors.length <= idx) {
-                categoryColors.push(CATEGORY_COLOURS[categoryColors.length % CATEGORY_COLOURS.length]);
-            }
-        }
-    });
-
-    // Build bar chart data with proper coloring per point
-    // All bars have the same height (y=1), color distinguishes categories
-    const data = track.values.map((value, index) => {
-        if (value == null) {
-            return {
-                x: index + 1,
-                y: null,
-            };
-        }
-        const idx = toCategoryIndex(value);
-        return {
-            x: index + 1,
-            y: idx == null ? null : 1,
-        };
-    });
-
-    // Extract the colors for each data point
     const backgroundColors = track.values.map((value) => {
         if (value == null) return 'transparent';
-        const idx = toCategoryIndex(value);
-        if (idx == null) return 'transparent';
-        return CATEGORY_COLOURS[idx % CATEGORY_COLOURS.length];
+        return CATEGORY_COLOURS[value % CATEGORY_COLOURS.length];
     });
+    const X_OFFSET = 1.5;
+    const Y_SIZE = 0.5;
 
     return {
         type: 'bar' as const,
@@ -257,12 +222,9 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
             datasets: [
                 {
                     label: track.label,
-                    data,
+                    data: track.values.map((_, index) => { return { x: index + X_OFFSET, y: Y_SIZE } }),
                     backgroundColor: backgroundColors,
-                    borderColor: backgroundColors,
-                    borderWidth: 0,
-                    borderRadius: 2,
-                    barPercentage: 0.95,
+                    borderRadius: 1,
                     categoryPercentage: 1.0,
                 } satisfies ChartDataset<'bar', ChartPoint[]>,
             ],
@@ -280,12 +242,8 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: (context) => {
-                            if (context.parsed.y == null) return `${track.label}: none`;
-                            const idx = Math.round(context.parsed.y);
-                            const label = categoryIndices.get(idx) ?? String(idx);
-                            return `${track.label}: ${label}`;
-                        },
+                        title: () => "",
+                        label: (context) => `Step ${context.dataIndex}: ${track.valueAt(context.dataIndex)}`,
                     },
                 },
             },
@@ -293,23 +251,16 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
                 x: {
                     type: 'linear',
                     display: false,
-                    min: 0,
-                    max: track.length(),
+                    max: track.length() + 1,
                     offset: false,
                 },
                 y: {
                     display: false,
-                    min: -0.5,
-                    max: 1.5,
                     ticks: {
                         callback: () => '',
                         maxTicksLimit: 1,
                     },
                 },
-            },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
             },
         },
     };
@@ -399,10 +350,6 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
                         maxTicksLimit: 4,
                     },
                 },
-            },
-            onClick: (_event, elements) => {
-                if (elements.length === 0) return;
-                emits('select-step', elements[0].index + 1);
             },
         },
     };
