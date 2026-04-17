@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { Chart, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
+import { Chart, type ActiveElement, type ChartConfiguration, type ChartDataset } from 'chart.js/auto';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Track } from '../../models/Timeline';
 import { CATEGORY_COLOURS } from '../../constants';
@@ -14,6 +14,9 @@ import { CATEGORY_COLOURS } from '../../constants';
 const props = defineProps<{
     track: Track;
     currentStep: number;
+}>();
+const emits = defineEmits<{
+    (event: 'select-step', step: number): void;
 }>();
 
 
@@ -96,6 +99,14 @@ function syncChart() {
     chart.update('none');
 }
 
+function onChartClick(_event: unknown, activeElements: ActiveElement[]) {
+    const selected = activeElements[0];
+    if (selected == null) {
+        return;
+    }
+    emits('select-step', selected.index + 1);
+}
+
 function chartTypeForTrack(track: Track): 'bar' | 'line' {
     if (track.kind === 'numeric') {
         return 'line';
@@ -156,6 +167,7 @@ function makeNumericChartConfig(track: Track): ChartConfiguration<'line', ChartP
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
@@ -234,6 +246,7 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
@@ -243,7 +256,7 @@ function makeCategoricalPatchesChartConfig(track: Track): ChartConfiguration<'ba
                 tooltip: {
                     callbacks: {
                         title: () => "",
-                        label: (context) => `Step ${context.dataIndex}: ${track.valueAt(context.dataIndex)}`,
+                        label: (context) => `Step ${context.dataIndex + 1}: ${track.valueAt(context.dataIndex)}`,
                     },
                 },
             },
@@ -314,6 +327,7 @@ function makeCategoricalChartConfig(track: Track): ChartConfiguration<'line', Ch
             maintainAspectRatio: false,
             animation: false as const,
             normalized: true,
+            onClick: onChartClick,
             interaction: {
                 intersect: false,
                 mode: 'nearest' as const,
