@@ -1,7 +1,7 @@
 import asyncio
 import orjson
 import psutil
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Response, WebSocket, WebSocketDisconnect
 from marl.utils import list_gpus
 
 
@@ -14,6 +14,12 @@ def get_system_info():
         "ram": psutil.virtual_memory().percent,
         "gpus": list_gpus(),
     }
+
+
+@router.get("/system-specs")
+def get_specs():
+    info = get_system_info()
+    return Response(content=orjson.dumps(info), media_type="application/json")
 
 
 @router.websocket("/ws/system-info")

@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 import { SystemInfo, SystemInfoSchema } from "../models/SystemInfo";
-import { fromJsonString } from "../utils";
+import { HTTP_URL } from "../constants";
 
 export const useSystemStore = defineStore("SystemStore", () => {
     const systemInfo = ref(null as SystemInfo | null);
@@ -50,17 +50,14 @@ export const useSystemStore = defineStore("SystemStore", () => {
         }
 
         nextWs.onerror = () => {
-            console.error("Error on system info websocket")
+            console.info("Error on system info websocket")
         }
 
         nextWs.onclose = () => {
             if (ws !== nextWs) {
                 return;
             }
-
             ws = null;
-            systemInfo.value = null;
-
             if (safeIndex < addresses.length - 1) {
                 addressIndex = safeIndex + 1;
                 console.warn(`Lost system info websocket connection to ${address}, trying fallback endpoint`)
@@ -74,6 +71,14 @@ export const useSystemStore = defineStore("SystemStore", () => {
         }
     }
 
+    async function getSystemSpecs() {
+        const resp = await fetch(`${HTTP_URL}/system-specs`);
+        const data = await resp.json();
+        systemInfo.value = SystemInfoSchema.parse(data);
+    }
+    // Fetch with http the first time because it is faster than establishing the websocket connection.
+    getSystemSpecs();
+    // Then update with websocket data and keep it updated.
     setTimeout(updateSystemInfo, 1000);
 
     return { systemInfo };
