@@ -160,7 +160,7 @@ const contextMenuItems = computed(() => {
         {
             label: isLoaded ? 'Unload' : 'Load',
             icon: isLoaded ? 'pi pi-times-circle' : 'pi pi-download',
-            command: () => isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir),
+            command: () => isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir, exp.test_interval),
         },
     ];
 
@@ -258,7 +258,7 @@ function experimentRowClass(data: Experiment) {
 
 async function onRowClicked(event: DataTableRowClickEvent) {
     const experiment = event.data as Experiment;
-    onExperimentClicked(experiment.logdir);
+    onExperimentClicked(experiment.logdir, experiment.test_interval);
 }
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
@@ -272,8 +272,8 @@ function onRowContextMenu(event: DataTableRowContextMenuEvent) {
     (contextMenuRef.value as any)?.show(event.originalEvent);
 }
 
-function onExperimentClicked(logdir: string) {
-    resultsStore.load(logdir);
+function onExperimentClicked(logdir: string, testInterval: number) {
+    resultsStore.load(logdir, testInterval);
     runStore.refresh(logdir);
 }
 

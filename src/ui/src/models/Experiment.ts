@@ -55,7 +55,7 @@ export interface Dataset {
     label: string
     metric: string
     source: string
-    category: string
+    category: string | "Test" | "Train"
     logdir: string
     mean: number[]
     std: number[]

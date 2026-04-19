@@ -42,6 +42,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { DatasetTable } from '../../models/Experiment';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useRoute } from 'vue-router';
+import { useExperimentStore } from '../../stores/ExperimentStore';
 
 
 const props = defineProps<{
@@ -50,7 +51,11 @@ const props = defineProps<{
 
 const expanded = ref({} as Record<string, boolean>);
 const resultsStore = useResultsStore();
-const dataset = ref(null as DatasetTable | null);
+const experimentStore = useExperimentStore();
+const dataset = computed(() => {
+    const experimentResults = resultsStore.results.get(props.logdir);
+    return experimentResults == null ? null : DatasetTable.fromTestDatasets(experimentResults.datasets);
+});
 const testsAtStep = ref({} as { [key: number]: any })
 const testColumns = ref(new Set<string>());
 const route = useRoute();
@@ -66,14 +71,21 @@ const expandedStepFromQuery = computed(() => {
 });
 
 onMounted(async () => {
-    const experimentResults = await resultsStore.load(props.logdir);
-    dataset.value = DatasetTable.fromTestDatasets(experimentResults.datasets);
+    if (!resultsStore.isLoaded(props.logdir)) {
+        const experiment = await experimentStore.getExperiment(props.logdir);
+        if (experiment == null) {
+            return;
+        }
+        await resultsStore.load(props.logdir, experiment.test_interval);
+    }
 });
 
 watch([dataset, expandedStepFromQuery], async ([currentDataset, step]) => {
     if (currentDataset == null) {
         return;
     }
+    testsAtStep.value = {};
+    testColumns.value = new Set<string>();
     if (step == null) {
         expanded.value = {};
         return;
