@@ -31,5 +31,5 @@ class SimpleActor(Agent):
                 .view(-1, observation.n_agents)
             )
             action_probs = distribution.log_prob(all_actions).exp().T
-            return Action(actions, action_probabilities=action_probs.numpy(force=True).squeeze(0))
+            return Action(actions, action_probabilities=action_probs.numpy(force=True))
         return Action(actions)

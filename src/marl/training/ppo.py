@@ -13,8 +13,8 @@ from marl.models.nn import ActorCritic, IRModule
 
 
 @dataclass
-class MAPPO[B: Batch](Trainer):
-    """Multi-Agent Proximal Policy Optimization"""
+class PPO[B: Batch](Trainer):
+    """Proximal Policy Optimization trainer. Either MAPPO (with a mixer) or IPPO (without mixer)."""
 
     actor_critic: ActorCritic
     mixer: Mixer | None
