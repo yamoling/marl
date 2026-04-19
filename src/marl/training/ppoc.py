@@ -162,11 +162,11 @@ class PPOC(Trainer):
                 log_lists["norms"].append(norm.detach().cpu().item())
             self.optimizer.step()
 
-            log_lists["actor_losses"].append(actor_loss.item())
-            log_lists["critic_losses"].append(critic_loss.item())
-            log_lists["entropy_losses"].append(entropy_loss.item())
-            log_lists["termination_losses"].append(termination_loss.item())
-            log_lists["losses"].append(loss.item())
+            log_lists["actor_loss"].append(actor_loss.item())
+            log_lists["critic_loss"].append(critic_loss.item())
+            log_lists["entropy_loss"].append(entropy_loss.item())
+            log_lists["termination_loss"].append(termination_loss.item())
+            log_lists["loss"].append(loss.item())
             for key, values in extra_logs.items():
                 log_lists[key].append(values)
 
