@@ -114,16 +114,16 @@ class Run:
     @property
     def latest_train_step(self) -> int:
         try:
-            max_train = self.reader.train_metrics.last().select(TIME_STEP_COL).max().collect().item()
+            max_train = self.reader.train_metrics.last().select(TIME_STEP_COL).collect().item()
             if max_train is None:
                 max_train = 0
             assert isinstance(max_train, int)
-            max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).max().collect().item()
+            max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).collect().item()
             if max_training_data is None:
                 max_training_data = 0
             assert isinstance(max_training_data, int)
             return max(max_train, max_training_data)
-        except pl.exceptions.ColumnNotFoundError:
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 0
 
     @property
