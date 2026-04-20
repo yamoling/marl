@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
@@ -17,15 +18,14 @@ from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
 
 
 @dataclass
-class PPOC(Trainer):
+class PPOC[B: Batch](Trainer):
     r"""PPO-style Option-Critic for multi-agent environments.
 
     Mathematical mapping to Bacon et al. (2016):
     - Critic estimates $Q_\Omega(s, \omega)$ and bootstraps with $U(\omega, s')$.
-    - Intra-option policy is optimized with a clipped PPO surrogate using
-      advantages built from the option-value critic.
     - Termination update follows Theorem 2, using
       $A_\Omega(s', \omega) = Q_\Omega(s', \omega) - V_\Omega(s')$ at next state.
+    - Intra-option policy is optimized with a dual-clipped PPO surrogate (Ye et al., AAAI 2020) using advantages built from the option-value critic.
     """
 
     oc: OptionCriticNetwork
@@ -42,16 +42,21 @@ class PPOC(Trainer):
     c2: Schedule = field(init=False)
     termination_c3: float = 1.0
     termination_reg: float = 0.01
+    dual_clip_c: float = 3.0
+    """Lower-bound constant for the dual-clip PPO objective (Ye et al., AAAI 2020).
+    For negative-advantage samples, the surrogate is floored at ``dual_clip_c * Â``,
+    zeroing the gradient when the ratio exceeds ``dual_clip_c``.  Must be >= 1.
+    The original paper uses c = 3."""
     train_interval: int = 64
     minibatch_size: int = 32
     normalize_advantages: bool = True
-    grad_norm_clipping: float | None = None
+    grad_norm_clipping: float | None = 0.5
     train_on: Literal["episode", "transition"] = "transition"
     q_updater: InitVar[TargetParametersUpdater | None] = None
     target_updater: TargetParametersUpdater = field(init=False)
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
-    memory: ReplayMemory[Any, Any] = field(init=False)
+    memory: ReplayMemory[Any, B] = field(init=False)
 
     def __post_init__(
         self,
@@ -212,11 +217,29 @@ class PPOC(Trainer):
         mini_dist = self.oc.policy(minibatch.obs, minibatch.extras, minibatch.available_actions, mini_options)
         mini_log_probs = mini_dist.log_prob(minibatch.actions)
         mini_entropy = mini_dist.entropy()
+
         ratio = torch.exp(mini_log_probs - mini_old_log_probs)
         surrogate1 = ratio * mini_advantages
         surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
-        surr_min = torch.min(surrogate1, surrogate2)
-        actor_loss = -torch.sum(surr_min) / minibatch.masks_sum
+        ppo_min = torch.min(surrogate1, surrogate2)
+
+        # Dual-clip PPO (Ye et al., AAAI 2020, arXiv:1912.09729).
+        #
+        # Standard PPO uses L = min(r·Â, clip(r, 1-ε, 1+ε)·Â).  The clip correctly
+        # zeroes the gradient when r > 1+ε and Â > 0 (Case A: policy already moved
+        # in the right direction), and when r < 1-ε and Â < 0 (Case C: already
+        # corrected enough).  However, when Â < 0 AND r > 1+ε (Case D), torch.min
+        # picks the unclipped surrogate r·Â, giving a gradient ∝ r·|Â| that is
+        # completely unbounded and drives exponential ratio escalation across epochs.
+        #
+        # The dual-clip floors the objective at dual_clip_c·Â for negative-advantage
+        # samples.  When r > dual_clip_c, ppo_min = r·Â < dual_clip_c·Â (both negative),
+        # so torch.max selects the floor, and since dual_clip_c·Â is a constant w.r.t.
+        # log π, the gradient is zero — Case D is neutralised.
+        dual_clip_floor = self.dual_clip_c * mini_advantages
+        actor_objective = torch.where(mini_advantages < 0, torch.max(ppo_min, dual_clip_floor), ppo_min)
+
+        actor_loss = -torch.sum(actor_objective) / minibatch.masks_sum
         entropy_loss = -torch.sum(mini_entropy) / minibatch.masks_sum
         return actor_loss, entropy_loss, {"ratios": ratio.detach().cpu().numpy(), "entropies": mini_entropy.detach().cpu().numpy()}
 
@@ -239,7 +262,7 @@ class PPOC(Trainer):
 
     def update_step(self, transition: Transition, time_step: int):
         if not self.memory.update_on_transitions:
-            return self.option_train_policy.update(time_step)
+            return {}
         self.memory.add(transition)
         logs = self.option_train_policy.update(time_step)
         if not self.memory.is_full:
@@ -250,9 +273,8 @@ class PPOC(Trainer):
         return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        del episode_num
         if not self.memory.update_on_episodes:
-            return self.option_train_policy.update(time_step)
+            return {}
         self.memory.add(episode)
         logs = self.option_train_policy.update(time_step)
         if not self.memory.is_full:

@@ -1,13 +1,18 @@
-from typing import Iterable, Optional
-from sumtree import SumTree
-import torch
 from dataclasses import dataclass
-from .replay_memory import ReplayMemory, T, B
+from typing import TYPE_CHECKING, Iterable, Optional
+
+import torch
 from marlenv.utils import Schedule
+from sumtree import SumTree
+
+from .replay_memory import ReplayMemory
+
+if TYPE_CHECKING:
+    from marl.models import Batch
 
 
 @dataclass
-class PrioritizedMemory(ReplayMemory[T, B]):
+class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.

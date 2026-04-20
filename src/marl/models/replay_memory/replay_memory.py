@@ -1,21 +1,19 @@
 from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Generic, Iterable, Literal
-from typing_extensions import TypeVar
+from typing import Deque, Iterable, Literal
 
 import numpy as np
 from marlenv import Episode, Transition
+from typing_extensions import TypeVar
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
-
 T = TypeVar("T")
-B = TypeVar("B", bound=Batch, default=Batch)
 
 
 @dataclass
-class ReplayMemory(Generic[T, B], ABC):
+class ReplayMemory[T, B: Batch](ABC):
     """Parent class of any ReplayMemory"""
 
     max_size: int
