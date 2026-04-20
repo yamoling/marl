@@ -48,6 +48,11 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.basedpyright]
+typeCheckingMode = "basic"
+# Without overriding the default setting of "reportPrivateImportUsage", all torch functions are marked as private and thus cause a large number of errors in Pyright. Setting it to "none" suppresses these errors.
+reportPrivateImportUsage = "none"
+
 [tool.pytest]
 # Ignore deprecation warnings caused by SMAC
 filterwarnings = ["ignore::DeprecationWarning", "ignore::UserWarning"]

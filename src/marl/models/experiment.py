@@ -112,7 +112,7 @@ class Experiment[A: Space]:
 
     def run(
         self,
-        seeds: int | Sequence[int] = 0,
+        seeds: int | Sequence[int] = 1,
         fill_strategy: Literal["scatter", "group"] = "group",
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
@@ -261,16 +261,14 @@ class Experiment[A: Space]:
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_experiment_results(self, replace_inf=False):
+    def get_experiment_results(self, granularity: int | None = None, replace_inf=False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
+        if granularity is None:
+            granularity = self.test_interval
         runs = list(self.runs)
         datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, category="Test")
-        datasets += stats.compute_datasets(
-            [run.train_metrics(self.test_interval) for run in runs], self.logdir, replace_inf, category="Train"
-        )
-        datasets += stats.compute_datasets(
-            [run.training_data(self.test_interval) for run in runs], self.logdir, replace_inf, category="Other"
-        )
+        datasets += stats.compute_datasets([run.train_metrics(granularity) for run in runs], self.logdir, replace_inf, category="Train")
+        datasets += stats.compute_datasets([run.training_data(granularity) for run in runs], self.logdir, replace_inf, category="Other")
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
         return datasets

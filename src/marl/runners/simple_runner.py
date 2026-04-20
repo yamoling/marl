@@ -1,6 +1,7 @@
 import logging
 from copy import deepcopy
 from typing import TYPE_CHECKING, Literal
+
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -120,7 +121,6 @@ class SimpleRunner[A: Space]:
 
     def _test_and_log(self, logger: "Logger", time_step: int, render: bool):
         logger.save_agent(self._agent, time_step)
-        logger.save_trainer(self._trainer, time_step)
         episodes = self.perform_tests(time_step, render)
         logger.log_test_episodes(episodes, time_step)
 

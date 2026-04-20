@@ -75,6 +75,8 @@ class Run:
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
+        if granularity <= 0:
+            granularity = 5000
         try:
             # Round the time step to match the closest test interval
             df = stats.round_col(self.reader.train_metrics, TIME_STEP_COL, granularity)
@@ -90,6 +92,8 @@ class Run:
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
+        if granularity <= 0:
+            granularity = 5000
         try:
             df = self.reader.training_data
             # Make sure we are working with numerical values

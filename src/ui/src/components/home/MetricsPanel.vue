@@ -2,9 +2,17 @@
     <section class="panel-surface metrics-pane">
         <div class="panel-header panel-header-inline">
             <div class="panel-header-row">
-                <h2>Metrics</h2>
-                <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                }} loaded experiments</span>
+                <div>
+                    <h2>Metrics</h2>
+                    <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
+                        }} loaded experiments</span>
+                </div>
+                <label class="metrics-granularity-control" for="metrics-granularity-input">
+                    <span class="metrics-granularity-label">Granularity</span>
+                    <input id="metrics-granularity-input" class="form-control form-control-sm" type="number" min="0"
+                        v-model.number="granularityInputValue" step="500"
+                        @change="() => resultsStore.granularity = granularityInputValue">
+                </label>
             </div>
         </div>
         <section class="selector-panel">
@@ -74,10 +82,10 @@ import { useResultsStore } from '../../stores/ResultsStore';
 const resultsStore = useResultsStore();
 const props = defineProps<{
     metrics: Set<string>,
-    metricsByCategory: Map<string, Set<string>>
+    metricsByCategory: Map<string, Set<string>>,
 }>();
 const searchString = ref("");
-
+const granularityInputValue = ref(resultsStore.granularity)
 const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
@@ -106,6 +114,7 @@ const loadedResultsCount = computed(() => resultsStore.results.size);
 
 const emits = defineEmits<{
     (event: "change-selected-metrics", value: MetricSelection[]): void
+    (event: "change-granularity", value: number): void
 }>();
 
 function formatCategoryTitle(category: string) {
@@ -166,6 +175,23 @@ onMounted(() => {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
+}
+
+.metrics-granularity-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+}
+
+.metrics-granularity-label {
+    font-size: 0.82rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.metrics-granularity-control input {
+    width: 6.25rem;
 }
 
 .selector-panel {
@@ -278,6 +304,13 @@ onMounted(() => {
 }
 
 @media (max-width: 992px) {
+    .panel-header-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.75rem;
+    }
+
     .selector-cards {
         gap: 0.55rem;
     }

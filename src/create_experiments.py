@@ -16,9 +16,7 @@ import marl
 from marl import ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn.mixers import VDN
-from marl.nn.model_bank.actor_critics import CNNActor, CNNContinuousActorCritic
-from marl.nn.model_bank.options import OptionTermination, SimpleOptionCritic
-from marl.nn.model_bank.qnetworks import QCNN
+from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
 from marl.nn import model_bank
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
@@ -78,7 +76,7 @@ def create_smac_experiment(args: Arguments):
     # env = marlenv.adapters.SMAC("3s_vs_5z")
     env = marlenv.adapters.SMAC("3m")
     env = marlenv.Builder(env).agent_id().last_action().build()
-    trainer = marl.training.MAPPO(
+    trainer = marl.training.PPO(
         marl.nn.model_bank.actor_critics.SimpleRecurrentActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions),
         VDN(env.n_agents),
     )
@@ -128,7 +126,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     match agent_type:
         case "ppo":
             c, h, w = meta_env.observation_shape
-            meta_agent = marl.training.MAPPO(
+            meta_agent = marl.training.PPO(
                 actor_critic=CNNContinuousActorCritic(
                     input_shape=(c, h, w),
                     n_extras=meta_env.extras_shape[0],
@@ -292,7 +290,7 @@ def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "v
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise ValueError(f"Invalid mixer type: {other}")
-    return marl.training.MAPPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=16, n_epochs=5)
+    return marl.training.PPO(ac, mixer, train_on="episode", train_interval=64, minibatch_size=16, n_epochs=5)
 
 
 def make_lle():
