@@ -1,8 +1,7 @@
-import logging
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
-from typing import Any, Literal
+from typing import Literal, cast
 
 import numpy as np
 import torch
@@ -18,7 +17,7 @@ from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
 
 
 @dataclass
-class PPOC[B: Batch](Trainer):
+class PPOC(Trainer):
     r"""PPO-style Option-Critic for multi-agent environments.
 
     Mathematical mapping to Bacon et al. (2016):
@@ -56,7 +55,7 @@ class PPOC[B: Batch](Trainer):
     target_updater: TargetParametersUpdater = field(init=False)
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
-    memory: ReplayMemory[Any, B] = field(init=False)
+    memory: ReplayMemory[Transition | Episode, Batch] = field(init=False)
 
     def __post_init__(
         self,
@@ -91,9 +90,10 @@ class PPOC[B: Batch](Trainer):
         self.c2 = entropy_c2
 
         if self.train_on == "transition":
-            self.memory = TransitionMemory(self.train_interval)
+            memory = TransitionMemory(self.train_interval)
         else:
-            self.memory = EpisodeMemory(self.train_interval)
+            memory = EpisodeMemory(self.train_interval)
+        self.memory = cast(ReplayMemory[Transition | Episode, Batch], memory)
 
         if q_updater is None:
             q_updater = HardUpdate(200)
@@ -125,7 +125,7 @@ class PPOC[B: Batch](Trainer):
         returns = advantages + values
         return returns, advantages
 
-    def train(self, batch: Batch, step_num: int):
+    def train(self, batch: Batch, step_num: int) -> dict[str, float]:
         self.c1.update(step_num)
         self.c2.update(step_num)
 
@@ -260,7 +260,7 @@ class PPOC[B: Batch](Trainer):
         termination_loss = torch.sum(next_termination_probs * (next_advantage + self.termination_reg) * termination_mask)
         return termination_loss
 
-    def update_step(self, transition: Transition, time_step: int):
+    def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
         if not self.memory.update_on_transitions:
             return {}
         self.memory.add(transition)
@@ -272,7 +272,7 @@ class PPOC[B: Batch](Trainer):
         logs = logs | self.train(batch, time_step)
         return logs
 
-    def update_episode(self, episode: Episode, episode_num: int, time_step: int):
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
         if not self.memory.update_on_episodes:
             return {}
         self.memory.add(episode)
