@@ -1,13 +1,15 @@
-from typing import Any
 import os
-import dotenv
-from marlenv import Episode, MARLEnv
 from dataclasses import asdict
-from marl.models.agent import Agent
-from marl.logging.logger import LogReader
-from marl.models.trainer import Trainer
-from .logger import Logger
+from typing import Any
+
+import dotenv
 import wandb
+from marlenv import Episode, MARLEnv
+
+from marl.models.agent import Agent
+from marl.models.trainer import Trainer
+
+from .logger import Logger
 
 
 class WABLogger(Logger):
