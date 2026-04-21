@@ -15,26 +15,34 @@
             <p class="mb-0">{{ error }}</p>
         </div>
 
-        <div v-else-if="episode != null && episode.replay_mismatch" class="alert alert-warning my-4" role="alert">
-            <h6 class="alert-heading">
-                <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="me-2" />
-                Replay Mismatch Detected
-            </h6>
-            <p class="mb-2">
-                Not many logging data items are shown due to a replay mismatch. This occurs when the agent's actions
-                during replay don't
-                match the originally recorded actions. Please ensure that seeding is properly handled in your training
-                and replay process.
-            </p>
-            <p class="mb-0 small">
-                <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU. CPU/GPU
-                replay mismatches are
-                not always supported, as they can lead to different random number generation sequences and divergent
-                episode trajectories.
-            </p>
-        </div>
-
-        <template v-else-if="episode != null">
+        <Accordion v-show="episode != null && episode.replay_mismatch" class="mismatch-details-accordion my-4">
+            <AccordionPanel value="mismatch-details">
+                <AccordionHeader>
+                    <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="me-2" />
+                    Replay Mismatch Detected
+                </AccordionHeader>
+                <AccordionContent>
+                    <p class="mb-2">
+                        Not many logging data items are shown due to a replay mismatch. This occurs when the
+                        agent's actions during replay don't match the originally recorded actions. Please ensure
+                        that seeding is properly handled in your training and replay process.
+                    </p>
+                    <p class="mb-2 small">
+                        <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU.
+                        CPU/GPU replay mismatches are not always supported, as they can lead to different random
+                        number generation sequences and divergent episode trajectories.
+                    </p>
+                    <h6 class="mb-1">Mismatch details</h6>
+                    <ul v-if="mismatchDetails.length > 0" class="mb-0 ps-3">
+                        <li v-for="(detail, index) in mismatchDetails" :key="`${index}:${detail}`">
+                            {{ detail }}
+                        </li>
+                    </ul>
+                    <p v-else class="mb-0 text-muted">No mismatch details were provided.</p>
+                </AccordionContent>
+            </AccordionPanel>
+        </Accordion>
+        <template v-if="episode != null">
             <section class="replay-row top-row">
                 <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
@@ -171,6 +179,7 @@ const error = ref<string | null>(null);
 const currentStep = ref(0);
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.length() || 0);
+const mismatchDetails = computed(() => episode.value?.mismatch_details ?? []);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
@@ -383,6 +392,36 @@ defineExpose({
 
 .manual-step-input input {
     width: 4rem;
+}
+
+.mismatch-details-accordion {
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordionpanel) {
+    border: 1px solid var(--bs-warning-border-subtle);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-warning-bg-subtle);
+}
+
+.mismatch-details-accordion :deep(.p-accordionheader) {
+    border: 0;
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordionheader-toggle) {
+    color: var(--bs-warning-text-emphasis);
+    font-weight: 600;
+}
+
+.mismatch-details-accordion :deep(.p-accordioncontent) {
+    border: 0;
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordioncontent-content) {
+    color: var(--bs-warning-text-emphasis);
+    background: transparent;
 }
 
 .agent-details-grid {

@@ -175,6 +175,7 @@ class Experiment[A: Space]:
             detailed_actions,
             self.test_env.action_space,
             agent.mismatch,
+            agent.mismatch_details,
         )
 
     def move(self, new_logdir: str):

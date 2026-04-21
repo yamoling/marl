@@ -13,7 +13,7 @@ from .nn import NN, RecurrentNN
 
 
 @dataclass
-class Agent(ABC):
+class Agent[T](ABC):
     name: str
 
     def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
@@ -23,7 +23,7 @@ class Agent(ABC):
         self._device = torch.device("cpu")
 
     @abstractmethod
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
         """
         Get the action to perform given the input observation.
 

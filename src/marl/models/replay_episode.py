@@ -29,6 +29,7 @@ class ReplayEpisode(LightEpisodeSummary):
     agent_details: list[dict[str, Any]]
     action_space: Space
     replay_mismatch: bool
+    mismatch_details: list[str]
 
     def __init__(
         self,
@@ -40,6 +41,7 @@ class ReplayEpisode(LightEpisodeSummary):
         detailed_actions: list[Action],
         action_space: Space,
         replay_mismatch: bool,
+        mismatch_details: list[str],
     ):
         super().__init__(rundir, episode.metrics, time_step, test_num)
         self.episode = episode
@@ -47,3 +49,4 @@ class ReplayEpisode(LightEpisodeSummary):
         self.agent_details = [a.details for a in detailed_actions]
         self.action_space = action_space
         self.replay_mismatch = replay_mismatch
+        self.mismatch_details = mismatch_details

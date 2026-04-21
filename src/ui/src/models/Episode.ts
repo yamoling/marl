@@ -31,6 +31,7 @@ export class ReplayEpisode {
   readonly action_space: ActionSpace;
   readonly tracks: (Track | TrackGroup)[];
   readonly replay_mismatch: boolean;
+  readonly mismatch_details: string[];
 
   public constructor(
     name: string,
@@ -43,6 +44,7 @@ export class ReplayEpisode {
     agent_details: AgentDetails[],
     action_space: ActionSpace,
     replay_mismatch: boolean,
+    mismatch_details: string[],
   ) {
     this.name = name;
     this.directory = directory;
@@ -52,6 +54,7 @@ export class ReplayEpisode {
     this.agent_details = agent_details;
     this.action_space = action_space;
     this.replay_mismatch = replay_mismatch;
+    this.mismatch_details = mismatch_details;
     this.tracks = this.computeTracks();
   }
 
@@ -65,6 +68,7 @@ export class ReplayEpisode {
       json.agent_details,
       json.action_space,
       json.replay_mismatch,
+      json.mismatch_details,
     );
   }
 
