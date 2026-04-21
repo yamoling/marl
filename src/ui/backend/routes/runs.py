@@ -45,11 +45,12 @@ def stop_run(rundir: str):
 
 @router.post("/runs/start/{rundir:path}")
 async def start_run(rundir: str, request: Request):
+    device = "auto"
     try:
         data = await request.json()
         if data is not None and "device" in data:
             device = data["device"]
     except Exception:
-        device = "auto"
+        pass
     state.start_run(rundir, device=device)
     return Response(status_code=HTTPStatus.NO_CONTENT)
