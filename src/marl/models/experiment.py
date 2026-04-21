@@ -1,11 +1,10 @@
 import os
-import pathlib
 import pickle
 import shutil
 import time
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Literal, Sequence, overload
+from typing import Any, Literal, Sequence
 
 import numpy as np
 import orjson
@@ -147,7 +146,7 @@ class Experiment[A: Space]:
             disabled_gpus=disabled_gpus,
         )
 
-    def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
+    def replay_episode(self, run_num: int, time_step: int, test_num: int, *, only_saved_actions: bool = False) -> ReplayEpisode:
         """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
         from marl.agents import ReplayAgent
         from marl.runners import seeded_rollout
@@ -158,11 +157,13 @@ class Experiment[A: Space]:
             actions = np.array(run.get_test_actions(time_step, test_num))
         except FileNotFoundError:
             actions = None
-        agent = self.trainer.make_agent()
-        try:
-            agent.load(run.get_saved_algo_dir(time_step))
-        except FileNotFoundError:
-            pass
+        agent = None
+        if not only_saved_actions:
+            agent = self.trainer.make_agent()
+            try:
+                agent.load(run.get_saved_algo_dir(time_step))
+            except FileNotFoundError:
+                pass
         agent = ReplayAgent(actions, agent)
         episode, frames, detailed_actions = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
         frames = [encode_b64_image(f) for f in frames]

@@ -16,9 +16,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.get("/experiment/replay/{time_step}/{test_num}/{rundir:path}")
-def replay(time_step: int, test_num: int, rundir: str):
-    replay_episode = state.replay_episode(rundir, time_step, test_num)
+@router.get("/experiment/replay/{time_step}/{test_num}/{only_saved_actions}/{rundir:path}")
+def replay(time_step: int, test_num: int, only_saved_actions: bool, rundir: str):
+    replay_episode = state.replay_episode(rundir, time_step, test_num, only_saved_actions=only_saved_actions)
     serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
     return Response(serialized, media_type="application/json", status_code=HTTPStatus.OK)
 

@@ -257,7 +257,7 @@ function onTimelineTrackKindChange(track: Track, event: Event) {
 async function load(replay: ReplayEpisodeSummary) {
     error.value = null;
     episode.value = null;
-    episode.value = await replayStore.getEpisode(replay.time_step, replay.test_num, replay.rundir);
+    episode.value = await replayStore.getEpisode(replay.time_step, replay.test_num, replay.rundir, false);
     currentStep.value = 0;
     error.value = null;
 }

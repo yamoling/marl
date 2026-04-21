@@ -2,26 +2,34 @@ import logging
 
 import numpy as np
 
-from marl.models import Agent
+from marl.models import Agent, Action
 
 
 class ReplayAgent[T](Agent[T]):
-    def __init__(self, actions: np.ndarray | None, wrapped: Agent[T]):
+    def __init__(self, actions: np.ndarray | None, wrapped: Agent[T] | None):
         super().__init__()
+        assert actions is not None or wrapped is not None, "At least one of actions or wrapped agent must be provided."
         self.stored_actions = actions
-        self.current_step = 0
+        self.current_step = -1
         self.wrapped = wrapped
         self.mismatch = False
         """Whether there a mismatch has been encountered between the wrapped agent's actions and the replayed actions."""
         self.mismatch_details = []
 
     def choose_action(self, observation, *, with_details=False):
-        online_action = self.wrapped.choose_action(observation, with_details=with_details)
+        self.current_step += 1
+        # Case 1: No wrapped agent, only replaying stored actions.
+        if self.wrapped is None:
+            assert self.stored_actions is not None
+            stored_action = self.stored_actions[self.current_step]
+            return Action(stored_action)
+        # Case 2: Wrapped agent is present, but no stored actions to replay.
         if self.stored_actions is None:
-            return online_action
+            return self.wrapped.choose_action(observation, with_details=with_details)
+        # Case 3: Wrapped agent is present, and stored actions are available to replay.
+        online_action = self.wrapped.choose_action(observation, with_details=with_details)
         if self.current_step < len(self.stored_actions):
             stored_action = self.stored_actions[self.current_step]
-            self.current_step += 1
         else:
             msg = f"ReplayAgent has no more actions to replay at time step {self.current_step}, falling back to wrapped agent."
             logging.warning(msg)
