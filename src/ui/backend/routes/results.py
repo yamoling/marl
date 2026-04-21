@@ -1,22 +1,18 @@
-from http import HTTPStatus
-
-from fastapi import APIRouter
-from fastapi.responses import PlainTextResponse, Response
-from . import state
-from marl.utils import stats
 import orjson
+from fastapi import APIRouter
+from fastapi.responses import Response
+
+from marl.utils import stats
+
+from . import state
 
 router = APIRouter()
 
 
 @router.get("/results/load/{logdir:path}")
 def get_experiment_results(logdir: str, granularity: int | None = None):
-    try:
-        exp = state.get_experiment(logdir)
-    except (ModuleNotFoundError, FileNotFoundError) as e:
-        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
+    exp = state.get_experiment(logdir)
     metrics = exp.get_experiment_results(granularity=granularity, replace_inf=True)
-    # response_data = stats.build_results_payload(metrics, qvalues)
     return Response(orjson.dumps(metrics, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
 
 

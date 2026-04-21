@@ -1,15 +1,59 @@
 <template>
-    <div v-if="dataset == null" class="row mt-5 text-center">
-        <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
-        <span class="text-secondary">Loading results of {{ props.logdir }}...</span>
+    <div
+        v-if="dataset == null && loadError == null"
+        class="row mt-5 text-center"
+    >
+        <font-awesome-icon
+            class="col-auto mx-auto fa-2xl"
+            icon="fa-solid fa-sync"
+            spin
+        />
+        <span class="text-secondary"
+            >Loading results of {{ props.logdir }}...</span
+        >
+    </div>
+    <div
+        v-else-if="loadError != null"
+        class="metrics-load-error mt-5 text-center"
+    >
+        <font-awesome-icon
+            class="col-auto mx-auto fa-2xl mb-3"
+            icon="fa-solid fa-circle-exclamation"
+            style="color: var(--bs-danger)"
+        />
+        <p class="text-muted">Failed to load metrics</p>
+        <code
+            class="d-block text-start mx-auto"
+            style="
+                max-width: 480px;
+                white-space: pre-wrap;
+                word-break: break-all;
+                font-size: 0.8rem;
+            "
+            >{{ loadError }}</code
+        >
     </div>
     <div v-else class="metrics-table text-center">
-        <DataTable v-model:expandedRows="expanded" :value="dataset.items" dataKey="step" striped-rows size="small"
-            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked" scrollable
-            scroll-height="80vh" :virtualScrollerOptions="{ itemSize: 44 }">
+        <DataTable
+            v-model:expandedRows="expanded"
+            :value="dataset!.items"
+            dataKey="step"
+            striped-rows
+            size="small"
+            selection-mode="single"
+            @row-expand="onRowExpanded"
+            @row-click="onRowClicked"
+            scrollable
+            scroll-height="80vh"
+            :virtualScrollerOptions="{ itemSize: 44 }"
+        >
             <Column expander style="width: 1rem" />
             <Column field="step" header="Time step"></Column>
-            <Column v-for="label in dataset.columns()" :field="label" :header="label">
+            <Column
+                v-for="label in dataset!.columns()"
+                :field="label"
+                :header="label"
+            >
                 <template #body="{ data }">
                     {{ formatFloat(data[label]) }}
                 </template>
@@ -17,12 +61,28 @@
             <template #expansion="slotProps">
                 <div class="px-4 pb-4">
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
-                    <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
-                    <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        @row-select="e => emits('view-episode', e.data.directory)">
-                        <Column v-for="column in testColumns" :header="column" :field="column">
+                    <font-awesome-icon
+                        v-if="testsAtStep[slotProps.data.step] == undefined"
+                        icon="spinner"
+                        spin
+                    />
+                    <DataTable
+                        v-else
+                        :value="testsAtStep[slotProps.data.step]"
+                        selection-mode="single"
+                        @row-select="
+                            (e) => emits('view-episode', e.data.directory)
+                        "
+                    >
+                        <Column
+                            v-for="column in testColumns"
+                            :header="column"
+                            :field="column"
+                        >
                             <template #body="{ data }">
-                                <template v-if="typeof data[column] === 'number'">
+                                <template
+                                    v-if="typeof data[column] === 'number'"
+                                >
                                     {{ formatFloat(data[column]) }}
                                 </template>
                                 <template v-else>
@@ -36,34 +96,42 @@
         </DataTable>
     </div>
 </template>
-<script setup lang="ts">
-import { DataTable, Column, DataTableRowClickEvent, DataTableRowExpandEvent } from "primevue";
-import { computed, onMounted, ref, watch } from 'vue';
-import { DatasetTable } from '../../models/Experiment';
-import { useResultsStore } from '../../stores/ResultsStore';
-import { useRoute } from 'vue-router';
-import { useExperimentStore } from '../../stores/ExperimentStore';
 
+<script setup lang="ts">
+import {
+    DataTable,
+    Column,
+    DataTableRowClickEvent,
+    DataTableRowExpandEvent,
+} from "primevue";
+import { computed, onMounted, ref, watch } from "vue";
+import { DatasetTable } from "../../models/Experiment";
+import { useResultsStore } from "../../stores/ResultsStore";
+import { useRoute } from "vue-router";
+import { useExperimentStore } from "../../stores/ExperimentStore";
 
 const props = defineProps<{
-    logdir: string
+    logdir: string;
 }>();
 
 const expanded = ref({} as Record<string, boolean>);
 const resultsStore = useResultsStore();
 const experimentStore = useExperimentStore();
+const loadError = ref<string | null>(null);
 const dataset = computed(() => {
     const experimentResults = resultsStore.results.get(props.logdir);
-    return experimentResults == null ? null : DatasetTable.fromTestDatasets(experimentResults.datasets);
+    return experimentResults == null
+        ? null
+        : DatasetTable.fromTestDatasets(experimentResults.datasets);
 });
-const testsAtStep = ref({} as { [key: number]: any })
+const testsAtStep = ref({} as { [key: number]: any });
 const testColumns = ref(new Set<string>());
 const route = useRoute();
 
 const expandedStepFromQuery = computed(() => {
     const rawStep = route.query.step;
     const stepValue = Array.isArray(rawStep) ? rawStep[0] : rawStep;
-    if (typeof stepValue !== 'string') {
+    if (typeof stepValue !== "string") {
         return null;
     }
     const parsedStep = Number(stepValue);
@@ -74,31 +142,38 @@ onMounted(async () => {
     if (!resultsStore.isLoaded(props.logdir)) {
         const experiment = await experimentStore.getExperiment(props.logdir);
         if (experiment == null) {
+            loadError.value = "Could not load experiment metadata.";
             return;
         }
-        await resultsStore.load(props.logdir, experiment.test_interval);
+        try {
+            await resultsStore.load(props.logdir, experiment.test_interval);
+        } catch (e) {
+            loadError.value = e instanceof Error ? e.message : String(e);
+        }
     }
 });
 
-watch([dataset, expandedStepFromQuery], async ([currentDataset, step]) => {
-    if (currentDataset == null) {
-        return;
-    }
-    testsAtStep.value = {};
-    testColumns.value = new Set<string>();
-    if (step == null) {
-        expanded.value = {};
-        return;
-    }
+watch(
+    [dataset, expandedStepFromQuery],
+    async ([currentDataset, step]) => {
+        if (currentDataset == null) {
+            return;
+        }
+        testsAtStep.value = {};
+        testColumns.value = new Set<string>();
+        if (step == null) {
+            expanded.value = {};
+            return;
+        }
 
-    const stepKey = String(step);
-    expanded.value = {
-        [stepKey]: true,
-    };
-    await loadTestsAtStep(step);
-}, { immediate: true });
-
-
+        const stepKey = String(step);
+        expanded.value = {
+            [stepKey]: true,
+        };
+        await loadTestsAtStep(step);
+    },
+    { immediate: true },
+);
 
 function formatFloat(value: number) {
     // At most 3 decimal places
@@ -108,7 +183,6 @@ function formatFloat(value: number) {
     }
     return value.toFixed(3);
 }
-
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
     const step = String(event.data.step);
@@ -141,8 +215,8 @@ async function loadTestsAtStep(step: number) {
         testsDataset.push({
             testNum: res.name,
             directory: res.directory,
-            ...res.metrics
-        })
+            ...res.metrics,
+        });
     }
     if (testsDataset.length == 0) {
         testsAtStep.value[step] = testsDataset;
@@ -154,12 +228,9 @@ async function loadTestsAtStep(step: number) {
     testsAtStep.value[step] = testsDataset;
 }
 
-
-
 const emits = defineEmits<{
-    (event: "view-episode", directory: string): void
+    (event: "view-episode", directory: string): void;
 }>();
-
 </script>
 
 <style scoped>

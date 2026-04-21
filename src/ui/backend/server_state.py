@@ -1,11 +1,13 @@
-import os
 import logging
+import os
 import subprocess
 import sys
-import orjson
 import time
 from threading import Thread
 from typing import Optional
+
+import orjson
+
 from marl.models import Experiment, ReplayEpisode
 
 
@@ -116,7 +118,10 @@ class ServerState:
                 longest_match = logdir
                 matching_experiment = experiment
         if matching_experiment is None:
-            raise ValueError(f"Could not find experiment for episode {episode_dir}")
+            raise ValueError(
+                f"Experiment not loaded — call POST /experiment/load/{episode_dir} first, "
+                f"or navigate to the experiment page before replaying an episode."
+            )
         return matching_experiment.replay_episode(episode_dir)
 
 

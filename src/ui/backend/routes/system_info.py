@@ -1,9 +1,10 @@
 import asyncio
+
 import orjson
 import psutil
 from fastapi import APIRouter, Response, WebSocket, WebSocketDisconnect
-from marl.utils import list_gpus
 
+from marl.utils import list_gpus
 
 router = APIRouter()
 
@@ -27,8 +28,8 @@ async def send_system_info(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
-            await asyncio.sleep(0.5)
             data = orjson.dumps(get_system_info())
             await websocket.send_bytes(data)
+            await asyncio.sleep(0.5)
     except WebSocketDisconnect:
         return

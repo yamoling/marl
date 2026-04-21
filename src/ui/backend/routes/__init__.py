@@ -1,5 +1,6 @@
-import os
 import logging
+import os
+from http import HTTPStatus
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,16 +30,26 @@ app = FastAPI()
 logger = logging.getLogger(__name__)
 
 
+def error_response(exc: Exception, status_code: int | None = None) -> JSONResponse:
+    if status_code is None:
+        match exc:
+            case FileNotFoundError():
+                status_code = HTTPStatus.NOT_FOUND
+            case _:
+                status_code = HTTPStatus.INTERNAL_SERVER_ERROR
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": type(exc).__name__, "message": str(exc)},
+    )
+
+
 @app.middleware("http")
 async def catch_exceptions_middleware(request: Request, call_next):
     try:
         return await call_next(request)
     except Exception as exc:
         logger.exception("Unhandled exception while handling %s %s", request.method, request.url)
-        return JSONResponse(
-            status_code=500,
-            content={"message": "Internal Server Error", "detail": str(exc)},
-        )
+        return error_response(exc)
 
 
 app.add_middleware(
