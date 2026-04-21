@@ -35,6 +35,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import EpisodeReplay from "../visualisation/EpisodeReplay.vue";
 import ExperimentDetailsPane from "./ExperimentDetailsPane.vue";
+import { ReplayEpisodeSummary } from "../../models/Episode";
 
 const route = useRoute();
 const router = useRouter();
@@ -57,9 +58,9 @@ function onEscapePressed(event: KeyboardEvent) {
     }
 }
 
-function onViewEpisode(episodeDirectory: string) {
+function onViewEpisode(summary: ReplayEpisodeSummary) {
     showReplayPane.value = true;
-    episodeReplay.value.load(episodeDirectory);
+    episodeReplay.value.load(summary);
 }
 
 onMounted(async () => {

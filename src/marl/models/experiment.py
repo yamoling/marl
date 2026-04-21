@@ -7,6 +7,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence, overload
 
+import numpy as np
 import orjson
 import torch
 from marlenv.models import MARLEnv, Space
@@ -18,7 +19,6 @@ from marl.models.trainer import Trainer
 from marl.runners.simple_runner import get_test_seed
 from marl.utils import default_serialization, encode_b64_image, stats
 
-from .agent import Agent
 from .replay_episode import ReplayEpisode
 from .run import Run
 
@@ -89,10 +89,6 @@ class Experiment[A: Space]:
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
 
-    @property
-    def is_replayable(self):
-        return self.save_weights
-
     @classmethod
     def load(cls, logdir: str):
         """Load an experiment from disk."""
@@ -151,56 +147,35 @@ class Experiment[A: Space]:
             disabled_gpus=disabled_gpus,
         )
 
-    @overload
     def replay_episode(self, run_num: int, time_step: int, test_num: int, /) -> ReplayEpisode:
-        """
-        Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run.
-
-        Note that the actions are not re-evaluated from the agent but loaded from the `actions.json` file.
-        """
-
-    @overload
-    def replay_episode(self, episode_folder: str, /) -> ReplayEpisode:
-        """Replay the episode whose actions are saved in the given test folder."""
-
-    def replay_episode(self, *args):
-        if not self.is_replayable:
-            raise ValueError("This experiment is not replayable because it was not configured to save the agents' weights during training.")
-        match args:
-            case (run_num, time_step, test_num):
-                return self._replay_episode(run_num, time_step, test_num)
-            case (episode_folder,):
-                path = pathlib.Path(episode_folder)
-                test_num = int(path.name)
-                time_step = int(path.parent.name)
-                rundir = str(path.parent.parent.parent)
-                run_num = self.rundirs.index(rundir)
-                return self._replay_episode(run_num, time_step, test_num)
-            case _:
-                raise ValueError("Invalid arguments")
-
-    def _replay_episode(self, run_num: int, time_step: int, test_num: int):
+        """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
+        from marl.agents import ReplayAgent
         from marl.runners import seeded_rollout
 
-        run = list(self.runs)[run_num]
-        episode_folder = run.test_dir(time_step, test_num)
-        # runner = self.create_runner()
+        run = self.get_run(run_num)
         seed = get_test_seed(time_step, test_num)
-        agent = self.agent_at(time_step, run.seed)
-        episode, frames, action_details = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
-        frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(episode_folder, episode, frames, action_details, self.test_env.action_space)
-
-    def agent_at(self, time_step: int, run_seed: int = 0) -> Agent:
-        """Load the agent at a specific time step."""
-        if time_step % self.test_interval != 0:
-            raise ValueError(f"Time step must be a multiple of the test interval ({self.test_interval})")
-        run = self.get_run_with_seed(run_seed)
-        if run is None:
-            raise ValueError(f"No run with seed {run_seed} found in the experiment.")
+        try:
+            actions = np.array(run.get_test_actions(time_step, test_num))
+        except FileNotFoundError:
+            actions = None
         agent = self.trainer.make_agent()
-        agent.load(run.get_saved_algo_dir(time_step))
-        return agent
+        try:
+            agent.load(run.get_saved_algo_dir(time_step))
+        except FileNotFoundError:
+            pass
+        agent = ReplayAgent(actions, agent)
+        episode, frames, detailed_actions = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
+        frames = [encode_b64_image(f) for f in frames]
+        return ReplayEpisode(
+            run.rundir,
+            time_step,
+            test_num,
+            episode,
+            frames,
+            detailed_actions,
+            self.test_env.action_space,
+            agent.mismatch,
+        )
 
     def move(self, new_logdir: str):
         """Move an experiment to a new directory."""
@@ -211,6 +186,10 @@ class Experiment[A: Space]:
     @staticmethod
     def json_file(logdir: str):
         return os.path.join(logdir, "experiment.json")
+
+    def get_run(self, run_num: int):
+        rundir = self.rundirs[run_num]
+        return Run.load(rundir, self.logger)
 
     @property
     def runs(self):

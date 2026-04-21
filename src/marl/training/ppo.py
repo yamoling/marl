@@ -1,5 +1,6 @@
 import os
-from dataclasses import InitVar, dataclass, field
+from collections import defaultdict
+from dataclasses import KW_ONLY, InitVar, dataclass, field
 from typing import Any, Literal
 
 import numpy as np
@@ -18,6 +19,7 @@ class PPO[B: Batch](Trainer):
 
     actor_critic: ActorCritic
     mixer: Mixer | None
+    _: KW_ONLY
     ir_module: IRModule | None = None
     gamma: float = 0.99
     lr_actor: float = 5e-4
@@ -36,6 +38,8 @@ class PPO[B: Batch](Trainer):
     optimizer: torch.optim.Optimizer = field(init=False)
     train_on: Literal["episode", "transition"] = "transition"
     memory: ReplayMemory[Any, B] = field(init=False)
+    early_stopping_kl: float | None = None
+    """Early stopping if the KL divergence between the old and new policy is higher than this threshold. If None, no early stopping is applied."""
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
         super().__init__(torch.device("cpu"))
@@ -110,7 +114,8 @@ class PPO[B: Batch](Trainer):
         if self.mixer is not None:
             # For IPPO, the advantages are already computed agent-wise.
             advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
-        critic_losses, actor_losses, entropy_losses, losses, ratios, entropies, norms = [], [], [], [], [], [], []
+        log_lists = defaultdict(list)
+        early_stopped = False
         for _ in range(self.n_epochs):
             indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
             minibatch = batch.get_minibatch(indices)
@@ -138,7 +143,8 @@ class PPO[B: Batch](Trainer):
             mini_policy = self.actor_critic.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
             mini_new_log_probs: torch.Tensor = mini_policy.log_prob(minibatch.actions)
             mini_new_log_probs[minibatch.masked_indices] = 0.0
-            ratio = torch.exp(mini_new_log_probs - mini_log_probs)
+            log_ratio = mini_new_log_probs - mini_log_probs
+            ratio = torch.exp(log_ratio)
             surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
 
             surrogate1 = mini_advantages * ratio
@@ -153,41 +159,36 @@ class PPO[B: Batch](Trainer):
             entropy = entropy * minibatch.masks
             entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
+            with torch.no_grad():
+                approx_kl_div = torch.mean((ratio - 1) - log_ratio).item()
+                log_lists["approx-kl-divergence"].append(approx_kl_div)
+            # KL divergence early stopping, cf Stable baselines implementation
+            # https://github.com/DLR-RM/stable-baselines3/blob/08d984c3ee30093ea37409cf29cfb7efdd4bdcfd/stable_baselines3/ppo/ppo.py#L267
+            if self.early_stopping_kl is not None and approx_kl_div > 1.5 * self.early_stopping_kl:
+                early_stopped = True
+                break
+
             self.optimizer.zero_grad()
             # Equation (9) in the paper
             loss = actor_loss + self.c1 * critic_loss + self.c2 * entropy_loss
             loss.backward()
             if self.grad_norm_clipping is not None:
                 norm = torch.nn.utils.clip_grad_norm_(self._parameters, self.grad_norm_clipping)
-                norms.append(norm.cpu().item())
+                log_lists["norms"].append(norm.detach().cpu().item())
             self.optimizer.step()
-            critic_losses.append(critic_loss.item())
-            actor_losses.append(actor_loss.item())
-            entropy_losses.append(entropy_loss.item())
-            losses.append(loss.item())
-            ratios.append(ratio.numpy(force=True))
-            entropies.append(entropy.numpy(force=True))
+            log_lists["actor_loss"].append(actor_loss.item())
+            log_lists["critic_loss"].append(critic_loss.item())
+            log_lists["entropy_loss"].append(entropy_loss.item())
+            log_lists["loss"].append(loss.item())
+            log_lists["ratios"].append(ratio.detach().cpu().numpy())
+            log_lists["entropies"].append(entropy.detach().cpu().numpy())
         return {
-            "ppo/min_critic_loss": min(critic_losses),
-            "ppo/max_critic_loss": max(critic_losses),
-            "ppo/mean_critic_loss": np.mean(critic_losses).item(),
-            "ppo/min_actor_loss": min(actor_losses),
-            "ppo/max_actor_loss": max(actor_losses),
-            "ppo/mean_actor_loss": np.mean(actor_losses).item(),
-            "ppo/min_entropy_loss": min(entropy_losses),
-            "ppo/max_entropy_loss": max(entropy_losses),
-            "ppo/mean_entropy_loss": np.mean(entropy_losses).item(),
-            "ppo/min_loss": min(losses),
-            "ppo/max_loss": max(losses),
-            "ppo/mean_loss": np.mean(losses).item(),
-            "ppo/min_ratio": np.min(ratios).item(),
-            "ppo/max_ratio": np.max(ratios).item(),
-            "ppo/mean_ratio": np.mean(ratios).item(),
-            "ppo/mean_entropy": np.mean(entropies).item(),
-            "ppo/min_entropy": np.min(entropies).item(),
-            "ppo/max_entropy": np.max(entropies).item(),
-            "ppo/c1": self.c1.value,
-            "ppo/c2": self.c2.value,
+            "early_stopped": early_stopped,
+            "ppoc/c1": self.c1.value,
+            "ppoc/c2": self.c2.value,
+            **{f"ppoc/mean-{key}": np.mean(values) for key, values in log_lists.items()},
+            **{f"ppoc/max-{key}": np.max(values) for key, values in log_lists.items()},
+            **{f"ppoc/min-{key}": np.min(values) for key, values in log_lists.items()},
         }
 
     def update_step(self, transition: Transition, time_step: int):

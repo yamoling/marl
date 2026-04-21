@@ -30,15 +30,13 @@ async function parseErrorBody(resp: Response): Promise<ApiErrorBody> {
  * - On success: returns the Response with body untouched.
  *
  * @param url        - The URL to fetch.
- * @param options    - Standard RequestInit options.
  * @param errorTitle - Human-friendly title shown in the toast (e.g. "Failed to start run").
- * @param silent     - If true, skip the toast but still throw. Use for errors handled inline.
+ * @param options    - Standard RequestInit options.
  */
 export async function apiFetch(
   url: string,
-  options?: RequestInit,
   errorTitle?: string,
-  silent: boolean = false,
+  options?: RequestInit,
 ): Promise<Response> {
   let resp: Response;
   try {
@@ -48,10 +46,8 @@ export async function apiFetch(
       networkError instanceof Error
         ? networkError.message
         : String(networkError);
-    if (!silent) {
-      const errorStore = useErrorStore();
-      errorStore.push(errorTitle ?? "Network error", message, "NetworkError");
-    }
+    const errorStore = useErrorStore();
+    errorStore.push(errorTitle ?? "Network error", message, "NetworkError");
     throw networkError;
   }
 
@@ -59,13 +55,10 @@ export async function apiFetch(
     const body = await parseErrorBody(resp);
     const detail = body.message ?? `HTTP ${resp.status}`;
     const errorType = body.error ?? "";
-    if (!silent) {
-      const errorStore = useErrorStore();
-      errorStore.push(errorTitle ?? "Request failed", detail, errorType);
-    }
+    const errorStore = useErrorStore();
+    errorStore.push(errorTitle ?? "Request failed", detail, errorType);
     throw new Error(detail);
   }
-
   return resp;
 }
 

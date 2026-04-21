@@ -1,9 +1,9 @@
 import { defineStore } from "pinia";
 import { Dataset, ExperimentResults } from "../models/Experiment";
-import { HTTP_URL } from "../constants";
-import { ReplayEpisodeSummary } from "../models/Episode";
+import { ReplayEpisodeSummarySchema } from "../models/Episode";
 import { ref, watch } from "vue";
 import { apiFetch } from "../api";
+import { HTTP_URL } from "../constants";
 
 export const useResultsStore = defineStore("ResultsStore", () => {
   const results = ref(new Map<string, ExperimentResults>());
@@ -36,7 +36,6 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     try {
       const resp = await apiFetch(
         `${HTTP_URL}/results/load/${logdir}?granularity=${activeGranularity}`,
-        undefined,
         `Failed to load results for ${logdir}`,
       );
       const datasets = (await resp.json()) as Dataset[];
@@ -67,20 +66,14 @@ export const useResultsStore = defineStore("ResultsStore", () => {
   /**
    * Get the unagregated test results for a given experiment at a given time step.
    */
-  async function getTestsResultsAt(
-    logdir: string,
-    timeStep: number,
-  ): Promise<ReplayEpisodeSummary[]> {
-    try {
-      const resp = await apiFetch(
-        `${HTTP_URL}/results/test/${timeStep}/${logdir}`,
-        undefined,
-        `Failed to fetch test results at step ${timeStep}`,
-      );
-      return await resp.json();
-    } catch {
-      return [];
-    }
+  async function getTestsResultsAt(logdir: string, timeStep: number) {
+    const resp = await apiFetch(
+      `${HTTP_URL}/results/test/${timeStep}/${logdir}`,
+      `Failed to fetch test results at step ${timeStep}`,
+    );
+    const json = await resp.json();
+    return ReplayEpisodeSummarySchema.array().parse(json);
+
   }
 
   async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
@@ -90,7 +83,6 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         activeGranularity == null ? "" : `?granularity=${activeGranularity}`;
       const resp = await apiFetch(
         `${HTTP_URL}/results/load-by-run/${logdir}${granularityQuery}`,
-        undefined,
         `Failed to load per-run results for ${logdir}`,
       );
       const datasets = (await resp.json()) as Dataset[][];

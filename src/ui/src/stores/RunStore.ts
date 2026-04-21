@@ -21,7 +21,6 @@ export const useRunStore = defineStore("RunStore", () => {
   async function getRuns(logdir: string) {
     const resp = await apiFetch(
       `${HTTP_URL}/runs/get/${logdir}`,
-      undefined,
       "Failed to fetch runs",
     );
     return parseOrThrow(RunSchema.array(), await resp.json());
@@ -30,8 +29,8 @@ export const useRunStore = defineStore("RunStore", () => {
   async function stopRun(logdir: string, rundir: string) {
     await apiFetch(
       `${HTTP_URL}/runs/stop/${rundir}`,
-      { method: "POST" },
       "Failed to stop run",
+      { method: "POST" },
     );
     await refresh(logdir);
   }
@@ -44,12 +43,13 @@ export const useRunStore = defineStore("RunStore", () => {
     try {
       await apiFetch(
         `${HTTP_URL}/runs/start/${rundir}`,
+        "Failed to start run",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ device }),
         },
-        "Failed to start run",
+
       );
       await refresh(logdir);
     } catch {

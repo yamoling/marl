@@ -4,7 +4,6 @@ import subprocess
 import sys
 import time
 from threading import Thread
-from typing import Optional
 
 import orjson
 
@@ -107,22 +106,20 @@ class ServerState:
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self._experiments.pop(logdir, None)
 
-    def get_runner_port(self, rundir: str) -> Optional[int]:
-        return None
-
-    def replay_episode(self, episode_dir: str) -> ReplayEpisode:
+    def replay_episode(self, rundir: str, time_step: int, test_num: int) -> ReplayEpisode:
         longest_match = ""
         matching_experiment = None
         for logdir, experiment in self._experiments.items():
-            if episode_dir.startswith(logdir) and len(logdir) > len(longest_match):
+            if rundir.startswith(logdir) and len(logdir) > len(longest_match):
                 longest_match = logdir
                 matching_experiment = experiment
         if matching_experiment is None:
             raise ValueError(
-                f"Experiment not loaded — call POST /experiment/load/{episode_dir} first, "
+                f"Experiment not loaded — call POST /experiment/load/{rundir} first, "
                 f"or navigate to the experiment page before replaying an episode."
             )
-        return matching_experiment.replay_episode(episode_dir)
+        run_num = matching_experiment.rundirs.index(rundir)
+        return matching_experiment.replay_episode(run_num, time_step, test_num)
 
 
 class GarbageCollector(Thread):

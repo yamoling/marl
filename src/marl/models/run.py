@@ -41,14 +41,18 @@ class Run:
     def reader(self):
         return get_logger(self.rundir, self.log_specs).reader()
 
-    def test_dir(self, time_step: int, test_num: int | None = None):
-        return self.reader.test_dir(time_step, test_num)
+    def test_dir(self, time_step: int):
+        return self.reader.test_dir(time_step)
 
     def get_saved_algo_dir(self, time_step: int):
         return self.reader.get_saved_algo_dir(time_step)
 
     def get_test_episodes(self, time_step: int):
         return self.reader.get_test_episodes(time_step)
+
+    def get_test_actions(self, time_step: int, test_num: int):
+        all_actions = self.reader.get_test_actions(time_step)
+        return all_actions[test_num]
 
     @property
     def n_tests(self):
@@ -84,7 +88,7 @@ class Run:
             # Compute the mean of the metrics for each time step
             df = df.group_by(TIME_STEP_COL).mean()
             return df.collect()
-        except pl.exceptions.ColumnNotFoundError:
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
     def training_data(self, granularity: int):
@@ -102,7 +106,7 @@ class Run:
             df = stats.round_col(df, TIME_STEP_COL, granularity)
             df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
             return df.collect()
-        except pl.exceptions.ColumnNotFoundError:
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
     @property

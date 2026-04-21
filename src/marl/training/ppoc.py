@@ -1,6 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
-from dataclasses import InitVar, dataclass, field
+from dataclasses import KW_ONLY, InitVar, dataclass, field
 from typing import Literal, cast
 
 import numpy as np
@@ -30,6 +30,7 @@ class PPOC(Trainer):
     oc: OptionCriticNetwork
     n_agents: int
     mixer: Mixer | None = None
+    _: KW_ONLY
     gamma: float = 0.99
     gae_lambda: float = 0.95
     lr: float = 3e-4
@@ -51,6 +52,7 @@ class PPOC(Trainer):
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
     memory: ReplayMemory[Transition | Episode, Batch] = field(init=False)
+    early_stopping_kl: float | None = None
 
     def __post_init__(
         self,
