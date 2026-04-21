@@ -1,42 +1,25 @@
 <template>
     <div class="experiment-panel">
         <div v-if="loadError" class="experiment-load-error">
-            <font-awesome-icon
-                :icon="['fas', 'exclamation-triangle']"
-                class="error-icon"
-            />
+            <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="error-icon" />
             <h3>Failed to load experiment</h3>
             <p class="text-muted">{{ loadError }}</p>
-            <button
-                class="btn btn-outline-primary btn-sm"
-                @click="() => router.push('/home')"
-            >
+            <button class="btn btn-outline-primary btn-sm" @click="() => router.push('/home')">
                 Back to home
             </button>
         </div>
         <template v-else>
-            <ExperimentDetailsPane
-                v-if="experiment != null"
-                :experiment="experiment"
-                :is-open="isDetailsPaneOpen"
-                @toggle="toggleDetailsPane"
-            />
+            <ExperimentDetailsPane v-if="experiment != null" :experiment="experiment" :is-open="isDetailsPaneOpen"
+                @toggle="toggleDetailsPane" />
             <div class="workspace" :class="{ 'with-replay': showReplayPane }">
                 <section class="workspace-main">
-                    <MetricsTable
-                        :logdir="logdir"
-                        @view-episode="onViewEpisode"
-                    />
+                    <MetricsTable :logdir="logdir" @view-episode="onViewEpisode" />
                 </section>
 
                 <section v-show="showReplayPane" class="workspace-replay">
                     <div class="inline-replay">
-                        <EpisodeReplay
-                            ref="episodeReplay"
-                            :logdir="logdir"
-                            :experiment="experiment"
-                            @close="() => (showReplayPane = false)"
-                        />
+                        <EpisodeReplay ref="episodeReplay" :logdir="logdir" :experiment="experiment"
+                            @close="() => (showReplayPane = false)" />
                     </div>
                 </section>
             </div>
@@ -52,6 +35,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import EpisodeReplay from "../visualisation/EpisodeReplay.vue";
 import ExperimentDetailsPane from "./ExperimentDetailsPane.vue";
+import { ReplayEpisodeSummary } from "../../models/Episode";
 
 const route = useRoute();
 const router = useRouter();
@@ -74,9 +58,9 @@ function onEscapePressed(event: KeyboardEvent) {
     }
 }
 
-function onViewEpisode(episodeDirectory: string) {
+function onViewEpisode(summary: ReplayEpisodeSummary) {
     showReplayPane.value = true;
-    episodeReplay.value.load(episodeDirectory);
+    episodeReplay.value.load(summary);
 }
 
 onMounted(async () => {
@@ -92,9 +76,7 @@ onMounted(async () => {
     loading.value = false;
 });
 
-onUnmounted(() => {
-    window.removeEventListener("keydown", onEscapePressed);
-});
+onUnmounted(() => window.removeEventListener("keydown", onEscapePressed));
 </script>
 
 <style scoped>

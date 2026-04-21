@@ -2,47 +2,52 @@
     <div class="replay-shell">
         <div class="d-flex align-items-center justify-content-between mb-2">
             <h5 class="mb-0">Replay episode</h5>
-            <button
-                type="button"
-                class="btn btn-outline-danger btn-sm"
-                @click="() => emits('close')"
-            >
-                Close
-            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm" @click="() => emits('close')">Close</button>
         </div>
-        <font-awesome-icon
-            v-if="loading"
-            class="mx-auto d-block my-5"
-            icon="spinner"
-            spin
-            style="height: 100px; width: 100px"
-        />
+        <font-awesome-icon v-if="replayStore.loading" class="mx-auto d-block my-5" icon="spinner" spin
+            style="height: 100px; width: 100px" />
 
-        <div
-            v-else-if="error != null"
-            class="alert alert-danger my-4"
-            role="alert"
-        >
+        <div v-else-if="error != null" class="alert alert-danger my-4" role="alert">
             <h6 class="alert-heading">
-                <font-awesome-icon
-                    :icon="['fas', 'exclamation-triangle']"
-                    class="me-2"
-                />
+                <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="me-2" />
                 Failed to Load Episode
             </h6>
             <p class="mb-0">{{ error }}</p>
         </div>
 
-        <template v-else-if="episode != null">
+        <Accordion v-show="episode != null && episode.replay_mismatch" class="mismatch-details-accordion mb-1">
+            <AccordionPanel value="mismatch-details">
+                <AccordionHeader>
+                    <font-awesome-icon :icon="['fas', 'exclamation-triangle']" />
+                    Replay Mismatch Detected
+                </AccordionHeader>
+                <AccordionContent>
+                    <p class="my-2">
+                        The agent's actions during replay do not match the actions stored on disk during training and
+                        testing. The below replay sticks to the actions stored on disk but still shows the "extras" of
+                        the loaded agent.
+                    </p>
+                    <p class="mb-2">
+                        <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU.
+                        Since CPU and GPU random number generators may have different implementations, they can lean to
+                        different sampling sequences and therefore divergent episode trajectories.
+                    </p>
+                    <h6 class="mb-1">Mismatch details</h6>
+                    <ul v-if="mismatchDetails.length > 0" class="mb-0 ps-3">
+                        <li v-for="(detail, index) in mismatchDetails" :key="`${index}:${detail}`">
+                            {{ detail }}
+                        </li>
+                    </ul>
+                    <p v-else class="mb-0 text-muted">No mismatch details were provided.</p>
+                </AccordionContent>
+            </AccordionPanel>
+        </Accordion>
+        <template v-if="episode != null">
             <section class="replay-row top-row">
                 <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
-                    <ActionPanel
-                        :episode="episode"
-                        :current-step="currentStep"
-                        :action-space="episode.action_space"
-                        :n-agents="nAgents"
-                    />
+                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="episode.action_space"
+                        :n-agents="nAgents" />
                 </aside>
             </section>
 
@@ -51,168 +56,79 @@
                     <div class="timeline-toolbar">
                         <div class="manual-step-input me-5">
                             Step
-                            <input
-                                type="text"
-                                class="form-control form-control-sm"
-                                :value="currentStep"
-                                size="4"
-                                @keyup.enter="changeStep"
-                            />
-                            <span class="text-muted"
-                                >/ {{ episodeLength }}</span
-                            >
+                            <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
+                                @keyup.enter="changeStep" />
+                            <span class="text-muted">/ {{ episodeLength }}</span>
                         </div>
 
-                        <button
-                            type="button"
-                            class="btn btn-outline-primary btn-sm"
-                            :disabled="episode == null"
-                            @click="trackWizardModal?.showModal"
-                        >
+                        <button type="button" class="btn btn-outline-primary btn-sm" :disabled="episode == null"
+                            @click="trackWizardModal?.showModal">
                             Choose tracks
                         </button>
-                        <span
-                            v-if="tracks.length > 0"
-                            class="timeline-toolbar-summary text-secondary"
-                        >
-                            {{ tracks.length }} track{{
-                                tracks.length > 1 ? "s" : ""
-                            }}
+                        <span v-if="tracks.length > 0" class="timeline-toolbar-summary text-secondary">
+                            {{ tracks.length }} track{{ tracks.length > 1 ? "s" : "" }}
                             selected
                         </span>
                     </div>
 
                     <div class="timeline-track-list">
-                        <div
-                            v-for="(track, index) in tracks"
-                            :key="track.label"
-                            class="timeline-track-item"
-                        >
+                        <div v-for="(track, index) in tracks" :key="track.label" class="timeline-track-item">
                             <div class="timeline-track-toolbar">
                                 <div class="timeline-track-toolbar-left">
-                                    <div
-                                        class="btn-group btn-group-sm timeline-track-order"
-                                    >
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-danger"
-                                            @click.stop="
-                                                () =>
-                                                    tracksStore.remove(
-                                                        props.logdir,
-                                                        track,
-                                                    )
-                                            "
-                                        >
-                                            <font-awesome-icon
-                                                :icon="['fas', 'xmark']"
-                                            />
+                                    <div class="btn-group btn-group-sm timeline-track-order">
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @click.stop="() => tracksStore.remove(props.logdir, track)">
+                                            <font-awesome-icon :icon="['fas', 'xmark']" />
                                         </button>
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index <= 0"
-                                            @click="
-                                                () =>
-                                                    tracksStore.swap(
-                                                        props.logdir,
-                                                        index,
-                                                        index - 1,
-                                                    )
-                                            "
-                                        >
-                                            <font-awesome-icon
-                                                :icon="['fas', 'arrow-up']"
-                                            />
+                                            @click="() => tracksStore.swap(props.logdir, index, index - 1)">
+                                            <font-awesome-icon :icon="['fas', 'arrow-up']" />
                                         </button>
-                                        <button
-                                            type="button"
+                                        <button type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
-                                            :disabled="
-                                                index >= tracks.length - 1
-                                            "
-                                            @click="
-                                                () =>
-                                                    tracksStore.swap(
-                                                        props.logdir,
-                                                        index,
-                                                        index + 1,
-                                                    )
-                                            "
-                                        >
-                                            <font-awesome-icon
-                                                :icon="['fas', 'arrow-down']"
-                                            />
+                                            :disabled="index >= tracks.length - 1"
+                                            @click="() => tracksStore.swap(props.logdir, index, index + 1)">
+                                            <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
                                     </div>
 
-                                    <span
-                                        class="timeline-track-label text-capitalize"
-                                    >
+                                    <span class="timeline-track-label text-capitalize">
                                         {{ track.label }}
                                     </span>
 
-                                    <select
-                                        class="form-select form-select-sm timeline-track-kind"
-                                        :value="track.kind"
+                                    <select class="form-select form-select-sm timeline-track-kind" :value="track.kind"
                                         :aria-label="`${track.label} representation`"
-                                        @change="
-                                            (event) =>
-                                                onTimelineTrackKindChange(
-                                                    track,
-                                                    event,
-                                                )
-                                        "
-                                    >
-                                        <option value="numeric">
-                                            Numerical
-                                        </option>
-                                        <option value="categorical">
-                                            Categorical
-                                        </option>
+                                        @change="(event) => onTimelineTrackKindChange(track, event)">
+                                        <option value="numeric">Numerical</option>
+                                        <option value="categorical">Categorical</option>
                                     </select>
                                 </div>
                             </div>
-                            <TimelineChartTracks
-                                :key="`${track.label}:${track.kind}`"
-                                :track="track"
-                                :current-step="currentStep"
-                                @select-step="selectStep"
-                            />
+                            <TimelineChartTracks :key="`${track.label}:${track.kind}`" :track="track"
+                                :current-step="currentStep" @select-step="selectStep" />
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section
-                v-if="experiment != null"
-                class="replay-row row-divider replay-analysis"
-            >
+            <section v-if="experiment != null" class="replay-row row-divider replay-analysis">
                 <Accordion>
                     <AccordionPanel value="agents">
-                        <AccordionHeader
-                            >Agent-wise information</AccordionHeader
-                        >
+                        <AccordionHeader>Agent-wise information</AccordionHeader>
                         <AccordionContent>
                             <div class="agent-details-grid mt-3">
                                 <div v-for="agent in nAgents" :key="agent">
-                                    <AgentInfo
-                                        :episode="episode"
-                                        :agent-num="agent - 1"
-                                        :current-step="currentStep"
-                                        :experiment="experiment"
-                                    />
+                                    <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
+                                        :experiment="experiment" />
                                 </div>
                             </div>
                         </AccordionContent>
                     </AccordionPanel>
                 </Accordion>
             </section>
-            <TrackWizard
-                ref="trackWizardModal"
-                :logdir="logdir"
-                :episode="episode"
-            />
+            <TrackWizard ref="trackWizardModal" :logdir="logdir" :episode="episode" />
         </template>
     </div>
 </template>
@@ -220,7 +136,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
 import AgentInfo from "./AgentInfo.vue";
-import { ReplayEpisode } from "../../models/Episode";
+import { ReplayEpisode, ReplayEpisodeSummary } from "../../models/Episode";
 import { useReplayStore } from "../../stores/ReplayStore";
 import { Experiment } from "../../models/Experiment";
 import Accordion from "primevue/accordion";
@@ -259,11 +175,11 @@ const tracks = computed(() => {
         .filter((track) => track !== undefined);
 });
 
-const loading = ref(false);
 const error = ref<string | null>(null);
 const currentStep = ref(0);
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.length() || 0);
+const mismatchDetails = computed(() => episode.value?.mismatch_details ?? []);
 const maxStep = computed(() => Math.max(0, episodeLength.value));
 const safeStep = computed(() => {
     if (episodeLength.value === 0) return 0;
@@ -322,10 +238,7 @@ function selectStep(step: number) {
 function changeStep(event: KeyboardEvent) {
     const target = event.target as HTMLInputElement;
     if (target.value === "") {
-        currentStep.value = Math.max(
-            0,
-            Math.min(maxStep.value, currentStep.value),
-        );
+        currentStep.value = Math.max(0, Math.min(maxStep.value, currentStep.value));
         return;
     }
 
@@ -341,22 +254,12 @@ function onTimelineTrackKindChange(track: Track, event: Event) {
     tracksStore.update(props.logdir, { label: track.label, kind });
 }
 
-async function load(directory: string) {
+async function load(replay: ReplayEpisodeSummary) {
     error.value = null;
     episode.value = null;
-    loading.value = true;
-
-    try {
-        const ep = await replayStore.getEpisode(directory);
-        episode.value = ep;
-        currentStep.value = 0;
-        error.value = null;
-    } catch (err) {
-        episode.value = null;
-        error.value = err instanceof Error ? err.message : String(err);
-    } finally {
-        loading.value = false;
-    }
+    episode.value = await replayStore.getEpisode(replay.time_step, replay.test_num, replay.rundir);
+    currentStep.value = 0;
+    error.value = null;
 }
 
 defineExpose({
@@ -489,6 +392,36 @@ defineExpose({
 
 .manual-step-input input {
     width: 4rem;
+}
+
+.mismatch-details-accordion {
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordionpanel) {
+    border: 1px solid var(--bs-warning-border-subtle);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-warning-bg-subtle);
+}
+
+.mismatch-details-accordion :deep(.p-accordionheader) {
+    border: 0;
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordionheader-toggle) {
+    color: var(--bs-warning-text-emphasis);
+    font-weight: 600;
+}
+
+.mismatch-details-accordion :deep(.p-accordioncontent) {
+    border: 0;
+    background: transparent;
+}
+
+.mismatch-details-accordion :deep(.p-accordioncontent-content) {
+    color: var(--bs-warning-text-emphasis);
+    background: transparent;
 }
 
 .agent-details-grid {

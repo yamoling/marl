@@ -1,6 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
-from dataclasses import InitVar, dataclass, field
+from dataclasses import KW_ONLY, InitVar, dataclass, field
 from typing import Literal, cast
 
 import numpy as np
@@ -30,6 +30,7 @@ class PPOC(Trainer):
     oc: OptionCriticNetwork
     n_agents: int
     mixer: Mixer | None = None
+    _: KW_ONLY
     gamma: float = 0.99
     gae_lambda: float = 0.95
     lr: float = 3e-4
@@ -41,11 +42,6 @@ class PPOC(Trainer):
     c2: Schedule = field(init=False)
     termination_c3: float = 1.0
     termination_reg: float = 0.01
-    dual_clip_c: float = 3.0
-    """Lower-bound constant for the dual-clip PPO objective (Ye et al., AAAI 2020).
-    For negative-advantage samples, the surrogate is floored at ``dual_clip_c * Â``,
-    zeroing the gradient when the ratio exceeds ``dual_clip_c``.  Must be >= 1.
-    The original paper uses c = 3."""
     train_interval: int = 64
     minibatch_size: int = 32
     normalize_advantages: bool = True
@@ -56,6 +52,7 @@ class PPOC(Trainer):
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
     memory: ReplayMemory[Transition | Episode, Batch] = field(init=False)
+    early_stopping_kl: float | None = None
 
     def __post_init__(
         self,
@@ -216,32 +213,14 @@ class PPOC(Trainer):
     ):
         mini_dist = self.oc.policy(minibatch.obs, minibatch.extras, minibatch.available_actions, mini_options)
         mini_log_probs = mini_dist.log_prob(minibatch.actions)
-        mini_entropy = mini_dist.entropy()
 
         ratio = torch.exp(mini_log_probs - mini_old_log_probs)
         surrogate1 = ratio * mini_advantages
         surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
-        ppo_min = torch.min(surrogate1, surrogate2)
-
-        # Dual-clip PPO (Ye et al., AAAI 2020, arXiv:1912.09729).
-        #
-        # Standard PPO uses L = min(r·Â, clip(r, 1-ε, 1+ε)·Â).  The clip correctly
-        # zeroes the gradient when r > 1+ε and Â > 0 (Case A: policy already moved
-        # in the right direction), and when r < 1-ε and Â < 0 (Case C: already
-        # corrected enough).  However, when Â < 0 AND r > 1+ε (Case D), torch.min
-        # picks the unclipped surrogate r·Â, giving a gradient ∝ r·|Â| that is
-        # completely unbounded and drives exponential ratio escalation across epochs.
-        #
-        # The dual-clip floors the objective at dual_clip_c·Â for negative-advantage
-        # samples.  When r > dual_clip_c, ppo_min = r·Â < dual_clip_c·Â (both negative),
-        # so torch.max selects the floor, and since dual_clip_c·Â is a constant w.r.t.
-        # log π, the gradient is zero — Case D is neutralised.
-        dual_clip_floor = self.dual_clip_c * mini_advantages
-        actor_objective = torch.where(mini_advantages < 0, torch.max(ppo_min, dual_clip_floor), ppo_min)
-
-        actor_loss = -torch.sum(actor_objective) / minibatch.masks_sum
-        entropy_loss = -torch.sum(mini_entropy) / minibatch.masks_sum
-        return actor_loss, entropy_loss, {"ratios": ratio.detach().cpu().numpy(), "entropies": mini_entropy.detach().cpu().numpy()}
+        l_clip = torch.min(surrogate1, surrogate2)
+        actor_loss = -torch.sum(l_clip) / minibatch.masks_sum
+        entropy_loss = -mini_dist.entropy().sum() / minibatch.masks_sum
+        return actor_loss, entropy_loss, {"ratios": ratio.detach().cpu().numpy()}
 
     def _compute_termination_loss(self, minibatch: Batch, mini_options: torch.Tensor):
         next_termination_probs = self.oc.termination_probability(minibatch.next_obs, minibatch.next_extras, mini_options)

@@ -1,23 +1,21 @@
 import base64
+import os
+import random
 import re
 from typing import Callable, Optional, TypeVar
 
 import cv2
 import numpy as np
+import torch
 from marlenv import MARLEnv, Observation
 
 
 def seed(seed: int, env: Optional[MARLEnv] = None):
     """Seeds `random`, `numpy`, `torch` and the environment (if provided) with the given seed value."""
-    import random
-
-    import numpy as np
-    import torch
-
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-
     if env is not None:
         env.seed(seed)
 

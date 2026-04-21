@@ -28,10 +28,8 @@ class LogHelper:
     def get_logdir(self, time_step: int) -> str:
         return os.path.join(self.logdir, str(time_step))
 
-    def test_dir(self, time_step: int, test_num: Optional[int] = None):
+    def test_dir(self, time_step: int):
         test_dir = os.path.join(self.logdir, "test", f"{time_step}")
-        if test_num is not None:
-            test_dir = os.path.join(test_dir, f"{test_num}")
         return test_dir
 
     def get_weight_directory(self, time_step: int):
@@ -41,10 +39,14 @@ class LogHelper:
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
 
+    def get_test_actions_file(self, time_step: int):
+        test_dir = self.test_dir(time_step)
+        return os.path.join(test_dir, "actions.json")
+
 
 class LogReader(ABC, LogHelper):
     def __init__(self, logdir: str):
-        LogHelper.__init__(self, logdir)
+        self.logdir = logdir
 
     @property
     @abstractmethod
@@ -62,10 +64,8 @@ class LogReader(ABC, LogHelper):
         try:
             test_metrics = self.test_metrics.filter(pl.col(TIME_STEP_COL) == time_step).drop([TIME_STEP_COL, TIMESTAMP_COL]).collect()
             episodes = []
-            for test_num, row in enumerate(test_metrics.rows()):
-                episode_dir = self.test_dir(time_step, test_num)
-                metrics = dict(zip(test_metrics.columns, row))
-                episode = LightEpisodeSummary(episode_dir, metrics)
+            for test_num, metrics in enumerate(test_metrics.rows(named=True)):
+                episode = LightEpisodeSummary(self.logdir, metrics, time_step, test_num)
                 episodes.append(episode)
             return episodes
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
@@ -74,6 +74,10 @@ class LogReader(ABC, LogHelper):
 
     def close(self):
         """Close the log file."""
+
+    def get_test_actions(self, time_step: int) -> list[list[list]]:
+        with open(self.get_test_actions_file(time_step), "rb") as f:
+            return orjson.loads(f.read())
 
 
 class Logger(ABC, LogHelper):
@@ -117,6 +121,10 @@ class Logger(ABC, LogHelper):
     def log_test_episodes(self, episodes: list[Episode], time_step: int):
         for episode in episodes:
             self.log_test(episode.metrics, time_step)
+        actions_file = self.get_test_actions_file(time_step)
+        os.makedirs(os.path.dirname(actions_file), exist_ok=True)
+        with open(actions_file, "wb") as f:
+            f.write(orjson.dumps([e.actions for e in episodes], option=orjson.OPT_SERIALIZE_NUMPY))
 
     def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):
         directory = self.get_logdir(time_step)

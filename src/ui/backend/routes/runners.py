@@ -8,14 +8,6 @@ from . import state
 router = APIRouter()
 
 
-@router.get("/runner/port/{rundir:path}")
-def get_runner_port(rundir: str):
-    port = state.get_runner_port(rundir)
-    if port is None:
-        return Response(content="", status_code=HTTPStatus.NOT_FOUND)
-    return Response(content=str(port))
-
-
 @router.post("/runner/new/{logdir:path}")
 async def new_run(logdir: str, request: Request):
     data = await request.json()

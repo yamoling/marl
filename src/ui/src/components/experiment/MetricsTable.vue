@@ -1,59 +1,26 @@
 <template>
-    <div
-        v-if="dataset == null && loadError == null"
-        class="row mt-5 text-center"
-    >
-        <font-awesome-icon
-            class="col-auto mx-auto fa-2xl"
-            icon="fa-solid fa-sync"
-            spin
-        />
-        <span class="text-secondary"
-            >Loading results of {{ props.logdir }}...</span
-        >
+    <div v-if="dataset == null && loadError == null" class="row mt-5 text-center">
+        <font-awesome-icon class="col-auto mx-auto fa-2xl" icon="fa-solid fa-sync" spin />
+        <span class="text-secondary">Loading results of {{ props.logdir }}...</span>
     </div>
-    <div
-        v-else-if="loadError != null"
-        class="metrics-load-error mt-5 text-center"
-    >
-        <font-awesome-icon
-            class="col-auto mx-auto fa-2xl mb-3"
-            icon="fa-solid fa-circle-exclamation"
-            style="color: var(--bs-danger)"
-        />
+    <div v-else-if="loadError != null" class="metrics-load-error mt-5 text-center">
+        <font-awesome-icon class="col-auto mx-auto fa-2xl mb-3" icon="fa-solid fa-circle-exclamation"
+            style="color: var(--bs-danger)" />
         <p class="text-muted">Failed to load metrics</p>
-        <code
-            class="d-block text-start mx-auto"
-            style="
+        <code class="d-block text-start mx-auto" style="
                 max-width: 480px;
                 white-space: pre-wrap;
                 word-break: break-all;
                 font-size: 0.8rem;
-            "
-            >{{ loadError }}</code
-        >
+            ">{{ loadError }}</code>
     </div>
     <div v-else class="metrics-table text-center">
-        <DataTable
-            v-model:expandedRows="expanded"
-            :value="dataset!.items"
-            dataKey="step"
-            striped-rows
-            size="small"
-            selection-mode="single"
-            @row-expand="onRowExpanded"
-            @row-click="onRowClicked"
-            scrollable
-            scroll-height="80vh"
-            :virtualScrollerOptions="{ itemSize: 44 }"
-        >
+        <DataTable v-model:expandedRows="expanded" :value="dataset!.items" dataKey="step" striped-rows size="small"
+            selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked" scrollable
+            scroll-height="80vh" :virtualScrollerOptions="{ itemSize: 44 }">
             <Column expander style="width: 1rem" />
             <Column field="step" header="Time step"></Column>
-            <Column
-                v-for="label in dataset!.columns()"
-                :field="label"
-                :header="label"
-            >
+            <Column v-for="label in dataset!.columns()" :field="label" :header="label">
                 <template #body="{ data }">
                     {{ formatFloat(data[label]) }}
                 </template>
@@ -61,32 +28,18 @@
             <template #expansion="slotProps">
                 <div class="px-4 pb-4">
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
-                    <font-awesome-icon
-                        v-if="testsAtStep[slotProps.data.step] == undefined"
-                        icon="spinner"
-                        spin
-                    />
-                    <DataTable
-                        v-else
-                        :value="testsAtStep[slotProps.data.step]"
-                        selection-mode="single"
-                        @row-select="
-                            (e) => emits('view-episode', e.data.directory)
-                        "
-                    >
-                        <Column
-                            v-for="column in testColumns"
-                            :header="column"
-                            :field="column"
-                        >
+                    <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
+                    <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
+                        @row-select="(e) => emits('view-episode', e.data)">
+                        <Column field="test_num" header="#"></Column>
+                        <Column field="rundir" header="Run directory"></Column>
+                        <Column v-for="column in testColumns" :header="column" :field="column">
                             <template #body="{ data }">
-                                <template
-                                    v-if="typeof data[column] === 'number'"
-                                >
-                                    {{ formatFloat(data[column]) }}
+                                <template v-if="typeof data.metrics[column] === 'number'">
+                                    {{ formatFloat(data.metrics[column]) }}
                                 </template>
                                 <template v-else>
-                                    {{ data[column] }}
+                                    {{ data.metrics[column] }}
                                 </template>
                             </template>
                         </Column>
@@ -109,6 +62,7 @@ import { DatasetTable } from "../../models/Experiment";
 import { useResultsStore } from "../../stores/ResultsStore";
 import { useRoute } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";
+import { ReplayEpisodeSummary } from "../../models/Episode";
 
 const props = defineProps<{
     logdir: string;
@@ -209,27 +163,19 @@ async function onRowClicked(event: DataTableRowClickEvent) {
 
 async function loadTestsAtStep(step: number) {
     if (testsAtStep.value[step] != undefined) return;
-    const testsDataset = [];
-    const results = await resultsStore.getTestsResultsAt(props.logdir, step);
-    for (const res of results) {
-        testsDataset.push({
-            testNum: res.name,
-            directory: res.directory,
-            ...res.metrics,
-        });
-    }
+    const testsDataset = (await resultsStore.getTestsResultsAt(props.logdir, step));
     if (testsDataset.length == 0) {
         testsAtStep.value[step] = testsDataset;
         return;
     }
-    for (const column of Object.keys(testsDataset[0])) {
+    for (const column of Object.keys(testsDataset[0].metrics)) {
         testColumns.value.add(column);
     }
     testsAtStep.value[step] = testsDataset;
 }
 
 const emits = defineEmits<{
-    (event: "view-episode", directory: string): void;
+    (event: "view-episode", summary: ReplayEpisodeSummary): void;
 }>();
 </script>
 

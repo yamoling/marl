@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass, field
 from typing import Any
+
 from marlenv import Episode, Space
 
 from .action import Action
@@ -8,14 +9,17 @@ from .action import Action
 
 @dataclass
 class LightEpisodeSummary:
-    name: str = field(init=False)
-    directory: str
+    rundir: str
     metrics: dict[str, float]
+    test_num: int
+    time_step: int
 
-    def __init__(self, directory: str, metrics: dict[str, float]):
-        self.directory = directory
+    def __init__(self, rundir: str, metrics: dict[str, float], time_step: int, test_num: int):
+        self.rundir = rundir
+        self.time_step = time_step
         self.metrics = metrics
-        self.name = os.path.basename(directory)
+        self.test_num = test_num
+        self.name = os.path.basename(rundir)
 
 
 @dataclass
@@ -24,17 +28,25 @@ class ReplayEpisode(LightEpisodeSummary):
     frames: list[str]
     agent_details: list[dict[str, Any]]
     action_space: Space
+    replay_mismatch: bool
+    mismatch_details: list[str]
 
     def __init__(
         self,
-        directory: str,
+        rundir: str,
+        time_step: int,
+        test_num: int,
         episode: Episode,
         frames: list[str],
         detailed_actions: list[Action],
         action_space: Space,
+        replay_mismatch: bool,
+        mismatch_details: list[str],
     ):
-        super().__init__(directory=directory, metrics=episode.metrics)
+        super().__init__(rundir, episode.metrics, time_step, test_num)
         self.episode = episode
         self.frames = frames
         self.agent_details = [a.details for a in detailed_actions]
         self.action_space = action_space
+        self.replay_mismatch = replay_mismatch
+        self.mismatch_details = mismatch_details
