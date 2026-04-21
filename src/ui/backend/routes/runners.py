@@ -1,6 +1,8 @@
 from http import HTTPStatus
+
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
+
 from . import state
 
 router = APIRouter()

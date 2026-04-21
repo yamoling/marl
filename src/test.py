@@ -23,8 +23,9 @@ def main():
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
-    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir)
-    exp.run(seeds=16, n_tests=5, disabled_gpus=[0, 1, 2, 3, 4], n_parallel=16, fill_strategy="scatter")
+    logdir = "replayable"
+    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir, save_weights=True)
+    exp.run(seeds=[0], n_tests=5, disabled_gpus=[0, 1, 2, 3, 4], n_parallel=16, fill_strategy="scatter")
 
 
 if __name__ == "__main__":

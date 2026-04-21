@@ -1,10 +1,12 @@
-export type RunStatus = "CREATED" | "RUNNING" | "COMPLETED" | "CANCELLED";
+import { z } from "zod";
 
-export interface Run {
-    rundir: string
-    seed: number
-    pid: number | null
-    progress: number
-    status: RunStatus
-    n_tests: number
-}
+export const RunSchema = z.object({
+  rundir: z.string(),
+  seed: z.number(),
+  pid: z.number().nullable(),
+  progress: z.number(),
+  status: z.enum(["CREATED", "RUNNING", "COMPLETED", "CANCELLED"]),
+  n_tests: z.number(),
+});
+
+export type Run = z.infer<typeof RunSchema>;

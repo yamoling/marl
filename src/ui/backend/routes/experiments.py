@@ -1,14 +1,13 @@
 import logging
+import shutil
 import time
 from http import HTTPStatus
 
-import cv2
 import orjson
 from fastapi import APIRouter, Request
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import Response
 
 import marl
-from marl.exceptions import ExperimentVersionMismatch
 from marl.utils import encode_b64_image
 
 from . import state
@@ -19,30 +18,20 @@ logger = logging.getLogger(__name__)
 
 @router.get("/experiment/replay/{path:path}")
 def replay(path: str):
-    try:
-        replay_episode = state.replay_episode(path)
-        serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
-        return Response(serialized, media_type="application/json", status_code=HTTPStatus.OK)
-    except ValueError as e:
-        return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+    replay_episode = state.replay_episode(path)
+    serialized = orjson.dumps(replay_episode, option=orjson.OPT_SERIALIZE_NUMPY, default=marl.utils.default_serialization)
+    return Response(serialized, media_type="application/json", status_code=HTTPStatus.OK)
 
 
 @router.get("/experiment/list")
 def list_experiments():
-    try:
-        return state.list_experiments()
-    except ExperimentVersionMismatch as e:
-        logger.exception("Failed to list experiments due to version mismatch")
-        return PlainTextResponse(str(e), status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+    return state.list_experiments()
 
 
 @router.get("/experiment/is_running/{logdir:path}")
 def list_running_experiments(logdir: str):
-    try:
-        exp = state.get_experiment(logdir)
-        return Response(orjson.dumps(exp.is_running), media_type="application/json")
-    except (ModuleNotFoundError, AttributeError):
-        return Response(orjson.dumps(False), media_type="application/json")
+    exp = state.get_experiment(logdir)
+    return Response(orjson.dumps(exp.is_running), media_type="application/json")
 
 
 @router.get("/experiment/{logdir:path}")
@@ -89,11 +78,7 @@ def delete_experiment(logdir: str):
         exp = state.get_experiment(logdir)
         exp.delete()
         state.unload_experiment(logdir)
-    except FileNotFoundError as e:
-        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
     except AttributeError:  # From version mismatch, for instance
-        import shutil
-
         shutil.rmtree(logdir)
     return Response(status_code=HTTPStatus.NO_CONTENT)
 
@@ -101,14 +86,11 @@ def delete_experiment(logdir: str):
 @router.post("/experiment/stop-runs/{logdir:path}")
 def stop_experiment_runs(logdir: str):
     """Kill all running runs of an experiment. The loop accounts for queued runs that would start after killing the current ones."""
-    try:
-        exp = state.get_experiment(logdir)
-        while exp.is_running:
-            exp.kill_runs()
-            time.sleep(0.1)
-        return Response(status_code=HTTPStatus.NO_CONTENT)
-    except FileNotFoundError as e:
-        return PlainTextResponse(str(e), status_code=HTTPStatus.NOT_FOUND)
+    exp = state.get_experiment(logdir)
+    while exp.is_running:
+        exp.kill_runs()
+        time.sleep(1)
+    return Response(status_code=HTTPStatus.NO_CONTENT)
 
 
 @router.get("/experiment/image/{seed}/{logdir:path}")
@@ -117,5 +99,4 @@ def get_env_image(seed: str, logdir: str):
     exp.env.seed(int(seed))
     exp.env.reset()
     image = exp.env.get_image()
-    image = cv2.resize(image, (100, 100))
     return encode_b64_image(image)

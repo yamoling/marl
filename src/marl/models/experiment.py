@@ -32,6 +32,7 @@ class Experiment[A: Space]:
     env: MARLEnv[A]
     n_steps: int
     test_env: MARLEnv[A]
+    save_weights: bool
     logger: LogSpecs = "csv"
 
     @staticmethod
@@ -43,6 +44,7 @@ class Experiment[A: Space]:
         test_interval: int = 5_000,
         test_env: MARLEnv[A] | None = None,
         logger: LogSpecs = "csv",
+        save_weights: bool = False,
     ):
         """
         Create a new experiment in the specified directory.
@@ -76,6 +78,7 @@ class Experiment[A: Space]:
                 creation_timestamp=int(time.time() * 1000),
                 test_env=test_env,
                 logger=logger,
+                save_weights=save_weights,
             )
             experiment.save()
             return experiment
@@ -85,6 +88,10 @@ class Experiment[A: Space]:
             # In case the experiment could not be created for another reason, do not create the experiment and remove its directory
             shutil.rmtree(logdir, ignore_errors=True)
             raise e
+
+    @property
+    def is_replayable(self):
+        return self.save_weights
 
     @classmethod
     def load(cls, logdir: str):
@@ -157,6 +164,8 @@ class Experiment[A: Space]:
         """Replay the episode whose actions are saved in the given test folder."""
 
     def replay_episode(self, *args):
+        if not self.is_replayable:
+            raise ValueError("This experiment is not replayable because it was not configured to save the agents' weights during training.")
         match args:
             case (run_num, time_step, test_num):
                 return self._replay_episode(run_num, time_step, test_num)
@@ -186,12 +195,12 @@ class Experiment[A: Space]:
         """Load the agent at a specific time step."""
         if time_step % self.test_interval != 0:
             raise ValueError(f"Time step must be a multiple of the test interval ({self.test_interval})")
+        run = self.get_run_with_seed(run_seed)
+        if run is None:
+            raise ValueError(f"No run with seed {run_seed} found in the experiment.")
         agent = self.trainer.make_agent()
-        for run in self.runs:
-            if run.seed == run_seed:
-                agent.load(run.get_saved_algo_dir(time_step))
-                return agent
-        raise ValueError(f"No run with seed {run_seed} found in the experiment.")
+        agent.load(run.get_saved_algo_dir(time_step))
+        return agent
 
     def move(self, new_logdir: str):
         """Move an experiment to a new directory."""
