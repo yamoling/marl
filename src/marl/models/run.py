@@ -53,6 +53,7 @@ class Run:
     @property
     def n_tests(self):
         try:
+            # NOTE: we assume that the number of tests is lower than 100.
             return self.reader.test_metrics.head(100).filter(pl.col(TIME_STEP_COL) == 0).collect().height
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 1

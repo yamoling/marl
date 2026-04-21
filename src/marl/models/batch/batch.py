@@ -54,7 +54,9 @@ class Batch(ABC):
 
     def _normalize(self, tensor: torch.Tensor):
         """Normalize the tensor such that it has a mean of 0 and a std of 1."""
-        return (tensor - tensor.mean()) / (tensor.std() + 1e-8)
+        mean = torch.sum(self.masks * tensor) / self.masks_sum
+        std = torch.sqrt(torch.sum(self.masks * (tensor - mean) ** 2) / self.masks_sum)
+        return (tensor - mean) / (std + 1e-8)
 
     def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
         """

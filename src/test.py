@@ -23,16 +23,15 @@ def main():
     )
 
     logdir = f"logs/{env.name}-{trainer.name}"
-    logdir = "replayable"
     exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir, save_weights=True)
-    exp.run(seeds=[0], n_tests=5, disabled_gpus=[0, 1, 2, 3, 4], n_parallel=16, fill_strategy="scatter")
+    exp.run(seeds=[0], n_tests=5, disabled_gpus=[0, 1, 2, 3], n_parallel=16, fill_strategy="scatter")
 
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
-        handlers=[logging.FileHandler("start_run.log", mode="a"), logging.StreamHandler()],
+        handlers=[logging.FileHandler("test.log", mode="a"), logging.StreamHandler()],
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
