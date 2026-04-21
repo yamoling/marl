@@ -15,22 +15,22 @@
             <p class="mb-0">{{ error }}</p>
         </div>
 
-        <Accordion v-show="episode != null && episode.replay_mismatch" class="mismatch-details-accordion my-4">
+        <Accordion v-show="episode != null && episode.replay_mismatch" class="mismatch-details-accordion mb-1">
             <AccordionPanel value="mismatch-details">
                 <AccordionHeader>
-                    <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="me-2" />
+                    <font-awesome-icon :icon="['fas', 'exclamation-triangle']" />
                     Replay Mismatch Detected
                 </AccordionHeader>
                 <AccordionContent>
-                    <p class="mb-2">
-                        Not many logging data items are shown due to a replay mismatch. This occurs when the
-                        agent's actions during replay don't match the originally recorded actions. Please ensure
-                        that seeding is properly handled in your training and replay process.
+                    <p class="my-2">
+                        The agent's actions during replay do not match the actions stored on disk during training and
+                        testing. The below replay sticks to the actions stored on disk but still shows the "extras" of
+                        the loaded agent.
                     </p>
-                    <p class="mb-2 small">
+                    <p class="mb-2">
                         <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU.
-                        CPU/GPU replay mismatches are not always supported, as they can lead to different random
-                        number generation sequences and divergent episode trajectories.
+                        Since CPU and GPU random number generators may have different implementations, they can lean to
+                        different sampling sequences and therefore divergent episode trajectories.
                     </p>
                     <h6 class="mb-1">Mismatch details</h6>
                     <ul v-if="mismatchDetails.length > 0" class="mb-0 ps-3">
