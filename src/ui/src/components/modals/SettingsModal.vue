@@ -90,7 +90,8 @@
                                     <div class="rule-key-cell">
                                         <input v-model="rule.key" type="text"
                                             class="form-control form-control-sm rule-key"
-                                            placeholder="Track label or pattern" />
+                                            placeholder="Track label or pattern"
+                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
                                         <span class="badge text-bg-secondary rule-match-badge"
                                             :title="matchTooltip(rule.key)">
                                             {{ matchCount(rule.key) }}
@@ -114,18 +115,18 @@
 
                                 <div class="settings-subsection">
                                     <div class="section-heading">
-                                        <div>
-                                            <h6 class="mb-1">Default replay type</h6>
-                                            <p class="text-muted mb-0">
-                                                Fallback when no trainer or experiment rule matches.
-                                            </p>
-                                        </div>
+                                        <h6 class="mb-1">Default replay type</h6>
                                     </div>
-
+                                    <p class="text-muted mb-0">
+                                        If checked, the actions saved on disk from the training are used to replay
+                                        the episode. If unchecked, the saved weights are loaded at replay-time to
+                                        provide more information in the UI.
+                                    </p>
                                     <label class="form-check settings-switch">
                                         <input class="form-check-input" type="checkbox"
-                                            v-model="draft.replay.globalOnlySavedActions" />
-                                        <span class="form-check-label">Only replay stored actions by default</span>
+                                            v-model="draft.replay.globalOnlySavedActions"
+                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                        <span class="form-check-label">Only replay stored actions</span>
                                     </label>
                                 </div>
 
@@ -135,8 +136,8 @@
                                     <div class="section-heading">
                                         <div>
                                             <h6 class="mb-1">Trainer-level replay rules</h6>
-                                            <p class="text-muted mb-0">Override replay type for all experiments from a
-                                                trainer.</p>
+                                            <p class="text-muted mb-0">Override replay type for all experiments with a
+                                                specific trainer.</p>
                                         </div>
                                         <button type="button" class="btn btn-sm btn-outline-secondary"
                                             @click="addReplayTrainerRule">
@@ -151,48 +152,14 @@
                                     <div v-for="(rule, index) in draft.replay.trainerRules" :key="`trainer-${index}`"
                                         class="rule-row">
                                         <input v-model="rule.key" type="text"
-                                            class="form-control form-control-sm rule-key" placeholder="Trainer name" />
+                                            class="form-control form-control-sm rule-key" placeholder="Trainer name"
+                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
                                         <select v-model="rule.value" class="form-select form-select-sm rule-value">
                                             <option :value="false">Allow agent replay</option>
                                             <option :value="true">Stored actions only</option>
                                         </select>
                                         <button type="button" class="btn btn-sm btn-outline-danger"
                                             @click="removeReplayTrainerRule(index)">
-                                            Remove
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <hr class="settings-divider" />
-
-                                <div class="settings-subsection">
-                                    <div class="section-heading">
-                                        <div>
-                                            <h6 class="mb-1">Experiment-level replay rules</h6>
-                                            <p class="text-muted mb-0">Override replay type for a specific experiment
-                                                logdir.</p>
-                                        </div>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                            @click="addReplayExperimentRule">
-                                            Add rule
-                                        </button>
-                                    </div>
-
-                                    <div v-if="draft.replay.experimentRules.length === 0" class="empty-state">
-                                        No experiment replay rules yet.
-                                    </div>
-
-                                    <div v-for="(rule, index) in draft.replay.experimentRules"
-                                        :key="`experiment-${index}`" class="rule-row">
-                                        <input v-model="rule.key" type="text"
-                                            class="form-control form-control-sm rule-key"
-                                            placeholder="logs/experiment-name" />
-                                        <select v-model="rule.value" class="form-select form-select-sm rule-value">
-                                            <option :value="false">Allow agent replay</option>
-                                            <option :value="true">Stored actions only</option>
-                                        </select>
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @click="removeReplayExperimentRule(index)">
                                             Remove
                                         </button>
                                     </div>
