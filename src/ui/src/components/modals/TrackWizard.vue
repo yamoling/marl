@@ -90,6 +90,7 @@ import { Modal } from 'bootstrap';
 import { ReplayEpisode } from '../../models/Episode';
 import { type TrackConfig, TrackGroup, type TimelineTrackKind } from '../../models/Timeline';
 import { useTracksStore } from '../../stores/TracksStore';
+import { useSettingsStore } from '../../stores/SettingsStore';
 
 const props = defineProps<{
     readonly episode: ReplayEpisode,
@@ -100,6 +101,7 @@ const emits = defineEmits<{
 }>();
 
 const trackStore = useTracksStore();
+const settingsStore = useSettingsStore();
 const modal = ref({} as HTMLDivElement);
 let modalInstance: Modal | null = null;
 const draftSelections = ref([] as TrackConfig[]);
@@ -122,11 +124,26 @@ function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
 }
 
 function showModal() {
-    draftSelections.value = trackStore.forLogdir(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
+    const storedTracks = trackStore.forLogdir(props.logdir);
+    if (storedTracks.length > 0) {
+        draftSelections.value = storedTracks.map((track) => ({ label: track.label, kind: track.kind }));
+    } else {
+        const nextSelections: TrackConfig[] = [];
+        for (const track of availableTracks.value) {
+            const leafTracks = track instanceof TrackGroup ? track.getTracks() : [track];
+            for (const leafTrack of leafTracks) {
+                const resolution = settingsStore.resolveTrackPreference(null, leafTrack.label, leafTrack.kind);
+                nextSelections.push({
+                    label: leafTrack.label,
+                    kind: resolution.kind,
+                });
+            }
+        }
+        draftSelections.value = nextSelections;
+    }
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
-
     modalInstance.show();
 }
 

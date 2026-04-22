@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { TrackConfig, type TimelineTrackKind, TrackConfigSchema } from '../models/Timeline';
+import { TrackConfig, type TimelineTrackKind, TrackConfigSchema, Track, TrackGroup } from '../models/Timeline';
 const STORAGE_KEY = 'tracksStore';
+const SEEN_TRACKS_STORAGE_KEY = 'tracksStore_seen_labels';
 
 
 
@@ -11,6 +12,7 @@ const STORAGE_KEY = 'tracksStore';
  */
 export const useTracksStore = defineStore('TracksStore', () => {
     const selectedTracks = ref(load());
+    const allTrackLabels = ref(loadSeenTrackLabels());
 
     function forLogdir(logdir: string): TrackConfig[] {
         return selectedTracks.value[logdir] ?? [];
@@ -18,7 +20,7 @@ export const useTracksStore = defineStore('TracksStore', () => {
 
     function commit(nextMap: { [logdir: string]: TrackConfig[] }) {
         selectedTracks.value = nextMap;
-        save();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedTracks.value));
     }
 
     function add(logdir: string, track: TrackConfig) {
@@ -72,10 +74,6 @@ export const useTracksStore = defineStore('TracksStore', () => {
         commit(nextMap);
     }
 
-    function save() {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedTracks.value));
-    }
-
 
     function swap(logdir: string, index1: number, index2: number) {
         const tracks = forLogdir(logdir);
@@ -93,14 +91,23 @@ export const useTracksStore = defineStore('TracksStore', () => {
         commit(nextMap);
     }
 
+    function notifyTracks(tracks: (Track | TrackGroup)[]) {
+        for (const track of tracks) {
+            allTrackLabels.value.add(track.label);
+        }
+        localStorage.setItem(SEEN_TRACKS_STORAGE_KEY, JSON.stringify(Array.from(allTrackLabels.value).sort()));
+    }
+
     return {
         selectedTracks,
+        allTrackLabels,
         set,
         add,
         remove,
         swap,
         update,
         forLogdir,
+        notifyTracks
     };
 });
 
@@ -116,6 +123,28 @@ function load(): { [logdir: string]: TrackConfig[] } {
         return {};
     }
 
+}
+
+function loadSeenTrackLabels(): Set<string> {
+    const raw = window.localStorage.getItem(SEEN_TRACKS_STORAGE_KEY);
+    if (raw == null) {
+        return new Set<string>();
+    }
+
+    try {
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+            return new Set<string>();
+        }
+
+        const labels = parsed
+            .filter((value): value is string => typeof value === 'string')
+            .map((label) => label.trim())
+            .filter((label) => label.length > 0);
+        return new Set(labels);
+    } catch {
+        return new Set<string>();
+    }
 }
 
 
