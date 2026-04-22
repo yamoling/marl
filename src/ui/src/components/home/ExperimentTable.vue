@@ -1,54 +1,65 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
-        <DataTable v-model:expandedRows="expandedRows" :value="experimentStore.experiments" dataKey="logdir"
-            size="small" v-model:filters="filters" filterDisplay="menu"
-            :globalFilterFields="['logdir', 'env.name', 'trainer.name']" :sortField="'creation_timestamp'"
-            :sortOrder="-1" :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked"
-            @row-expand="onRowExpanded" @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
-            :rowsPerPageOptions="[5, 10, 20, 50]">
+        <DataTable
+            v-model:expandedRows="expandedRows"
+            :value="experimentStore.experiments"
+            dataKey="logdir"
+            size="small"
+            v-model:filters="filters"
+            filterDisplay="menu"
+            :globalFilterFields="['logdir', 'env.name', 'trainer.name']"
+            :sortField="'creation_timestamp'"
+            :sortOrder="-1"
+            :rowClass="experimentRowClass"
+            contextMenu
+            @row-click="onRowClicked"
+            @row-expand="onRowExpanded"
+            @row-contextmenu="onRowContextMenu"
+            selection-mode="single"
+            paginator
+            :rows="5"
+            :rowsPerPageOptions="[5, 10, 20, 50]"
+        >
             <template #header>
                 <div class="input-group">
                     <span class="input-group-text">
                         <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
                         Filter
                     </span>
-                    <input class="form-control" type="text" v-model="filters.global.value"
-                        placeholder="Directory, env, algo" />
-                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter"
-                        :disabled="!filters.global.value">
+                    <input class="form-control" type="text" v-model="filters.global.value" placeholder="Directory, env, algo" />
+                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter" :disabled="!filters.global.value">
                         <font-awesome-icon :icon="['fas', 'times']" />
                     </button>
-                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
-                        :disabled="experimentStore.loading">
+                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh" :disabled="experimentStore.loading">
                         <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
                     </button>
                 </div>
             </template>
             <Column header="Status">
                 <template #body="{ data }">
-                    <button class="runs-matrix" :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
-                        @click.stop="toggleRunsExpansion(data.logdir)" title="Show run details">
+                    <button
+                        class="runs-matrix"
+                        :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
+                        @click.stop="toggleRunsExpansion(data.logdir)"
+                        title="Show run details"
+                    >
                         <template v-if="isRunsLoading(data.logdir)">
                             <span class="runs-loading">
                                 <font-awesome-icon :icon="['fas', 'spinner']" spin />
                             </span>
                         </template>
                         <template v-else>
-                            <span class="runs-cell runs-cell-running"
-                                :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
+                            <span class="runs-cell runs-cell-running" :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
                                 {{ runStatusCounts(data.logdir).RUNNING }}
                             </span>
-                            <span class="runs-cell runs-cell-completed"
-                                :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
+                            <span class="runs-cell runs-cell-completed" :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
                                 {{ runStatusCounts(data.logdir).COMPLETED }}
                             </span>
-                            <span class="runs-cell runs-cell-cancelled"
-                                :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
+                            <span class="runs-cell runs-cell-cancelled" :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
                                 {{ runStatusCounts(data.logdir).CANCELLED }}
                             </span>
-                            <span class="runs-cell runs-cell-created"
-                                :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
+                            <span class="runs-cell runs-cell-created" :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
                                 {{ runStatusCounts(data.logdir).CREATED }}
                             </span>
                         </template>
@@ -58,14 +69,17 @@
             <Column field="logdir" header="Directory" sortable style="min-width: 14rem">
                 <template #body="{ data }">
                     <div class="d-flex align-items-center gap-2">
-                        <RouterLink class="text-success" :to="`/inspect/${data.logdir}`" @click.stop
-                            title="Inspect experiment">
+                        <RouterLink class="text-success" :to="`/inspect/${data.logdir}`" @click.stop title="Inspect experiment">
                             <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                         </RouterLink>
-                        <span>{{ data.logdir.replace('logs/', '') }}</span>
-                        <input type="color" class="d-none" :value="experimentColour(data.logdir)"
+                        <span>{{ data.logdir.replace("logs/", "") }}</span>
+                        <input
+                            type="color"
+                            class="d-none"
+                            :value="experimentColour(data.logdir)"
                             :ref="(element) => setColourInputRef(data.logdir, element)"
-                            @input="(event) => onExperimentColourChanged(data.logdir, event)" />
+                            @input="(event) => onExperimentColourChanged(data.logdir, event)"
+                        />
                     </div>
                 </template>
             </Column>
@@ -84,13 +98,15 @@
                     {{ new Date(data.creation_timestamp).toLocaleString() }}
                 </template>
             </Column>
-            <template #empty>
-                No experiments match the current filters.
-            </template>
+            <template #empty> No experiments match the current filters. </template>
             <template #expansion="slotProps">
-                <HomeRunsTable :runs="runsForExperiment(slotProps.data.logdir)" :starting-runs="startingRuns"
-                    :stopping-runs="stoppingRuns" @start-run="(rundir) => onRunClicked(slotProps.data.logdir, rundir)"
-                    @stop-run="(rundir) => stopRun(slotProps.data.logdir, rundir)" />
+                <HomeRunsTable
+                    :runs="runsForExperiment(slotProps.data.logdir)"
+                    :starting-runs="startingRuns"
+                    :stopping-runs="stoppingRuns"
+                    @start-run="(rundir) => onRunClicked(slotProps.data.logdir, rundir)"
+                    @stop-run="(rundir) => stopRun(slotProps.data.logdir, rundir)"
+                />
             </template>
         </DataTable>
         <NewRun ref="newRunModalRef" />
@@ -99,26 +115,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import {
-    Column,
-    ContextMenu,
-    DataTable,
-    DataTableRowClickEvent,
-    DataTableRowContextMenuEvent,
-    DataTableRowExpandEvent
-} from 'primevue';
-import { Experiment, toCSV } from '../../models/Experiment';
-import { downloadStringAsFile } from '../../utils';
-import { useExperimentStore } from '../../stores/ExperimentStore';
-import { useResultsStore } from '../../stores/ResultsStore';
-import { useRunStore } from '../../stores/RunStore';
-import { useColourStore } from '../../stores/ColourStore';
-import { RunStatus } from '../../models/Run';
-import HomeRunsTable from './HomeRunsTable.vue';
-import { RouterLink, useRouter } from 'vue-router';
-import NewRun from '../modals/NewRun.vue';
-import DevicePickerModal from '../modals/DevicePickerModal.vue';
+import { computed, ref } from "vue";
+import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from "primevue";
+import { Experiment, toCSV } from "../../models/Experiment";
+import { downloadStringAsFile } from "../../utils";
+import { useExperimentStore } from "../../stores/ExperimentStore";
+import { useResultsStore } from "../../stores/ResultsStore";
+import { useRunStore } from "../../stores/RunStore";
+import { useColourStore } from "../../stores/ColourStore";
+import { RunStatus } from "../../models/Run";
+import HomeRunsTable from "./HomeRunsTable.vue";
+import { RouterLink, useRouter } from "vue-router";
+import NewRun from "../modals/NewRun.vue";
+import DevicePickerModal from "../modals/DevicePickerModal.vue";
 
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
@@ -127,7 +136,7 @@ const colourStore = useColourStore();
 const router = useRouter();
 
 const filters = ref({
-    global: { value: '', matchMode: 'contains' },
+    global: { value: "", matchMode: "contains" },
 });
 const expandedRows = ref({} as Record<string, boolean>);
 const stoppingRuns = ref({} as Record<string, boolean>);
@@ -148,34 +157,34 @@ const contextMenuItems = computed(() => {
     const hasResults = resultsStore.results.has(logdir);
     const items: any[] = [
         {
-            label: 'Inspect',
-            icon: 'pi pi-external-link',
+            label: "Inspect",
+            icon: "pi pi-external-link",
             command: () => router.push(`/inspect/${logdir}`),
         },
         {
-            label: 'Start new runs',
-            icon: 'pi pi-play',
+            label: "Start new runs",
+            icon: "pi pi-play",
             command: () => newRunModalRef.value?.showModal(exp),
         },
         {
-            label: isLoaded ? 'Unload' : 'Load',
-            icon: isLoaded ? 'pi pi-times-circle' : 'pi pi-download',
-            command: () => isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir, exp.test_interval),
+            label: isLoaded ? "Unload" : "Load",
+            icon: isLoaded ? "pi pi-times-circle" : "pi pi-download",
+            command: () => (isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir, exp.test_interval)),
         },
     ];
 
     if (hasResults) {
         items.push({
-            label: 'Download datasets',
-            icon: 'pi pi-file-export',
+            label: "Download datasets",
+            icon: "pi pi-file-export",
             command: () => downloadDatasets(logdir),
         });
     }
 
     if (isLoaded) {
         items.push({
-            label: 'Change colour',
-            icon: 'pi pi-palette',
+            label: "Change colour",
+            icon: "pi pi-palette",
             command: () => openColourPicker(logdir),
         });
     }
@@ -183,23 +192,23 @@ const contextMenuItems = computed(() => {
     items.push({ separator: true });
     items.push(
         {
-            label: 'Rename',
-            icon: 'pi pi-pen-to-square',
+            label: "Rename",
+            icon: "pi pi-pen-to-square",
             command: () => renameExperiment(logdir),
         },
         {
-            label: 'Archive',
-            icon: 'pi pi-box',
+            label: "Archive",
+            icon: "pi pi-box",
             command: () => archiveExperiment(logdir),
         },
         {
-            label: 'Stop all runs',
-            icon: 'pi pi-stop',
+            label: "Stop all runs",
+            icon: "pi pi-stop",
             command: () => stopAllRuns(logdir),
         },
         {
-            label: 'Delete',
-            icon: 'pi pi-trash',
+            label: "Delete",
+            icon: "pi pi-trash",
             command: () => removeExperiment(logdir),
         },
     );
@@ -215,7 +224,6 @@ function isRunsLoading(logdir: string) {
     return runStore.loading.get(logdir) ?? false;
 }
 
-
 function runStatusCounts(logdir: string): Record<RunStatus, number> {
     const counts: Record<RunStatus, number> = {
         CREATED: 0,
@@ -223,7 +231,7 @@ function runStatusCounts(logdir: string): Record<RunStatus, number> {
         COMPLETED: 0,
         CANCELLED: 0,
     };
-    runsForExperiment(logdir).forEach(run => {
+    runsForExperiment(logdir).forEach((run) => {
         counts[run.status] += 1;
     });
     return counts;
@@ -248,12 +256,12 @@ async function toggleRunsExpansion(logdir: string) {
 
 function experimentRowClass(data: Experiment) {
     if (resultsStore.isLoaded(data.logdir)) {
-        return 'row-loaded';
+        return "row-loaded";
     }
     if (resultsStore.loading.get(data.logdir) ?? false) {
-        return 'row-loading';
+        return "row-loading";
     }
-    return '';
+    return "";
 }
 
 async function onRowClicked(event: DataTableRowClickEvent) {
@@ -276,7 +284,6 @@ function onExperimentClicked(logdir: string, testInterval: number) {
     resultsStore.load(logdir, testInterval);
     runStore.refresh(logdir);
 }
-
 
 function setColourInputRef(logdir: string, element: unknown) {
     if (element instanceof HTMLInputElement) {
@@ -337,7 +344,7 @@ async function stopRun(logdir: string, rundir: string) {
 function downloadDatasets(logdir: string) {
     const results = resultsStore.results.get(logdir);
     if (results === undefined) {
-        alert('No such logdir to download');
+        alert("No such logdir to download");
         return;
     }
     const csvMetrics = toCSV(results.datasets, results.datasets[0].ticks);
@@ -345,11 +352,11 @@ function downloadDatasets(logdir: string) {
 }
 
 function clearGlobalFilter() {
-    filters.value.global.value = '';
+    filters.value.global.value = "";
 }
 
 function renameExperiment(logdir: string) {
-    const newLogdir = prompt('Enter new name for the experiment', logdir);
+    const newLogdir = prompt("Enter new name for the experiment", logdir);
     if (newLogdir === null) return;
     experimentStore.rename(logdir, newLogdir);
 }
@@ -361,7 +368,7 @@ function removeExperiment(logdir: string) {
 }
 
 function archiveExperiment(logdir: string) {
-    const newLogdir = logdir.replace('logs/', 'archives/');
+    const newLogdir = logdir.replace("logs/", "archives/");
     experimentStore.rename(logdir, newLogdir);
 }
 
@@ -388,13 +395,13 @@ function stopAllRuns(logdir: string) {
 .runs-matrix {
     width: 2.6rem;
     height: 2.6rem;
-    border: 1px solid #d0d7de;
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.4rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
     padding: 0;
-    background: white;
+    background: var(--bs-body-bg);
     overflow: hidden;
 }
 

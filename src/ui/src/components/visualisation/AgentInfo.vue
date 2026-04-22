@@ -12,16 +12,27 @@
                     <thead>
                         <tr>
                             <th scope="row">Available actions</th>
-                            <th scope="col" v-for="(meaning, action) in actionLabels" class="decision-col-head"
-                                :class="{ unavailable: !isActionAvailable(availableActions[action]) }">
+                            <th
+                                scope="col"
+                                v-for="(meaning, action) in actionLabels"
+                                class="decision-col-head"
+                                :class="{ unavailable: !isActionAvailable(availableActions[action]) }"
+                            >
                                 <div class="decision-col-head-inner">
                                     <span>{{ meaning }}</span>
                                     <span class="cell-indicators">
-                                        <span v-if="isSelectedAction(action)" class="status-dot selected-dot"
-                                            title="Selected action" aria-label="Selected action" />
-                                        <span v-if="!isActionAvailable(availableActions[action])"
-                                            class="status-dot unavailable-dot" title="Action unavailable"
-                                            aria-label="Action unavailable" />
+                                        <span
+                                            v-if="isSelectedAction(action)"
+                                            class="status-dot selected-dot"
+                                            title="Selected action"
+                                            aria-label="Selected action"
+                                        />
+                                        <span
+                                            v-if="!isActionAvailable(availableActions[action])"
+                                            class="status-dot unavailable-dot"
+                                            title="Action unavailable"
+                                            aria-label="Action unavailable"
+                                        />
                                     </span>
                                 </div>
                             </th>
@@ -34,55 +45,87 @@
                                     <th scope="row" class="text-capitalize">
                                         {{ `${section.label} (${objectiveLabel})` }}
                                     </th>
-                                    <td v-for="action in section.data.length" class="decision-cell" :class="{
-                                        taken: isSelectedAction(action - 1),
-                                        unavailable: !isActionAvailable(availableActions[action - 1]),
-                                    }">
-                                        <div class="decision-bar"
-                                            :style="decisionBarStyle(section, action - 1, objectiveNum)"></div>
+                                    <td
+                                        v-for="action in section.data.length"
+                                        class="decision-cell"
+                                        :class="{
+                                            taken: isSelectedAction(action - 1),
+                                            unavailable: !isActionAvailable(availableActions[action - 1]),
+                                        }"
+                                    >
+                                        <div class="decision-bar" :style="decisionBarStyle(section, action - 1, objectiveNum)"></div>
                                         <span class="cell-indicators">
-                                            <span v-if="isSelectedAction(action - 1)" class="status-dot selected-dot"
-                                                title="Selected action" aria-label="Selected action" />
-                                            <span v-if="!isActionAvailable(availableActions[action - 1])"
-                                                class="status-dot unavailable-dot" title="Action unavailable"
-                                                aria-label="Action unavailable" />
+                                            <span
+                                                v-if="isSelectedAction(action - 1)"
+                                                class="status-dot selected-dot"
+                                                title="Selected action"
+                                                aria-label="Selected action"
+                                            />
+                                            <span
+                                                v-if="!isActionAvailable(availableActions[action - 1])"
+                                                class="status-dot unavailable-dot"
+                                                title="Action unavailable"
+                                                aria-label="Action unavailable"
+                                            />
                                         </span>
-                                        <span class="decision-value">{{ formatValue(decisionDataAt(section, action - 1,
-                                            objectiveNum)) }}</span>
+                                        <span class="decision-value">{{
+                                            formatValue(decisionDataAt(section, action - 1, objectiveNum))
+                                        }}</span>
                                     </td>
                                 </tr>
                             </template>
                             <tr v-else>
                                 <th scope="row" class="text-capitalize">{{ section.label }}</th>
-                                <td v-for="action in section.data.length" class="decision-cell" :class="{
-                                    taken: isSelectedAction(action - 1),
-                                    unavailable: !isActionAvailable(availableActions[action - 1]),
-                                }">
+                                <td
+                                    v-for="action in section.data.length"
+                                    class="decision-cell"
+                                    :class="{
+                                        taken: isSelectedAction(action - 1),
+                                        unavailable: !isActionAvailable(availableActions[action - 1]),
+                                    }"
+                                >
                                     <div class="decision-bar" :style="decisionBarStyle(section, action - 1)"></div>
                                     <span class="cell-indicators">
-                                        <span v-if="isSelectedAction(action - 1)" class="status-dot selected-dot"
-                                            title="Selected action" aria-label="Selected action" />
-                                        <span v-if="!isActionAvailable(availableActions[action - 1])"
-                                            class="status-dot unavailable-dot" title="Action unavailable"
-                                            aria-label="Action unavailable" />
+                                        <span
+                                            v-if="isSelectedAction(action - 1)"
+                                            class="status-dot selected-dot"
+                                            title="Selected action"
+                                            aria-label="Selected action"
+                                        />
+                                        <span
+                                            v-if="!isActionAvailable(availableActions[action - 1])"
+                                            class="status-dot unavailable-dot"
+                                            title="Action unavailable"
+                                            aria-label="Action unavailable"
+                                        />
                                     </span>
-                                    <span class="decision-value">{{ formatValue((section.data[action - 1] as unknown as
-                                        number)) }}</span>
+                                    <span class="decision-value">{{ formatValue(section.data[action - 1] as unknown as number) }}</span>
                                 </td>
                             </tr>
                             <tr v-if="section.isMultiObjective" class="decision-section-total">
                                 <td><b>Total</b></td>
-                                <td v-for="action in section.data.length" class="decision-cell" :class="{
-                                    taken: isSelectedAction(action - 1),
-                                    unavailable: !isActionAvailable(availableActions[action - 1]),
-                                }">
+                                <td
+                                    v-for="action in section.data.length"
+                                    class="decision-cell"
+                                    :class="{
+                                        taken: isSelectedAction(action - 1),
+                                        unavailable: !isActionAvailable(availableActions[action - 1]),
+                                    }"
+                                >
                                     <div class="decision-bar" :style="decisionTotalBarStyle(section, action - 1)"></div>
                                     <span class="cell-indicators">
-                                        <span v-if="isSelectedAction(action - 1)" class="status-dot selected-dot"
-                                            title="Selected action" aria-label="Selected action" />
-                                        <span v-if="!isActionAvailable(availableActions[action - 1])"
-                                            class="status-dot unavailable-dot" title="Action unavailable"
-                                            aria-label="Action unavailable" />
+                                        <span
+                                            v-if="isSelectedAction(action - 1)"
+                                            class="status-dot selected-dot"
+                                            title="Selected action"
+                                            aria-label="Selected action"
+                                        />
+                                        <span
+                                            v-if="!isActionAvailable(availableActions[action - 1])"
+                                            class="status-dot unavailable-dot"
+                                            title="Action unavailable"
+                                            aria-label="Action unavailable"
+                                        />
                                     </span>
                                     <span class="decision-value">{{ section.totalValues[action - 1].toFixed(4) }}</span>
                                 </td>
@@ -95,10 +138,8 @@
             <details class="observation-panel">
                 <summary>Observation preview</summary>
                 <div class="observation-body mt-3 text-center">
-                    <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras"
-                        :env-info="experiment.env" />
-                    <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras"
-                        :extras-meanings="extrasMeanings" />
+                    <OneDimension v-if="obsDimensions == 1" :obs="obsFlattened" :extras="extras" :env-info="experiment.env" />
+                    <ThreeDimension v-else-if="obsDimensions == 3" :obs="obsLayered" :extras="extras" :extras-meanings="extrasMeanings" />
                     <p v-else class="text-muted">No preview available for {{ obsDimensions }} dimensions</p>
                 </div>
             </details>
@@ -107,22 +148,19 @@
 </template>
 
 <script setup lang="ts">
-
 import { computed } from "vue";
 import { ActionValue, ReplayEpisode } from "../../models/Episode";
 import ThreeDimension from "./observation/3Dimensions.vue";
 import OneDimension from "./observation/1Dimension.vue";
 import { Experiment } from "../../models/Experiment";
 import { computeShape } from "../../utils";
-import Card from 'primevue/card';
-
-
+import Card from "primevue/card";
 
 const props = defineProps<{
-    episode: ReplayEpisode | null
-    agentNum: number
-    currentStep: number
-    experiment: Experiment
+    episode: ReplayEpisode | null;
+    agentNum: number;
+    currentStep: number;
+    experiment: Experiment;
 }>();
 
 type ScalarDecisionValues = number[];
@@ -130,16 +168,16 @@ type MultiObjectiveDecisionValues = number[][];
 type DecisionValues = ScalarDecisionValues | MultiObjectiveDecisionValues;
 
 type DecisionSection = {
-    key: "q_values" | "action_probabilities"
-    label: string
-    data: DecisionValues
-    isMultiObjective: boolean
-    totalValues: number[]
+    key: "q_values" | "action_probabilities";
+    label: string;
+    data: DecisionValues;
+    isMultiObjective: boolean;
+    totalValues: number[];
 };
 
 const obsShape = computed(() => {
     if (props.episode?.episode == null) return [];
-    return computeShape(props.episode.episode.all_observations[0][0])
+    return computeShape(props.episode.episode.all_observations[0][0]);
 });
 const obsDimensions = computed(() => obsShape.value.length);
 const episodeLength = computed(() => props.episode?.metrics.episode_len || 0);
@@ -154,12 +192,12 @@ const obs = computed(() => {
 });
 
 const extras = computed(() => {
-    if (props.episode == null) return []
+    if (props.episode == null) return [];
     return props.episode.episode.all_extras[safeStep.value][props.agentNum];
 });
 
-const extrasMeanings = computed(() => props.experiment.env.extras_meanings)
-const actionLabels = computed(() => props.experiment.env.action_space.labels ?? [])
+const extrasMeanings = computed(() => props.experiment.env.extras_meanings);
+const actionLabels = computed(() => props.experiment.env.action_space.labels ?? []);
 
 const availableActions = computed(() => {
     if (props.episode == null) return [];
@@ -170,7 +208,6 @@ const takenAction = computed(() => {
     if (props.episode == null) return -1;
     return props.episode.episode.actions[safeStep.value][props.agentNum] as ActionValue;
 });
-
 
 const currentActionDetails = computed(() => {
     if (props.episode == null) return null;
@@ -226,11 +263,7 @@ function extractDecisionValues(raw: unknown): DecisionValues | null {
     return null;
 }
 
-function buildDecisionSection(
-    key: DecisionSection["key"],
-    label: string,
-    values: DecisionValues,
-): DecisionSection {
+function buildDecisionSection(key: DecisionSection["key"], label: string, values: DecisionValues): DecisionSection {
     const isMultiObjective = Array.isArray(values[0]);
 
     if (isMultiObjective) {
@@ -257,7 +290,7 @@ function buildDecisionSection(
 
 function getObjectiveLabels(section: DecisionSection): string[] {
     if (!section.isMultiObjective) return [];
-    const objectiveCount = ((section.data[0] as unknown[])?.length ?? 0);
+    const objectiveCount = (section.data[0] as unknown[])?.length ?? 0;
     if (props.experiment.env.reward_space.labels.length === objectiveCount) {
         return props.experiment.env.reward_space.labels;
     }
@@ -304,9 +337,7 @@ function decisionTotalBarStyle(section: DecisionSection, action: number): Record
     const width = normalizeBarWidth(value, section.totalValues);
     return { width: `${Math.max(8, width * 100)}%` };
 }
-
 </script>
-
 
 <style>
 .agent-info-card {
@@ -343,11 +374,13 @@ function decisionTotalBarStyle(section: DecisionSection, action: number): Record
 
 .decision-col-head.unavailable {
     background:
-        repeating-linear-gradient(-45deg,
+        repeating-linear-gradient(
+            -45deg,
             color-mix(in srgb, var(--bs-danger) 9%, transparent) 0,
             color-mix(in srgb, var(--bs-danger) 9%, transparent) 6px,
             transparent 6px,
-            transparent 12px),
+            transparent 12px
+        ),
         color-mix(in srgb, var(--bs-body-bg) 92%, transparent);
 }
 
@@ -376,11 +409,13 @@ function decisionTotalBarStyle(section: DecisionSection, action: number): Record
 .decision-cell.unavailable {
     border-color: color-mix(in srgb, var(--bs-danger) 55%, var(--bs-border-color));
     background:
-        repeating-linear-gradient(-45deg,
+        repeating-linear-gradient(
+            -45deg,
             color-mix(in srgb, var(--bs-danger) 10%, transparent) 0,
             color-mix(in srgb, var(--bs-danger) 10%, transparent) 6px,
             transparent 6px,
-            transparent 12px),
+            transparent 12px
+        ),
         color-mix(in srgb, var(--bs-body-bg) 88%, transparent);
 }
 
@@ -390,9 +425,11 @@ function decisionTotalBarStyle(section: DecisionSection, action: number): Record
     top: 0;
     bottom: 0;
     border-radius: 0.35rem;
-    background: linear-gradient(90deg,
-            color-mix(in srgb, var(--bs-info) 25%, transparent),
-            color-mix(in srgb, var(--bs-primary) 26%, transparent));
+    background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--bs-info) 25%, transparent),
+        color-mix(in srgb, var(--bs-primary) 26%, transparent)
+    );
     pointer-events: none;
 }
 
@@ -440,13 +477,13 @@ function decisionTotalBarStyle(section: DecisionSection, action: number): Record
     background: var(--bs-secondary-bg);
 }
 
-.observation-panel>summary {
+.observation-panel > summary {
     cursor: pointer;
     font-weight: 600;
 }
 
 .decision-section-title th {
-    background-color: #f4f6f8;
+    background-color: var(--bs-tertiary-bg);
     text-align: left;
 }
 

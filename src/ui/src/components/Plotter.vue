@@ -4,14 +4,18 @@
             <div class="plotter-header-top">
                 <div class="plotter-title-row">
                     <h3 class="title">{{ title }}</h3>
-                    <span v-if="category" class="plotter-category-badge">
+                    <span v-if="category" class="badge text-bg-primary">
                         {{ category }}
                     </span>
                 </div>
                 <div class="plotter-button-group">
                     <div class="btn-group">
-                        <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
-                            @click="showOptions = !showOptions" title="Toggle options">
+                        <button
+                            class="btn btn-sm"
+                            :class="showOptions ? 'btn-success' : 'btn-light'"
+                            @click="showOptions = !showOptions"
+                            title="Toggle options"
+                        >
                             <font-awesome-icon :icon="['fas', 'gear']" />
                         </button>
                         <button class="btn btn-sm btn-light" @click="resetZoom" title="Reset zoom">
@@ -25,8 +29,7 @@
                         </button>
                     </div>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')"
-                            :title="expanded ? 'Shrink' : 'Expand'">
+                        <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')" :title="expanded ? 'Shrink' : 'Expand'">
                             <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
                         </button>
                         <button class="btn btn-sm btn-light" @click="$emit('close')" title="Close">
@@ -46,18 +49,18 @@
                 <b class="me-1">Y-scale:</b>
                 <label v-for="scale in SCALES" :key="scale" class="me-2 option-label">
                     {{ scale }}
-                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType">
+                    <input type="radio" :value="scale" name="y-scale" v-model="yScaleType" />
                 </label>
             </div>
 
             <div class="options-row">
                 <label class="option-label">
-                    <input type="checkbox" v-model="enablePlusMinus">
+                    <input type="checkbox" v-model="enablePlusMinus" />
                     <b class="me-1">Show uncertainty</b>
                 </label>
                 <label v-for="pm in PLUS_MINUS" :key="pm" class="me-2 option-label">
                     {{ pm }}
-                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" :disabled="!enablePlusMinus">
+                    <input type="radio" :value="pm" name="plusMinus" v-model="plusMinus" :disabled="!enablePlusMinus" />
                 </label>
             </div>
 
@@ -65,14 +68,16 @@
                 <div class="series-row" v-for="label in seriesLabels" :key="label">
                     <span class="series-name">{{ label }}</span>
                     <label class="option-label compact">
-                        <input type="checkbox" :checked="isSeriesVisible(label)"
-                            @change="toggleSeriesVisibility(label)">
+                        <input type="checkbox" :checked="isSeriesVisible(label)" @change="toggleSeriesVisibility(label)" />
                         Series
                     </label>
                     <label class="option-label compact" :class="{ disabled: !enablePlusMinus }">
-                        <input type="checkbox" :checked="isBandVisible(label)"
+                        <input
+                            type="checkbox"
+                            :checked="isBandVisible(label)"
                             :disabled="!enablePlusMinus || !isSeriesVisible(label)"
-                            @change="toggleBandVisibility(label)">
+                            @change="toggleBandVisibility(label)"
+                        />
                         Band
                     </label>
                 </div>
@@ -82,43 +87,43 @@
 </template>
 
 <script setup lang="ts">
-import { Chart, ChartDataset } from 'chart.js/auto';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { storeToRefs } from 'pinia';
-import { Dataset } from '../models/Experiment';
+import { Chart, ChartDataset } from "chart.js/auto";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { storeToRefs } from "pinia";
+import { Dataset } from "../models/Experiment";
 import { clip, downloadStringAsFile } from "../utils";
-import { useColourStore } from '../stores/ColourStore';
+import { useColourStore } from "../stores/ColourStore";
 
 const SCALES = ["Linear", "Logarithmic"] as const;
 const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
 
 let chart: Chart | null = null;
 const emits = defineEmits<{
-    (event: "datapoint-clicked", logdir: string, timeStep: number): void
-    (event: "toggle-expanded"): void
-    (event: "close"): void
+    (event: "datapoint-clicked", logdir: string, timeStep: number): void;
+    (event: "toggle-expanded"): void;
+    (event: "close"): void;
 }>();
 const colourStore = useColourStore();
 const { colours } = storeToRefs(colourStore);
 const canvas = ref({} as HTMLCanvasElement);
 
 const props = defineProps<{
-    datasets: readonly Dataset[]
-    title: string
-    showLegend: boolean
-    expanded?: boolean
+    datasets: readonly Dataset[];
+    title: string;
+    showLegend: boolean;
+    expanded?: boolean;
 }>();
-const yScaleType = ref("Linear" as typeof SCALES[number]);
-const plusMinus = ref("95% C.I." as typeof PLUS_MINUS[number]);
+const yScaleType = ref("Linear" as (typeof SCALES)[number]);
+const plusMinus = ref("95% C.I." as (typeof PLUS_MINUS)[number]);
 const enablePlusMinus = ref(true);
 const showOptions = ref(false);
 const hiddenSeries = ref({} as Record<string, boolean>);
 const hiddenBands = ref({} as Record<string, boolean>);
 const seriesIndicesByLabel = ref(new Map<string, number[]>());
 const bandIndicesByLabel = ref(new Map<string, number[]>());
-const category = computed(() => props.datasets.at(0)?.category)
+const category = computed(() => props.datasets.at(0)?.category);
 
-const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace('logs/', '')))).sort());
+const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace("logs/", "")))).sort());
 
 watch(colours, updateChartData);
 
@@ -146,16 +151,24 @@ function updateChartData() {
     const seriesIndices = new Map<string, number[]>();
     const bandIndices = new Map<string, number[]>();
     let index = 0;
-    props.datasets.forEach(ds => {
+    props.datasets.forEach((ds) => {
         allTicks.push(...ds.ticks);
         const colour = colourStore.get(ds.logdir);
         const legendLabel = ds.logdir.replace("logs/", "");
         if (enablePlusMinus.value) {
             let lower;
             if (plusMinus.value == "Standard deviation") {
-                lower = clip(ds.mean.map((m, i) => m - ds.std[i]), ds.min, ds.max);
+                lower = clip(
+                    ds.mean.map((m, i) => m - ds.std[i]),
+                    ds.min,
+                    ds.max,
+                );
             } else if (plusMinus.value == "95% C.I.") {
-                lower = clip(ds.mean.map((m, i) => m - ds.ci95[i]), ds.min, ds.max);
+                lower = clip(
+                    ds.mean.map((m, i) => m - ds.ci95[i]),
+                    ds.min,
+                    ds.max,
+                );
             } else {
                 throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
@@ -163,7 +176,7 @@ function updateChartData() {
             datasets.push({
                 data: tickedDataset(ds.ticks, lower),
                 backgroundColor: lowerColour,
-                fill: "+1"
+                fill: "+1",
             });
             bandIndices.set(legendLabel, [...(bandIndices.get(legendLabel) ?? []), index]);
             index += 1;
@@ -179,9 +192,17 @@ function updateChartData() {
         if (enablePlusMinus.value) {
             let upper;
             if (plusMinus.value == "Standard deviation") {
-                upper = clip(ds.mean.map((m, i) => m + ds.std[i]), ds.min, ds.max);
+                upper = clip(
+                    ds.mean.map((m, i) => m + ds.std[i]),
+                    ds.min,
+                    ds.max,
+                );
             } else if (plusMinus.value == "95% C.I.") {
-                upper = clip(ds.mean.map((m, i) => m + ds.ci95[i]), ds.min, ds.max);
+                upper = clip(
+                    ds.mean.map((m, i) => m + ds.ci95[i]),
+                    ds.min,
+                    ds.max,
+                );
             } else {
                 throw new Error("Unknown plusMinus value: " + plusMinus.value);
             }
@@ -231,33 +252,36 @@ watch(yScaleType, () => {
     } else if (yScaleType.value == "Logarithmic") {
         chart.options!.scales!.y!.type = "logarithmic";
     } else {
-        alert("Unknown scale type: " + yScaleType.value)
+        alert("Unknown scale type: " + yScaleType.value);
     }
-    chart.update()
+    chart.update();
 });
-watch(enablePlusMinus, updateChartData)
+watch(enablePlusMinus, updateChartData);
 watch(plusMinus, updateChartData);
-watch(() => props.expanded, async () => {
-    if (chart == null) {
-        return;
-    }
-    // The card width changes outside of the canvas; trigger an explicit resize.
-    await nextTick();
-    chart.resize();
-    chart.update('none');
-});
+watch(
+    () => props.expanded,
+    async () => {
+        if (chart == null) {
+            return;
+        }
+        // The card width changes outside of the canvas; trigger an explicit resize.
+        await nextTick();
+        chart.resize();
+        chart.update("none");
+    },
+);
 
 onMounted(() => {
     chart = initialiseChart();
     updateChartData();
-})
+});
 
 function initialiseChart(): Chart {
     return new Chart(canvas.value, {
-        type: 'line',
+        type: "line",
         data: {
             labels: [],
-            datasets: []
+            datasets: [],
         },
         options: {
             responsive: true,
@@ -289,14 +313,14 @@ function initialiseChart(): Chart {
                         generateLabels(chart) {
                             if (!props.showLegend) return [];
                             const defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-                            return defaultLabels.filter(label => !!label.text)
-                        }
+                            return defaultLabels.filter((label) => !!label.text);
+                        },
                     },
                     onClick: (_, legendItem) => {
-                        if (typeof legendItem.text === 'string' && legendItem.text.length > 0) {
+                        if (typeof legendItem.text === "string" && legendItem.text.length > 0) {
                             toggleSeriesVisibility(legendItem.text);
                         }
-                    }
+                    },
                 },
                 tooltip: {
                     filter: (tooltipItem) => {
@@ -304,30 +328,30 @@ function initialiseChart(): Chart {
                             return false;
                         }
                         return tooltipItem.dataset.label.length > 0;
-                    }
+                    },
                 },
                 zoom: {
                     pan: {
                         enabled: true,
-                        mode: 'xy',
-                        modifierKey: 'ctrl',
+                        mode: "xy",
+                        modifierKey: "ctrl",
                     },
                     zoom: {
-                        mode: 'xy',
+                        mode: "xy",
                         drag: {
                             enabled: true,
-                            borderColor: 'rgb(54, 162, 235)',
+                            borderColor: "rgb(54, 162, 235)",
                             borderWidth: 1,
-                            backgroundColor: 'rgba(54, 162, 235, 0.3)'
-                        }
-                    }
-                }
+                            backgroundColor: "rgba(54, 162, 235, 0.3)",
+                        },
+                    },
+                },
             },
             scales: {
                 y: {
                     display: true,
-                    type: (yScaleType.value == "Linear") ? "linear" : "logarithmic",
-                }
+                    type: yScaleType.value == "Linear" ? "linear" : "logarithmic",
+                },
             },
         },
     });
@@ -364,44 +388,39 @@ function resetZoom() {
 }
 
 function fileStem() {
-    const raw = props.title.length > 0 ? props.title : 'plot';
-    return raw.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toLowerCase();
+    const raw = props.title.length > 0 ? props.title : "plot";
+    return raw
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .toLowerCase();
 }
 
 function downloadChartImage() {
     if (chart == null) {
         return;
     }
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.download = `${fileStem()}.png`;
     link.href = chart.toBase64Image();
     link.click();
 }
 
 function downloadChartData() {
-    const rows = ['series,tick,mean,std,ci95,min,max'];
+    const rows = ["series,tick,mean,std,ci95,min,max"];
     props.datasets.forEach((ds) => {
-        const series = ds.logdir.replace('logs/', '');
+        const series = ds.logdir.replace("logs/", "");
         for (let i = 0; i < ds.ticks.length; i++) {
-            rows.push([
-                series,
-                ds.ticks[i],
-                ds.mean[i],
-                ds.std[i],
-                ds.ci95[i],
-                ds.min[i],
-                ds.max[i],
-            ].join(','));
+            rows.push([series, ds.ticks[i], ds.mean[i], ds.std[i], ds.ci95[i], ds.min[i], ds.max[i]].join(","));
         }
     });
-    downloadStringAsFile(rows.join('\n'), `${fileStem()}.csv`);
+    downloadStringAsFile(rows.join("\n"), `${fileStem()}.csv`);
 }
 
 function rgbToAlpha(rgb: string, alpha: number) {
     let R = parseInt(rgb.substring(1, 3), 16);
     let G = parseInt(rgb.substring(3, 5), 16);
     let B = parseInt(rgb.substring(5, 7), 16);
-    return `rgba(${R}, ${G}, ${B}, ${alpha})`
+    return `rgba(${R}, ${G}, ${B}, ${alpha})`;
 }
 </script>
 
@@ -525,17 +544,5 @@ function rgbToAlpha(rgb: string, alpha: number) {
     align-items: center;
     flex-wrap: wrap;
     gap: 0.45rem;
-}
-
-.plotter-category-badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.2rem 0.55rem;
-    border-radius: 0.25rem;
-    font-size: 0.78rem;
-    font-weight: 700;
-    color: #0b5ed7;
-    background-color: #d9ecff;
-    border: 1px solid #b9dcff;
 }
 </style>

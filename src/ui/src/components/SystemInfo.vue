@@ -1,20 +1,25 @@
 <template>
     <div ref="rootRef" class="system-info-shell">
-        <button class="stress-chip" type="button" @click="toggleExpanded" :disabled="!hasSystemInfo"
-            :aria-expanded="isExpanded ? 'true' : 'false'">
+        <button
+            class="stress-chip"
+            type="button"
+            @click="toggleExpanded"
+            :disabled="!hasSystemInfo"
+            :aria-expanded="isExpanded ? 'true' : 'false'"
+        >
             <span class="chip-title">System load</span>
             <span class="chip-bars">
                 <span class="mini-bar" :title="`CPU: ${cpuUsage.toFixed(2)}%`">
-                    <span class="mini-fill"
-                        :style="{ width: `${cpuUsage}%`, backgroundColor: getStressColor(cpuUsage) }"></span>
+                    <span class="mini-fill" :style="{ width: `${cpuUsage}%`, backgroundColor: getStressColor(cpuUsage) }"></span>
                 </span>
                 <span class="mini-bar" :title="`RAM: ${ramUsage.toFixed(2)}%`">
-                    <span class="mini-fill"
-                        :style="{ width: `${ramUsage}%`, backgroundColor: getStressColor(ramUsage) }"></span>
+                    <span class="mini-fill" :style="{ width: `${ramUsage}%`, backgroundColor: getStressColor(ramUsage) }"></span>
                 </span>
                 <span class="mini-bar" :title="`GPU: ${gpuAggregateUsage.toFixed(2)}%`">
-                    <span class="mini-fill"
-                        :style="{ width: `${gpuAggregateUsage}%`, backgroundColor: getStressColor(gpuAggregateUsage) }"></span>
+                    <span
+                        class="mini-fill"
+                        :style="{ width: `${gpuAggregateUsage}%`, backgroundColor: getStressColor(gpuAggregateUsage) }"
+                    ></span>
                 </span>
             </span>
             <span class="chip-status" :style="{ color: getStressColor(overallStress) }">
@@ -31,9 +36,7 @@
                     <span class="metric-value">{{ cpuUsage.toFixed(1) }}%</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill"
-                        :style="{ width: cpuUsage + '%', backgroundColor: getStressColor(cpuUsage) }">
-                    </div>
+                    <div class="progress-fill" :style="{ width: cpuUsage + '%', backgroundColor: getStressColor(cpuUsage) }"></div>
                 </div>
             </div>
 
@@ -44,9 +47,7 @@
                     <span class="metric-value">{{ ramUsage.toFixed(1) }}%</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill"
-                        :style="{ width: ramUsage + '%', backgroundColor: getStressColor(ramUsage) }">
-                    </div>
+                    <div class="progress-fill" :style="{ width: ramUsage + '%', backgroundColor: getStressColor(ramUsage) }"></div>
                 </div>
             </div>
 
@@ -61,9 +62,10 @@
                         <span class="bar-value">{{ (gpu.utilization * 100).toFixed(0) }}%</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill"
-                            :style="{ width: (gpu.utilization * 100) + '%', backgroundColor: getStressColor(gpu.utilization * 100) }">
-                        </div>
+                        <div
+                            class="progress-fill"
+                            :style="{ width: gpu.utilization * 100 + '%', backgroundColor: getStressColor(gpu.utilization * 100) }"
+                        ></div>
                     </div>
                 </div>
                 <div class="gpu-bar-group">
@@ -72,9 +74,10 @@
                         <span class="bar-value">{{ (gpu.memory_usage * 100).toFixed(0) }}%</span>
                     </div>
                     <div class="progress-bar">
-                        <div class="progress-fill"
-                            :style="{ width: (gpu.memory_usage * 100) + '%', backgroundColor: getStressColor(gpu.memory_usage * 100) }">
-                        </div>
+                        <div
+                            class="progress-fill"
+                            :style="{ width: gpu.memory_usage * 100 + '%', backgroundColor: getStressColor(gpu.memory_usage * 100) }"
+                        ></div>
                     </div>
                 </div>
             </div>
@@ -83,8 +86,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useSystemStore } from '../stores/SystemStore'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useSystemStore } from "../stores/SystemStore";
 import {
     getCpuUsage,
     getGpuAggregateStress,
@@ -93,7 +96,7 @@ import {
     getStressColor,
     getStressLabel,
     TemporalStressFilter,
-} from '../utils/systemStress';
+} from "../utils/systemStress";
 
 const systemStore = useSystemStore();
 const isExpanded = ref(false);
@@ -119,7 +122,7 @@ const gpuAggregateUsage = computed(() => smoothedGpuAggregateUsage.value);
 const overallStress = computed(() => smoothedOverallStress.value);
 
 const stressLabel = computed(() => {
-    if (systemStore.systemInfo == null) return 'Offline';
+    if (systemStore.systemInfo == null) return "Offline";
     return getStressLabel(overallStress.value);
 });
 
@@ -157,7 +160,7 @@ watch(
             smoothedOverallStress.value = overallFilter.addReading(rawOverall);
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 function toggleExpanded() {
@@ -180,19 +183,19 @@ function handleOutsideClick(event: MouseEvent) {
 }
 
 function handleEscape(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
+    if (event.key === "Escape") {
         isExpanded.value = false;
     }
 }
 
 onMounted(() => {
-    document.addEventListener('mousedown', handleOutsideClick);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
 });
 
 onBeforeUnmount(() => {
-    document.removeEventListener('mousedown', handleOutsideClick);
-    document.removeEventListener('keydown', handleEscape);
+    document.removeEventListener("mousedown", handleOutsideClick);
+    document.removeEventListener("keydown", handleEscape);
 });
 </script>
 
@@ -207,12 +210,12 @@ onBeforeUnmount(() => {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    border: 1px solid rgb(215, 207, 192);
+    border: 1px solid var(--bs-border-color);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--bs-body-bg);
     padding: 0.2rem 0.55rem;
     font-size: 0.74rem;
-    color: rgb(60, 60, 60);
+    color: var(--bs-body-color);
 }
 
 .stress-chip:disabled {
@@ -234,7 +237,7 @@ onBeforeUnmount(() => {
     width: 18px;
     height: 4px;
     border-radius: 999px;
-    background: rgb(228, 228, 228);
+    background: var(--bs-secondary-bg);
     overflow: hidden;
 }
 
@@ -251,7 +254,7 @@ onBeforeUnmount(() => {
 
 .chip-chevron {
     font-size: 0.65rem;
-    color: rgb(108, 108, 108);
+    color: var(--bs-secondary-color);
 }
 
 .details-popover {
@@ -263,9 +266,9 @@ onBeforeUnmount(() => {
     gap: 0.35rem;
     align-items: stretch;
     padding: 0.35rem;
-    border: 1px solid rgb(213, 204, 191);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.4rem;
-    background: rgba(255, 255, 255, 0.97);
+    background: var(--bs-body-bg);
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
 }
 
@@ -276,16 +279,16 @@ onBeforeUnmount(() => {
     gap: 0.15rem;
     padding: 0.25rem 0.4rem;
     border-radius: 0.3rem;
-    background: rgba(255, 255, 255, 0.75);
-    border: 1px solid rgb(221, 211, 197);
+    background: var(--bs-tertiary-bg);
+    border: 1px solid var(--bs-border-color);
     min-width: 90px;
     transition: all 0.3s ease;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .metric-card:hover {
-    border-color: rgb(201, 186, 169);
-    background: rgb(255, 255, 255);
+    border-color: var(--bs-border-color);
+    background: var(--bs-secondary-bg);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
@@ -299,13 +302,13 @@ onBeforeUnmount(() => {
 }
 
 .recommendation-label {
-    color: rgb(90, 90, 90);
+    color: var(--bs-secondary-color);
     text-transform: uppercase;
     letter-spacing: 0.2px;
 }
 
 .recommendation-value {
-    color: rgb(15, 23, 42);
+    color: var(--bs-body-color);
     font-weight: 700;
 }
 
@@ -315,12 +318,12 @@ onBeforeUnmount(() => {
     gap: 0.3rem;
     font-size: 0.7rem;
     font-weight: 600;
-    color: rgb(68, 68, 68);
+    color: var(--bs-secondary-color);
 }
 
 .metric-icon {
     font-size: 0.8rem;
-    color: rgb(107, 114, 128);
+    color: var(--bs-secondary-color);
     flex-shrink: 0;
 }
 
@@ -333,7 +336,7 @@ onBeforeUnmount(() => {
 .metric-value {
     font-size: 0.85rem;
     font-weight: 700;
-    color: rgb(17, 24, 39);
+    color: var(--bs-body-color);
     font-variant-numeric: tabular-nums;
     margin-left: auto;
     flex-shrink: 0;
@@ -341,7 +344,7 @@ onBeforeUnmount(() => {
 
 .progress-bar {
     height: 10px;
-    background: rgb(229, 231, 235);
+    background: var(--bs-secondary-bg);
     border-radius: 1.5px;
     overflow: hidden;
 }
@@ -368,7 +371,7 @@ onBeforeUnmount(() => {
     gap: 0.25rem;
     font-size: 0.65rem;
     font-weight: 600;
-    color: rgb(68, 68, 68);
+    color: var(--bs-secondary-color);
 }
 
 .bar-label {
@@ -379,7 +382,7 @@ onBeforeUnmount(() => {
 }
 
 .bar-value {
-    color: rgb(17, 24, 39);
+    color: var(--bs-body-color);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     margin-left: auto;

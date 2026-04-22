@@ -1,9 +1,14 @@
 <template>
     <div class="device-picker">
-        <div v-for="option in deviceOptions" :key="option.value" class="device-option"
-            :class="{ 'is-selected': isSelected(option.value) }">
-            <input :type="multiple ? 'checkbox' : 'radio'" :id="`device-${option.value}`" :value="option.value"
-                :checked="isSelected(option.value)" class="form-check-input" @change="toggleDevice(option.value)" />
+        <div v-for="option in deviceOptions" :key="option.value" class="device-option" :class="{ 'is-selected': isSelected(option.value) }">
+            <input
+                :type="multiple ? 'checkbox' : 'radio'"
+                :id="`device-${option.value}`"
+                :value="option.value"
+                :checked="isSelected(option.value)"
+                class="form-check-input"
+                @change="toggleDevice(option.value)"
+            />
             <label :for="`device-${option.value}`" class="device-label">
                 <span class="device-name">{{ option.label }}</span>
                 <span class="device-stress" :style="{ color: getStressColor(option.stress) }">
@@ -21,19 +26,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useSystemStore } from '../../stores/SystemStore';
-import { buildDeviceOptions, buildGpuDeviceOptions, getRecommendedDevice, getStressColor, getStressLabel } from '../../utils/systemStress';
+import { computed } from "vue";
+import { useSystemStore } from "../../stores/SystemStore";
+import { buildDeviceOptions, buildGpuDeviceOptions, getRecommendedDevice, getStressColor, getStressLabel } from "../../utils/systemStress";
 
-const props = withDefaults(defineProps<{
-    multiple?: boolean;
-    includeSystemDevices?: boolean;
-    warningText?: string | null;
-}>(), {
-    multiple: false,
-    includeSystemDevices: true,
-    warningText: null,
-});
+const props = withDefaults(
+    defineProps<{
+        multiple?: boolean;
+        includeSystemDevices?: boolean;
+        warningText?: string | null;
+    }>(),
+    {
+        multiple: false,
+        includeSystemDevices: true,
+        warningText: null,
+    },
+);
 
 const device = defineModel<string | string[]>({ required: true });
 
@@ -84,17 +92,17 @@ function isRecommended(value: string): boolean {
     align-items: center;
     gap: 0.5rem;
     padding: 0.7rem 0.8rem;
-    border: 1px solid rgb(220, 220, 220);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.6rem;
-    background: rgba(255, 255, 255, 0.75);
+    background: var(--bs-body-bg);
     cursor: pointer;
     transition: all 0.2s ease;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .device-option:hover {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgb(180, 180, 180);
+    background: var(--bs-secondary-bg);
+    border-color: var(--bs-border-color);
 }
 
 .device-option.is-selected {
@@ -115,7 +123,7 @@ function isRecommended(value: string): boolean {
     margin-bottom: 0;
     cursor: pointer;
     font-weight: 500;
-    color: rgb(40, 40, 40);
+    color: var(--bs-body-color);
 }
 
 .device-name {
@@ -130,7 +138,7 @@ function isRecommended(value: string): boolean {
 
 .device-percentage {
     font-variant-numeric: tabular-nums;
-    color: rgb(90, 90, 90);
+    color: var(--bs-secondary-color);
     font-size: 0.85rem;
     margin-left: auto;
 }

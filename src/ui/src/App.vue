@@ -2,9 +2,7 @@
     <main>
         <header class="app-header">
             <h1 class="app-title">
-                <RouterLink to="/home" aria-label="Go to homepage"
-                    >RL Dashboard</RouterLink
-                >
+                <RouterLink to="/home" aria-label="Go to homepage">RL Dashboard</RouterLink>
             </h1>
             <div class="app-header-actions">
                 <button type="button" class="btn btn-sm btn-outline-secondary" @click="openSettings">
