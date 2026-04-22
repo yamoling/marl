@@ -12,8 +12,14 @@
                 <div class="modal-body timeline-body">
                     <div class="wizard-panel">
                         <div class="wizard-toolbar mb-3">
-                            <button type="button" class="btn btn-sm btn-outline-secondary"
-                                @click="() => draftSelections = []">
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                @click="() => (draftSelections = [])"
+                                title="Clear all selected tracks"
+                                aria-label="Clear all selected tracks"
+                            >
+                                <font-awesome-icon :icon="['fas', 'rotate-left']" />
                                 Clear all
                             </button>
                         </div>
@@ -21,53 +27,67 @@
                         <div class="option-list">
                             <section v-for="track in availableTracks" :key="track.label" class="option-card">
                                 <template v-if="isGroup(track)">
-                                    <div class=" option-card-head">
+                                    <div class="option-card-head">
                                         <label class="track-toggle">
-                                            <input class="form-check-input" type="checkbox" :checked="isSelected(track)"
-                                                @change="(event) => onGroupToggle(track, event)" />
-                                            <span class="option-label text-capitalize"
-                                                :class="{ dimmed: !hasAnySelected(track) }">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                :checked="isSelected(track)"
+                                                @change="(event) => onGroupToggle(track, event)"
+                                            />
+                                            <span class="option-label text-capitalize" :class="{ dimmed: !hasAnySelected(track) }">
                                                 {{ track.label }}
                                             </span>
                                         </label>
 
-                                        <select class="form-select form-select-sm" :disabled="!isSelected(track)"
+                                        <select
+                                            class="form-select form-select-sm"
+                                            :disabled="!isSelected(track)"
                                             :value="kindForGroup(track)"
-                                            @change="(event) => onFamilyKindChange(track, event)">
+                                            @change="(event) => onFamilyKindChange(track, event)"
+                                        >
                                             <option value="numeric">Numerical</option>
                                             <option value="categorical">Categorical</option>
                                         </select>
-
                                     </div>
                                     <div class="component-grid">
-                                        <label v-for="subtrack in track.subTracks" :key="subtrack.label"
-                                            class="component-option text-capitalize">
-                                            <input class="form-check-input" type="checkbox"
+                                        <label
+                                            v-for="subtrack in track.subTracks"
+                                            :key="subtrack.label"
+                                            class="component-option text-capitalize"
+                                        >
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
                                                 :checked="isSelected(subtrack)"
-                                                @change="(event) => onTrackToggle(subtrack, event)" />
+                                                @change="(event) => onTrackToggle(subtrack, event)"
+                                            />
                                             <span>{{ subtrack.label }}</span>
                                         </label>
                                     </div>
-
                                 </template>
                                 <template v-else>
                                     <div class="option-card-head">
                                         <label class="track-toggle">
-                                            <input class="form-check-input" type="checkbox" :checked="isSelected(track)"
-                                                @change="(event) => onTrackToggle(track, event)" />
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                :checked="isSelected(track)"
+                                                @change="(event) => onTrackToggle(track, event)"
+                                            />
                                             <span class="option-label">{{ track.label }}</span>
                                         </label>
-                                        <select class="form-select form-select-sm" :disabled="!isSelected(track)"
+                                        <select
+                                            class="form-select form-select-sm"
+                                            :disabled="!isSelected(track)"
                                             :value="kindForTrack(track)"
-                                            @change="(event) => onTrackKindChange(track, event)">
+                                            @change="(event) => onTrackKindChange(track, event)"
+                                        >
                                             <option value="numeric">Numerical</option>
                                             <option value="categorical">Categorical</option>
                                         </select>
                                     </div>
                                 </template>
-
-
-
                             </section>
                         </div>
                     </div>
@@ -75,9 +95,7 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" @click="close">Cancel</button>
-                    <button type="button" class="btn btn-primary" @click="confirm">
-                        Apply tracks
-                    </button>
+                    <button type="button" class="btn btn-primary" @click="confirm">Apply tracks</button>
                 </div>
             </div>
         </div>
@@ -85,32 +103,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { Modal } from 'bootstrap';
-import { ReplayEpisode } from '../../models/Episode';
-import { type TrackConfig, TrackGroup, type TimelineTrackKind } from '../../models/Timeline';
-import { useTracksStore } from '../../stores/TracksStore';
+import { computed, ref } from "vue";
+import { Modal } from "bootstrap";
+import { ReplayEpisode } from "../../models/Episode";
+import { type TrackConfig, TrackGroup, type TimelineTrackKind } from "../../models/Timeline";
+import { useTracksStore } from "../../stores/TracksStore";
+import { useSettingsStore } from "../../stores/SettingsStore";
 
 const props = defineProps<{
-    readonly episode: ReplayEpisode,
-    readonly logdir: string,
+    readonly episode: ReplayEpisode;
+    readonly logdir: string;
 }>();
 const emits = defineEmits<{
-    (event: 'applied'): void,
+    (event: "applied"): void;
 }>();
 
 const trackStore = useTracksStore();
+const settingsStore = useSettingsStore();
 const modal = ref({} as HTMLDivElement);
 let modalInstance: Modal | null = null;
 const draftSelections = ref([] as TrackConfig[]);
 const availableTracks = computed(() => props.episode.tracks);
 
-
 function isSelected(track: TrackConfig | TrackGroup): boolean {
     if (track instanceof TrackGroup) {
-        return track.subTracks.every(t => isSelected(t));
+        return track.subTracks.every((t) => isSelected(t));
     }
-    return draftSelections.value.some(t => t.label === track.label);
+    return draftSelections.value.some((t) => t.label === track.label);
 }
 
 function hasAnySelected(track: TrackGroup): boolean {
@@ -122,11 +141,26 @@ function isGroup(track: TrackConfig | TrackGroup): track is TrackGroup {
 }
 
 function showModal() {
-    draftSelections.value = trackStore.forLogdir(props.logdir).map((track) => ({ label: track.label, kind: track.kind }));
+    const storedTracks = trackStore.forLogdir(props.logdir);
+    if (storedTracks.length > 0) {
+        draftSelections.value = storedTracks.map((track) => ({ label: track.label, kind: track.kind }));
+    } else {
+        const nextSelections: TrackConfig[] = [];
+        for (const track of availableTracks.value) {
+            const leafTracks = track instanceof TrackGroup ? track.getTracks() : [track];
+            for (const leafTrack of leafTracks) {
+                const resolution = settingsStore.resolveTrackPreference(leafTrack.label, leafTrack.kind);
+                nextSelections.push({
+                    label: leafTrack.label,
+                    kind: resolution.kind,
+                });
+            }
+        }
+        draftSelections.value = nextSelections;
+    }
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
-
     modalInstance.show();
 }
 
@@ -134,10 +168,12 @@ function close() {
     modalInstance?.hide();
 }
 
-
 function confirm() {
-    trackStore.set(props.logdir, draftSelections.value.map((track) => ({ label: track.label, kind: track.kind })));
-    emits("applied")
+    trackStore.set(
+        props.logdir,
+        draftSelections.value.map((track) => ({ label: track.label, kind: track.kind })),
+    );
+    emits("applied");
     close();
 }
 
@@ -176,11 +212,7 @@ function setDraftKind(track: TrackConfig, kind: TimelineTrackKind) {
         return;
     }
 
-    draftSelections.value = draftSelections.value.map((entry) =>
-        entry.label === track.label
-            ? { label: entry.label, kind }
-            : entry,
-    );
+    draftSelections.value = draftSelections.value.map((entry) => (entry.label === track.label ? { label: entry.label, kind } : entry));
 }
 
 function kindForTrack(track: TrackConfig): TimelineTrackKind {
@@ -189,13 +221,9 @@ function kindForTrack(track: TrackConfig): TimelineTrackKind {
 
 function kindForGroup(group: TrackGroup): TimelineTrackKind {
     const kinds = group.subTracks.map((track) => kindForTrack(track));
-    const numericCount = kinds.filter((kind) => kind === 'numeric').length;
-    return numericCount > kinds.length - numericCount ? 'numeric' : 'categorical';
+    const numericCount = kinds.filter((kind) => kind === "numeric").length;
+    return numericCount > kinds.length - numericCount ? "numeric" : "categorical";
 }
-
-
-
-
 
 defineExpose({ showModal });
 </script>

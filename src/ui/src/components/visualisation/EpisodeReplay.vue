@@ -148,6 +148,7 @@ import TimelineChartTracks from "./TimelineChartTracks.vue";
 import TrackWizard from "../modals/TrackWizard.vue";
 import { useTracksStore } from "../../stores/TracksStore";
 import { Track, type TimelineTrackKind } from "../../models/Timeline";
+import { useSettingsStore } from "../../stores/SettingsStore";
 
 const trackWizardModal = ref<InstanceType<typeof TrackWizard> | null>(null);
 const props = defineProps<{
@@ -157,6 +158,7 @@ const props = defineProps<{
 
 const replayStore = useReplayStore();
 const tracksStore = useTracksStore();
+const settingsStore = useSettingsStore();
 const episode = shallowRef<ReplayEpisode | null>(null);
 const tracks = computed(() => {
     const e = episode.value;
@@ -257,7 +259,13 @@ function onTimelineTrackKindChange(track: Track, event: Event) {
 async function load(replay: ReplayEpisodeSummary) {
     error.value = null;
     episode.value = null;
-    episode.value = await replayStore.getEpisode(replay.time_step, replay.test_num, replay.rundir);
+    episode.value = await replayStore.getEpisode(
+        replay.time_step,
+        replay.test_num,
+        replay.rundir,
+        settingsStore.resolveReplay(props.experiment).onlySavedActions,
+    );
+    tracksStore.notifyTracks(episode.value.tracks);
     currentStep.value = 0;
     error.value = null;
 }

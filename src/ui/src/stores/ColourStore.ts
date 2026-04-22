@@ -1,28 +1,14 @@
 import { defineStore } from "pinia";
-import { stringToRGB, qvalueLabelToHSL } from "../utils";
-import { ref } from "vue";
-import { fromJsonString } from "../utils";
+import { stringToRGB } from "../utils";
+import { computed } from "vue";
+import { useSettingsStore } from "./SettingsStore";
 
 export const useColourStore = defineStore("ColourStore", () => {
-
-    const colours = ref(initColoursFromLocalStorage());
-
-    function initColoursFromLocalStorage() {
-        try {
-            const entries = JSON.parse(localStorage.getItem("logdirColours") ?? "[]");
-            return new Map<string, string>(entries);
-        } catch (e) {
-            return new Map<string, string>();
-        }
-    }
-
-    function saveColoursToLocalStorage() {
-        localStorage.setItem("logdirColours", JSON.stringify(Array.from(colours.value.entries())));
-    }
+    const settingsStore = useSettingsStore();
+    const colours = computed(() => settingsStore.settings.visualization.colours);
 
     function get(logdir: string): string {
-        // TODO: store label+flag agent/value-hue
-        let colour = colours.value.get(logdir);
+        let colour = colours.value[logdir];
         if (colour != null) {
             return colour;
         }
@@ -31,28 +17,15 @@ export const useColourStore = defineStore("ColourStore", () => {
         return colour;
     }
 
-    function getQColour(label: string, qv_or_ag: boolean): string {
-        let colour = colours.value.get(label);
-        if (colour != null) {
-            return colour;
-        }
-        colour = qvalueLabelToHSL(label, qv_or_ag);
-        set(label, colour);
-        return colour;
-    }
 
     function set(logdir: string, colour: string) {
-        const updated = new Map(colours.value);
-        updated.set(logdir, colour);
-        colours.value = updated;
-        saveColoursToLocalStorage();
+        settingsStore.setColour(logdir, colour);
     }
 
 
     return {
         colours,
         get,
-        getQColour,
         set
     };
 });

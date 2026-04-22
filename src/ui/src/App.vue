@@ -6,16 +6,31 @@
                     >RL Dashboard</RouterLink
                 >
             </h1>
-            <SystemInfo />
+            <div class="app-header-actions">
+                <button type="button" class="btn btn-sm btn-outline-secondary" @click="openSettings">
+                    <font-awesome-icon :icon="['fas', 'gear']" class="me-1" />
+                    Settings
+                </button>
+                <SystemInfo />
+            </div>
         </header>
+        <SettingsModal ref="settingsModal" />
         <RouterView></RouterView>
         <GlobalErrors />
     </main>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import SystemInfo from "./components/SystemInfo.vue";
 import GlobalErrors from "./components/GlobalErrors.vue";
+import SettingsModal from "./components/modals/SettingsModal.vue";
+
+const settingsModal = ref<InstanceType<typeof SettingsModal> | null>(null);
+
+function openSettings() {
+    settingsModal.value?.showModal();
+}
 </script>
 
 <style>
@@ -62,6 +77,12 @@ main {
 .app-title a:hover,
 .app-title a:focus-visible {
     text-decoration: underline;
+}
+
+.app-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
 }
 
 dialog {

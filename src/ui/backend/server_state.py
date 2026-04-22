@@ -106,7 +106,7 @@ class ServerState:
     def unload_experiment(self, logdir: str) -> Experiment | None:
         return self._experiments.pop(logdir, None)
 
-    def replay_episode(self, rundir: str, time_step: int, test_num: int) -> ReplayEpisode:
+    def replay_episode(self, rundir: str, time_step: int, test_num: int, only_saved_actions: bool) -> ReplayEpisode:
         longest_match = ""
         matching_experiment = None
         for logdir, experiment in self._experiments.items():
@@ -119,7 +119,7 @@ class ServerState:
                 f"or navigate to the experiment page before replaying an episode."
             )
         run_num = matching_experiment.rundirs.index(rundir)
-        return matching_experiment.replay_episode(run_num, time_step, test_num)
+        return matching_experiment.replay_episode(run_num, time_step, test_num, only_saved_actions=only_saved_actions)
 
 
 class GarbageCollector(Thread):

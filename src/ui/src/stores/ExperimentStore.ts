@@ -17,6 +17,7 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     });
     return res;
   });
+  const trainerNames = computed(() => experiments.value.map(exp => exp.trainer.name));
   refresh();
 
   async function loadExperiments(): Promise<Experiment[]> {
@@ -103,10 +104,12 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     experiments.value = await loadExperiments();
   }
 
+
   return {
     loading,
     experiments,
     isRunning,
+    trainerNames,
     refresh,
     getExperiment,
     loadExperiment,

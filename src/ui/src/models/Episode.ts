@@ -2,7 +2,6 @@ import { ActionSpace } from "./Env";
 import { Track, TrackGroup } from "./Timeline";
 import { z } from "zod";
 
-
 export const ReplayEpisodeSummarySchema = z.object({
   rundir: z.string(),
   time_step: z.number(),
@@ -103,7 +102,7 @@ export class ReplayEpisode {
           for (let j = 0; j < values3D[0][i].length; j++) {
             group.subTracks.push(
               new Track(
-                `${key} Agent ${i}/${j})`,
+                `${key} Agent ${i}/${j}`,
                 "numeric",
                 values3D.map((v) => v[i][j]),
               ),
