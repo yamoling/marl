@@ -75,14 +75,30 @@
                                             or explicit regex with slashes (for example, <code>/^options/i</code>).
                                         </p>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary"
-                                        @click="addTrackKindRule">
-                                        Add type rule
-                                    </button>
                                 </div>
 
-                                <div v-if="draft.replay.timelineKinds.length === 0" class="empty-state">
-                                    No global track type rules yet.
+                                <div class="rule-row rule-row--adding">
+                                    <div class="rule-key-cell">
+                                        <input v-model="newTimelineKindRule.key" type="text"
+                                            class="form-control form-control-sm rule-key"
+                                            placeholder="Track label or pattern"
+                                            @keydown.enter.prevent="commitNewTimelineKindRule" />
+                                        <span class="badge text-bg-secondary rule-match-badge"
+                                            :title="matchTooltip(newTimelineKindRule.key)">
+                                            {{ matchCount(newTimelineKindRule.key) }}
+                                        </span>
+                                    </div>
+                                    <select v-model="newTimelineKindRule.kind"
+                                        class="form-select form-select-sm rule-value"
+                                        @keydown.enter.prevent="commitNewTimelineKindRule">
+                                        <option value="numeric">Numerical</option>
+                                        <option value="categorical">Categorical</option>
+                                    </select>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        @click="commitNewTimelineKindRule" title="Add track type rule"
+                                        aria-label="Add track type rule">
+                                        <font-awesome-icon :icon="['fas', 'plus']" />
+                                    </button>
                                 </div>
 
                                 <div v-for="(rule, index) in draft.replay.timelineKinds" :key="`timeline-kind-${index}`"
@@ -102,8 +118,9 @@
                                         <option value="categorical">Categorical</option>
                                     </select>
                                     <button type="button" class="btn btn-sm btn-outline-danger"
-                                        @click="removeTrackKindRule(index)">
-                                        Remove
+                                        @click="removeTrackKindRule(index)" title="Remove track type rule"
+                                        aria-label="Remove track type rule">
+                                        <font-awesome-icon :icon="['fas', 'trash']" />
                                     </button>
                                 </div>
                             </div>
@@ -138,29 +155,58 @@
                                             <h6 class="mb-1">Trainer-level replay rules</h6>
                                             <p class="text-muted mb-0">Override replay type for all experiments with a
                                                 specific trainer.</p>
+                                            <p class="text-muted mb-0">
+                                                Rule keys support exact names, glob-like patterns (for example,
+                                                <code>{Option,option}*</code>), or explicit regex with slashes (for
+                                                example, <code>/^option/i</code>).
+                                            </p>
                                         </div>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                            @click="addReplayTrainerRule">
-                                            Add rule
-                                        </button>
                                     </div>
 
-                                    <div v-if="draft.replay.trainerRules.length === 0" class="empty-state">
-                                        No trainer replay rules yet.
+                                    <div class="rule-row rule-row--adding">
+                                        <div class="rule-key-cell">
+                                            <input v-model="newTrainerReplayRule.key" type="text"
+                                                class="form-control form-control-sm rule-key"
+                                                placeholder="Trainer name or pattern"
+                                                @keydown.enter.prevent="commitNewTrainerReplayRule" />
+                                            <span class="badge text-bg-secondary rule-match-badge"
+                                                :title="trainerMatchTooltip(newTrainerReplayRule.key)">
+                                                {{ trainerMatchCount(newTrainerReplayRule.key) }}
+                                            </span>
+                                        </div>
+                                        <select v-model="newTrainerReplayRule.value"
+                                            class="form-select form-select-sm rule-value"
+                                            @keydown.enter.prevent="commitNewTrainerReplayRule">
+                                            <option :value="false">Allow agent replay</option>
+                                            <option :value="true">Stored actions only</option>
+                                        </select>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            @click="commitNewTrainerReplayRule" title="Add trainer replay rule"
+                                            aria-label="Add trainer replay rule">
+                                            <font-awesome-icon :icon="['fas', 'plus']" />
+                                        </button>
                                     </div>
 
                                     <div v-for="(rule, index) in draft.replay.trainerRules" :key="`trainer-${index}`"
                                         class="rule-row">
-                                        <input v-model="rule.key" type="text"
-                                            class="form-control form-control-sm rule-key" placeholder="Trainer name"
-                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                        <div class="rule-key-cell">
+                                            <input v-model="rule.key" type="text"
+                                                class="form-control form-control-sm rule-key"
+                                                placeholder="Trainer name or pattern"
+                                                @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                            <span class="badge text-bg-secondary rule-match-badge"
+                                                :title="trainerMatchTooltip(rule.key)">
+                                                {{ trainerMatchCount(rule.key) }}
+                                            </span>
+                                        </div>
                                         <select v-model="rule.value" class="form-select form-select-sm rule-value">
                                             <option :value="false">Allow agent replay</option>
                                             <option :value="true">Stored actions only</option>
                                         </select>
                                         <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @click="removeReplayTrainerRule(index)">
-                                            Remove
+                                            @click="removeReplayTrainerRule(index)" title="Remove trainer replay rule"
+                                            aria-label="Remove trainer replay rule">
+                                            <font-awesome-icon :icon="['fas', 'trash']" />
                                         </button>
                                     </div>
                                 </div>
@@ -202,6 +248,7 @@ import { computed, ref } from "vue";
 import { Modal } from "bootstrap";
 import { useSettingsStore } from "../../stores/SettingsStore";
 import { useTracksStore } from "../../stores/TracksStore";
+import { useExperimentStore } from "../../stores/ExperimentStore";
 import type { TimelineTrackKind } from "../../models/Timeline";
 import { matchesTrackRuleKey } from "../../models/Settings";
 
@@ -240,10 +287,13 @@ type SettingsTab = {
 
 const settingsStore = useSettingsStore();
 const tracksStore = useTracksStore();
+const experimentStore = useExperimentStore();
 const modal = ref<HTMLDivElement | null>(null);
 let modalInstance: Modal | null = null;
 const activeTab = ref<SettingsTab["id"]>("homescreen");
 const draft = ref<DraftSettings>(createDraft());
+const newTimelineKindRule = ref<EditableTrackKindRule>({ key: "", kind: "numeric" });
+const newTrainerReplayRule = ref<EditableReplayRule>({ key: "", value: true });
 
 const tabs = computed<SettingsTab[]>(() => [
     { id: "homescreen", label: "Homescreen", badge: draft.value.homescreen.colours.length || undefined },
@@ -277,6 +327,35 @@ function matchTooltip(ruleKey: string): string {
     const matches = matchedTracksForRule(ruleKey);
     if (matches.length === 0) {
         return "No matches among tracks encountered so far";
+    }
+    return matches.join("\n");
+}
+
+const allTrainerNames = computed(() => {
+    const uniqueNames = new Set(
+        experimentStore.trainerNames
+            .map((name) => name.trim())
+            .filter((name) => name.length > 0),
+    );
+    return Array.from(uniqueNames).sort((left, right) => left.localeCompare(right));
+});
+
+function matchedTrainersForRule(ruleKey: string): string[] {
+    const normalizedRule = ruleKey.trim();
+    if (normalizedRule.length === 0) {
+        return [];
+    }
+    return allTrainerNames.value.filter((trainerName) => matchesTrackRuleKey(normalizedRule, trainerName));
+}
+
+function trainerMatchCount(ruleKey: string): number {
+    return matchedTrainersForRule(ruleKey).length;
+}
+
+function trainerMatchTooltip(ruleKey: string): string {
+    const matches = matchedTrainersForRule(ruleKey);
+    if (matches.length === 0) {
+        return "No matches among trainers encountered so far";
     }
     return matches.join("\n");
 }
@@ -396,6 +475,7 @@ function deepEqual(left: unknown, right: unknown): boolean {
 
 function showModal() {
     draft.value = createDraft();
+    resetPendingRows();
     activeTab.value = "homescreen";
     if (modalInstance == null && modal.value != null) {
         modalInstance = new Modal(modal.value);
@@ -409,6 +489,7 @@ function close() {
     }
     modalInstance?.hide();
     draft.value = createDraft();
+    resetPendingRows();
 }
 
 function save() {
@@ -438,6 +519,12 @@ function resetAll() {
     }
     settingsStore.resetSettings();
     draft.value = createDraft();
+    resetPendingRows();
+}
+
+function resetPendingRows() {
+    newTimelineKindRule.value = { key: "", kind: "numeric" };
+    newTrainerReplayRule.value = { key: "", value: true };
 }
 
 function addColourRule() {
@@ -452,16 +539,40 @@ function clearColours() {
     draft.value.homescreen.colours = [];
 }
 
-function addTrackKindRule() {
-    draft.value.replay.timelineKinds.push({ key: "", kind: "numeric" });
+function commitNewTimelineKindRule() {
+    const key = newTimelineKindRule.value.key.trim();
+    if (key.length === 0) {
+        return;
+    }
+
+    const existingIndex = draft.value.replay.timelineKinds.findIndex((rule) => rule.key.trim() === key);
+    if (existingIndex >= 0) {
+        draft.value.replay.timelineKinds[existingIndex] = { key, kind: newTimelineKindRule.value.kind };
+    } else {
+        draft.value.replay.timelineKinds.push({ key, kind: newTimelineKindRule.value.kind });
+    }
+
+    newTimelineKindRule.value = { key: "", kind: newTimelineKindRule.value.kind };
 }
 
 function removeTrackKindRule(index: number) {
     draft.value.replay.timelineKinds.splice(index, 1);
 }
 
-function addReplayTrainerRule() {
-    draft.value.replay.trainerRules.push({ key: "", value: true });
+function commitNewTrainerReplayRule() {
+    const key = newTrainerReplayRule.value.key.trim();
+    if (key.length === 0) {
+        return;
+    }
+
+    const existingIndex = draft.value.replay.trainerRules.findIndex((rule) => rule.key.trim() === key);
+    if (existingIndex >= 0) {
+        draft.value.replay.trainerRules[existingIndex] = { key, value: newTrainerReplayRule.value.value };
+    } else {
+        draft.value.replay.trainerRules.push({ key, value: newTrainerReplayRule.value.value });
+    }
+
+    newTrainerReplayRule.value = { key: "", value: newTrainerReplayRule.value.value };
 }
 
 function removeReplayTrainerRule(index: number) {

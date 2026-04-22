@@ -468,6 +468,28 @@ export function resolveReplaySettings(
         };
     }
 
+    if (trainerName.length > 0) {
+        let matchedKey: string | null = null;
+        let matchedValue: boolean | null = null;
+        for (const [ruleKey, value] of Object.entries(settings.replay.trainerRules)) {
+            if (!matchesTrackRuleKey(ruleKey, trainerName)) {
+                continue;
+            }
+            if (matchedKey == null || ruleKey.length > matchedKey.length) {
+                matchedKey = ruleKey;
+                matchedValue = value;
+            }
+        }
+
+        if (matchedKey != null && matchedValue != null) {
+            return {
+                onlySavedActions: matchedValue,
+                source: "trainer",
+                key: matchedKey,
+            };
+        }
+    }
+
     return {
         onlySavedActions: settings.replay.globalOnlySavedActions,
         source: "global",
