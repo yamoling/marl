@@ -110,7 +110,7 @@ const scoreSource = computed(() => {
     const detail = props.episode.agent_details[safeStep.value];
     if (detail?.q_values != null) return 'q_values';
     if (detail?.action_probabilities != null) return 'action_probabilities';
-    return 'action signal unavailable';
+    return 'action signal unavailable. Is the "replay only with stored actions" setting enabled ?';
 });
 
 const allScores = computed(() => {
