@@ -2,35 +2,17 @@
     <Teleport to="body">
         <div class="toast-container">
             <TransitionGroup name="toast">
-                <div
-                    v-for="error in errorStore.errors"
-                    :key="error.id"
-                    class="card border-danger toast-card"
-                >
+                <div v-for="error in errorStore.errors" :key="error.id" class="card border-danger toast-card">
                     <!-- Header row -->
-                    <div
-                        class="card-header d-flex align-items-center gap-2 py-2"
-                    >
-                        <font-awesome-icon
-                            icon="exclamation-circle"
-                            class="text-danger flex-shrink-0"
-                        />
-                        <span class="fw-bold flex-grow-1">{{
-                            error.title
-                        }}</span>
-                        <button
-                            type="button"
-                            class="btn-close"
-                            aria-label="Dismiss"
-                            @click="errorStore.dismiss(error.id)"
-                        />
+                    <div class="card-header d-flex align-items-center gap-2 py-2">
+                        <font-awesome-icon icon="exclamation-circle" class="text-danger flex-shrink-0" />
+                        <span class="fw-bold flex-grow-1">{{ error.title }}</span>
+                        <button type="button" class="btn-close" aria-label="Dismiss" @click="errorStore.dismiss(error.id)" />
                     </div>
 
                     <!-- Error type badge (Python exception class name) -->
                     <div v-if="error.errorType" class="px-3 pt-2">
-                        <code class="error-type-badge">{{
-                            error.errorType
-                        }}</code>
+                        <code class="badge text-bg-secondary">{{ error.errorType }}</code>
                     </div>
 
                     <!-- Detail block -->
@@ -120,16 +102,6 @@ watch(
 .toast-card {
     pointer-events: all;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-
-/* ── Error-type badge ─────────────────────────────────────────────────────── */
-.error-type-badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    background-color: #f1f3f5;
-    color: #6c757d;
-    border-radius: 0.25rem;
-    padding: 0.1em 0.5em;
 }
 
 /* ── Detail pre-block ─────────────────────────────────────────────────────── */

@@ -40,13 +40,14 @@ class PPO[B: Batch](Trainer):
     memory: ReplayMemory[Any, B] = field(init=False)
     early_stopping_kl: float | None = None
     """Early stopping if the KL divergence between the old and new policy is higher than this threshold. If None, no early stopping is applied."""
+    value_loss: Literal["huber", "mse"] = "huber"
 
     def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
-        super().__init__(torch.device("cpu"))
+        super().__init__()
         assert self.minibatch_size <= self.train_interval
-        self.actor_critic = self.actor_critic.to(self.device)
+        self.actor_critic = self.actor_critic
         if self.mixer is not None:
-            self.mixer = self.mixer.to(self.device)
+            self.mixer = self.mixer
             self.name = f"MAPPO-{self.mixer.name}"
         else:
             self.name = "IPPO"
@@ -92,20 +93,21 @@ class PPO[B: Batch](Trainer):
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
         advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
-        returns = batch.compute_mc_returns(self.gamma, next_values)
+        returns = batch.compute_mc_returns(self.gamma, next_values[-1])
         advantages[batch.masked_indices] = 0.0
-        assert torch.all(advantages[batch.masked_indices] == 0)
-        assert torch.all(returns[batch.masked_indices] == 0.0)
         return returns, advantages
 
-    def train(self, batch: Batch, step_num: int):
+    def train(self, step_num: int):
+        if not self.memory.is_full:
+            return {}
+        batch = self.memory.as_batch().to(self.device)
+        self.memory.clear()
         self.c1.update(step_num)
         self.c2.update(step_num)
         if self.mixer is None:
             batch = batch.for_individual_learners()
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
-
         with torch.no_grad():
             old_dist = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
             old_log_probs = old_dist.log_prob(batch.actions)
@@ -127,37 +129,14 @@ class PPO[B: Batch](Trainer):
                 indices = (indices,)
             mini_returns = returns[*indices]
             mini_advantages = advantages[*indices, :]
-            mini_log_probs = old_log_probs[indices]
-
-            # Use the Monte Carlo estimate of returns as target values
-            # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
-            mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
-            if self.mixer is not None:
-                mini_values = self.mixer.forward(mini_values, batch.states)
-            mini_values[minibatch.masked_indices] = 0.0
-            td_error = mini_values - mini_returns
-            critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
 
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
             mini_policy = self.actor_critic.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
             mini_new_log_probs: torch.Tensor = mini_policy.log_prob(minibatch.actions)
             mini_new_log_probs[minibatch.masked_indices] = 0.0
-            log_ratio = mini_new_log_probs - mini_log_probs
+            log_ratio = mini_new_log_probs - old_log_probs[indices]
             ratio = torch.exp(log_ratio)
-            surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
-
-            surrogate1 = mini_advantages * ratio
-            surr_min = torch.min(surrogate1, surrogate2)
-            actor_loss = -torch.sum(surr_min) / minibatch.masks_sum  # Minus sign to maximize the objective
-
-            # S[\pi_0](s_t) in the paper (equation (9))
-            entropy = mini_policy.entropy()
-            if self.mixer is not None:
-                # Sum the agent dimension for the masking on the next line
-                entropy = entropy.sum(-1)
-            entropy = entropy * minibatch.masks
-            entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
             with torch.no_grad():
                 approx_kl_div = torch.mean((ratio - 1) - log_ratio).item()
@@ -167,6 +146,33 @@ class PPO[B: Batch](Trainer):
             if self.early_stopping_kl is not None and approx_kl_div > 1.5 * self.early_stopping_kl:
                 early_stopped = True
                 break
+
+            surrogate1 = mini_advantages * ratio
+            surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
+            surr_min = torch.min(surrogate1, surrogate2)
+            actor_loss = -torch.sum(surr_min) / minibatch.masks_sum  # Minus sign to maximize the objective
+
+            # Use the Monte Carlo estimate of returns as target values
+            # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
+            mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
+            if self.mixer is not None:
+                mini_values = self.mixer.forward(mini_values, batch.states)
+            mini_values[minibatch.masked_indices] = 0.0
+            if self.value_loss == "huber":
+                # Same parameters as the MAPPO paper
+                huber_loss = torch.nn.functional.huber_loss(mini_values, mini_returns, delta=10.0, reduction="none")
+                critic_loss = torch.sum(huber_loss * minibatch.masks) / minibatch.masks_sum
+            else:
+                td_error = mini_values - mini_returns
+                critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
+
+            # S[\pi_0](s_t) in the paper (equation (9))
+            entropy = mini_policy.entropy()
+            if self.mixer is not None:
+                # Sum the agent dimension for the masking on the next line
+                entropy = entropy.sum(-1)
+            entropy = entropy * minibatch.masks
+            entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
             self.optimizer.zero_grad()
             # Equation (9) in the paper
@@ -195,21 +201,13 @@ class PPO[B: Batch](Trainer):
         if not self.memory.update_on_transitions:
             return {}
         self.memory.add(transition)
-        if not self.memory.is_full:
-            return {}
-        batch = self.memory.as_batch().to(self.device)
-        self.memory.clear()
-        return self.train(batch, time_step)
+        return self.train(time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         if not self.memory.update_on_episodes:
             return {}
         self.memory.add(episode)
-        if not self.memory.is_full:
-            return {}
-        batch = self.memory.as_batch().to(self.device)
-        self.memory.clear()
-        return self.train(batch, time_step)
+        return self.train(time_step)
 
     def make_agent(self):
         from marl.agents import SimpleActor

@@ -230,10 +230,10 @@ defineExpose({ showModal });
 
 <style scoped>
 .timeline-modal {
-    border: 1px solid rgb(221, 211, 197);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.8rem;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+    background: var(--bs-body-bg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.14);
 }
 
 .timeline-body {

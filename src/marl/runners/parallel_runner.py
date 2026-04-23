@@ -1,15 +1,14 @@
 import logging
+import multiprocessing as mp
 import signal
 import time
-import multiprocessing as mp
-from multiprocessing.pool import Pool
-from multiprocessing.pool import AsyncResult
-from typing import TYPE_CHECKING, Literal, Sequence
 from contextlib import contextmanager
+from multiprocessing.pool import AsyncResult, Pool
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import torch
 
-from marl.utils.gpu import get_device, get_gpu_usage_by_pid, scatter_plan, get_gpu_processes
+from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
 
 from .simple_runner import SimpleRunner
 
@@ -39,6 +38,7 @@ class ParallelRunner:
         n_tests: int = 1,
         render_tests: bool = False,
         disabled_gpus: Sequence[int] = (),
+        quiet: bool = False,
     ):
         if n_jobs is None:
             n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
@@ -51,6 +51,7 @@ class ParallelRunner:
                 device,
                 auto_device_strategy,
                 disabled_gpus,
+                quiet,
             )
             handles = [h]
             preplanned_devices = []
@@ -98,6 +99,7 @@ class ParallelRunner:
         device,
         auto_device_strategy: Literal["scatter", "group"],
         disabled_gpus: Sequence[int],
+        quiet: bool,
     ):
         selected_device = get_device(device, auto_device_strategy, disabled_devices=disabled_gpus)
         initial_pids = get_gpu_processes()
@@ -109,7 +111,7 @@ class ParallelRunner:
                     "seed": run.seed,
                     "device_type": selected_device.index,
                     "n_tests": n_tests,
-                    "quiet": False,
+                    "quiet": quiet,
                     "render_tests": render_tests,
                     "estimated_gpu_memory": 0,
                     "auto_device_strategy": auto_device_strategy,

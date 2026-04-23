@@ -20,24 +20,26 @@
                             <label class="launch-field">
                                 <span class="launch-field-label">Tests</span>
                                 <div class="field-input-wrap">
-                                    <input type="number" class="form-control launch-control field-control"
-                                        v-model="nTests" min="1" />
-                                    <span v-if="defaultSeedIsLoading" class="field-loading"
-                                        aria-label="Loading default number of tests">
-                                        <span class="spinner-border spinner-border-sm text-secondary" role="status"
-                                            aria-hidden="true"></span>
+                                    <input type="number" class="form-control launch-control field-control" v-model="nTests" min="1" />
+                                    <span v-if="defaultSeedIsLoading" class="field-loading" aria-label="Loading default number of tests">
+                                        <span
+                                            class="spinner-border spinner-border-sm text-secondary"
+                                            role="status"
+                                            aria-hidden="true"
+                                        ></span>
                                     </span>
                                 </div>
                             </label>
                             <label class="launch-field">
                                 <span class="launch-field-label">Seed</span>
                                 <div class="field-input-wrap">
-                                    <input type="number" class="form-control launch-control field-control"
-                                        v-model="seed" />
-                                    <span v-if="defaultSeedIsLoading" class="field-loading"
-                                        aria-label="Loading default seed">
-                                        <span class="spinner-border spinner-border-sm text-secondary" role="status"
-                                            aria-hidden="true"></span>
+                                    <input type="number" class="form-control launch-control field-control" v-model="seed" />
+                                    <span v-if="defaultSeedIsLoading" class="field-loading" aria-label="Loading default seed">
+                                        <span
+                                            class="spinner-border spinner-border-sm text-secondary"
+                                            role="status"
+                                            aria-hidden="true"
+                                        ></span>
                                     </span>
                                 </div>
                             </label>
@@ -55,39 +57,38 @@
                             <div class="section-title">Devices</div>
                             <div class="section-hint">Uncheck GPUs you do not want to use.</div>
                         </div>
-                        <DeviceSelectionList v-model="selectedDevices" :multiple="true" :include-system-devices="false"
-                            :warning-text="deviceWarning" />
+                        <DeviceSelectionList
+                            v-model="selectedDevices"
+                            :multiple="true"
+                            :include-system-devices="false"
+                            :warning-text="deviceWarning"
+                        />
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" @click="close">
-                        Cancel
-                    </button>
-                    <button class="btn btn-success" @click="start">
-                        Start
-                    </button>
+                    <button type="button" class="btn btn-outline-secondary" @click="close">Cancel</button>
+                    <button class="btn btn-success" @click="start">Start</button>
                 </div>
-
             </div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useExperimentStore } from '../../stores/ExperimentStore';
-import { useRunStore } from '../../stores/RunStore';
-import { useSystemStore } from '../../stores/SystemStore';
-import { Modal } from 'bootstrap';
-import { Experiment } from '../../models/Experiment';
+import { computed, ref } from "vue";
+import { useExperimentStore } from "../../stores/ExperimentStore";
+import { useRunStore } from "../../stores/RunStore";
+import { useSystemStore } from "../../stores/SystemStore";
+import { Modal } from "bootstrap";
+import { Experiment } from "../../models/Experiment";
 import {
     buildGpuDeviceOptions,
     getDefaultSelectedGpuDevices,
     getDisabledDevicesFromSelected,
     STRESS_WARNING_THRESHOLD,
     getRecommendedDevice,
-} from '../../utils/systemStress';
-import DeviceSelectionList from './DeviceSelectionList.vue';
+} from "../../utils/systemStress";
+import DeviceSelectionList from "./DeviceSelectionList.vue";
 
 const experiment = ref({} as Experiment);
 const store = useExperimentStore();
@@ -99,7 +100,7 @@ let modalInstance: Modal | null = null;
 const nRuns = ref(1);
 const nTests = ref(1);
 const seed = ref(0);
-const gpuStrategy = ref<'scatter' | 'group'>('group');
+const gpuStrategy = ref<"scatter" | "group">("group");
 const selectedDevices = ref<string[]>([]);
 
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
@@ -110,9 +111,7 @@ const selectedDeviceStress = computed(() => {
     }
 
     const selectedSet = new Set(selectedDevices.value);
-    const stresses = gpuOptions.value
-        .filter(option => selectedSet.has(option.value))
-        .map(option => option.stress);
+    const stresses = gpuOptions.value.filter((option) => selectedSet.has(option.value)).map((option) => option.stress);
     if (stresses.length === 0) {
         return null;
     }
@@ -135,7 +134,7 @@ function close() {
 async function setDefaultSeed(logdir: string) {
     defaultSeedIsLoading.value = true;
     try {
-        const runs = await runStore.getRuns(logdir)
+        const runs = await runStore.getRuns(logdir);
         const maxSeed = runs.reduce((currentMax, run) => Math.max(currentMax, run.seed), -1);
         seed.value = maxSeed + 1;
         const maxNTests = runs.reduce((currentMax, run) => Math.max(currentMax, run.n_tests), 0);
@@ -153,30 +152,21 @@ async function start() {
         }
     }
     const disabledDevices = getDisabledDevicesFromSelected(systemStore.systemInfo, selectedDevices.value);
-    const started = await store.newRun(
-        experiment.value.logdir,
-        nRuns.value,
-        seed.value,
-        nTests.value,
-        gpuStrategy.value,
-        disabledDevices,
-    );
+    const started = await store.newRun(experiment.value.logdir, nRuns.value, seed.value, nTests.value, gpuStrategy.value, disabledDevices);
     if (started) {
         modalInstance?.hide();
     }
 }
 
-
 function showModal(exp: Experiment) {
     setDefaultSeed(exp.logdir);
     experiment.value = exp;
     selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemInfo);
-    gpuStrategy.value = 'group';
+    gpuStrategy.value = "group";
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
     modalInstance.show();
-
 }
 
 defineExpose({ showModal });
@@ -184,10 +174,10 @@ defineExpose({ showModal });
 
 <style scoped>
 .launch-modal {
-    border: 1px solid rgb(221, 211, 197);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.8rem;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+    background: var(--bs-body-bg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.14);
 }
 
 .launch-body {
@@ -201,9 +191,9 @@ defineExpose({ showModal });
     flex-direction: column;
     gap: 0.75rem;
     padding: 0.9rem;
-    border: 1px solid rgb(221, 211, 197);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.7rem;
-    background: rgba(249, 246, 241, 0.75);
+    background: var(--bs-tertiary-bg);
 }
 
 .launch-grid {
@@ -233,17 +223,18 @@ defineExpose({ showModal });
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    color: rgb(90, 90, 90);
+    color: var(--bs-secondary-color);
 }
 
 .launch-control {
-    background-color: rgba(255, 255, 255, 0.95);
-    border-color: rgb(210, 203, 192);
+    background-color: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
     border-radius: 0.5rem;
+    color: var(--bs-body-color);
 }
 
 .launch-control:focus {
-    border-color: rgb(149, 163, 184);
+    border-color: var(--bs-border-color);
     box-shadow: 0 0 0 0.15rem rgba(100, 116, 139, 0.12);
 }
 
@@ -276,12 +267,12 @@ defineExpose({ showModal });
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.3px;
-    color: rgb(90, 90, 90);
+    color: var(--bs-secondary-color);
 }
 
 .section-hint {
     font-size: 0.8rem;
-    color: rgb(110, 110, 110);
+    color: var(--bs-secondary-color);
 }
 
 @media (max-width: 768px) {

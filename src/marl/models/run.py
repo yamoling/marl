@@ -5,6 +5,7 @@ from datetime import datetime
 from signal import SIGINT, Signals
 from functools import cached_property
 import psutil
+import numpy as np
 
 import polars as pl
 
@@ -52,7 +53,7 @@ class Run:
 
     def get_test_actions(self, time_step: int, test_num: int):
         all_actions = self.reader.get_test_actions(time_step)
-        return all_actions[test_num]
+        return np.array(all_actions[test_num])
 
     @property
     def n_tests(self):

@@ -26,6 +26,7 @@ import { ActionSpace, ContinuousActionSpace, DiscreteActionSpace } from '../../.
 import { ReplayEpisode } from '../../../models/Episode';
 import DiscreteActionMatrix from './DiscreteActionMatrix.vue';
 import ContinuousActionRadar from './ContinuousActionRadar.vue';
+import { useSettingsStore } from '../../../stores/SettingsStore';
 
 const props = defineProps<{
     episode: ReplayEpisode
@@ -35,7 +36,7 @@ const props = defineProps<{
 }>();
 
 const selectedAgents = ref<number[]>([]);
-
+const settingsStore = useSettingsStore()
 const maxStep = computed(() => Math.max(0, props.episode.episode.actions.length - 1));
 const safeStep = computed(() => Math.max(0, Math.min(maxStep.value, props.currentStep)));
 const availableAgents = computed(() => Array.from({ length: props.nAgents }, (_, index) => index));

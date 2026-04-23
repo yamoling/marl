@@ -15,9 +15,7 @@
 
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" @click="close">Cancel</button>
-                    <button class="btn btn-primary" @click="confirm">
-                        Start on {{ findDeviceLabel(device) }}
-                    </button>
+                    <button class="btn btn-primary" @click="confirm">Start on {{ findDeviceLabel(device) }}</button>
                 </div>
             </div>
         </div>
@@ -25,21 +23,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { useSystemStore } from '../../stores/SystemStore';
-import { Modal } from 'bootstrap';
-import {
-    STRESS_WARNING_THRESHOLD,
-    buildDeviceOptions,
-    getDeviceStress,
-    getRecommendedDevice,
-} from '../../utils/systemStress';
-import DeviceSelectionList from './DeviceSelectionList.vue';
+import { computed, ref } from "vue";
+import { useSystemStore } from "../../stores/SystemStore";
+import { Modal } from "bootstrap";
+import { STRESS_WARNING_THRESHOLD, buildDeviceOptions, getDeviceStress, getRecommendedDevice } from "../../utils/systemStress";
+import DeviceSelectionList from "./DeviceSelectionList.vue";
 
 const systemStore = useSystemStore();
 const modal = ref({} as HTMLDivElement);
 let modalInstance: Modal | null = null;
-const device = ref('auto');
+const device = ref("auto");
 let confirmCallback: ((device: string) => void) | null = null;
 
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
@@ -55,7 +48,7 @@ const deviceWarning = computed(() => {
 });
 
 function findDeviceLabel(value: string): string {
-    const option = buildDeviceOptions(systemStore.systemInfo).find(opt => opt.value === value);
+    const option = buildDeviceOptions(systemStore.systemInfo).find((opt) => opt.value === value);
     return option?.label ?? value;
 }
 
@@ -71,7 +64,7 @@ function close() {
 }
 
 function showModal(onConfirm: (device: string) => void) {
-    device.value = 'auto';
+    device.value = "auto";
     confirmCallback = onConfirm;
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
@@ -84,10 +77,10 @@ defineExpose({ showModal });
 
 <style scoped>
 .launch-modal {
-    border: 1px solid rgb(221, 211, 197);
+    border: 1px solid var(--bs-border-color);
     border-radius: 0.8rem;
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+    background: var(--bs-body-bg);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.14);
 }
 
 .launch-body {

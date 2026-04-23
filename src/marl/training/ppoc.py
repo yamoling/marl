@@ -52,7 +52,7 @@ class PPOC(Trainer):
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
     memory: ReplayMemory[Transition | Episode, Batch] = field(init=False)
-    early_stopping_kl: float | None = None
+    early_stopping_kl: float | None = 0.01
 
     def __post_init__(
         self,
@@ -139,21 +139,26 @@ class PPOC(Trainer):
                 advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
 
         log_lists = defaultdict(list)
-        for _ in range(self.n_epochs):
+        e = 0
+        for e in range(self.n_epochs):
             # Minibatch setup
             minibatch, indices = self._minibatch_setup(batch)
             mini_options = minibatch["options"].unsqueeze(-1)
-            mini_returns = returns[*indices]
-            mini_actor_advantages = advantages[*indices, :]
-            mini_old_log_probs = old_log_probs[indices]
-
-            critic_loss = self._compute_critic_loss(minibatch, mini_returns, mini_options)
-            actor_loss, entropy_loss, extra_logs = self._compute_actor_loss(
+            actor_loss, entropy_loss, log_ratio, ratio = self._compute_actor_loss(
                 minibatch,
                 mini_options,
-                mini_actor_advantages,
-                mini_old_log_probs,
+                advantages[*indices, :],
+                old_log_probs[indices],
             )
+            with torch.no_grad():
+                approx_kl_div = torch.mean((ratio - 1) - log_ratio).item()
+                log_lists["approx-kl-divergence"].append(approx_kl_div)
+            # KL divergence early stopping, cf Stable baselines implementation
+            # https://github.com/DLR-RM/stable-baselines3/blob/08d984c3ee30093ea37409cf29cfb7efdd4bdcfd/stable_baselines3/ppo/ppo.py#L267
+            if self.early_stopping_kl is not None and approx_kl_div > 1.5 * self.early_stopping_kl:
+                break
+
+            critic_loss = self._compute_critic_loss(minibatch, returns[*indices], mini_options)
             termination_loss = self._compute_termination_loss(minibatch, mini_options)
 
             self.optimizer.zero_grad()
@@ -161,7 +166,7 @@ class PPOC(Trainer):
             loss.backward()
             if self.grad_norm_clipping is not None:
                 norm = torch.nn.utils.clip_grad_norm_(self._parameters, self.grad_norm_clipping)
-                log_lists["norms"].append(norm.detach().cpu().item())
+                log_lists["norms"].append(norm.item())
             self.optimizer.step()
 
             log_lists["actor_loss"].append(actor_loss.item())
@@ -169,12 +174,13 @@ class PPOC(Trainer):
             log_lists["entropy_loss"].append(entropy_loss.item())
             log_lists["termination_loss"].append(termination_loss.item())
             log_lists["loss"].append(loss.item())
-            for key, values in extra_logs.items():
-                log_lists[key].append(values)
+            log_lists["ratio"].append(ratio.numpy(force=True))
 
         logs = {
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
+            "n_epochs": e,
+            "early-stopped": e == self.n_epochs - 1,
             **self.option_train_policy.update(step_num),
             **self.target_updater.update(step_num),
             **{f"ppoc/mean-{key}": np.mean(values) for key, values in log_lists.items()},
@@ -184,7 +190,6 @@ class PPOC(Trainer):
         return logs
 
     def _minibatch_setup(self, batch: Batch):
-        # Minibatch setup
         indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
         minibatch = batch.get_minibatch(indices).to(self.device)
         if self.mixer is None:
@@ -214,13 +219,14 @@ class PPOC(Trainer):
         mini_dist = self.oc.policy(minibatch.obs, minibatch.extras, minibatch.available_actions, mini_options)
         mini_log_probs = mini_dist.log_prob(minibatch.actions)
 
-        ratio = torch.exp(mini_log_probs - mini_old_log_probs)
+        log_ratio = mini_log_probs - mini_old_log_probs
+        ratio = torch.exp(log_ratio)
         surrogate1 = ratio * mini_advantages
         surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
         l_clip = torch.min(surrogate1, surrogate2)
         actor_loss = -torch.sum(l_clip) / minibatch.masks_sum
         entropy_loss = -mini_dist.entropy().sum() / minibatch.masks_sum
-        return actor_loss, entropy_loss, {"ratios": ratio.detach().cpu().numpy()}
+        return actor_loss, entropy_loss, log_ratio, ratio
 
     def _compute_termination_loss(self, minibatch: Batch, mini_options: torch.Tensor):
         next_termination_probs = self.oc.termination_probability(minibatch.next_obs, minibatch.next_extras, mini_options)
