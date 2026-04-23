@@ -51,18 +51,15 @@ class TransitionBatch(Batch):
         return TransitionBatch(self.transitions + data, self.device)
 
     def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
-        if isinstance(next_value, torch.Tensor):
-            if next_value.dim() > 0:
-                next_value = next_value[-1].item()
-            else:
-                next_value = next_value.item()
-        returns = [0.0] * self.size
-        not_dones = self.not_dones.tolist()
-        rewards = self.rewards.tolist()
-        returns[-1] = rewards[-1] + gamma * next_value * not_dones[-1]
+        if isinstance(next_value, (float, int)):
+            next_value = torch.full_like(self.rewards[0], next_value)
+        elif len(next_value.shape) > 1:
+            next_value = next_value[-1]
+        returns = [next_value] * self.size
         for t in range(self.size - 2, -1, -1):
-            returns[t] = rewards[t] + gamma * not_dones[t] * returns[t + 1]
-        return torch.tensor(returns, device=self.device)
+            next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
+            returns[t] = next_value
+        return torch.stack(returns)
 
     @cached_property
     def obs(self):

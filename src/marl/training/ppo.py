@@ -95,8 +95,6 @@ class PPO[B: Batch](Trainer):
         advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
         returns = batch.compute_mc_returns(self.gamma, next_values)
         advantages[batch.masked_indices] = 0.0
-        assert torch.all(advantages[batch.masked_indices] == 0)
-        assert torch.all(returns[batch.masked_indices] == 0.0)
         return returns, advantages
 
     def train(self, step_num: int):

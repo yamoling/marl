@@ -2,7 +2,10 @@
     <main>
         <header class="app-header">
             <h1 class="app-title">
-                <RouterLink to="/home" aria-label="Go to homepage">RL Dashboard</RouterLink>
+                <RouterLink to="/home">
+                    <img src="./assets/logo.svg" alt="Marl Logo" class="me-2" style="height: 1em; vertical-align: middle" />
+                    MARL-UI
+                </RouterLink>
             </h1>
             <div class="app-header-actions">
                 <button type="button" class="btn btn-sm btn-outline-secondary" @click="openSettings">
@@ -46,6 +49,8 @@ body,
 main {
     height: 100%;
     max-height: 100%;
+    background-color: var(--bs-body-bg);
+    color: var(--bs-body-color);
 }
 
 main {

@@ -144,6 +144,7 @@ class Experiment[A: Space]:
             n_tests=n_tests,
             render_tests=render_tests,
             disabled_gpus=disabled_gpus,
+            quiet=quiet,
         )
 
     def replay_episode(self, run_num: int, time_step: int, test_num: int, *, only_saved_actions: bool = False) -> ReplayEpisode:
