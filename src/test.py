@@ -5,12 +5,13 @@ import dotenv
 import lle
 
 import marl
+from marl.nn import mixers
 from marl.nn.model_bank import actor_critics
 from marl.training import PPO
 
 
 def main():
-    env = lle.level(6).obs_type("layered").state_type("state").builder().agent_id().time_limit(78).build()
+    env = lle.level(6).obs_type("layered").state_type("state").pbrs().builder().agent_id().time_limit(78).build()
 
     # oc = options_nn.CNNOptionCritic.from_env(env, 4)
     # trainer = PPOC(
@@ -23,7 +24,7 @@ def main():
     # )
     trainer = PPO(
         actor_critics.CNNDiscreteAC.from_env(env),
-        mixer=None,  # mixers.VDN.from_env(env),
+        mixer=mixers.VDN.from_env(env),
         grad_norm_clipping=10.0,
         early_stopping_kl=0.01,
         n_epochs=15,
@@ -31,9 +32,16 @@ def main():
         lr_critic=5e-4,
     )
     logdir = f"logs/{env.name}-{trainer.name}"
-    logdir = "test"
-    exp = marl.Experiment.create(env, 1_000_000, trainer=trainer, test_interval=5000, logdir=logdir, save_weights=False)
-    exp.run(n_parallel=1, seeds=30, n_tests=10, disabled_gpus=[0, 1, 2, 3], fill_strategy="scatter", quiet=True)
+    exp = marl.Experiment.create(
+        env,
+        1_000_000,
+        trainer=trainer,
+        test_interval=5000,
+        logdir=logdir,
+        save_weights=False,
+        replace_if_exists=True,
+    )
+    exp.run(seeds=30, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
 
 
 if __name__ == "__main__":

@@ -6,40 +6,62 @@ from marl.models import Agent, Action
 
 
 class ReplayAgent[T](Agent[T]):
-    def __init__(self, actions: np.ndarray | None, wrapped: Agent[T] | None):
+    def __init__(self):
         super().__init__()
-        assert actions is not None or wrapped is not None, "At least one of actions or wrapped agent must be provided."
-        self.stored_actions = actions
-        self.current_step = -1
-        self.wrapped = wrapped
         self.mismatch = False
         """Whether there a mismatch has been encountered between the wrapped agent's actions and the replayed actions."""
         self.mismatch_details = []
 
+    @staticmethod
+    def from_actions_only(actions: np.ndarray) -> "ReplayAgent[T]":
+        return ReplayActionsOnlyAgent(actions)
+
+    @staticmethod
+    def from_agent_only(agent: Agent[T], weights_path: str) -> "ReplayAgent[T]":
+        return SimpleReplayAgent(agent, weights_path)
+
+    @staticmethod
+    def from_agent_and_actions(agent: Agent[T], actions: np.ndarray, weights_path: str) -> "ReplayAgent[T]":
+        agent.load(weights_path)
+        return CombinedReplayAgent(actions, agent)
+
+
+class CombinedReplayAgent[T](ReplayAgent[T]):
+    def __init__(self, actions: np.ndarray, wrapped: Agent[T]):
+        super().__init__()
+        self.actions_agent = ReplayActionsOnlyAgent(actions)
+        self.saved_agent = wrapped
+
     def choose_action(self, observation, *, with_details=False):
         self.current_step += 1
-        # Case 1: No wrapped agent, only replaying stored actions.
-        if self.wrapped is None:
-            assert self.stored_actions is not None
-            stored_action = self.stored_actions[self.current_step]
-            return Action(stored_action)
-        # Case 2: Wrapped agent is present, but no stored actions to replay.
-        if self.stored_actions is None:
-            return self.wrapped.choose_action(observation, with_details=with_details)
-        # Case 3: Wrapped agent is present, and stored actions are available to replay.
-        online_action = self.wrapped.choose_action(observation, with_details=with_details)
-        if self.current_step < len(self.stored_actions):
-            stored_action = self.stored_actions[self.current_step]
-        else:
-            msg = f"ReplayAgent has no more actions to replay at time step {self.current_step}, falling back to wrapped agent."
-            logging.warning(msg)
-            self.mismatch = True
-            self.mismatch_details.append(msg)
-            stored_action = online_action.action
-        if not np.array_equal(online_action.action, stored_action):
-            msg = f"Agent restored from disk chose action ({online_action.action})  which is different from the stored action ({stored_action}) at time step {self.current_step}."
+        agent_action = self.saved_agent.choose_action(observation, with_details=with_details)
+        saved_action = self.actions_agent.choose_action(observation, with_details=with_details)
+        if not np.array_equal(saved_action.action, agent_action.action):
+            msg = f"Agent restored from disk chose action ({agent_action.action})  which is different from the stored action ({saved_action.action}) at time step {self.current_step}."
             self.mismatch = True
             self.mismatch_details.append(msg)
             logging.warning(msg)
-            online_action.action = stored_action
-        return online_action
+            agent_action.action = saved_action.action
+        return agent_action
+
+
+class ReplayActionsOnlyAgent[T](ReplayAgent[T]):
+    def __init__(self, actions: np.ndarray):
+        super().__init__()
+        self.stored_actions = actions
+        self.current_step = -1
+
+    def choose_action(self, observation, *, with_details=False):
+        self.current_step += 1
+        stored_action = self.stored_actions[self.current_step]
+        return Action(stored_action)
+
+
+class SimpleReplayAgent[T](ReplayAgent[T]):
+    def __init__(self, agent: Agent[T], weights_path: str):
+        super().__init__()
+        agent.load(weights_path)
+        self.agent = agent
+
+    def choose_action(self, observation, *, with_details=False):
+        return self.agent.choose_action(observation, with_details=with_details)

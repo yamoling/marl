@@ -53,8 +53,6 @@ class TransitionBatch(Batch):
     def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
         if isinstance(next_value, (float, int)):
             next_value = torch.full_like(self.rewards[0], next_value)
-        elif len(next_value.shape) > 1:
-            next_value = next_value[-1]
         returns = [next_value] * self.size
         for t in range(self.size - 2, -1, -1):
             next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]

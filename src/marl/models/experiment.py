@@ -6,7 +6,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence
 
-import numpy as np
 import orjson
 import torch
 from marlenv.models import MARLEnv, Space
@@ -44,6 +43,8 @@ class Experiment[A: Space]:
         test_env: MARLEnv[A] | None = None,
         logger: LogSpecs = "csv",
         save_weights: bool = False,
+        *,
+        replace_if_exists: bool = False,
     ):
         """
         Create a new experiment in the specified directory.
@@ -66,27 +67,24 @@ class Experiment[A: Space]:
             from marl.training import NoTrain
 
             trainer = NoTrain(env)
+        experiment = Experiment(
+            logdir,
+            trainer=trainer,
+            env=env,
+            n_steps=n_steps,
+            test_interval=test_interval,
+            creation_timestamp=int(time.time() * 1000),
+            test_env=test_env,
+            logger=logger,
+            save_weights=save_weights,
+        )
         try:
-            os.makedirs(logdir, exist_ok=False)
-            experiment = Experiment(
-                logdir,
-                trainer=trainer,
-                env=env,
-                n_steps=n_steps,
-                test_interval=test_interval,
-                creation_timestamp=int(time.time() * 1000),
-                test_env=test_env,
-                logger=logger,
-                save_weights=save_weights,
-            )
+            if replace_if_exists and os.path.exists(logdir):
+                shutil.rmtree(logdir, ignore_errors=True)
             experiment.save()
             return experiment
         except FileExistsError:
             raise exceptions.ExperimentAlreadyExistsException(logdir)
-        except Exception as e:
-            # In case the experiment could not be created for another reason, do not create the experiment and remove its directory
-            shutil.rmtree(logdir, ignore_errors=True)
-            raise e
 
     @classmethod
     def load(cls, logdir: str):
@@ -97,6 +95,7 @@ class Experiment[A: Space]:
 
     def save(self):
         """Save the experiment to disk."""
+        os.makedirs(self.logdir, exist_ok=False)
         with open(self.json_file(self.logdir), "wb") as f:
             f.write(orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY))
         with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
@@ -147,38 +146,41 @@ class Experiment[A: Space]:
             quiet=quiet,
         )
 
+    def _make_replay_agent(self, run: Run, time_step: int, test_num: int, only_saved_actions: bool):
+        from marl.agents import ReplayAgent
+
+        if only_saved_actions:
+            # This should fail if the actions file is not found
+            actions = run.get_test_actions(time_step, test_num)
+            return ReplayAgent.from_actions_only(actions)
+        try:
+            # This should **not** fail if the actions file is not found
+            actions = run.get_test_actions(time_step, test_num)
+            checkpoint_path = run.get_saved_algo_dir(time_step)
+            return ReplayAgent.from_agent_and_actions(self.trainer.make_agent(), actions, checkpoint_path)
+        except FileNotFoundError:
+            pass
+        try:
+            return ReplayAgent.from_agent_only(self.trainer.make_agent(), run.get_saved_algo_dir(time_step))
+        except FileNotFoundError:
+            pass
+        try:
+            return ReplayAgent.from_actions_only(run.get_test_actions(time_step, test_num))
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Could not find any data to replay the episode for time step {time_step} and test number {test_num} in run with seed {run.seed}."
+            )
+
     def replay_episode(self, run_num: int, time_step: int, test_num: int, *, only_saved_actions: bool = False) -> ReplayEpisode:
         """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
-        from marl.agents import ReplayAgent
         from marl.runners import seeded_rollout
 
         run = self.get_run(run_num)
         seed = get_test_seed(time_step, test_num)
-        try:
-            actions = np.array(run.get_test_actions(time_step, test_num))
-        except FileNotFoundError:
-            actions = None
-        agent = None
-        if not only_saved_actions:
-            agent = self.trainer.make_agent()
-            try:
-                agent.load(run.get_saved_algo_dir(time_step))
-            except FileNotFoundError:
-                pass
-        agent = ReplayAgent(actions, agent)
+        agent = self._make_replay_agent(run, time_step, test_num, only_saved_actions)
         episode, frames, detailed_actions = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
         frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(
-            run.rundir,
-            time_step,
-            test_num,
-            episode,
-            frames,
-            detailed_actions,
-            self.test_env.action_space,
-            agent.mismatch,
-            agent.mismatch_details,
-        )
+        return ReplayEpisode(run.rundir, time_step, test_num, episode, frames, detailed_actions, self.test_env.action_space, agent)
 
     def move(self, new_logdir: str):
         """Move an experiment to a new directory."""

@@ -93,7 +93,7 @@ class PPO[B: Batch](Trainer):
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
         advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
-        returns = batch.compute_mc_returns(self.gamma, next_values)
+        returns = batch.compute_mc_returns(self.gamma, next_values[-1])
         advantages[batch.masked_indices] = 0.0
         return returns, advantages
 

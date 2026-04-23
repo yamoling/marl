@@ -1,10 +1,12 @@
 import os
-from dataclasses import dataclass, field
-from typing import Any
-
+from dataclasses import dataclass
+from typing import Any, TYPE_CHECKING
 from marlenv import Episode, Space
 
 from .action import Action
+
+if TYPE_CHECKING:
+    from marl.agents import ReplayAgent
 
 
 @dataclass
@@ -28,6 +30,7 @@ class ReplayEpisode(LightEpisodeSummary):
     frames: list[str]
     agent_details: list[dict[str, Any]]
     action_space: Space
+    replay_kind: str
     replay_mismatch: bool
     mismatch_details: list[str]
 
@@ -40,13 +43,13 @@ class ReplayEpisode(LightEpisodeSummary):
         frames: list[str],
         detailed_actions: list[Action],
         action_space: Space,
-        replay_mismatch: bool,
-        mismatch_details: list[str],
+        replay_agent: "ReplayAgent",
     ):
         super().__init__(rundir, episode.metrics, time_step, test_num)
         self.episode = episode
         self.frames = frames
         self.agent_details = [a.details for a in detailed_actions]
         self.action_space = action_space
-        self.replay_mismatch = replay_mismatch
-        self.mismatch_details = mismatch_details
+        self.replay_mismatch = replay_agent.mismatch
+        self.mismatch_details = replay_agent.mismatch_details
+        self.replay_kind = replay_agent.__class__.__name__

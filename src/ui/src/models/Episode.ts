@@ -31,6 +31,7 @@ export class ReplayEpisode {
   readonly tracks: (Track | TrackGroup)[];
   readonly replay_mismatch: boolean;
   readonly mismatch_details: string[];
+  readonly replay_kind: "CombinedReplayAgent" | "ReplayActionsOnlyAgent" | "SimpleReplayAgent";
 
   public constructor(
     name: string,
@@ -44,6 +45,7 @@ export class ReplayEpisode {
     action_space: ActionSpace,
     replay_mismatch: boolean,
     mismatch_details: string[],
+    replay_kind: "CombinedReplayAgent" | "ReplayActionsOnlyAgent" | "SimpleReplayAgent",
   ) {
     this.name = name;
     this.directory = directory;
@@ -54,6 +56,7 @@ export class ReplayEpisode {
     this.action_space = action_space;
     this.replay_mismatch = replay_mismatch;
     this.mismatch_details = mismatch_details;
+    this.replay_kind = replay_kind;
     this.tracks = this.computeTracks();
   }
 
@@ -68,6 +71,7 @@ export class ReplayEpisode {
       json.action_space,
       json.replay_mismatch,
       json.mismatch_details,
+      json.replay_kind,
     );
   }
 
