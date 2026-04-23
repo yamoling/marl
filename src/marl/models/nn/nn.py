@@ -13,17 +13,6 @@ def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
             init_fn(param.data)
 
 
-def to[T: torch.nn.Module](module: T, device: torch.device) -> T:
-    torch.nn.Module.to(module, device, non_blocking=True)
-    for child in module.children():
-        if isinstance(child, torch.nn.ModuleList):
-            for subchild in child:
-                d = subchild.parameters().__next__().device
-                to(subchild, device)
-                d = subchild.parameters().__next__().device
-    return module
-
-
 @dataclass
 class NN(torch.nn.Module):
     """Parent class of all neural networks"""

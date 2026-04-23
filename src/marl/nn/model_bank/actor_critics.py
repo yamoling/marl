@@ -237,6 +237,16 @@ class CNNDiscreteAC(ActorCritic):
     def value_parameters(self):
         return list(self.critic.parameters())
 
+    @classmethod
+    def from_env(cls, env: MARLEnv):
+        assert len(env.observation_shape) == 3
+        return cls(env.observation_shape, env.extras_size, env.n_actions)
+
+    def to(self, device: torch.device):
+        self.actor.to(device)
+        self.critic.to(device)
+        return self
+
 
 @dataclass(unsafe_hash=True)
 class CNNContinuousActor(Actor):
@@ -385,10 +395,6 @@ class CNNActor(Actor, CNN):
 
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
         return CNN.forward(self, obs, extras)
-
-    def to(self, device: torch.device):
-        super().to(device)
-        return self
 
     def __hash__(self):
         return hash(self.name)
