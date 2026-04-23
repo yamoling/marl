@@ -13,20 +13,19 @@
         </div>
 
         <DiscreteActionMatrix v-if="resolvedKind === 'discrete'" :episode="episode" :current-step="safeStep"
-            :selected-agents="selectedAgents" :action-space="discreteActionSpace" />
+            :selected-agents="selectedAgents" :action-space="props.actionSpace" />
 
         <ContinuousActionRadar v-else :episode="episode" :current-step="safeStep" :selected-agents="selectedAgents"
-            :action-space="continuousActionSpace" />
+            :action-space="props.actionSpace" />
     </section>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ActionSpace, ContinuousActionSpace, DiscreteActionSpace } from '../../../models/Env';
+import { ActionSpace } from '../../../models/Env';
 import { ReplayEpisode } from '../../../models/Episode';
 import DiscreteActionMatrix from './DiscreteActionMatrix.vue';
 import ContinuousActionRadar from './ContinuousActionRadar.vue';
-import { useSettingsStore } from '../../../stores/SettingsStore';
 
 const props = defineProps<{
     episode: ReplayEpisode
@@ -36,7 +35,6 @@ const props = defineProps<{
 }>();
 
 const selectedAgents = ref<number[]>([]);
-const settingsStore = useSettingsStore()
 const maxStep = computed(() => Math.max(0, props.episode.episode.actions.length - 1));
 const safeStep = computed(() => Math.max(0, Math.min(maxStep.value, props.currentStep)));
 const availableAgents = computed(() => Array.from({ length: props.nAgents }, (_, index) => index));
@@ -45,36 +43,6 @@ const selectedAgentsSet = computed(() => new Set(selectedAgents.value));
 const resolvedKind = computed<'discrete' | 'continuous'>(() => {
     if (props.actionSpace.space_type === 'continuous') return 'continuous';
     return 'discrete';
-});
-
-const discreteActionSpace = computed<DiscreteActionSpace>(() => {
-    if (resolvedKind.value === 'discrete') {
-        return {
-            ...props.actionSpace,
-            labels: props.actionSpace.labels ?? [],
-            space_type: 'discrete',
-        };
-    }
-    return {
-        shape: props.actionSpace.shape,
-        labels: [],
-        space_type: 'discrete',
-    };
-});
-
-const continuousActionSpace = computed<ContinuousActionSpace>(() => {
-    if (resolvedKind.value === 'continuous') {
-        return {
-            ...props.actionSpace,
-            space_type: 'continuous',
-        };
-    }
-    return {
-        shape: props.actionSpace.shape,
-        space_type: 'continuous',
-        low: undefined,
-        high: undefined,
-    };
 });
 
 
