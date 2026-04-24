@@ -4,15 +4,15 @@ This repository contains a variety of Multi-Agent Reinforcement Learning (MARL) 
 `marl` is strongly typed and has high code quality standards. Any contribution to this repository is expected to exhibit a similar quality. `marl` comes with a web interface to visualise the results of your experiments (more info down below).
 
 ## Getting started
-To install all the dependencies, run `uv sync`. If you are using a GPU whose support has ended, use the `legacy-gpu` extra.
+To install all the dependencies, run `uv sync`. If you are using an older GPU (e.g. the MLG GPU cluster) that only supports PyTorch <= 2.7.1, use the `legacy-gpu` extra.
 
 ```bash
-$ uv sync                    # Standard install
-$ uv sync --extra legacy-gpu # Install for older GPUs
+$ uv sync                    # Default, installs latest PyTorch
+$ uv sync --extra=legacy-gpu # Older GPUs (installs PyTorch < 2.8)
 ```
 
 ### Running an experiment
-Setup your experiment accoring to the examples in `create_experiments.py` and run it directly with the `--run` option. The results of the experiment are stored in the `logs` folder.
+Check the examples in the `examples` folder. You can also have a look at more complex setups in `create_experiments.py` and run the experiment created directly with the `--run` option. The results of the experiment are stored in the `logs` folder.
 
 ```bash
 $ python src/create_experiments.py --run
@@ -92,5 +92,3 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | HAVEN | ✗ | ✗ | Hierarchical MARL with intrinsic motivation |
 | REINFORCE | ✗ | ✓ | Policy gradient method |
 | AlphaZero/MCTS | ✗ | ? | Tree search-based |
-
-
