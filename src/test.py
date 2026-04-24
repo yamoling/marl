@@ -5,8 +5,9 @@ import dotenv
 import lle
 
 import marl
-from marl.nn.model_bank import actor_critics
-from marl.training import PPO
+from marl.nn.model_bank import actor_critics, qnetworks
+from marl.nn import mixers
+from marl.training import PPO, DQN
 
 
 def main():
@@ -30,7 +31,15 @@ def main():
         lr_actor=5e-4,
         lr_critic=5e-4,
     )
-    logdir = f"logs/{env.name}-{trainer.name}"
+    trainer = DQN(
+        qnetworks.QCNN.from_env(env),
+        mixer=mixers.QMix.from_env(env),
+        train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+        test_policy=marl.policy.ArgMax(),
+        memory=marl.models.TransitionMemory(50_000),
+        grad_norm_clipping=10.0,
+    )
+    logdir = f"logs/{trainer.name}-{env.name}"
     exp = marl.Experiment.create(
         env,
         1_000_000,
@@ -40,7 +49,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    # exp.run(seeds=30, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
+    exp.run(seeds=30, n_tests=1, disabled_gpus=[0, 1, 2, 3], fill_strategy="scatter", quiet=True)
 
 
 if __name__ == "__main__":

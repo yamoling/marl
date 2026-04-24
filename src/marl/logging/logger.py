@@ -118,13 +118,14 @@ class Logger(ABC, LogHelper):
     @abstractmethod
     def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
 
-    def log_test_episodes(self, episodes: list[Episode], time_step: int):
+    def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions: bool = True):
         for episode in episodes:
             self.log_test(episode.metrics, time_step)
-        actions_file = self.get_test_actions_file(time_step)
-        os.makedirs(os.path.dirname(actions_file), exist_ok=True)
-        with open(actions_file, "wb") as f:
-            f.write(orjson.dumps([e.actions for e in episodes], option=orjson.OPT_SERIALIZE_NUMPY))
+        if save_actions:
+            actions_file = self.get_test_actions_file(time_step)
+            os.makedirs(os.path.dirname(actions_file), exist_ok=True)
+            with open(actions_file, "wb") as f:
+                f.write(orjson.dumps([e.actions for e in episodes], option=orjson.OPT_SERIALIZE_NUMPY))
 
     def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):
         directory = self.get_logdir(time_step)

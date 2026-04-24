@@ -32,6 +32,7 @@ class SimpleRunner[A: Space]:
         trainer: "Trainer|None" = None,
         test_env: MARLEnv[A] | None = None,
         save_weights: bool = False,
+        save_actions: bool = True,
     ):
         if trainer is None:
             from marl.training import NoTrain
@@ -43,6 +44,7 @@ class SimpleRunner[A: Space]:
         self._trainer = trainer
         self._env = env
         self._save_weights = save_weights
+        self._save_actions = save_actions
         if agent is None:
             try:
                 agent = trainer.make_agent()
@@ -126,7 +128,7 @@ class SimpleRunner[A: Space]:
         if self._save_weights:
             logger.save_agent(self._agent, time_step)
         episodes = self.perform_tests(time_step, render)
-        logger.log_test_episodes(episodes, time_step)
+        logger.log_test_episodes(episodes, time_step, self._save_actions)
 
     def perform_tests(self, time_step: int, render: bool = False):
         """Test the agent"""

@@ -31,7 +31,8 @@ class Experiment[A: Space]:
     n_steps: int
     test_env: MARLEnv[A]
     save_weights: bool
-    logger: LogSpecs = "csv"
+    logger: LogSpecs
+    save_actions: bool
 
     @staticmethod
     def create(
@@ -43,6 +44,7 @@ class Experiment[A: Space]:
         test_env: MARLEnv[A] | None = None,
         logger: LogSpecs = "csv",
         save_weights: bool = False,
+        save_actions: bool = True,
         *,
         replace_if_exists: bool = False,
     ):
@@ -77,6 +79,7 @@ class Experiment[A: Space]:
             test_env=test_env,
             logger=logger,
             save_weights=save_weights,
+            save_actions=save_actions,
         )
         try:
             if replace_if_exists and os.path.exists(logdir):

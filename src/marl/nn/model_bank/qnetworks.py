@@ -37,6 +37,16 @@ class QCNN(CNN, QNetwork):
         QNetwork.__init__(self, output_shape)
         CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
 
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (128, 128), mlp_noisy: bool = False):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
+        else:
+            output_shape = env.n_actions
+        assert len(env.observation_shape) == 3
+        c, h, w = env.observation_shape
+        return cls((c, h, w), env.extras_shape[0], output_shape, mlp_sizes, mlp_noisy)
+
 
 @dataclass(unsafe_hash=True)
 class QMLP(MLP, QNetwork):
