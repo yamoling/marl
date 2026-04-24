@@ -40,6 +40,7 @@ class ServerState:
         n_tests: int,
         seed: int,
         device: str = "auto",
+        n_jobs: int | None = None,
         gpu_strategy: str = "group",
         disabled_devices: list[int] | None = None,
     ):
@@ -55,6 +56,8 @@ class ServerState:
             f"--device={device}",
             f"--gpu-strategy={gpu_strategy}",
         ]
+        if n_jobs is not None:
+            command.append(f"--n-jobs={n_jobs}")
         if disabled_devices:
             command.extend(["--disabled-devices", *[str(device_id) for device_id in disabled_devices]])
         logging.info("Starting new process with command: " + " ".join(command))

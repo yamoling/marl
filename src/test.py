@@ -5,7 +5,6 @@ import dotenv
 import lle
 
 import marl
-from marl.nn import mixers
 from marl.nn.model_bank import actor_critics
 from marl.training import PPO
 
@@ -24,7 +23,7 @@ def main():
     # )
     trainer = PPO(
         actor_critics.CNNDiscreteAC.from_env(env),
-        mixer=mixers.VDN.from_env(env),
+        mixer=None,  # mixers.VDN.from_env(env),
         grad_norm_clipping=10.0,
         early_stopping_kl=0.01,
         n_epochs=15,
@@ -41,7 +40,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    exp.run(seeds=30, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
+    # exp.run(seeds=30, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
 
 
 if __name__ == "__main__":

@@ -1,65 +1,54 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
-        <DataTable
-            v-model:expandedRows="expandedRows"
-            :value="experimentStore.experiments"
-            dataKey="logdir"
-            size="small"
-            v-model:filters="filters"
-            filterDisplay="menu"
-            :globalFilterFields="['logdir', 'env.name', 'trainer.name']"
-            :sortField="'creation_timestamp'"
-            :sortOrder="-1"
-            :rowClass="experimentRowClass"
-            contextMenu
-            @row-click="onRowClicked"
-            @row-expand="onRowExpanded"
-            @row-contextmenu="onRowContextMenu"
-            selection-mode="single"
-            paginator
-            :rows="5"
-            :rowsPerPageOptions="[5, 10, 20, 50]"
-        >
+        <DataTable v-model:expandedRows="expandedRows" :value="experimentStore.experiments" dataKey="logdir"
+            size="small" v-model:filters="filters" filterDisplay="menu"
+            :globalFilterFields="['logdir', 'env.name', 'trainer.name']" :sortField="'creation_timestamp'"
+            :sortOrder="-1" :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked"
+            @row-expand="onRowExpanded" @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
+            :rowsPerPageOptions="[5, 10, 20, 50]">
             <template #header>
                 <div class="input-group">
                     <span class="input-group-text">
                         <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
                         Filter
                     </span>
-                    <input class="form-control" type="text" v-model="filters.global.value" placeholder="Directory, env, algo" />
-                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter" :disabled="!filters.global.value">
+                    <input class="form-control" type="text" v-model="filters.global.value"
+                        placeholder="Directory, env, algo" />
+                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter"
+                        :disabled="!filters.global.value">
                         <font-awesome-icon :icon="['fas', 'times']" />
                     </button>
-                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh" :disabled="experimentStore.loading">
+                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
+                        :disabled="experimentStore.loading">
                         <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
                     </button>
                 </div>
             </template>
             <Column header="Status">
                 <template #body="{ data }">
-                    <button
-                        class="runs-matrix"
-                        :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
-                        @click.stop="toggleRunsExpansion(data.logdir)"
-                        title="Show run details"
-                    >
+                    <button class="runs-matrix" :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
+                        @click.stop="toggleRunsExpansion(data.logdir)" title="Show run details">
                         <template v-if="isRunsLoading(data.logdir)">
                             <span class="runs-loading">
                                 <font-awesome-icon :icon="['fas', 'spinner']" spin />
                             </span>
                         </template>
                         <template v-else>
-                            <span class="runs-cell runs-cell-running" :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
+                            <span class="runs-cell runs-cell-running"
+                                :title="`Running: ${runStatusCounts(data.logdir).RUNNING}`">
                                 {{ runStatusCounts(data.logdir).RUNNING }}
                             </span>
-                            <span class="runs-cell runs-cell-completed" :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
+                            <span class="runs-cell runs-cell-completed"
+                                :title="`Completed: ${runStatusCounts(data.logdir).COMPLETED}`">
                                 {{ runStatusCounts(data.logdir).COMPLETED }}
                             </span>
-                            <span class="runs-cell runs-cell-cancelled" :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
+                            <span class="runs-cell runs-cell-cancelled"
+                                :title="`Cancelled: ${runStatusCounts(data.logdir).CANCELLED}`">
                                 {{ runStatusCounts(data.logdir).CANCELLED }}
                             </span>
-                            <span class="runs-cell runs-cell-created" :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
+                            <span class="runs-cell runs-cell-created"
+                                :title="`Created: ${runStatusCounts(data.logdir).CREATED}`">
                                 {{ runStatusCounts(data.logdir).CREATED }}
                             </span>
                         </template>
@@ -69,17 +58,14 @@
             <Column field="logdir" header="Directory" sortable style="min-width: 14rem">
                 <template #body="{ data }">
                     <div class="d-flex align-items-center gap-2">
-                        <RouterLink class="text-success" :to="`/inspect/${data.logdir}`" @click.stop title="Inspect experiment">
+                        <RouterLink class="text-success" :to="`/inspect/${data.logdir}`" @click.stop
+                            title="Inspect experiment">
                             <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                         </RouterLink>
                         <span>{{ data.logdir.replace("logs/", "") }}</span>
-                        <input
-                            type="color"
-                            class="d-none"
-                            :value="experimentColour(data.logdir)"
+                        <input type="color" class="d-none" :value="experimentColour(data.logdir)"
                             :ref="(element) => setColourInputRef(data.logdir, element)"
-                            @input="(event) => onExperimentColourChanged(data.logdir, event)"
-                        />
+                            @input="(event) => onExperimentColourChanged(data.logdir, event)" />
                     </div>
                 </template>
             </Column>
@@ -100,13 +86,9 @@
             </Column>
             <template #empty> No experiments match the current filters. </template>
             <template #expansion="slotProps">
-                <HomeRunsTable
-                    :runs="runsForExperiment(slotProps.data.logdir)"
-                    :starting-runs="startingRuns"
-                    :stopping-runs="stoppingRuns"
-                    @start-run="(rundir) => onRunClicked(slotProps.data.logdir, rundir)"
-                    @stop-run="(rundir) => stopRun(slotProps.data.logdir, rundir)"
-                />
+                <HomeRunsTable :runs="runsForExperiment(slotProps.data.logdir)" :starting-runs="startingRuns"
+                    :stopping-runs="stoppingRuns" @start-run="(rundir) => onRunClicked(slotProps.data.logdir, rundir)"
+                    @stop-run="(rundir) => stopRun(slotProps.data.logdir, rundir)" />
             </template>
         </DataTable>
         <NewRun ref="newRunModalRef" />
@@ -115,7 +97,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from "primevue";
 import { Experiment, toCSV } from "../../models/Experiment";
 import { downloadStringAsFile } from "../../utils";
@@ -146,6 +128,8 @@ const selectedContextExperiment = ref<Experiment | null>(null);
 const colourInputs = new Map<string, HTMLInputElement>();
 const newRunModalRef = ref<{ showModal: (exp: Experiment) => void } | null>(null);
 const devicePickerModalRef = ref<{ showModal: (onConfirm: (device: string) => void) => void } | null>(null);
+
+onMounted(experimentStore.refresh);
 
 const contextMenuItems = computed(() => {
     const exp = selectedContextExperiment.value;

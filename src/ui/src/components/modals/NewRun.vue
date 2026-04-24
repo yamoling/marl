@@ -18,28 +18,30 @@
                                 <input type="number" class="form-control launch-control" v-model="nRuns" min="1" />
                             </label>
                             <label class="launch-field">
+                                <span class="launch-field-label">Parallel jobs</span>
+                                <input type="number" class="form-control launch-control" v-model="nJobs" min="1" />
+                            </label>
+                            <label class="launch-field">
                                 <span class="launch-field-label">Tests</span>
                                 <div class="field-input-wrap">
-                                    <input type="number" class="form-control launch-control field-control" v-model="nTests" min="1" />
-                                    <span v-if="defaultSeedIsLoading" class="field-loading" aria-label="Loading default number of tests">
-                                        <span
-                                            class="spinner-border spinner-border-sm text-secondary"
-                                            role="status"
-                                            aria-hidden="true"
-                                        ></span>
+                                    <input type="number" class="form-control launch-control field-control"
+                                        v-model="nTests" min="1" />
+                                    <span v-if="defaultSeedIsLoading" class="field-loading"
+                                        aria-label="Loading default number of tests">
+                                        <span class="spinner-border spinner-border-sm text-secondary" role="status"
+                                            aria-hidden="true"></span>
                                     </span>
                                 </div>
                             </label>
                             <label class="launch-field">
                                 <span class="launch-field-label">Seed</span>
                                 <div class="field-input-wrap">
-                                    <input type="number" class="form-control launch-control field-control" v-model="seed" />
-                                    <span v-if="defaultSeedIsLoading" class="field-loading" aria-label="Loading default seed">
-                                        <span
-                                            class="spinner-border spinner-border-sm text-secondary"
-                                            role="status"
-                                            aria-hidden="true"
-                                        ></span>
+                                    <input type="number" class="form-control launch-control field-control"
+                                        v-model="seed" />
+                                    <span v-if="defaultSeedIsLoading" class="field-loading"
+                                        aria-label="Loading default seed">
+                                        <span class="spinner-border spinner-border-sm text-secondary" role="status"
+                                            aria-hidden="true"></span>
                                     </span>
                                 </div>
                             </label>
@@ -57,12 +59,8 @@
                             <div class="section-title">Devices</div>
                             <div class="section-hint">Uncheck GPUs you do not want to use.</div>
                         </div>
-                        <DeviceSelectionList
-                            v-model="selectedDevices"
-                            :multiple="true"
-                            :include-system-devices="false"
-                            :warning-text="deviceWarning"
-                        />
+                        <DeviceSelectionList v-model="selectedDevices" :multiple="true" :include-system-devices="false"
+                            :warning-text="deviceWarning" />
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -98,6 +96,7 @@ const defaultSeedIsLoading = ref(false);
 const modal = ref({} as HTMLDivElement);
 let modalInstance: Modal | null = null;
 const nRuns = ref(1);
+const nJobs = ref(1);
 const nTests = ref(1);
 const seed = ref(0);
 const gpuStrategy = ref<"scatter" | "group">("group");
@@ -152,16 +151,15 @@ async function start() {
         }
     }
     const disabledDevices = getDisabledDevicesFromSelected(systemStore.systemInfo, selectedDevices.value);
-    const started = await store.newRun(experiment.value.logdir, nRuns.value, seed.value, nTests.value, gpuStrategy.value, disabledDevices);
-    if (started) {
-        modalInstance?.hide();
-    }
+    await store.newRun(experiment.value.logdir, nRuns.value, nJobs.value, seed.value, nTests.value, gpuStrategy.value, disabledDevices);
+    modalInstance?.hide();
 }
 
 function showModal(exp: Experiment) {
     setDefaultSeed(exp.logdir);
     experiment.value = exp;
     selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemInfo);
+    nJobs.value = Math.max(1, systemStore.systemInfo?.gpus.length ?? 0);
     gpuStrategy.value = "group";
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);

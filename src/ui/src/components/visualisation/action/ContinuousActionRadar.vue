@@ -30,14 +30,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ContinuousActionSpace } from '../../../models/Env';
+import { ActionSpace } from '../../../models/Env';
 import { ActionValue, ReplayEpisode } from '../../../models/Episode';
 
 const props = defineProps<{
     episode: ReplayEpisode
     currentStep: number
     selectedAgents: number[]
-    actionSpace: ContinuousActionSpace
+    actionSpace: ActionSpace
 }>();
 
 const center = 120;

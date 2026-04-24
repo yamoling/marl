@@ -18,7 +18,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     return res;
   });
   const trainerNames = computed(() => experiments.value.map(exp => exp.trainer.name));
-  refresh();
 
   async function loadExperiments(): Promise<Experiment[]> {
     try {
@@ -91,12 +90,13 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   async function newRun(
     logdir: string,
     nRuns: number,
+    nJobs: number,
     seed: number,
     nTests: number,
     gpuStrategy: "scatter" | "group" = "scatter",
     disabledDevices: number[] = [],
   ) {
-    await apiFetch(`${HTTP_URL}/runner/new/${logdir}`, "Failed to start new run", jsonBody({ seed, nTests, nRuns, gpuStrategy, disabledDevices }));
+    await apiFetch(`${HTTP_URL}/runner/new/${logdir}`, "Failed to start new run", jsonBody({ seed, nTests, nRuns, nJobs, gpuStrategy, disabledDevices }));
     await runStore.refresh(logdir);
   }
 
