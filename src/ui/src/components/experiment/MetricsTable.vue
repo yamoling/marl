@@ -17,7 +17,7 @@
     <div v-else class="metrics-table text-center">
         <DataTable v-model:expandedRows="expanded" :value="dataset!.items" dataKey="step" striped-rows size="small"
             selection-mode="single" @row-expand="onRowExpanded" @row-click="onRowClicked" scrollable
-            scroll-height="80vh" :virtualScrollerOptions="{ itemSize: 44 }">
+            scroll-height="80vh" :virtualScrollerOptions="{}">
             <Column expander style="width: 1rem" />
             <Column field="step" header="Time step"></Column>
             <Column v-for="label in dataset!.columns()" :field="label" :header="label">
@@ -30,10 +30,12 @@
                     <h5>Results at test step {{ slotProps.data.step }}</h5>
                     <font-awesome-icon v-if="testsAtStep[slotProps.data.step] == undefined" icon="spinner" spin />
                     <DataTable v-else :value="testsAtStep[slotProps.data.step]" selection-mode="single"
-                        @row-select="(e) => emits('view-episode', e.data)">
-                        <Column field="test_num" header="#"></Column>
-                        <Column field="rundir" header="Run directory"></Column>
-                        <Column v-for="column in testColumns" :header="column" :field="column">
+                        @row-select="(e) => emits('view-episode', e.data)" size="small" removableSort paginator
+                        :rows="15" :rowsPerPageOptions="[15, 30, 50, 100]">
+                        <Column field="test_num" header="#" sortable></Column>
+                        <Column field="rundir" header="Run directory" sortable></Column>
+                        <Column v-for="column in testColumns" :header="column" :field="column"
+                            :sortField="`metrics.${column}`" sortable>
                             <template #body="{ data }">
                                 <template v-if="typeof data.metrics[column] === 'number'">
                                     {{ formatFloat(data.metrics[column]) }}

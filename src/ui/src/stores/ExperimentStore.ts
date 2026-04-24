@@ -18,7 +18,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     return res;
   });
   const trainerNames = computed(() => experiments.value.map(exp => exp.trainer.name));
-  refresh();
 
   async function loadExperiments(): Promise<Experiment[]> {
     try {
