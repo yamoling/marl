@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import Literal, Sequence, override
 
 import torch
 from marlenv import MARLEnv, MultiDiscreteSpace
@@ -112,7 +112,8 @@ class CNN(NN):
         assert len(env.observation_shape) == 3
         return cls(env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)  # type: ignore
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    @override
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
@@ -141,7 +142,7 @@ class SimpleRNN(RecurrentNN):
         self.fc2 = torch.nn.Linear(hidden_size, n_outputs)
         self.n_outputs = n_outputs
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at most shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
@@ -152,7 +153,12 @@ class SimpleRNN(RecurrentNN):
         extras = torch.reshape(extras, (*obs.shape[:-1], -1))
         x = torch.concat((obs, extras), dim=-1)
         x = self.fc1.forward(x)
-        x, self.hidden_states = self.gru.forward(x, self.hidden_states)
+        if masks is not None:
+            episodes_lengths = masks.sum(0).cpu()
+            x = torch.nn.utils.rnn.pack_padded_sequence(x, episodes_lengths, enforce_sorted=False)
+            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
+        else:
+            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
         x = self.fc2.forward(x)
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_agents, self.n_outputs)

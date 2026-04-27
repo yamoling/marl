@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 from abc import abstractmethod
-import torch
+from dataclasses import KW_ONLY, dataclass
 
+import torch
 
 from .nn import NN
 
@@ -9,17 +9,18 @@ from .nn import NN
 @dataclass
 class Mixer(NN):
     n_agents: int
+    _: KW_ONLY
+    n_objectives: int = 1
 
-    def __init__(self, n_agents: int, n_objectives=1):
-        super().__init__()
-        self.n_agents = n_agents
-        if n_objectives == 1:
+    def __post_init__(self):
+        super().__post_init__()
+        if self.n_objectives == 1:
             self.agent_dim = -1
         else:
             self.agent_dim = -2
 
     @abstractmethod
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Mix the utiliy values of the agents.
 

@@ -14,9 +14,11 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    def __init__(self, output_shape: int | tuple[int] | tuple[int, int]):
-        super().__init__()
-        match output_shape:
+    output_shape: int | tuple[int] | tuple[int, int]
+
+    def __post_init__(self):
+        super().__post_init__()
+        match self.output_shape:
             case int(n_actions) | (n_actions,):
                 self.action_dim = -1
                 self.is_multi_objective = False
@@ -24,7 +26,7 @@ class QNetwork(NN):
             case (_, _):
                 self.action_dim = -2
                 self.is_multi_objective = True
-                self.output_shape = output_shape
+                self.output_shape = self.output_shape
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
 
@@ -44,16 +46,16 @@ class QNetwork(NN):
         return agent_values.mean(dim=-1)
 
     @abstractmethod
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Compute the Q-values.
 
         This function should output qvalues of shape (batch_size, n_actions, n_objectives).
         """
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
-        return self.forward(obs, extras)
+        return self.forward(obs, extras, **kwargs)
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):

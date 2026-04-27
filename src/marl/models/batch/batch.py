@@ -310,6 +310,11 @@ class Batch(ABC):
         """Masks (for padded episodes)"""
 
     @cached_property
+    def all_masks(self):
+        head_masks = torch.ones_like(self.masks[0]).unsqueeze(0)
+        return torch.cat([head_masks, self.masks])
+
+    @cached_property
     def masks_sum(self):
         return self.masks.sum()
 

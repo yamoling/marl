@@ -62,9 +62,9 @@ class QMix(Mixer):
             nn.Linear(self.embed_size, 1),
         )
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, *args, **kwargs) -> torch.Tensor:
-        batch_size = qvalues.size(0)
-        q_totals = torch.zeros(batch_size, self.n_objectives, device=self.device)
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, /, **kwargs) -> torch.Tensor:
+        q_totals = []
+        batch_dims = states.shape[:-1]
         states = states.reshape(-1, self.state_dim)
         for i in range(self.n_objectives):
             if self.n_objectives == 1:
@@ -84,9 +84,10 @@ class QMix(Mixer):
             value = self.V.forward(states).view(-1, 1, 1)
             # Compute final output
             y = torch.bmm(hidden, weight_2) + value
-            q_totals[:, i] = y.squeeze()
+            y = torch.reshape(y, batch_dims)
+            q_totals.append(y)
             # Reshape and return
-        return q_totals.squeeze(-1)
+        return torch.stack(q_totals, dim=-1).squeeze()
 
     @classmethod
     def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], embed_size: int = 64, hypernet_embed_size: int = 64):

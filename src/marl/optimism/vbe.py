@@ -85,7 +85,7 @@ class VBE:
         optim.step()
         bonus_hist = np.stack(self._bonus_history)
         self._bonus_history.clear()
-        return {"vbe_loss": loss.item(), "mean_vbe_bonus": bonus_hist.mean().item()}
+        return {"vbe_loss": float(loss.item()), "mean_vbe_bonus": float(bonus_hist.mean().item())}
 
     def to(self, device: torch.device):
         self._device = device

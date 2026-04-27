@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Optional
+from typing import Iterable, Optional
 
 import torch
 from marlenv.utils import Schedule
@@ -7,12 +7,9 @@ from sumtree import SumTree
 
 from .replay_memory import ReplayMemory
 
-if TYPE_CHECKING:
-    from marl.models import Batch
-
 
 @dataclass
-class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
+class PrioritizedMemory[T](ReplayMemory[T]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -21,7 +18,7 @@ class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    memory: ReplayMemory[T, B]
+    memory: ReplayMemory[T]
     alpha: Schedule
     beta: Schedule
     eps: float
@@ -30,7 +27,7 @@ class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
 
     def __init__(
         self,
-        memory: ReplayMemory[T, B],
+        memory: ReplayMemory[T],
         multi_objective: bool,
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,

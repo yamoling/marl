@@ -11,7 +11,7 @@ from .nn import NN, randomize
 
 
 @dataclass
-class Trainer(ABC):
+class Trainer[T](ABC):
     """Algorithm trainer class. Needed to train an algorithm but not to test it."""
 
     name: str = field(init=False)
@@ -22,7 +22,7 @@ class Trainer(ABC):
         self._device = device
         self.name = self.__class__.__name__
 
-    def make_agent(self) -> Agent:
+    def make_agent(self) -> Agent[T]:
         raise NotImplementedError("Trainer must implement make_agent method")
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:

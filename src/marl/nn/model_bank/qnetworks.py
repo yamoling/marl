@@ -1,14 +1,16 @@
 import math
 import operator
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import reduce
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Literal, Optional, Sequence
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from marlenv import MARLEnv, MultiDiscreteSpace
-from torch import distributions
+from torch import Tensor, distributions
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from marl.models.nn import MAIC, MAICNN, QNetwork, RecurrentQNetwork
 
@@ -84,7 +86,7 @@ class RNNQMix(RecurrentQNetwork):
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, n_outputs)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
@@ -96,7 +98,13 @@ class RNNQMix(RecurrentQNetwork):
             extras = torch.reshape(extras, (*obs.shape[:-1], -1))
             x = torch.concat((obs, extras), dim=-1)
             x = self.fc1.forward(x)
-            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
+            if masks is not None:
+                episode_lengths = masks.sum(0).long()
+                x = pack_padded_sequence(x, episode_lengths.cpu(), enforce_sorted=False)
+                x, self._hidden_states = self.gru.forward(x, self._hidden_states)
+                x, _ = pad_packed_sequence(x)
+            else:
+                x, self._hidden_states = self.gru.forward(x, self._hidden_states)
             x = self.fc2.forward(x)
             # Restore the original shape of the batch
             x = x.view(episode_length, *batch_agents, *self.output_shape)
@@ -106,6 +114,93 @@ class RNNQMix(RecurrentQNetwork):
             if "shape" in error_message:
                 error_message += "\nDid you use a TransitionMemory instead of an EpisodeMemory alongside an RNN ?"
             raise RuntimeError(error_message)
+
+
+@dataclass
+class MAVENHyper(torch.nn.Module, ABC):
+    noise_size: int
+    n_agents: int
+    agent_output_size: int
+    n_actions: int
+
+    @abstractmethod
+    def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor: ...
+
+
+@dataclass
+class MAVENHyperBMM(MAVENHyper):
+    def __post_init__(self):
+        self.hyper_network = torch.nn.Linear(
+            self.noise_size + self.n_agents,
+            self.agent_output_size * self.n_actions * self.n_agents,
+        )
+
+    def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
+        agent_ids = torch.eye(self.n_agents, device=noise.device)
+        inputs = torch.cat([noise, agent_ids], dim=-1)
+        weights = self.hyper_network.forward(inputs)
+        return torch.bmm(weights, agent_output.unsqueeze(2))
+
+
+@dataclass
+class MAVENHyperMult(MAVENHyper):
+    def __post_init__(self):
+        self.linear = torch.nn.Linear(self.agent_output_size, self.n_actions)
+        self.mult_weights_nn = torch.nn.Sequential(
+            torch.nn.Linear(self.noise_size + self.n_agents, 64),
+            torch.nn.Tanh(),
+            torch.nn.Linear(64, 64),
+            torch.nn.Tanh(),
+            torch.nn.Linear(64, self.n_actions),
+        )
+
+    def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
+        qs = self.linear.forward(agent_output)
+        agent_ids = torch.eye(self.n_agents, device=noise.device)
+        weights_inputs = torch.cat([noise, agent_ids])
+        weights = self.mult_weights_nn.forward(weights_inputs)
+        return qs * weights
+
+
+@dataclass
+class MAVENCNN(QNetwork):
+    noise_size: int
+    hyper_type: Literal["bmm", "mul"]
+
+    def __init__(
+        self,
+        n_actions: int,
+        n_agents: int,
+        noise_size: int,
+        obs_shape: tuple[int, int, int],
+        extras_size: int,
+        hyper_type: Literal["bmm", "mul"] = "bmm",
+    ):
+        OUTPUT_SIZE = 128
+        super().__init__(n_actions)
+        self.n_agents = n_agents
+        self.noise_size = noise_size
+        self.cnn, cnn_output_size = make_cnn(obs_shape, [32, 64, 32], [3, 3, 3], [1, 1, 1])
+        self.linear = torch.nn.Sequential(
+            torch.nn.Linear(cnn_output_size + extras_size - noise_size, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, OUTPUT_SIZE),
+            torch.nn.ReLU(),
+        )
+        match hyper_type:
+            case "bmm":
+                self.hyper_network = MAVENHyperBMM(noise_size, n_agents, OUTPUT_SIZE, n_actions)
+            case "mul":
+                self.hyper_network = MAVENHyperMult(noise_size, n_agents, OUTPUT_SIZE, n_actions)
+            case other:
+                raise ValueError(f"Unknown hyper network type {other}")
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+        x = self.cnn.forward(obs)
+        x = torch.cat([x, extras[:, : -self.noise_size]])
+        x = self.linear.forward(x)
+        noise = extras[:, -self.noise_size :]
+        return self.hyper_network.forward(noise, x)
 
 
 RNN = RNNQMix
@@ -122,7 +217,7 @@ class AtariCNN(QNetwork):
         self.cnn, n_features = make_cnn(input_shape, filters, kernels, strides)
         self.linear = torch.nn.Sequential(torch.nn.Linear(n_features, 512), torch.nn.ReLU(), torch.nn.Linear(512, output_shape))
 
-    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: Optional[torch.Tensor] = None, /, **kwargs) -> torch.Tensor:
         batch_size, n_agents, channels, height, width = obs.shape
         obs = obs.view(batch_size * n_agents, channels, height, width)
         qvalues: torch.Tensor = self.cnn.forward(obs)
@@ -197,7 +292,7 @@ class IndependentCNN(QNetwork):
             mlp_noisy=mlp_noisy,
         )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width) -> Not implemented
         batch_size, n_agents, channels, height, width = obs.shape
@@ -249,7 +344,7 @@ class RCNN(RecurrentQNetwork):
         c, h, w = env.observation_shape
         return cls((c, h, w), env.extras_shape[0], output_shape)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
         *dims, channels, height, width = obs.shape
@@ -260,7 +355,7 @@ class RCNN(RecurrentQNetwork):
         res = self.rnn.forward(features, extras)
         return res.view(*dims, *self.output_shape)
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         *dims, channels, height, width = obs.shape
         obs = obs.reshape(-1, channels, height, width)
         features = self.cnn.forward(obs)
@@ -353,7 +448,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
             obs = torch.concat((obs, extras), dim=-1)
 
         x = F.relu(self.fc1(obs))
-        x, self.hidden_states = self.rnn(x, self.hidden_states)
+        x, self._hidden_states = self.rnn(x, self._hidden_states)
         q = self.fc2(x)
 
         messages = []
@@ -365,7 +460,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
             q += messages
         return q.view(*dims, *self.output_shape).unsqueeze(-1), gated_msg, messages, init_qvalues
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
         q_values, _, _, _ = self.get_values_and_comms(obs, extras)
         return q_values
 

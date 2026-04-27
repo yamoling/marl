@@ -5,41 +5,52 @@ import dotenv
 import lle
 
 import marl
-from marl.nn.model_bank import actor_critics, qnetworks
 from marl.nn import mixers
-from marl.training import PPO, DQN
+from marl.nn.model_bank import qnetworks
+from marl.training import DQN, MAVEN
 
 
 def main():
-    env = lle.level(6).obs_type("layered").state_type("state").pbrs().builder().agent_id().time_limit(78).build()
-
-    # oc = options_nn.CNNOptionCritic.from_env(env, 4)
-    # trainer = PPOC(
-    #     oc,
-    #     env.n_agents,
-    #     mixer=mixers.VDN.from_env(env),
-    #     option_train_policy=EpsilonGreedy.linear(1.0, 0.05, 50_000),
-    #     train_interval=32,
-    #     early_stopping_kl=0.01,
-    # )
-    trainer = PPO(
-        actor_critics.CNNDiscreteAC.from_env(env),
-        mixer=None,  # mixers.VDN.from_env(env),
-        grad_norm_clipping=10.0,
-        early_stopping_kl=0.01,
-        n_epochs=15,
-        lr_actor=5e-4,
-        lr_critic=5e-4,
+    NOISE_SIZE = 16
+    env = (
+        lle.level(6)
+        .obs_type("layered")
+        .state_type("state")
+        .pbrs(gamma=1.0)
+        .builder()
+        .agent_id()
+        .time_limit(78)
+        .extra_noise(NOISE_SIZE)
+        .build()
     )
+
+    # trainer = MAVEN(
+    #     qnetworks.QCNN.from_env(env),
+    #     marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+    #     marl.models.EpisodeMemory(5_000),
+    #     NOISE_SIZE,
+    #     env.n_actions,
+    #     env.n_agents,
+    #     env.state_size,
+    #     env.state_extras_size,
+    #     mixer=mixers.VDN.from_env(env),
+    #     test_policy=marl.policy.ArgMax(),
+    #     grad_norm_clipping=10.0,
+    #     batch_size=16,
+    #     train_interval=(1, "episode"),
+    # )
     trainer = DQN(
         qnetworks.QCNN.from_env(env),
-        mixer=mixers.QMix.from_env(env),
-        train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+        marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+        marl.models.EpisodeMemory(5_000),
+        mixer=mixers.VDN.from_env(env),
         test_policy=marl.policy.ArgMax(),
-        memory=marl.models.TransitionMemory(50_000),
         grad_norm_clipping=10.0,
+        batch_size=16,
+        train_interval=(1, "episode"),
     )
     logdir = f"logs/{trainer.name}-{env.name}"
+    logdir = "test"
     exp = marl.Experiment.create(
         env,
         1_000_000,
@@ -49,7 +60,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    exp.run(seeds=30, n_tests=1, disabled_gpus=[0, 1, 2, 3], fill_strategy="scatter", quiet=True)
+    exp.run(seeds=30, n_tests=1, disabled_gpus=[1, 2, 3], fill_strategy="scatter", quiet=False)
 
 
 if __name__ == "__main__":
