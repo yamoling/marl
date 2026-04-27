@@ -31,7 +31,7 @@ class MAVEN(DQN[EpisodeMemory]):
         self.optimiser.add_param_group({"params": list(self.trajectory_aggregator.parameters()), **settings})
         self.optimiser.add_param_group({"params": self.discriminator.parameters(), **settings})
 
-    def train(self, batch: Batch):
+    def train(self, time_step: int, batch: Batch):
         all_qvalues, qvalues = self._compute_qvalues(batch)
         with torch.no_grad():
             qtargets = self._compute_qtargets(batch)
@@ -45,7 +45,7 @@ class MAVEN(DQN[EpisodeMemory]):
             grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
-        logs.update(self.memory.update(td_error))
+        logs.update(self.memory.update(time_step, td_error=td_error))
         if self.vbe is not None:
             logs.update(self.vbe.update(batch))
         return logs

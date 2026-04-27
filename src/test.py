@@ -20,7 +20,7 @@ def main():
         .builder()
         .agent_id()
         .time_limit(78)
-        # .extra_noise(NOISE_SIZE)
+        .extra_noise(NOISE_SIZE)
         .build()
     )
 
@@ -39,16 +39,16 @@ def main():
         batch_size=16,
         train_interval=(1, "episode"),
     )
-    trainer = DQN(
-        qnetworks.QCNN.from_env(env),
-        marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
-        marl.models.EpisodeMemory(5_000),
-        mixer=mixers.VDN.from_env(env),
-        test_policy=marl.policy.ArgMax(),
-        grad_norm_clipping=10.0,
-        batch_size=16,
-        train_interval=(1, "episode"),
-    )
+    # trainer = DQN(
+    #     qnetworks.QCNN.from_env(env),
+    #     marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+    #     marl.models.EpisodeMemory(5_000),
+    #     mixer=mixers.VDN.from_env(env),
+    #     test_policy=marl.policy.ArgMax(),
+    #     grad_norm_clipping=10.0,
+    #     batch_size=16,
+    #     train_interval=(1, "episode"),
+    # )
     logdir = f"logs/{trainer.name}-{env.name}-no-noise"
     # logdir = "test"
     exp = marl.Experiment.create(
@@ -60,7 +60,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    exp.run(seeds=30, n_tests=1, fill_strategy="scatter", quiet=False, n_parallel=2)
+    exp.run(seeds=30, n_tests=1, fill_strategy="scatter", quiet=False, n_parallel=2, disabled_gpus=[1])
 
 
 if __name__ == "__main__":
