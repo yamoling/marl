@@ -1,6 +1,5 @@
 import numpy as np
 from collections import OrderedDict
-from typing import Sequence
 from lle import LLE
 from marlenv import Builder, RLEnvWrapper, MultiDiscreteSpace
 from dataclasses import dataclass
@@ -34,7 +33,7 @@ class ShapedLabyrinth(RLEnvWrapper[MultiDiscreteSpace]):
         obs.add_extra(extra)
         return obs
 
-    def step(self, action: np.ndarray | Sequence):
+    def step(self, action):
         step = super().step(action)
         agent_pos = self._world.agents_positions[0]
         if agent_pos in self._reward_countdown:
