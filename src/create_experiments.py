@@ -149,7 +149,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                     extras_size=meta_env.extras_shape[0],
                     output_shape=N_SUBGOALS,
                 ),
-                train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 200_000),
+                train_policy=marl.bandits.EpsilonGreedy.linear(1.0, 0.05, 200_000),
                 memory=marl.models.TransitionMemory(5_000),
                 double_qlearning=True,
                 target_updater=SoftUpdate(0.01),
@@ -166,7 +166,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     worker_trainer = DQN(
         qnetwork=marl.nn.model_bank.qnetworks.QCNN.qnetwork(env),
-        train_policy=marl.policy.EpsilonGreedy.linear(
+        train_policy=marl.bandits.EpsilonGreedy.linear(
             1.0,
             0.05,
             n_steps=200_000,
@@ -245,9 +245,9 @@ def make_dqn(
         case None:
             ir = None
     if noisy:
-        policy = marl.policy.ArgMax()
+        policy = marl.bandits.ArgMax()
     else:
-        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+        policy = marl.bandits.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
     vbe = None
     if use_vbe:
         vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)

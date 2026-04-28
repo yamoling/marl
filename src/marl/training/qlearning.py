@@ -57,7 +57,7 @@ class QLearning(Trainer):
 
     def make_agent(self, policy: Policy | None = None, test_policy: Policy | None = None) -> Agent:
         from marl.agents import QAgent
-        from marl.policy import ArgMax, EpsilonGreedy
+        from marl.bandits import ArgMax, EpsilonGreedy
 
         if policy is None:
             policy = EpsilonGreedy.constant(0.1)

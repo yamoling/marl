@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Literal
 
@@ -8,18 +8,16 @@ import numpy as np
 import torch
 from marlenv import Observation
 
-from .action import Action
-from .nn import NN, RecurrentNN
+from ..action import Action
+from ..nn import NN, RecurrentNN
 
 
 @dataclass
 class Agent[T](ABC):
-    name: str
+    name: str = field(init=False)
 
-    def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
+    def __post_init__(self):
         self.name = self.__class__.__name__
-        if isinstance(device, str):
-            device = torch.device(device)
         self._device = torch.device("cpu")
         self._training = True
 
@@ -57,7 +55,7 @@ class Agent[T](ABC):
         """
         Seed the algorithm for reproducibility (e.g. during testing).
 
-        Seed `ranom`, `numpy`, and `torch` libraries by default.
+        Seed `random`, `numpy`, and `torch` libraries by default.
         """
         import random
 
@@ -126,41 +124,3 @@ class Agent[T](ABC):
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
         for nn in self.networks():
             nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt"), map_location=self.device))
-
-
-@dataclass
-class AgentWrapper[T](Agent[T]):
-    def __init__(self, agent: Agent[T], device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
-        super().__init__(device)
-        self.agent = agent
-
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
-        return self.agent.choose_action(observation, with_details=with_details)
-
-    def new_episode(self):
-        return self.agent.new_episode()
-
-    def set_training(self):
-        self.agent.set_training()
-        super().set_training()
-
-    def set_testing(self):
-        self.agent.set_testing()
-        super().set_testing()
-
-    def to(self, device: torch.device):
-        self.agent.to(device)
-        return super().to(device)
-
-    def seed(self, seed: int):
-        return self.agent.seed(seed)
-
-    def _can_autosave(self):
-        if not self.agent._can_autosave():
-            return False
-        return super()._can_autosave()
-
-    def networks(self):
-        all_networks = self.agent.networks()
-        wrapper_networks = super().networks()
-        return wrapper_networks + all_networks

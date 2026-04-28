@@ -1,9 +1,9 @@
 import lle
 
 import marl
+from marl.bandits import EpsilonGreedy
 from marl.nn import mixers
 from marl.nn.model_bank.options import CNNOptionCritic
-from marl.policy import EpsilonGreedy
 from marl.training import OptionCritic
 
 WORLD_STR = '''
@@ -49,8 +49,6 @@ def main():
 
     exp = marl.Experiment.create(env, 200_000, trainer=trainer, test_interval=2000)
     exp.run(seeds=10, n_tests=10, n_parallel=3)
-
-
 
 
 if __name__ == "__main__":

@@ -1,8 +1,14 @@
-from dataclasses import KW_ONLY, dataclass
+import random
+from abc import ABC, abstractmethod
+from collections import deque
+from dataclasses import KW_ONLY, dataclass, field
+from typing import Literal
 
+import numpy as np
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence
 
+from marl.agents.hierarchical.maven_agent import MAVENAgent
 from marl.models import Batch, EpisodeMemory
 
 from .dqn import DQN
@@ -16,10 +22,19 @@ class MAVEN(DQN[EpisodeMemory]):
     state_size: int
     state_extras_size: int
     _: KW_ONLY
+    z_policy_type: Literal["uniform", "max-entropy", "return"]
     mi_loss_coef: float = 1.0
 
     def __post_init__(self):
         super().__post_init__()
+        match self.z_policy_type:
+            case "uniform":
+                self.z_policy = UniformMAVENZPolicy(noise_size=self.noise_size)
+            case "return":
+                pass
+            case "max-entropy":
+                raise NotImplementedError("Max-entropy z policy is not implemented yet.")
+
         self._mi_loss = torch.nn.CrossEntropyLoss(reduction="mean")
         self.trajectory_aggregator = TrajectoryAggregator(
             self.n_agents, self.n_actions, self.state_size + self.state_extras_size - self.noise_size
@@ -53,14 +68,33 @@ class MAVEN(DQN[EpisodeMemory]):
 
     def _compute_maven_loss(self, batch: Batch, all_qvalues: torch.Tensor):
         assert all_qvalues.grad_fn is not None, "Gradient should flow through all_qvalues for the MI loss to work !"
-        noise = batch.states_extras[0, :, -self.noise_size :]
+        # Retrieve the noise from the transition details instead of parsing the state extras implicitly
+        noise = batch["maven-noise"][0]
         state_extras = batch.states_extras[:, :, : -self.noise_size]
-        ground_truth = noise.argmax(dim=-1)
+        ground_truth = noise.argmax(dim=-1).long()
         all_qvalues_masked = all_qvalues.masked_fill(~batch.available_actions, -torch.inf)
         embeddings = self.trajectory_aggregator.forward(all_qvalues_masked, batch.states, state_extras, batch.masks)
         predicted_class = self.discriminator.forward(embeddings)
         mi_loss = self._mi_loss.forward(predicted_class, ground_truth)
         return self.mi_loss_coef * mi_loss
+
+    def make_agent(self) -> MAVENAgent:  # type: ignore[override]
+        base_agent = super().make_agent()
+        return MAVENAgent(
+            noise_size=self.noise_size,
+            workers=base_agent,
+            z_policy=self.z_policy,
+        )
+
+    def update_episode(self, episode, episode_num: int, time_step: int):
+        logs = super().update_episode(episode, episode_num, time_step)
+        if self.z_policy is not None:
+            # Compute total return of the episode
+            import numpy as np
+
+            episode_return = float(np.sum(episode.rewards))
+            self.z_policy.record_episode_return(episode_return)
+        return logs
 
 
 @dataclass(unsafe_hash=True)
@@ -111,3 +145,98 @@ class Discriminator(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model.forward(x)
+
+
+class MAVENZPolicy(ABC):
+    def __init__(self, noise_size: int):
+        self.noise_size = noise_size
+        self._episode_noise: np.ndarray | None = None
+        self._saved_episode_noise: np.ndarray | None = None
+
+    @abstractmethod
+    def _sample_episode_noise(self) -> np.ndarray:
+        """Sample a new z for the current episode."""
+
+    def ensure_episode_noise(self) -> np.ndarray:
+        if self._episode_noise is None:
+            self._episode_noise = self._sample_episode_noise()
+        return self._episode_noise
+
+    def current_episode_noise(self) -> np.ndarray | None:
+        return self._episode_noise
+
+    def new_episode(self):
+        self._episode_noise = None
+
+    def set_testing(self):
+        self._saved_episode_noise = self._episode_noise
+
+    def set_training(self):
+        self._episode_noise = self._saved_episode_noise
+
+    def record_episode_return(self, episode_return: float):
+        """Update policy parameters from an observed episode return."""
+
+
+class UniformMAVENZPolicy(MAVENZPolicy):
+    def _sample_episode_noise(self) -> np.ndarray:
+        episode_noise = np.zeros(self.noise_size, dtype=np.float32)
+        episode_noise[random.randint(0, self.noise_size - 1)] = 1.0
+        return episode_noise
+
+
+@dataclass
+class ReturnsBanditMAVENZPolicy(MAVENZPolicy):
+    noise_size: int
+    learning_rate: float = 1e-2
+    buffer_size: int = 512
+    update_iters: int = 8
+    batch_size: int = 64
+    reward_scaling: float = 20.0
+    epsilon: float = 0.1
+    entropy_coef: float = 0.01
+    device: torch.device | str = "cpu"
+    _return_buffer: deque[tuple[int, float]] = field(init=False, repr=False)
+
+    def __post_init__(self):
+        super().__init__(self.noise_size)
+        self.device = torch.device(self.device)
+        self.logits = torch.nn.Parameter(torch.zeros(self.noise_size, device=self.device))
+        self.optimiser = torch.optim.RMSprop([self.logits], lr=self.learning_rate)
+        self._return_buffer = deque(maxlen=self.buffer_size)
+
+    def _sample_episode_noise(self) -> np.ndarray:
+        probabilities = torch.softmax(self.logits.detach(), dim=-1)
+        if random.random() < self.epsilon:
+            index = random.randint(0, self.noise_size - 1)
+        else:
+            index = int(torch.distributions.Categorical(probabilities).sample().item())
+
+        episode_noise = np.zeros(self.noise_size, dtype=np.float32)
+        episode_noise[index] = 1.0
+        return episode_noise
+
+    def record_episode_return(self, episode_return: float):
+        if self._episode_noise is None:
+            return
+
+        episode_noise_index = int(np.argmax(self._episode_noise))
+        self._return_buffer.append((episode_noise_index, float(episode_return)))
+        if len(self._return_buffer) < self.batch_size:
+            return
+
+        for _ in range(self.update_iters):
+            batch_indices = np.random.choice(len(self._return_buffer), size=self.batch_size, replace=False)
+            sampled_indices = torch.tensor([self._return_buffer[index][0] for index in batch_indices], device=self.device)
+            sampled_returns = torch.tensor([self._return_buffer[index][1] for index in batch_indices], device=self.device)
+            sampled_returns = sampled_returns / self.reward_scaling
+            sampled_returns = sampled_returns - sampled_returns.mean()
+
+            log_probabilities = torch.log_softmax(self.logits, dim=-1)
+            chosen_log_probs = log_probabilities.gather(0, sampled_indices)
+            entropy = -(torch.softmax(self.logits, dim=-1) * log_probabilities).sum()
+            loss = -(sampled_returns.detach() * chosen_log_probs).mean() - self.entropy_coef * entropy
+
+            self.optimiser.zero_grad()
+            loss.backward()
+            self.optimiser.step()

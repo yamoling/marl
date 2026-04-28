@@ -8,11 +8,11 @@ import torch
 from marlenv import Episode, Transition
 from marlenv.utils import Schedule
 
+from marl.bandits import ArgMax, EpsilonGreedy
 from marl.models import Batch, Mixer, Policy, ReplayMemory, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.models.nn.options import OptionCriticNetwork
 from marl.models.replay_memory import EpisodeMemory, TransitionMemory
-from marl.policy import ArgMax, EpsilonGreedy
 from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
 
 

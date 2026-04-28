@@ -9,7 +9,7 @@ from marl.models import Batch, Policy, Trainer, TransitionMemory
 from marl.models.batch import TransitionBatch
 from marl.models.nn import Mixer
 from marl.models.nn.options import OptionCriticNetwork
-from marl.policy import ArgMax, EpsilonGreedy
+from marl.bandits import ArgMax, EpsilonGreedy
 from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
 
 

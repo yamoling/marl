@@ -26,7 +26,7 @@ def main():
 
     trainer = MAVEN(
         qnetworks.MAVENCNN.from_env(env),
-        marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+        marl.bandits.EpsilonGreedy.linear(1.0, 0.05, 50_000),
         marl.models.EpisodeMemory(5_000),
         NOISE_SIZE,
         env.n_actions,
@@ -34,7 +34,7 @@ def main():
         env.state_size,
         env.state_extras_size,
         mixer=mixers.VDN.from_env(env),
-        test_policy=marl.policy.ArgMax(),
+        test_policy=marl.bandits.ArgMax(),
         grad_norm_clipping=10.0,
         batch_size=16,
         train_interval=(1, "episode"),
