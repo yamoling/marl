@@ -28,7 +28,7 @@ class QCNN(CNN, QNetwork):
         self,
         input_shape: tuple[int, int, int],
         extras_size: int,
-        output_shape: tuple[int] | tuple[int, int],
+        output_shape: int | tuple[int] | tuple[int, int],
         mlp_sizes: tuple[int, ...] = (128, 128),
         mlp_noisy: bool = False,
     ):
@@ -36,7 +36,7 @@ class QCNN(CNN, QNetwork):
             output = (output_shape,)
         else:
             output = output_shape
-        QNetwork.__init__(self, output_shape)
+        QNetwork.__init__(self, output)
         CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
 
     @classmethod

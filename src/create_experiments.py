@@ -225,7 +225,7 @@ def make_dqn(
     gamma: float = 0.95,
     noisy: bool = False,
     use_vbe: bool = False,
-    memory: Optional[ReplayMemory[Any, Any]] = None,
+    memory: Optional[ReplayMemory[Any]] = None,
     update_every: tuple[int, Literal["step", "episode"]] = (5, "step"),
 ):
     mixer = make_mixer(env, mixing)
@@ -257,7 +257,7 @@ def make_dqn(
         qnetwork=qnetwork,
         train_policy=policy,
         memory=memory,
-        optimiser="adam",
+        optimiser_type="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
