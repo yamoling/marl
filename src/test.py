@@ -25,7 +25,7 @@ def main():
     )
 
     trainer = MAVEN(
-        qnetworks.QCNN.from_env(env),
+        qnetworks.MAVENCNN.from_env(env),
         marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
         marl.models.EpisodeMemory(5_000),
         NOISE_SIZE,

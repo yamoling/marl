@@ -91,8 +91,6 @@ class TrajectoryAggregator(torch.nn.Module):
 
 @dataclass(unsafe_hash=True)
 class Discriminator(torch.nn.Module):
-    """Classifier that takes as input an aggregated trajectory and outputs a class probability distribution across `noise_size` classes."""
-
     input_size: int
     noise_size: int
     _: KW_ONLY

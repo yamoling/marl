@@ -206,6 +206,16 @@ class MAVENCNN(QNetwork):
         noise = extras[:, -self.noise_size :]
         return self.hyper_network.forward(noise, x)
 
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
+        assert len(env.observation_shape) == 3
+        noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
+        if noise_size == 0:
+            raise ValueError(
+                "No noise found in the environment extras. Make sure to add noise to the environment extras with env.extra_noise() or to use the MAVEN agent."
+            )
+        return MAVENCNN(env.n_actions, env.n_agents, noise_size, env.observation_shape, env.extras_size)
+
 
 RNN = RNNQMix
 
