@@ -44,22 +44,22 @@ class MAVEN(DQN[EpisodeMemory]):
         self.optimiser.zero_grad()
         loss.backward()
         if self.grad_norm_clipping is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
-            logs["grad_norm"] = grad_norm.item()
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
         self.optimiser.step()
-        logs.update(self.memory.update(time_step, td_error=td_error))
+        logs = logs | self.memory.update(time_step, td_error=td_error)
         if self.vbe is not None:
-            logs.update(self.vbe.update(batch))
+            logs = logs | self.vbe.update(batch)
         return logs
 
     def _compute_maven_loss(self, batch: Batch, all_qvalues: torch.Tensor):
         assert all_qvalues.grad_fn is not None, "Gradient should flow through all_qvalues for the MI loss to work !"
         noise = batch.states_extras[0, :, -self.noise_size :]
         state_extras = batch.states_extras[:, :, : -self.noise_size]
-        classes = noise.argmax(dim=-1)
-        embeddings = self.trajectory_aggregator.forward(all_qvalues, batch.states, state_extras, batch.masks, batch.size)
+        ground_truth = noise.argmax(dim=-1)
+        all_qvalues[~batch.available_actions] = -torch.inf
+        embeddings = self.trajectory_aggregator.forward(all_qvalues, batch.states, state_extras, batch.masks)
         predicted_class = self.discriminator.forward(embeddings)
-        mi_loss = self._mi_loss(predicted_class, classes)
+        mi_loss = self._mi_loss.forward(predicted_class, ground_truth)
         return self.mi_loss_coef * mi_loss
 
 
@@ -78,7 +78,7 @@ class TrajectoryAggregator(torch.nn.Module):
     def input_size(self):
         return self.n_actions * self.n_agents + self.state_size
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, state_extras: torch.Tensor, masks: torch.Tensor, batch_size: int):
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, state_extras: torch.Tensor, masks: torch.Tensor):
         soft_qvalues = torch.nn.functional.softmax(qvalues, dim=-1)
         soft_qvalues = soft_qvalues.flatten(2)
         trajectories = torch.cat([soft_qvalues, states, state_extras], dim=-1)
@@ -95,6 +95,7 @@ class Discriminator(torch.nn.Module):
 
     input_size: int
     noise_size: int
+    _: KW_ONLY
     n_layers: int = 2
     hidden_size: int = 64
 
@@ -109,6 +110,7 @@ class Discriminator(torch.nn.Module):
             self.model.append(torch.nn.Linear(self.hidden_size, self.hidden_size))
             self.model.append(torch.nn.ReLU())
         self.model.append(torch.nn.Linear(self.hidden_size, self.noise_size))
+        self.model.append(torch.nn.Softmax(dim=-1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model.forward(x)

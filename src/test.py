@@ -20,7 +20,7 @@ def main():
         .builder()
         .agent_id()
         .time_limit(78)
-        # .extra_noise(NOISE_SIZE)
+        .extra_noise(NOISE_SIZE)
         .build()
     )
 
@@ -59,7 +59,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[1, 5, 6, 7], n_parallel=4)
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[0, 1, 5, 6, 7], n_parallel=1)
 
 
 if __name__ == "__main__":
