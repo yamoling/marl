@@ -1,5 +1,5 @@
 from .action import Action
-from .agent import Agent
+from .agent import Agent, AgentWrapper
 from .batch import Batch
 from .experiment import Experiment
 from .nn import MAIC, MAICNN, NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
@@ -34,6 +34,7 @@ __all__ = [
     "BiasedMemory",
     "NStepMemory",
     "Agent",
+    "AgentWrapper",
     "Experiment",
     "ReplayEpisode",
     "LightEpisodeSummary",
