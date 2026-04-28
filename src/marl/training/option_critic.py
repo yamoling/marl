@@ -75,11 +75,11 @@ class OptionCritic(Trainer):
         q_options = self.oc.compute_q_options(batch.obs, batch.extras)
         q_options = torch.gather(q_options, dim=-1, index=options).squeeze(-1)
         if self.mixer is not None:
-            q_options = self.mixer.forward(q_options, batch.states)
+            q_options = self.mixer.forward(q_options, batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_oc.value_on_arrival(batch.next_obs, batch.next_extras, options)
             if self.target_mixer is not None:
-                next_values = self.target_mixer.forward(next_values, batch.next_states)
+                next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
         targets = batch.rewards + self.gamma * batch.not_dones * next_values
         return torch.nn.functional.mse_loss(q_options, targets)
 
@@ -108,10 +108,10 @@ class OptionCritic(Trainer):
 
             # Apply mixer if present
             if self.target_mixer is not None and self.mixer is not None:
-                q_options = self.mixer.forward(q_options, batch.states)
-                next_q_options_continued = self.target_mixer.forward(next_q_options_continued, batch.next_states)
-                next_q_max = self.target_mixer.forward(next_q_max, batch.next_states)
-                next_values = self.target_mixer.forward(next_values, batch.next_states)
+                q_options = self.mixer.forward(q_options, batch.states, batch.states_extras)
+                next_q_options_continued = self.target_mixer.forward(next_q_options_continued, batch.next_states, batch.next_states_extras)
+                next_q_max = self.target_mixer.forward(next_q_max, batch.next_states, batch.next_states_extras)
+                next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
 
         # Policy loss: policy gradient using Q_U bootstrapped target
         values = batch.rewards + self.gamma * batch.not_dones * next_values

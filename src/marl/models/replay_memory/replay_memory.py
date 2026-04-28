@@ -66,7 +66,7 @@ class ReplayMemory[T](ABC):
     def __getitem__(self, index: int) -> T:
         return self._memory[index]
 
-    def update(self, time_step: int, **kwargs) -> dict[str, float]:
+    def update(self, time_step: int, /, **kwargs) -> dict[str, float]:
         """Update the memory with the given information. NO-OP for most memory types."""
         return {}
 

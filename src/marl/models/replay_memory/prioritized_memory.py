@@ -104,7 +104,9 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, td_error: torch.Tensor) -> dict[str, float]:
+    def update(self, time_step: int, /, td_error: torch.Tensor | None = None, **kwargs) -> dict[str, float]:
+        if td_error is None:
+            raise ValueError("'td_error' keyword argument must be provided to update the priorities of the sampled transitions.")
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)

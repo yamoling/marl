@@ -7,7 +7,7 @@ import lle
 import marl
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
-from marl.training import DQN, MAVEN
+from marl.training import MAVEN
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
         .builder()
         .agent_id()
         .time_limit(78)
-        .extra_noise(NOISE_SIZE)
+        # .extra_noise(NOISE_SIZE)
         .build()
     )
 
@@ -49,18 +49,17 @@ def main():
     #     batch_size=16,
     #     train_interval=(1, "episode"),
     # )
-    logdir = f"logs/{trainer.name}-{env.name}-no-noise"
-    # logdir = "test"
+    logdir = f"logs/{trainer.name}-{env.name}"
     exp = marl.Experiment.create(
         env,
-        1_000_000,
+        4_000_000,
         trainer=trainer,
         test_interval=5000,
         logdir=logdir,
         save_weights=False,
         replace_if_exists=True,
     )
-    exp.run(seeds=30, n_tests=1, fill_strategy="scatter", quiet=False, n_parallel=2, disabled_gpus=[1])
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[1, 5, 6, 7], n_parallel=4)
 
 
 if __name__ == "__main__":

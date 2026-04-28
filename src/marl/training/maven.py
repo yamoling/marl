@@ -19,7 +19,6 @@ class MAVEN(DQN[EpisodeMemory]):
     mi_loss_coef: float = 1.0
 
     def __post_init__(self):
-        # TODO: gérer le state_extra_size en plus du state_site !
         super().__post_init__()
         self._mi_loss = torch.nn.CrossEntropyLoss(reduction="mean")
         self.trajectory_aggregator = TrajectoryAggregator(
@@ -30,6 +29,9 @@ class MAVEN(DQN[EpisodeMemory]):
         settings.pop("params")
         self.optimiser.add_param_group({"params": list(self.trajectory_aggregator.parameters()), **settings})
         self.optimiser.add_param_group({"params": self.discriminator.parameters(), **settings})
+        self.name = self.__class__.__name__
+        if self.mixer is not None:
+            self.name += f"-{self.mixer.name}"
 
     def train(self, time_step: int, batch: Batch):
         all_qvalues, qvalues = self._compute_qvalues(batch)

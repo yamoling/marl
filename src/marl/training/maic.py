@@ -6,7 +6,7 @@ import torch
 from marlenv import Episode, Transition
 
 from marl.models import MAICNN, EpisodeMemory, Mixer, Policy
-from marl.models.batch import EpisodeBatch
+from marl.models.batch import Batch
 from marl.models.trainer import Trainer
 from marl.utils import defaults_to
 
@@ -88,7 +88,7 @@ class MAICTrainer(Trainer):
     def _can_update(self):
         return self.memory.can_sample(self.batch_size)
 
-    def _next_state_value(self, batch: EpisodeBatch):
+    def _next_state_value(self, batch: Batch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
         next_qvalues, _, _ = self.target_network.batch_forward(batch.all_obs, batch.all_extras)
         next_qvalues = next_qvalues[1:]
@@ -105,7 +105,7 @@ class MAICTrainer(Trainer):
         indices = indices.unsqueeze(-1).repeat(*(1 for _ in indices.shape), batch.reward_size)
         next_values = torch.gather(next_qvalues, -2, indices).squeeze(-2)
         mixed_next_values = self.target_mixer.forward(
-            next_values, batch.next_states, one_hot_actions=batch.one_hot_actions, next_qvalues=next_qvalues
+            next_values, batch.next_states, batch.next_states_extras, one_hot_actions=batch.one_hot_actions, next_qvalues=next_qvalues
         )
         return mixed_next_values
 
@@ -118,7 +118,9 @@ class MAICTrainer(Trainer):
 
         # Pick the Q-Values for the actions taken by each agent
         chosen_action_qvals = torch.gather(qvalues, dim=-2, index=batch.actions).squeeze(-2)
-        mixed_qvalues = self.mixer.forward(chosen_action_qvals, batch.states, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues)
+        mixed_qvalues = self.mixer.forward(
+            chosen_action_qvals, batch.states, batch.states_extras, one_hot_actions=batch.one_hot_actions, next_qvalues=qvalues
+        )
 
         # Drop variables to prevent using them mistakenly
         del qvalues
@@ -155,7 +157,7 @@ class MAICTrainer(Trainer):
 
         return logs, td_error
 
-    def _process_loss(self, losses: list, batch: EpisodeBatch):
+    def _process_loss(self, losses: list, batch: Batch):
         total_loss = 0
         loss_dict = {}
         for item in losses:

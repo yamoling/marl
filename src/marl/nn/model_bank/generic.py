@@ -69,7 +69,7 @@ class MLP(NN):
             last_layer_noisy,
         )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         *dims, _obs_size = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
         x = self.nn.forward(obs)
@@ -157,6 +157,7 @@ class SimpleRNN(RecurrentNN):
             episodes_lengths = masks.sum(0).cpu()
             x = torch.nn.utils.rnn.pack_padded_sequence(x, episodes_lengths, enforce_sorted=False)
             x, self.hidden_states = self.gru.forward(x, self.hidden_states)
+            x, _ = torch.nn.utils.rnn.pad_packed_sequence(x)
         else:
             x, self.hidden_states = self.gru.forward(x, self.hidden_states)
         x = self.fc2.forward(x)

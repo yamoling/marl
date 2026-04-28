@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from dataclasses import dataclass
+import math
 
 import torch
 from marlenv import Observation
@@ -14,7 +15,7 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    output_shape: int | tuple[int] | tuple[int, int]
+    output_shape: tuple[int] | tuple[int, int]
 
     def __post_init__(self):
         super().__post_init__()
@@ -29,6 +30,12 @@ class QNetwork(NN):
                 self.output_shape = self.output_shape
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
+
+    @property
+    def output_size(self) -> int:
+        if isinstance(self.output_shape, int):
+            return self.output_shape
+        return math.prod(self.output_shape)
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
@@ -60,7 +67,7 @@ class QNetwork(NN):
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
-            output_shape = env.n_actions
+            output_shape = (env.n_actions,)
         else:
             output_shape = (env.n_actions, env.reward_space.size)
         return cls(output_shape=output_shape)
@@ -68,7 +75,7 @@ class QNetwork(NN):
 
 @dataclass
 class RecurrentQNetwork(QNetwork, RecurrentNN):
-    def __init__(self, output_shape: int | tuple[int, int]):
+    def __init__(self, output_shape: tuple[int] | tuple[int, int]):
         QNetwork.__init__(self, output_shape)
         RecurrentNN.__init__(self)
 
@@ -81,7 +88,7 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         self.hidden_states = hidden_states
         return agent_values.mean(dim=-1)
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
+    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
@@ -89,6 +96,6 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         """
         saved_hidden_states = self.hidden_states
         self.reset_hidden_states()
-        qvalues = self.forward(obs, extras)
+        qvalues = self.forward(obs, extras, **kwargs)
         self.hidden_states = saved_hidden_states
         return qvalues

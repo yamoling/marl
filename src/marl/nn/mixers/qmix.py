@@ -1,6 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, KW_ONLY
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,54 +17,51 @@ class QMix(Mixer):
     (almost) copy-pasted from https://github.com/oxwhirl/pymarl
     """
 
-    def __init__(
-        self,
-        state_shape: int,
-        n_agents: int,
-        embed_size=64,
-        hypernet_embed_size=64,
-        n_objectives=1,
-    ):
-        super().__init__(n_agents, n_objectives)
+    state_size: int
+    state_extras_size: int
+    _: KW_ONLY
+    embed_size: int = 64
+    hypernet_embed_size: int = 64
 
-        self.state_shape = state_shape
-        self.n_agents = n_agents
-        self.embed_size = embed_size
-        self.hypernet_embed_size = hypernet_embed_size
-        self.n_objectives = n_objectives
-
-        self.state_dim = int(np.prod(state_shape))
+    def __post_init__(self):
+        super().__post_init__()
 
         self.hyper_w_1 = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.Linear(self.input_size, self.hypernet_embed_size),
             nn.ReLU(),
-            nn.Linear(hypernet_embed_size, self.embed_size * self.n_agents),
+            nn.Linear(self.hypernet_embed_size, self.embed_size * self.n_agents),
             AbsLayer(),
         )
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, hypernet_embed_size),
+            nn.Linear(self.input_size, self.hypernet_embed_size),
             nn.ReLU(),
-            nn.Linear(hypernet_embed_size, self.embed_size),
+            nn.Linear(self.hypernet_embed_size, self.embed_size),
             AbsLayer(),
         )
 
         # State dependent bias for hidden layer
         self.hyper_b_1 = nn.Linear(
-            self.state_dim,
+            self.input_size,
             self.embed_size,
         )
 
         # V(s) instead of a bias for the last layers
         self.V = nn.Sequential(
-            nn.Linear(self.state_dim, self.embed_size),
+            nn.Linear(self.input_size, self.embed_size),
             nn.ReLU(),
             nn.Linear(self.embed_size, 1),
         )
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    @property
+    def input_size(self):
+        return self.state_size + self.state_extras_size
+
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         q_totals = []
         batch_dims = states.shape[:-1]
-        states = states.reshape(-1, self.state_dim)
+        states = states.flatten(1)
+        states_extras = states_extras.flatten(1)
+        states = torch.cat([states, states_extras], dim=1)
         for i in range(self.n_objectives):
             if self.n_objectives == 1:
                 qvalues_obj = qvalues.view(-1, 1, self.n_agents)
@@ -86,12 +82,18 @@ class QMix(Mixer):
             y = torch.bmm(hidden, weight_2) + value
             y = torch.reshape(y, batch_dims)
             q_totals.append(y)
-            # Reshape and return
         return torch.stack(q_totals, dim=-1).squeeze()
 
     @classmethod
-    def from_env[A](cls, env: MARLEnv[MultiDiscreteSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
-        return QMix(env.state_shape[0], env.n_agents, embed_size, hypernet_embed_size, env.reward_space.size)
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
+        return QMix(
+            env.n_agents,
+            env.state_size,
+            env.state_extras_size,
+            embed_size=embed_size,
+            hypernet_embed_size=hypernet_embed_size,
+            n_objectives=env.n_objectives,
+        )
 
     def save(self, to_directory: str):
         filename = f"{to_directory}/qmix.weights"

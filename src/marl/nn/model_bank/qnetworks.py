@@ -28,7 +28,7 @@ class QCNN(CNN, QNetwork):
         self,
         input_shape: tuple[int, int, int],
         extras_size: int,
-        output_shape: int | tuple[int, int],
+        output_shape: tuple[int] | tuple[int, int],
         mlp_sizes: tuple[int, ...] = (128, 128),
         mlp_noisy: bool = False,
     ):
@@ -44,10 +44,10 @@ class QCNN(CNN, QNetwork):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
-            output_shape = env.n_actions
+            output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
         c, h, w = env.observation_shape
-        return cls((c, h, w), env.extras_shape[0], output_shape, mlp_sizes, mlp_noisy)
+        return cls((c, h, w), env.extras_size, output_shape, mlp_sizes, mlp_noisy)
 
 
 @dataclass(unsafe_hash=True)
@@ -64,10 +64,11 @@ class QMLP(MLP, QNetwork):
             output = (output_shape,)
         else:
             output = output_shape
-        QNetwork.__init__(self, output_shape)
+        QNetwork.__init__(self, output)
         MLP.__init__(self, input_size, extras_size, hidden_sizes, output, last_layer_noisy)
 
 
+@dataclass(unsafe_hash=True)
 class RNNQMix(RecurrentQNetwork):
     """RNN used in the QMix paper:
     - linear 64
@@ -76,15 +77,18 @@ class RNNQMix(RecurrentQNetwork):
     - relu
     - linear 64"""
 
-    def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_shape: int | tuple[int, int]):
-        assert len(input_shape) == 1, "RNNQMix can only handle 1D inputs"
-        assert len(extras_shape) == 1, "RNNQMix can only handle 1D extras"
-        super().__init__(output_shape)
-        n_inputs = input_shape[0] + extras_shape[0]
-        n_outputs = math.prod(self.output_shape)
-        self.fc1 = torch.nn.Sequential(torch.nn.Linear(n_inputs, 64), torch.nn.ReLU())
+    obs_size: int
+    extras_size: int
+
+    @property
+    def input_size(self):
+        return self.obs_size + self.extras_size
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.fc1 = torch.nn.Sequential(torch.nn.Linear(self.input_size, 64), torch.nn.ReLU())
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
-        self.fc2 = torch.nn.Linear(64, n_outputs)
+        self.fc2 = torch.nn.Linear(64, self.output_size)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
@@ -177,7 +181,7 @@ class MAVENCNN(QNetwork):
         hyper_type: Literal["bmm", "mul"] = "bmm",
     ):
         OUTPUT_SIZE = 128
-        super().__init__(n_actions)
+        super().__init__((n_actions,))
         self.n_agents = n_agents
         self.noise_size = noise_size
         self.cnn, cnn_output_size = make_cnn(obs_shape, [32, 64, 32], [3, 3, 3], [1, 1, 1])
@@ -210,7 +214,7 @@ class AtariCNN(QNetwork):
     """The CNN used in the 2015 Mhin et al. DQN paper"""
 
     def __init__(self, input_shape: tuple[int, int, int], output_shape: int):
-        super().__init__(output_shape)
+        super().__init__((output_shape,))
         filters = [32, 64, 64]
         kernels = [8, 4, 3]
         strides = [4, 2, 1]
@@ -239,7 +243,7 @@ class IndependentCNN(QNetwork):
         n_agents: int,
         input_shape: tuple[int, int, int],
         extras_size: int,
-        output_shape: int | tuple[int, int],
+        output_shape: tuple[int] | tuple[int, int],
         mlp_sizes: tuple[int, ...] = (64, 64),
         kernel_sizes: tuple[int, ...] = (3, 3, 3),
         strides: tuple[int, ...] = (1, 1, 1),
@@ -279,7 +283,7 @@ class IndependentCNN(QNetwork):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
-            output_shape = env.n_actions
+            output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
         c, h, w = env.observation_shape
         return IndependentCNN(
@@ -324,14 +328,14 @@ class RCNN(RecurrentQNetwork):
     Recurrent CNN.
     """
 
-    def __init__(self, input_shape: tuple[int, int, int], extras_size: int, output_shape: int | tuple[int, int]):
+    def __init__(self, input_shape: tuple[int, int, int], extras_size: int, output_shape: tuple[int] | tuple[int, int]):
         super().__init__(output_shape)
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
         self.cnn, self.n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        self.rnn = RNNQMix((self.n_features,), (extras_size,), output_shape)
+        self.rnn = RNNQMix(output_shape, self.n_features, extras_size)
         self.extras_shape = (extras_size,)
 
     @classmethod
@@ -339,7 +343,7 @@ class RCNN(RecurrentQNetwork):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
-            output_shape = env.n_actions
+            output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
         c, h, w = env.observation_shape
         return cls((c, h, w), env.extras_shape[0], output_shape)
@@ -371,7 +375,7 @@ class MAICNetworkRDQN(RecurrentQNetwork, MAIC):
     """
 
     def __init__(self, input_shape: tuple[int, ...], extras_shape: tuple[int, ...], output_size: int, args: "MAICParameters"):
-        super().__init__(output_size)
+        super().__init__((output_size,))
         self.args = args
         self.n_agents = args.n_agents
         self.latent_dim = args.latent_dim
