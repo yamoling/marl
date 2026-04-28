@@ -56,8 +56,8 @@ class MAVEN(DQN[EpisodeMemory]):
         noise = batch.states_extras[0, :, -self.noise_size :]
         state_extras = batch.states_extras[:, :, : -self.noise_size]
         ground_truth = noise.argmax(dim=-1)
-        all_qvalues[~batch.available_actions] = -torch.inf
-        embeddings = self.trajectory_aggregator.forward(all_qvalues, batch.states, state_extras, batch.masks)
+        all_qvalues_masked = all_qvalues.masked_fill(~batch.available_actions, -torch.inf)
+        embeddings = self.trajectory_aggregator.forward(all_qvalues_masked, batch.states, state_extras, batch.masks)
         predicted_class = self.discriminator.forward(embeddings)
         mi_loss = self._mi_loss.forward(predicted_class, ground_truth)
         return self.mi_loss_coef * mi_loss
@@ -110,7 +110,6 @@ class Discriminator(torch.nn.Module):
             self.model.append(torch.nn.Linear(self.hidden_size, self.hidden_size))
             self.model.append(torch.nn.ReLU())
         self.model.append(torch.nn.Linear(self.hidden_size, self.noise_size))
-        self.model.append(torch.nn.Softmax(dim=-1))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model.forward(x)
