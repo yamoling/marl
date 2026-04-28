@@ -1,5 +1,4 @@
 import random
-from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
@@ -8,10 +7,11 @@ import numpy as np
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence
 
+from marl.agents.bandits import UniformOneHot
 from marl.agents.hierarchical.maven_agent import MAVENAgent
 from marl.models import Batch, EpisodeMemory
 
-from .dqn import DQN
+from ..dqn import DQN
 
 
 @dataclass
@@ -29,7 +29,7 @@ class MAVEN(DQN[EpisodeMemory]):
         super().__post_init__()
         match self.z_policy_type:
             case "uniform":
-                self.z_policy = UniformMAVENZPolicy(noise_size=self.noise_size)
+                self.z_bandit = UniformOneHot(self.noise_size)
             case "return":
                 pass
             case "max-entropy":
@@ -83,17 +83,17 @@ class MAVEN(DQN[EpisodeMemory]):
         return MAVENAgent(
             noise_size=self.noise_size,
             workers=base_agent,
-            z_policy=self.z_policy,
+            z_policy=self.z_bandit,
         )
 
     def update_episode(self, episode, episode_num: int, time_step: int):
         logs = super().update_episode(episode, episode_num, time_step)
-        if self.z_policy is not None:
+        if self.z_bandit is not None:
             # Compute total return of the episode
             import numpy as np
 
             episode_return = float(np.sum(episode.rewards))
-            self.z_policy.record_episode_return(episode_return)
+            self.z_bandit.record_episode_return(episode_return)
         return logs
 
 
@@ -147,38 +147,7 @@ class Discriminator(torch.nn.Module):
         return self.model.forward(x)
 
 
-class MAVENZPolicy(ABC):
-    def __init__(self, noise_size: int):
-        self.noise_size = noise_size
-        self._episode_noise: np.ndarray | None = None
-        self._saved_episode_noise: np.ndarray | None = None
-
-    @abstractmethod
-    def _sample_episode_noise(self) -> np.ndarray:
-        """Sample a new z for the current episode."""
-
-    def ensure_episode_noise(self) -> np.ndarray:
-        if self._episode_noise is None:
-            self._episode_noise = self._sample_episode_noise()
-        return self._episode_noise
-
-    def current_episode_noise(self) -> np.ndarray | None:
-        return self._episode_noise
-
-    def new_episode(self):
-        self._episode_noise = None
-
-    def set_testing(self):
-        self._saved_episode_noise = self._episode_noise
-
-    def set_training(self):
-        self._episode_noise = self._saved_episode_noise
-
-    def record_episode_return(self, episode_return: float):
-        """Update policy parameters from an observed episode return."""
-
-
-class UniformMAVENZPolicy(MAVENZPolicy):
+class UniformMAVENZPolicy(Categ):
     def _sample_episode_noise(self) -> np.ndarray:
         episode_noise = np.zeros(self.noise_size, dtype=np.float32)
         episode_noise[random.randint(0, self.noise_size - 1)] = 1.0

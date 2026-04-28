@@ -91,9 +91,9 @@ class Trainer[T](ABC):
 
 
 @dataclass
-class HierarchicalTrainer[T](Trainer[T]):
-    meta_trainer: Trainer[T]
-    worker_trainer: Trainer[T]
+class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
+    meta_trainer: T1 = field(init=False)
+    worker_trainer: T2 = field(init=False)
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         meta_logs = self.meta_trainer.update_step(transition, time_step)

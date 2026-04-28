@@ -26,15 +26,16 @@ def main():
 
     trainer = MAVEN(
         qnetworks.MAVENCNN.from_env(env),
-        marl.bandits.EpsilonGreedy.linear(1.0, 0.05, 50_000),
-        marl.models.EpisodeMemory(5_000),
+        marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
+        "return",
+        qnetworks.QCNN.from_env(env),
         NOISE_SIZE,
         env.n_actions,
         env.n_agents,
         env.state_size,
         env.state_extras_size,
         mixer=mixers.VDN.from_env(env),
-        test_policy=marl.bandits.ArgMax(),
+        test_policy=marl.policy.ArgMax(),
         grad_norm_clipping=10.0,
         batch_size=16,
         train_interval=(1, "episode"),
@@ -50,9 +51,10 @@ def main():
     #     train_interval=(1, "episode"),
     # )
     logdir = f"logs/{trainer.name}-{env.name}"
+    logdir = "test"
     exp = marl.Experiment.create(
         env,
-        4_000_000,
+        1_000_000,
         trainer=trainer,
         test_interval=5000,
         logdir=logdir,
