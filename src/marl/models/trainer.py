@@ -1,7 +1,7 @@
 import os
 from abc import ABC
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Optional, Self, Sequence
+from typing import Any, Literal, Self, Sequence
 
 import torch
 from marlenv import Episode, Observation, State, Transition
@@ -16,10 +16,8 @@ class Trainer[T](ABC):
 
     name: str = field(init=False)
 
-    def __init__(self, device: Optional[torch.device] = None):
-        if device is None:
-            device = torch.device("cpu")
-        self._device = device
+    def __post_init__(self):
+        self._device = torch.device("cpu")
         self.name = self.__class__.__name__
 
     def make_agent(self) -> Agent[T]:
@@ -58,12 +56,12 @@ class Trainer[T](ABC):
     def save(self, directory_path: str):
         if not os.path.exists(directory_path):
             os.makedirs(directory_path)
-        for i, nn in enumerate(self.networks):
+        for i, nn in enumerate(self.networks()):
             os.path.join(directory_path, f"{nn.name}_{i}.pt")
             torch.save(nn.state_dict(), f"{directory_path}_{i}.pt")
 
     def load(self, directory_path: str):
-        for i, nn in enumerate(self.networks):
+        for i, nn in enumerate(self.networks()):
             path = os.path.join(directory_path, f"{nn.name}_{i}.pt")
             nn.load_state_dict(torch.load(path))
 
@@ -71,7 +69,6 @@ class Trainer[T](ABC):
     def device(self):
         return self._device
 
-    @property
     def networks(self):
         """Dynamic list of neural networks attributes in the trainer"""
         return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
@@ -79,7 +76,7 @@ class Trainer[T](ABC):
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the parameters of all the neural networks in the trainer."""
 
-        for nn in self.networks:
+        for nn in self.networks():
             if isinstance(nn, NN):
                 nn.randomize(method)
             else:
@@ -88,6 +85,45 @@ class Trainer[T](ABC):
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""
         self._device = device
-        for nn in self.networks:
+        for nn in self.networks():
             nn.to(device)
         return self
+
+
+@dataclass
+class HierarchicalTrainer[T](Trainer[T]):
+    meta_trainer: Trainer[T]
+    worker_trainer: Trainer[T]
+
+    def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
+        meta_logs = self.meta_trainer.update_step(transition, time_step)
+        worker_logs = self.worker_trainer.update_step(transition, time_step)
+        return {
+            **{f"{self.meta_trainer.name}/{key}": value for key, value in meta_logs},
+            **{f"{self.worker_trainer.name}/{key}": value for key, value in worker_logs},
+        }
+
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
+        meta_logs = self.meta_trainer.update_episode(episode, episode_num, time_step)
+        worker_logs = self.worker_trainer.update_episode(episode, episode_num, time_step)
+        return {
+            **{f"{self.meta_trainer.name}/{key}": value for key, value in meta_logs},
+            **{f"{self.worker_trainer.name}/{key}": value for key, value in worker_logs},
+        }
+
+    def networks(self):
+        return self.meta_trainer.networks() + self.worker_trainer.networks()
+
+    def to(self, device: torch.device) -> Self:
+        self.meta_trainer.to(device)
+        self.worker_trainer.to(device)
+        return self
+
+    def config(self) -> dict[str, Any]:
+        return {
+            **{f"{self.meta_trainer.name}/{key}": value for key, value in self.meta_trainer.config().items()},
+            **{f"{self.worker_trainer.name}/{key}": value for key, value in self.worker_trainer.config().items()},
+        }
+
+    def value(self, obs: Observation, state: State):
+        return self.meta_trainer.value(obs, state)
