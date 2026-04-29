@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 import numpy.typing as npt
@@ -11,7 +12,7 @@ from marl.models.trainer import Trainer
 
 @dataclass
 class NoTrain[T](Trainer[T]):
-    def __init__(self, env: MARLEnv):
+    def __init__(self, env: MARLEnv | None = None):
         super().__init__()
         self.env = env
 
@@ -23,5 +24,7 @@ class NoTrain[T](Trainer[T]):
     def continuous(env: MARLEnv[ContinuousSpace]) -> "NoTrain[npt.NDArray[np.float32]]":
         return NoTrain(env)
 
-    def make_agent(self) -> Agent:
-        return RandomAgent(self.env)
+    def make_agent(self):
+        if self.env is None:
+            raise NotImplementedError("Cannot create a random agent without an environment.")
+        return cast(Agent[T], RandomAgent(self.env))

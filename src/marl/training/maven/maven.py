@@ -1,13 +1,12 @@
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
 from marlenv import Episode
-from marlenv.catalog import DiscreteMockEnv
 
 from marl.agents.hierarchical import MAVENAgent
-from marl.models import IRModule, Mixer, Policy, QNetwork
+from marl.models import Agent, IRModule, Mixer, Policy, QNetwork
 from marl.models.replay_memory.biased_memory import EpisodeMemory
 from marl.models.trainer import HierarchicalTrainer, Trainer
 from marl.training.no_train import NoTrain
@@ -18,7 +17,7 @@ from .mutual_information_trainer import MITrainer
 
 
 @dataclass
-class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
+class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.int64]], MITrainer]):
     """
     Multi-Agent Variational ExploratioN algorithm. This algorithm is implemented as a hierarchical trainer:
         - the meta-agent is the Z-policy
@@ -30,13 +29,13 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
     qnetwork: QNetwork
     train_policy: Policy
     z_policy_type: Literal["uniform", "max-entropy", "return"]
-    return_bandit_nn: QNetwork
     noise_size: int
     n_actions: int
     n_agents: int
     state_size: int
     state_extras_size: int
     _: KW_ONLY
+    return_bandit_nn: QNetwork | None = None
     batch_size: int = 64
     gamma: float = 0.99
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
@@ -59,9 +58,9 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
         super().__post_init__()
         match self.z_policy_type:
             case "uniform":
-                # The DiscreteMockEnv is there because we need a placeholder. The agent will never be instanciated from here, though.
-                self.meta_trainer = NoTrain.discrete(DiscreteMockEnv())
+                self.meta_trainer = NoTrain()
             case "return":
+                assert self.return_bandit_nn is not None, "return_bandit_nn must be provided when z_policy_type is 'return'"
                 self.meta_trainer = ExpectedReturnTrainer(
                     self.return_bandit_nn,
                     undiscounted=self.undiscounted,
@@ -73,6 +72,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
                 )
             case "max-entropy":
                 raise NotImplementedError("Max-entropy z policy is not implemented yet.")
+        self.meta_trainer = cast(Trainer[npt.NDArray[np.int64]], self.meta_trainer)
         self.worker_trainer = MITrainer(
             self.qnetwork,
             self.train_policy,
@@ -97,7 +97,13 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)
 
-    def make_agent(self):
+    def make_agent(self) -> Agent[npt.NDArray[np.int64]]:
         workers = self.worker_trainer.make_agent()
-        bandit = self.meta_trainer.make_agent()
-        return MAVENAgent(self.noise_size, workers, bandit)
+        match self.z_policy_type:
+            case "uniform":
+                from marl.agents import RandomOneHot
+
+                meta_agent = RandomOneHot(self.noise_size, n_agents=1)
+            case _:
+                meta_agent = self.meta_trainer.make_agent()
+        return MAVENAgent(self.noise_size, workers, meta_agent)

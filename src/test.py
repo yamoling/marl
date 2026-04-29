@@ -20,20 +20,21 @@ def main():
         .builder()
         .agent_id()
         .time_limit(78)
-        .extra_noise(NOISE_SIZE)
+        .pad("extra", NOISE_SIZE, label="maven")
         .build()
     )
-
+    assert len(env.observation_shape) == 3
+    meta_agent_input = (env.observation_shape[0] * env.n_agents, *env.observation_shape[1:])
     trainer = MAVEN(
         qnetworks.MAVENCNN.from_env(env),
         marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
         "return",
-        qnetworks.QCNN.from_env(env),
         NOISE_SIZE,
         env.n_actions,
         env.n_agents,
         env.state_size,
         env.state_extras_size,
+        return_bandit_nn=qnetworks.QCNN(NOISE_SIZE, meta_agent_input, env.extras_size * env.n_agents),
         mixer=mixers.VDN.from_env(env),
         test_policy=marl.policy.ArgMax(),
         grad_norm_clipping=10.0,

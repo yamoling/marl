@@ -26,7 +26,7 @@ class MLP(NN):
         hidden_sizes: Sequence[int],
         output_shape: tuple[int, ...],
         last_layer_noisy: bool = False,
-        output_activation: None | Literal["sigmoid", "tanh"] = None,
+        output_activation: None | Literal["sigmoid", "tanh", "relu"] = None,
     ):
         NN.__init__(self)
         self.output_shape = output_shape
@@ -46,6 +46,8 @@ class MLP(NN):
                     layers.append(torch.nn.Sigmoid())
                 case "tanh":
                     layers.append(torch.nn.Tanh())
+                case "relu":
+                    layers.append(torch.nn.ReLU())
                 case other:
                     raise ValueError(f"Unsupported output activation: {other}")
         self.nn = torch.nn.Sequential(*layers)
@@ -88,7 +90,7 @@ class CNN(NN):
     output: int | tuple[int, ...]
     mlp_sizes: tuple[int, ...] = (64, 64)
     mlp_noisy: bool = False
-    output_activation: None | Literal["sigmoid", "tanh"] = None
+    output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
 
     def __post_init__(self):
         super().__post_init__()

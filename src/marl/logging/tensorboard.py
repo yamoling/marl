@@ -1,12 +1,14 @@
 from typing import Any
-from marlenv import MARLEnv
-from torch.utils.tensorboard import SummaryWriter
-from tensorboard.backend.event_processing import event_accumulator
-import polars as pl
+
 import numpy as np
+import polars as pl
+from marlenv import MARLEnv
+from tensorboard.backend.event_processing import event_accumulator
+from torch.utils.tensorboard import SummaryWriter
 
 from marl.models.agent import Agent
 from marl.models.trainer import Trainer
+
 from .logger import Logger, LogReader
 
 
@@ -52,7 +54,7 @@ class TBLogger(Logger):
             prefix = ""
         for key, value in data.items():
             match value:
-                case float() | int() | bool() | np.floating() | np.integer():
+                case float() | int() | bool() | np.floating() | np.int64():
                     self.writer.add_scalar(f"{prefix}{key}", value, time_step)
                 case dict():
                     self.log(value, time_step, f"{prefix}{key}")

@@ -109,7 +109,12 @@ class RNNQMix(RecurrentQNetwork):
 
 
 @dataclass(unsafe_hash=True)
-class MAVENHyper(torch.nn.Module, ABC):
+class MAVENTail(torch.nn.Module, ABC):
+    """
+    Tail of the MAVEN agent-wise network. The paper only presents the "hyper-network" approach
+    but the official code has two kinds of networks.
+    """
+
     noise_size: int
     n_agents: int
     agent_output_size: int
@@ -123,23 +128,42 @@ class MAVENHyper(torch.nn.Module, ABC):
 
 
 @dataclass(unsafe_hash=True)
-class MAVENHyperBMM(MAVENHyper):
+class MAVENHyperBMM(MAVENTail):
+    """
+    This tail network is the approach presented in the MAVEN paper, i.e. a hyper-network that generates the weights to compute the q-values directly from the noise and agent ids.
+    """
+
     def __post_init__(self):
         super().__post_init__()
         self.hyper_network = torch.nn.Linear(
             self.noise_size + self.n_agents,
-            self.agent_output_size * self.n_actions * self.n_agents,
+            self.agent_output_size * self.n_actions,
         )
 
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
-        agent_ids = torch.eye(self.n_agents, device=noise.device)
+        """
+        The hyper-network takes as input the noise and the agent id and produces the weight matrix that will be multiplied with the previous layer outputs.
+        The final output is of shape (batch_size, n_agents, n_actions), i.e. a q-value per agent and per action.
+        """
+
+        # Build the hyper-network inputs: [noise, agent_id]
+        batch_size = noise.size(0)
+        agent_ids = torch.eye(self.n_agents, device=noise.device).unsqueeze(0).repeat(batch_size, 1, 1)
         inputs = torch.cat([noise, agent_ids], dim=-1)
+        # The hyper-network takes as input the [noise, agent_id] and outputs HIDDEN_DIM * n_actions weights.
         weights = self.hyper_network.forward(inputs)
-        return torch.bmm(weights, agent_output.unsqueeze(2))
+        # Reshape to match the batch matrix multiplication requirements
+        # Agent_output: (batch_size, n_agents, agent_output) -> (batch_size * n_agents, 1, agent_output)
+        # Weights     : (batch_size, n_agents, agent_output * n_actions) -> (batch_size * n_agents, agent_output, n_actions)
+        weights = weights.view(batch_size * self.n_agents, self.agent_output_size, self.n_actions)
+        agent_output = agent_output.view(batch_size * self.n_agents, 1, self.agent_output_size)
+        res = torch.bmm(agent_output, weights)
+        # Return in the original shape
+        return res.view(-1, self.n_agents, self.n_actions)
 
 
 @dataclass(unsafe_hash=True)
-class MAVENHyperMult(MAVENHyper):
+class MAVENHyperMult(MAVENTail):
     def __post_init__(self):
         super().__post_init__()
         self.linear = torch.nn.Linear(self.agent_output_size, self.n_actions)
@@ -166,32 +190,25 @@ class MAVENCNN(QNetwork):
     n_agents: int
     obs_shape: tuple[int, int, int]
     extras_size: int
-    hyper_type: Literal["bmm", "mul"] = "bmm"
+    tail_type: Literal["bmm", "mul"] = "bmm"
 
     def __post_init__(self):
         super().__post_init__()
         OUTPUT_SIZE = 128
-        self.cnn, cnn_output_size = make_cnn(self.obs_shape, [32, 64, 32], [3, 3, 3], [1, 1, 1])
-        self.linear = torch.nn.Sequential(
-            torch.nn.Linear(cnn_output_size + self.extras_size - self.noise_size, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, OUTPUT_SIZE),
-            torch.nn.ReLU(),
-        )
-        match self.hyper_type:
+        self.cnn = CNN(self.obs_shape, self.extras_size - self.noise_size, OUTPUT_SIZE, mlp_sizes=(256, 256), output_activation="relu")
+        match self.tail_type:
             case "bmm":
-                self.hyper_network = MAVENHyperBMM(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
+                self.tail = MAVENHyperBMM(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
             case "mul":
-                self.hyper_network = MAVENHyperMult(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
+                self.tail = MAVENHyperMult(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
             case other:
                 raise ValueError(f"Unknown hyper network type {other}")
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-        x = self.cnn.forward(obs)
-        x = torch.cat([x, extras[:, : -self.noise_size]])
-        x = self.linear.forward(x)
-        noise = extras[:, -self.noise_size :]
-        return self.hyper_network.forward(noise, x)
+        noise = extras[:, :, -self.noise_size :]
+        extras = extras[:, :, : -self.noise_size]
+        x = self.cnn.forward(obs, extras)
+        return self.tail.forward(noise, x)
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace], hyper_type: Literal["bmm", "mul"] = "bmm"):

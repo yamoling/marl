@@ -77,17 +77,21 @@ class QNetwork(NN):
         return cls(output_shape)
 
     def to_softmax_actor(self):
-        from .actor_critic import Actor
+        from .actor_critic import DiscreteActor
 
-        @dataclass(unsafe_hash=True)
-        class ActorFromQNet(Actor[torch.distributions.Categorical]):
-            qnet: QNetwork
+        class ActorFromQNet(DiscreteActor):
+            def __init__(self, qnet: QNetwork):
+                super().__init__()
+                self.qnet = qnet
 
-            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
-                qvalues = self.qnet.forward(obs, extras)
-                qvalues = qvalues.masked_fill(~available_actions, -torch.inf)
-                probs = torch.nn.functional.softmax(qvalues, dim=self.action_dim)
-                return torch.distributions.Categorical(probs=probs)
+            def __hash__(self):
+                return hash(self.name)
+
+            def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+                logits = self.qnet.forward(data, extras)
+                if available_actions is not None:
+                    logits = logits.masked_fill(~available_actions, -torch.inf)
+                return logits
 
         return ActorFromQNet(self)
 

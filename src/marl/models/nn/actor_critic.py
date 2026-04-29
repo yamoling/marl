@@ -17,7 +17,7 @@ class Actor[T: torch.distributions.Distribution](NN, ABC):
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: torch.Tensor,
+        available_actions: torch.Tensor | None = None,
     ) -> T:
         """
         Returns the probability distribution over the actions.
@@ -75,14 +75,14 @@ class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: torch.Tensor,
+        available_actions: torch.Tensor | None = None,
     ) -> tuple[T, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
 
 
 @dataclass
-class DiscreteActor(Actor[torch.distributions.Categorical], ABC):
+class DiscreteActor(Actor[torch.distributions.Categorical]):
     """Discrete actor neural network"""
 
     clip_logits_low: Optional[float]
@@ -94,7 +94,7 @@ class DiscreteActor(Actor[torch.distributions.Categorical], ABC):
         self.clip_logits_high = clip_logits_high
 
     @abstractmethod
-    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
+    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
         """Returns the logits of the policy distribution (clipped if necessary)"""
 
     def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
@@ -102,9 +102,24 @@ class DiscreteActor(Actor[torch.distributions.Categorical], ABC):
         x[~mask] = replacement
         return x
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
         logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
+
+    def to_one_hot(self):
+        class DiscreteOneHotActor(Actor[torch.distributions.OneHotCategorical]):
+            def __init__(self, actor: DiscreteActor):
+                super().__init__()
+                self.actor = actor
+
+            def __hash__(self):
+                return hash(self.name)
+
+            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
+                logits = self.actor.logits(obs, extras, available_actions)
+                return torch.distributions.OneHotCategorical(logits=logits)
+
+        return DiscreteOneHotActor(self)
 
 
 @dataclass
