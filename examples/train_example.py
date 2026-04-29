@@ -1,9 +1,9 @@
 import lle
 
 import marl
-from marl.bandits import EpsilonGreedy
 from marl.nn import mixers
 from marl.nn.model_bank.options import CNNOptionCritic
+from marl.policy import EpsilonGreedy
 from marl.training import OptionCritic
 
 WORLD_STR = '''

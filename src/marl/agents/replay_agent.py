@@ -1,11 +1,12 @@
 import logging
 
 import numpy as np
+import numpy.typing as npt
 
-from marl.models import Agent, Action
+from marl.models import Action, Agent
 
 
-class ReplayAgent[T](Agent[T]):
+class ReplayAgent(Agent[npt.ArrayLike]):
     def __init__(self):
         super().__init__()
         self.mismatch = False
@@ -13,21 +14,21 @@ class ReplayAgent[T](Agent[T]):
         self.mismatch_details = []
 
     @staticmethod
-    def from_actions_only(actions: np.ndarray) -> "ReplayAgent[T]":
+    def from_actions_only(actions: np.ndarray):
         return ReplayActionsOnlyAgent(actions)
 
     @staticmethod
-    def from_agent_only(agent: Agent[T], weights_path: str) -> "ReplayAgent[T]":
+    def from_agent_only(agent: Agent[npt.ArrayLike], weights_path: str):
         return SimpleReplayAgent(agent, weights_path)
 
     @staticmethod
-    def from_agent_and_actions(agent: Agent[T], actions: np.ndarray, weights_path: str) -> "ReplayAgent[T]":
+    def from_agent_and_actions(agent: Agent[npt.ArrayLike], actions: np.ndarray, weights_path: str):
         agent.load(weights_path)
         return CombinedReplayAgent(actions, agent)
 
 
-class CombinedReplayAgent[T](ReplayAgent[T]):
-    def __init__(self, actions: np.ndarray, wrapped: Agent[T]):
+class CombinedReplayAgent(ReplayAgent):
+    def __init__(self, actions: np.ndarray, wrapped: Agent[npt.ArrayLike]):
         super().__init__()
         self.actions_agent = ReplayActionsOnlyAgent(actions)
         self.saved_agent = wrapped
@@ -45,7 +46,7 @@ class CombinedReplayAgent[T](ReplayAgent[T]):
         return agent_action
 
 
-class ReplayActionsOnlyAgent[T](ReplayAgent[T]):
+class ReplayActionsOnlyAgent(ReplayAgent):
     def __init__(self, actions: np.ndarray):
         super().__init__()
         self.stored_actions = actions
@@ -57,8 +58,8 @@ class ReplayActionsOnlyAgent[T](ReplayAgent[T]):
         return Action(stored_action)
 
 
-class SimpleReplayAgent[T](ReplayAgent[T]):
-    def __init__(self, agent: Agent[T], weights_path: str):
+class SimpleReplayAgent(ReplayAgent):
+    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: str):
         super().__init__()
         agent.load(weights_path)
         self.agent = agent

@@ -35,7 +35,7 @@ class CNNOptionCritic(OptionCriticNetwork):
         assert len(env.observation_shape) == 3
         policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
         terminations = CNN(env.observation_shape, env.extras_size, n_options, output_activation="sigmoid")
-        q_options = QCNN(env.observation_shape, env.extras_size, (n_options,))
+        q_options = QCNN(n_options, env.observation_shape, env.extras_size)
         return CNNOptionCritic(policies, q_options, terminations)
 
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:

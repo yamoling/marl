@@ -1,6 +1,6 @@
+import math
 from abc import abstractmethod
 from dataclasses import dataclass
-import math
 
 import torch
 from marlenv import Observation
@@ -15,21 +15,25 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    output_shape: tuple[int] | tuple[int, int]
+    output: int | tuple[int, ...]
 
     def __post_init__(self):
         super().__post_init__()
-        match self.output_shape:
-            case int(n_actions) | (n_actions,):
+        match self.output:
+            case int() | (_,):
                 self.action_dim = -1
                 self.is_multi_objective = False
-                self.output_shape = (n_actions,)
             case (_, _):
                 self.action_dim = -2
                 self.is_multi_objective = True
-                self.output_shape = self.output_shape
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
+
+    @property
+    def output_shape(self):
+        if isinstance(self.output, tuple):
+            return self.output
+        return (self.output,)
 
     @property
     def output_size(self) -> int:
@@ -67,10 +71,25 @@ class QNetwork(NN):
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
-            output_shape = (env.n_actions,)
+            output_shape = env.n_actions
         else:
             output_shape = (env.n_actions, env.reward_space.size)
-        return cls(output_shape=output_shape)
+        return cls(output_shape)
+
+    def to_softmax_actor(self):
+        from .actor_critic import Actor
+
+        @dataclass(unsafe_hash=True)
+        class ActorFromQNet(Actor[torch.distributions.Categorical]):
+            qnet: QNetwork
+
+            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
+                qvalues = self.qnet.forward(obs, extras)
+                qvalues = qvalues.masked_fill(~available_actions, -torch.inf)
+                probs = torch.nn.functional.softmax(qvalues, dim=self.action_dim)
+                return torch.distributions.Categorical(probs=probs)
+
+        return ActorFromQNet(self)
 
 
 @dataclass

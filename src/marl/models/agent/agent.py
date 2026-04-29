@@ -1,6 +1,5 @@
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Literal
 
@@ -12,11 +11,8 @@ from ..action import Action
 from ..nn import NN, RecurrentNN
 
 
-@dataclass
 class Agent[T](ABC):
-    name: str = field(init=False)
-
-    def __post_init__(self):
+    def __init__(self):
         self.name = self.__class__.__name__
         self._device = torch.device("cpu")
         self._training = True

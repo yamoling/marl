@@ -24,20 +24,9 @@ if TYPE_CHECKING:
 
 @dataclass(unsafe_hash=True)
 class QCNN(CNN, QNetwork):
-    def __init__(
-        self,
-        input_shape: tuple[int, int, int],
-        extras_size: int,
-        output_shape: int | tuple[int] | tuple[int, int],
-        mlp_sizes: tuple[int, ...] = (128, 128),
-        mlp_noisy: bool = False,
-    ):
-        if isinstance(output_shape, int):
-            output = (output_shape,)
-        else:
-            output = output_shape
-        QNetwork.__init__(self, output)
-        CNN.__init__(self, input_shape, extras_size, output, mlp_sizes, mlp_noisy)
+    def __post_init__(self):
+        QNetwork.__post_init__(self)
+        CNN.__post_init__(self)
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (128, 128), mlp_noisy: bool = False):
@@ -46,8 +35,7 @@ class QCNN(CNN, QNetwork):
         else:
             output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
-        c, h, w = env.observation_shape
-        return cls((c, h, w), env.extras_size, output_shape, mlp_sizes, mlp_noisy)
+        return QCNN(output_shape, env.observation_shape, env.extras_size, mlp_sizes, mlp_noisy)
 
 
 @dataclass(unsafe_hash=True)
@@ -120,20 +108,24 @@ class RNNQMix(RecurrentQNetwork):
             raise RuntimeError(error_message)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MAVENHyper(torch.nn.Module, ABC):
     noise_size: int
     n_agents: int
     agent_output_size: int
     n_actions: int
 
+    def __post_init__(self):
+        super().__init__()
+
     @abstractmethod
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor: ...
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MAVENHyperBMM(MAVENHyper):
     def __post_init__(self):
+        super().__post_init__()
         self.hyper_network = torch.nn.Linear(
             self.noise_size + self.n_agents,
             self.agent_output_size * self.n_actions * self.n_agents,
@@ -146,9 +138,10 @@ class MAVENHyperBMM(MAVENHyper):
         return torch.bmm(weights, agent_output.unsqueeze(2))
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MAVENHyperMult(MAVENHyper):
     def __post_init__(self):
+        super().__post_init__()
         self.linear = torch.nn.Linear(self.agent_output_size, self.n_actions)
         self.mult_weights_nn = torch.nn.Sequential(
             torch.nn.Linear(self.noise_size + self.n_agents, 64),
@@ -166,36 +159,30 @@ class MAVENHyperMult(MAVENHyper):
         return qs * weights
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MAVENCNN(QNetwork):
+    n_actions: int
     noise_size: int
-    hyper_type: Literal["bmm", "mul"]
+    n_agents: int
+    obs_shape: tuple[int, int, int]
+    extras_size: int
+    hyper_type: Literal["bmm", "mul"] = "bmm"
 
-    def __init__(
-        self,
-        n_actions: int,
-        n_agents: int,
-        noise_size: int,
-        obs_shape: tuple[int, int, int],
-        extras_size: int,
-        hyper_type: Literal["bmm", "mul"] = "bmm",
-    ):
+    def __post_init__(self):
+        super().__post_init__()
         OUTPUT_SIZE = 128
-        super().__init__((n_actions,))
-        self.n_agents = n_agents
-        self.noise_size = noise_size
-        self.cnn, cnn_output_size = make_cnn(obs_shape, [32, 64, 32], [3, 3, 3], [1, 1, 1])
+        self.cnn, cnn_output_size = make_cnn(self.obs_shape, [32, 64, 32], [3, 3, 3], [1, 1, 1])
         self.linear = torch.nn.Sequential(
-            torch.nn.Linear(cnn_output_size + extras_size - noise_size, 256),
+            torch.nn.Linear(cnn_output_size + self.extras_size - self.noise_size, 256),
             torch.nn.ReLU(),
             torch.nn.Linear(256, OUTPUT_SIZE),
             torch.nn.ReLU(),
         )
-        match hyper_type:
+        match self.hyper_type:
             case "bmm":
-                self.hyper_network = MAVENHyperBMM(noise_size, n_agents, OUTPUT_SIZE, n_actions)
+                self.hyper_network = MAVENHyperBMM(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
             case "mul":
-                self.hyper_network = MAVENHyperMult(noise_size, n_agents, OUTPUT_SIZE, n_actions)
+                self.hyper_network = MAVENHyperMult(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
             case other:
                 raise ValueError(f"Unknown hyper network type {other}")
 
@@ -207,14 +194,22 @@ class MAVENCNN(QNetwork):
         return self.hyper_network.forward(noise, x)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], hyper_type: Literal["bmm", "mul"] = "bmm"):
         assert len(env.observation_shape) == 3
         noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
         if noise_size == 0:
             raise ValueError(
                 "No noise found in the environment extras. Make sure to add noise to the environment extras with env.extra_noise() or to use the MAVEN agent."
             )
-        return MAVENCNN(env.n_actions, env.n_agents, noise_size, env.observation_shape, env.extras_size)
+        return MAVENCNN(
+            (env.n_actions,),
+            env.n_actions,
+            noise_size,
+            env.n_agents,
+            env.observation_shape,
+            env.extras_size,
+            hyper_type,
+        )
 
 
 RNN = RNNQMix

@@ -1,27 +1,26 @@
-import random
-from dataclasses import dataclass
-
 import numpy as np
 import numpy.typing as npt
 from marlenv import Observation
 
-from marl.models import Agent, AgentWrapper, ContextualBandit
+from marl.models import Agent, HierarchicalAgent
+
+from ..simple_agent import DiscreteOneHotAgent
 
 
-@dataclass
-class MAVENAgent(AgentWrapper[np.int64]):
+class MAVENAgent(HierarchicalAgent[npt.NDArray[np.int64], npt.NDArray[np.int64]]):
     noise_size: int
 
-    def __init__(self, noise_size: int, workers: Agent[np.int64], bandit: ContextualBandit[npt.NDArray[np.float32]]):
-        super().__init__(workers)
+    def __init__(self, noise_size: int, workers: Agent[npt.NDArray[np.int64]], meta_agent: DiscreteOneHotAgent):
+        super().__init__(meta_agent, workers)
         self._episode_noise = None
         self._saved_episode_noise = None
         self.noise_size = noise_size
-        self.bandit = bandit
+        self.meta_agent = meta_agent
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
         if self._episode_noise is None:
-            self._episode_noise = self.bandit.choose_action(observation=observation)
+            noise = self.meta_agent.choose_action(observation=observation).action
+            self._episode_noise = noise.astype(np.float32)
         observation.extras[:, -self.noise_size :] = self._episode_noise
         action = super().choose_action(observation, with_details=with_details)
         action["maven-noise"] = self._episode_noise
@@ -40,7 +39,3 @@ class MAVENAgent(AgentWrapper[np.int64]):
         # Restore the episode noise from the training
         self._episode_noise = self._saved_episode_noise
         return super().set_training()
-
-    def seed(self, seed: int):
-        random.seed(seed)
-        super().seed(seed)

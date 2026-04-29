@@ -1,14 +1,16 @@
-from typing import Any
-from marlenv import Episode, Observation, State, Transition
-import torch
-from marl import Trainer
 from dataclasses import dataclass
+from typing import Any
+
+import torch
+from marlenv import Episode, Observation, State, Transition
+
+from marl import Trainer
 
 
 @dataclass
 class MultiTrainer(Trainer):
-    def __init__(self, /, *trainers: Trainer, device: torch.device | None = None):
-        super().__init__(device)
+    def __init__(self, *trainers: Trainer):
+        super().__init__()
         self.trainers = trainers
 
     def update_step(self, transition: Transition, time_step: int):

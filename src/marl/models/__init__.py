@@ -1,5 +1,5 @@
 from .action import Action
-from .agent import Agent, AgentWrapper, ContextualBandit
+from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
 from .experiment import Experiment
 from .nn import MAIC, MAICNN, NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
@@ -45,4 +45,5 @@ __all__ = [
     "Actor",
     "Critic",
     "ActorCritic",
+    "HierarchicalAgent",
 ]

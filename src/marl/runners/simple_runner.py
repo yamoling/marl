@@ -8,7 +8,6 @@ import torch
 from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
 
-from marl.agents.random_agent import RandomAgent
 from marl.utils import get_device
 
 if TYPE_CHECKING:
@@ -28,8 +27,8 @@ class SimpleRunner[A: Space]:
         n_tests: int = 1,
         test_interval: int = 5000,
         quiet: bool = False,
-        agent: "Agent | None" = None,
-        trainer: "Trainer|None" = None,
+        agent: "Agent[npt.ArrayLike] | None" = None,
+        trainer: "Trainer[npt.ArrayLike] | None" = None,
         test_env: MARLEnv[A] | None = None,
         save_weights: bool = False,
         save_actions: bool = True,
@@ -46,11 +45,7 @@ class SimpleRunner[A: Space]:
         self._save_weights = save_weights
         self._save_actions = save_actions
         if agent is None:
-            try:
-                agent = trainer.make_agent()
-            except NotImplementedError:
-                logging.info("No agent provided, using a random agent")
-                agent = RandomAgent(env)
+            agent = trainer.make_agent()
         self._agent = agent
         if test_env is None:
             test_env = deepcopy(env)

@@ -8,7 +8,7 @@ from .nn import NN
 
 
 @dataclass
-class Actor(NN, ABC):
+class Actor[T: torch.distributions.Distribution](NN, ABC):
     def __init__(self):
         NN.__init__(self)
 
@@ -18,7 +18,7 @@ class Actor(NN, ABC):
         obs: torch.Tensor,
         extras: torch.Tensor,
         available_actions: torch.Tensor,
-    ) -> torch.distributions.Distribution:
+    ) -> T:
         """
         Returns the probability distribution over the actions.
 
@@ -52,7 +52,7 @@ class Critic(NN, ABC):
 
 
 @dataclass
-class ActorCritic(Actor, Critic):
+class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
     def __init__(self):
         Actor.__init__(self)
         Critic.__init__(self)
@@ -76,13 +76,13 @@ class ActorCritic(Actor, Critic):
         obs: torch.Tensor,
         extras: torch.Tensor,
         available_actions: torch.Tensor,
-    ) -> tuple[torch.distributions.Distribution, torch.Tensor]:
+    ) -> tuple[T, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
 
 
 @dataclass
-class DiscreteActor(Actor, ABC):
+class DiscreteActor(Actor[torch.distributions.Categorical], ABC):
     """Discrete actor neural network"""
 
     clip_logits_low: Optional[float]
@@ -102,7 +102,7 @@ class DiscreteActor(Actor, ABC):
         x[~mask] = replacement
         return x
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 

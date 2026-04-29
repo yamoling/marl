@@ -1,12 +1,12 @@
-from dataclasses import dataclass
 from copy import copy
+from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from marlenv import Observation
 from torch import device
 
-from marl.models import Agent, Action
+from marl.models import Action, Agent
 
 
 @dataclass
@@ -17,8 +17,8 @@ class Haven(Agent):
     The subgoals are concatenated to the worker's observations as "extras".
     """
 
-    meta: Agent
-    workers: Agent
+    meta: Agent[np.ndarray]
+    workers: Agent[np.ndarray]
     n_subgoals: int
     k: int
     """The number of steps that meta-actions lasts."""
@@ -57,8 +57,8 @@ class Haven(Agent):
         assert observation.extras_shape[0] == self.n_meta_extras + self.n_agent_extras + self.n_subgoals
         if self._t % self.k == 0:
             meta_obs = self.make_meta_observation(observation)
-            meta_action, info = self.meta.choose_action(meta_obs)
-            if meta_action.ndim == 1:
+            meta_action = self.meta.choose_action(meta_obs)
+            if meta_action.action.ndim == 1:
                 # Encode discrete actions as one-hot
                 subgoals = np.eye(self.n_subgoals, dtype=np.float32)[meta_action]
             else:

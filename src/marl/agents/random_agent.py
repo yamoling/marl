@@ -1,16 +1,18 @@
-from marlenv import MARLEnv, Observation, Space
-from marl.models import Agent, Action
 from dataclasses import dataclass
+
 import numpy as np
+from marlenv import MARLEnv, Observation, Space
+
+from marl.models import Action, Agent
 
 
 @dataclass
-class RandomAgent[S: Space[np.ndarray], T](Agent[T]):
+class RandomAgent[S: Space[np.ndarray]](Agent[np.ndarray]):
     def __init__(self, env: MARLEnv[S]):
         super().__init__()
         self.env = env
 
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
+    def choose_action(self, observation: Observation, *, with_details: bool = False):
         return Action(self.env.action_space.sample(observation.available_actions))
 
     def value(self, _):

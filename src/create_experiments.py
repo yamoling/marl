@@ -1,9 +1,9 @@
+import logging
 import os
 import shutil
 from copy import deepcopy
 from datetime import datetime
 from functools import cached_property
-import logging
 from typing import Any, Literal, Optional
 
 import marlenv
@@ -15,9 +15,9 @@ from marlenv.utils import Schedule
 import marl
 from marl import ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
+from marl.nn import model_bank
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
-from marl.nn import model_bank
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
@@ -147,9 +147,9 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 qnetwork=marl.nn.model_bank.qnetworks.QCNN(
                     input_shape=meta_env.observation_shape,
                     extras_size=meta_env.extras_shape[0],
-                    output_shape=N_SUBGOALS,
+                    output=N_SUBGOALS,
                 ),
-                train_policy=marl.bandits.EpsilonGreedy.linear(1.0, 0.05, 200_000),
+                train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 200_000),
                 memory=marl.models.TransitionMemory(5_000),
                 double_qlearning=True,
                 target_updater=SoftUpdate(0.01),
@@ -166,7 +166,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
     env = marlenv.Builder(meta_env).pad("extra", N_SUBGOALS).build()
     worker_trainer = DQN(
         qnetwork=marl.nn.model_bank.qnetworks.QCNN.qnetwork(env),
-        train_policy=marl.bandits.EpsilonGreedy.linear(
+        train_policy=marl.policy.EpsilonGreedy.linear(
             1.0,
             0.05,
             n_steps=200_000,
@@ -245,9 +245,9 @@ def make_dqn(
         case None:
             ir = None
     if noisy:
-        policy = marl.bandits.ArgMax()
+        policy = marl.policy.ArgMax()
     else:
-        policy = marl.bandits.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
     vbe = None
     if use_vbe:
         vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)

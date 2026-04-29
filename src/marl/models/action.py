@@ -1,12 +1,11 @@
 from dataclasses import dataclass
-from typing import Any, overload
 
 import numpy as np
 import numpy.typing as npt
 
 
 @dataclass
-class Action[T: Any]:
+class Action[T]:
     """
     An Action is a wrapper around a numpy array representing the action to perform. It also allows to store additional keyword arguments that can be used to store details on the decision-making such as:
      - Logging data such as the qvalues, the action probabilities or the logits.
@@ -14,13 +13,13 @@ class Action[T: Any]:
      - Meta-agent actions in the case of hierarchical RL algorithms.
     """
 
-    action: npt.NDArray[T]
+    action: T
     options: npt.ArrayLike | None
     meta_actions: npt.ArrayLike | None
 
     def __init__(
         self,
-        action: npt.NDArray[T],
+        action: T,
         *,
         options: npt.ArrayLike | None = None,
         meta_actions: npt.ArrayLike | None = None,
@@ -33,25 +32,25 @@ class Action[T: Any]:
             setattr(self, name, value)
 
     def __array__(self, dtype=None):
-        if dtype is None:
-            return self.action
-        else:
+        if isinstance(self.action, np.ndarray):
+            if dtype is None:
+                return self.action
             return self.action.astype(dtype)
+        return np.array(self.action, dtype)
 
     def __numpy_dtype__(self):
-        return self.action.dtype
+        match self.action:
+            case np.ndarray():
+                return self.action.dtype
+            case int():
+                return np.int64
+            case float():
+                return np.float32
+            case other:
+                raise TypeError(f"Unsupported action type: {type(other)}")
 
-    @overload
-    def __getitem__(self, item: int) -> np.ndarray:
-        """Get the action at the given index."""
-
-    @overload
-    def __getitem__(self, item: str) -> np.ndarray:
+    def __getitem__(self, item: str):
         """Get the keyword argument with the given name."""
-
-    def __getitem__(self, item: int | str):
-        if isinstance(item, int):
-            return self.action[item]
         return getattr(self, item)
 
     def __setitem__(self, key: str, value: npt.ArrayLike):

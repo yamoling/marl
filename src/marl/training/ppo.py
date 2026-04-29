@@ -210,9 +210,9 @@ class PPO(Trainer):
         return self.train(time_step)
 
     def make_agent(self):
-        from marl.agents import SimpleActor
+        from marl.agents import SimpleAgent
 
-        return SimpleActor(self.actor_critic)
+        return SimpleAgent(self.actor_critic)
 
     @property
     def device(self):

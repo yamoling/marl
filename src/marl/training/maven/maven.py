@@ -2,9 +2,11 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
 from marlenv import Episode
 from marlenv.catalog import DiscreteMockEnv
 
+from marl.agents.hierarchical import MAVENAgent
 from marl.models import IRModule, Mixer, Policy, QNetwork
 from marl.models.replay_memory.biased_memory import EpisodeMemory
 from marl.models.trainer import HierarchicalTrainer, Trainer
@@ -16,7 +18,7 @@ from .mutual_information_trainer import MITrainer
 
 
 @dataclass
-class MAVEN(HierarchicalTrainer[np.int64, Trainer, MITrainer]):
+class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer, MITrainer]):
     """
     Multi-Agent Variational ExploratioN algorithm. This algorithm is implemented as a hierarchical trainer:
         - the meta-agent is the Z-policy
@@ -58,7 +60,7 @@ class MAVEN(HierarchicalTrainer[np.int64, Trainer, MITrainer]):
         match self.z_policy_type:
             case "uniform":
                 # The DiscreteMockEnv is there because we need a placeholder. The agent will never be instanciated from here, though.
-                self.meta_trainer = NoTrain(DiscreteMockEnv())
+                self.meta_trainer = NoTrain.discrete(DiscreteMockEnv())
             case "return":
                 self.meta_trainer = ExpectedReturnTrainer(
                     self.return_bandit_nn,
@@ -94,3 +96,8 @@ class MAVEN(HierarchicalTrainer[np.int64, Trainer, MITrainer]):
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)
+
+    def make_agent(self):
+        workers = self.worker_trainer.make_agent()
+        bandit = self.meta_trainer.make_agent()
+        return MAVENAgent(self.noise_size, workers, bandit)

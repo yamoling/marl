@@ -83,25 +83,26 @@ class CNN(NN):
     concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
     """
 
-    def __init__(
-        self,
-        input_shape: tuple[int, int, int],
-        extras_size: int,
-        output_shape: int | tuple[int, ...],
-        mlp_sizes: tuple[int, ...] = (64, 64),
-        mlp_noisy: bool = False,
-        output_activation: None | Literal["sigmoid", "tanh"] = None,
-    ):
-        NN.__init__(self)
-        self.extras_size = extras_size
+    input_shape: tuple[int, int, int]
+    extras_size: int
+    output: int | tuple[int, ...]
+    mlp_sizes: tuple[int, ...] = (64, 64)
+    mlp_noisy: bool = False
+    output_activation: None | Literal["sigmoid", "tanh"] = None
+
+    def __post_init__(self):
+        super().__post_init__()
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        if isinstance(output_shape, int):
-            output_shape = (output_shape,)
-        self.output_shape = output_shape
-        self.linear = MLP(n_features, extras_size, mlp_sizes, self.output_shape, mlp_noisy, output_activation)
+        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        self.linear = MLP(n_features, self.extras_size, self.mlp_sizes, self.output_shape, self.mlp_noisy, self.output_activation)
+
+    @property
+    def output_shape(self):
+        if isinstance(self.output, tuple):
+            return self.output
+        return (self.output,)
 
     @classmethod
     def qnetwork(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
