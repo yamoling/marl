@@ -98,18 +98,12 @@ class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         meta_logs = self.meta_trainer.update_step(transition, time_step)
         worker_logs = self.worker_trainer.update_step(transition, time_step)
-        return {
-            **{f"{self.meta_trainer.name}/{key}": value for key, value in meta_logs},
-            **{f"{self.worker_trainer.name}/{key}": value for key, value in worker_logs},
-        }
+        return self.merge_logs(worker_logs, meta_logs)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
         meta_logs = self.meta_trainer.update_episode(episode, episode_num, time_step)
         worker_logs = self.worker_trainer.update_episode(episode, episode_num, time_step)
-        return {
-            **{f"{self.meta_trainer.name}/{key}": value for key, value in meta_logs},
-            **{f"{self.worker_trainer.name}/{key}": value for key, value in worker_logs},
-        }
+        return self.merge_logs(worker_logs, meta_logs)
 
     def networks(self):
         return self.meta_trainer.networks() + self.worker_trainer.networks()
@@ -120,10 +114,14 @@ class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
         return self
 
     def config(self) -> dict[str, Any]:
-        return {
-            **{f"{self.meta_trainer.name}/{key}": value for key, value in self.meta_trainer.config().items()},
-            **{f"{self.worker_trainer.name}/{key}": value for key, value in self.worker_trainer.config().items()},
-        }
+        return self.merge_logs(self.meta_trainer.config(), self.worker_trainer.config())
 
     def value(self, obs: Observation, state: State):
         return self.meta_trainer.value(obs, state)
+
+    @staticmethod
+    def merge_logs(worker_logs: dict, meta_logs: dict):
+        return {
+            **{f"meta/{key}": value for key, value in meta_logs.items()},
+            **{f"worker/{key}": value for key, value in worker_logs.items()},
+        }

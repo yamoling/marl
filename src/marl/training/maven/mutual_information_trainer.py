@@ -24,9 +24,7 @@ class MITrainer(DQN[EpisodeMemory]):
         super().__post_init__()
         assert self.train_interval[1] == "episode", "MAVEN must be trained on full episodes to compute the MI loss on whole trajectories."
         self._mi_loss = torch.nn.CrossEntropyLoss(reduction="mean")
-        self.trajectory_aggregator = TrajectoryAggregator(
-            self.n_agents, self.n_actions, self.state_size + self.state_extras_size - self.noise_size
-        )
+        self.trajectory_aggregator = TrajectoryAggregator(self.n_agents, self.n_actions, self.state_size, self.state_extras_size)
         self.discriminator = Discriminator(self.trajectory_aggregator.output_size, self.noise_size)
         settings = self.optimiser.param_groups[0].copy()
         settings.pop("params")
@@ -37,11 +35,11 @@ class MITrainer(DQN[EpisodeMemory]):
             self.name += f"-{self.mixer.name}"
 
     def train(self, time_step: int, batch: Batch):
-        all_qvalues, qvalues = self._compute_qvalues(batch)
+        qvalues, chosen_qvalues = self._compute_qvalues(batch)
         with torch.no_grad():
             qtargets = self._compute_qtargets(batch)
-        td_loss, td_error = self._compute_td_loss(qvalues, qtargets, batch)
-        maven_loss = self._compute_maven_loss(batch, all_qvalues)
+        td_loss, td_error = self._compute_td_loss(chosen_qvalues, qtargets, batch)
+        maven_loss = self._compute_maven_loss(batch, qvalues)
         loss = td_loss + maven_loss
         logs = {"td-loss": td_loss.item(), "maven-loss": maven_loss.item(), "loss": loss.item()}
         self.optimiser.zero_grad()
@@ -54,15 +52,14 @@ class MITrainer(DQN[EpisodeMemory]):
             logs = logs | self.vbe.update(batch)
         return logs
 
-    def _compute_maven_loss(self, batch: Batch, all_qvalues: torch.Tensor):
-        assert all_qvalues.grad_fn is not None, "Gradient should flow through all_qvalues for the MI loss to work !"
-        # Retrieve the noise from the transition details instead of parsing the state extras implicitly
-        noise = batch["maven-noise"][0]
-        state_extras = batch.states_extras[:, :, : -self.noise_size]
-        ground_truth = noise.argmax(dim=-1).long()
-        all_qvalues_masked = all_qvalues.masked_fill(~batch.available_actions, -torch.inf)
-        embeddings = self.trajectory_aggregator.forward(all_qvalues_masked, batch.states, state_extras, batch.masks)
+    def _compute_maven_loss(self, batch: Batch, qvalues: torch.Tensor):
+        assert qvalues.grad_fn is not None, "Gradient should flow through all_qvalues for the MI loss to work !"
+        qvalues = qvalues.masked_fill(~batch.available_actions, -torch.inf)
+        embeddings = self.trajectory_aggregator.forward(qvalues, batch.states, batch.states_extras, batch.masks)
         predicted_class = self.discriminator.forward(embeddings)
+        # Retrieve the actual noise and transform from one-hot to class indices.
+        noise = batch["maven-noise"][0]
+        ground_truth = noise.argmax(dim=-1).long()
         mi_loss = self._mi_loss.forward(predicted_class, ground_truth)
         return self.mi_loss_coef * mi_loss
 
@@ -72,6 +69,7 @@ class TrajectoryAggregator(torch.nn.Module):
     n_agents: int
     n_actions: int
     state_size: int
+    state_extras_size: int
     output_size: int = 32
 
     def __post_init__(self):
@@ -80,12 +78,12 @@ class TrajectoryAggregator(torch.nn.Module):
 
     @property
     def input_size(self):
-        return self.n_actions * self.n_agents + self.state_size
+        return self.n_actions * self.n_agents + self.state_size + self.state_extras_size
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, state_extras: torch.Tensor, masks: torch.Tensor):
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, masks: torch.Tensor):
         soft_qvalues = torch.nn.functional.softmax(qvalues, dim=-1)
         soft_qvalues = soft_qvalues.flatten(2)
-        trajectories = torch.cat([soft_qvalues, states, state_extras], dim=-1)
+        trajectories = torch.cat([soft_qvalues, states, states_extras], dim=-1)
         ep_lengths = masks.sum(dim=0).long()
         trajectories = pack_padded_sequence(trajectories, ep_lengths.cpu(), enforce_sorted=False)
         _, last_hidden_states = self.rnn.forward(trajectories)

@@ -145,10 +145,11 @@ class MAVENHyperBMM(MAVENTail):
         The hyper-network takes as input the noise and the agent id and produces the weight matrix that will be multiplied with the previous layer outputs.
         The final output is of shape (batch_size, n_agents, n_actions), i.e. a q-value per agent and per action.
         """
-
+        *dims, n_agents, noise_size = noise.shape
+        batch_size = math.prod(dims)
         # Build the hyper-network inputs: [noise, agent_id]
-        batch_size = noise.size(0)
         agent_ids = torch.eye(self.n_agents, device=noise.device).unsqueeze(0).repeat(batch_size, 1, 1)
+        noise = noise.reshape(batch_size, n_agents, noise_size)
         inputs = torch.cat([noise, agent_ids], dim=-1)
         # The hyper-network takes as input the [noise, agent_id] and outputs HIDDEN_DIM * n_actions weights.
         weights = self.hyper_network.forward(inputs)
@@ -159,7 +160,7 @@ class MAVENHyperBMM(MAVENTail):
         agent_output = agent_output.view(batch_size * self.n_agents, 1, self.agent_output_size)
         res = torch.bmm(agent_output, weights)
         # Return in the original shape
-        return res.view(-1, self.n_agents, self.n_actions)
+        return res.view(*dims, self.n_agents, self.n_actions)
 
 
 @dataclass(unsafe_hash=True)
@@ -205,8 +206,15 @@ class MAVENCNN(QNetwork):
                 raise ValueError(f"Unknown hyper network type {other}")
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-        noise = extras[:, :, -self.noise_size :]
-        extras = extras[:, :, : -self.noise_size]
+        match len(extras.shape):
+            case 3:
+                noise = extras[:, :, -self.noise_size :]
+                extras = extras[:, :, : -self.noise_size]
+            case 4:
+                noise = extras[:, :, :, -self.noise_size :]
+                extras = extras[:, :, :, : -self.noise_size]
+            case _:
+                raise NotImplementedError()
         x = self.cnn.forward(obs, extras)
         return self.tail.forward(noise, x)
 

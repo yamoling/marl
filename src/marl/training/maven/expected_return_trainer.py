@@ -35,7 +35,7 @@ class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
         self._loss = torch.nn.MSELoss()
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
-        initial_obs = next(episode.transitions()).obs
+        initial_obs = next(episode.transitions()).obs.as_joint()
         action = episode["maven-noise"][0]
         total_return = np.sum(episode.rewards).item()
         self._memory.append((initial_obs, action, total_return))

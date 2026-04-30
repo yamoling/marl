@@ -99,7 +99,12 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
         next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
-            next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
+            next_values = self.target_mixer.forward(
+                next_values,
+                batch.next_states,
+                batch.next_states_extras,
+                maven_noise=batch["maven-noise"],
+            )
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == batch.masks.shape
         return batch.rewards + self.gamma * next_values * batch.not_dones
 

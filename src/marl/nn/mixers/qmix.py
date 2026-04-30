@@ -1,4 +1,4 @@
-from dataclasses import dataclass, KW_ONLY
+from dataclasses import KW_ONLY, dataclass
 
 import torch
 import torch.nn as nn
@@ -56,28 +56,39 @@ class QMix(Mixer):
     def input_size(self):
         return self.state_size + self.state_extras_size
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    def forward(
+        self,
+        qvalues: torch.Tensor,
+        states: torch.Tensor,
+        states_extras: torch.Tensor,
+        /,
+        maven_noise: torch.Tensor | None = None,
+        **kwargs,
+    ) -> torch.Tensor:
         q_totals = []
         batch_dims = states.shape[:-1]
         states = states.flatten(1)
         states_extras = states_extras.flatten(1)
-        states = torch.cat([states, states_extras], dim=1)
+        inputs = [states, states_extras]
+        if maven_noise is not None:
+            inputs.append(maven_noise.flatten(1))
+        inputs = torch.cat(inputs, dim=1)
         for i in range(self.n_objectives):
             if self.n_objectives == 1:
                 qvalues_obj = qvalues.view(-1, 1, self.n_agents)
             else:
                 qvalues_obj = qvalues[:, :, i].view(-1, 1, self.n_agents)
             # First layer
-            weight_1 = self.hyper_w_1.forward(states)
-            bias_1 = self.hyper_b_1.forward(states)
+            weight_1 = self.hyper_w_1.forward(inputs)
+            bias_1 = self.hyper_b_1.forward(inputs)
             weight_1 = weight_1.view(-1, self.n_agents, self.embed_size)
             bias_1 = bias_1.view(-1, 1, self.embed_size)
             hidden = F.elu(torch.bmm(qvalues_obj, weight_1) + bias_1)
             # Second layer
-            weight_2 = self.hyper_w_final.forward(states)
+            weight_2 = self.hyper_w_final.forward(inputs)
             weight_2 = weight_2.view(-1, self.embed_size, 1)
             # State-dependent bias
-            value = self.V.forward(states).view(-1, 1, 1)
+            value = self.V.forward(inputs).view(-1, 1, 1)
             # Compute final output
             y = torch.bmm(hidden, weight_2) + value
             y = torch.reshape(y, batch_dims)

@@ -52,10 +52,9 @@ def main():
     #     train_interval=(1, "episode"),
     # )
     logdir = f"logs/{trainer.name}-{env.name}"
-    logdir = "test"
     exp = marl.Experiment.create(
         env,
-        1_000_000,
+        100_000,
         trainer=trainer,
         test_interval=5000,
         logdir=logdir,
