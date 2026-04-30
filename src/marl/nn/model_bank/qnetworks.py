@@ -1,7 +1,7 @@
 import math
 import operator
 from abc import ABC, abstractmethod
-from dataclasses import KW_ONLY, InitVar, dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from functools import reduce
 from typing import TYPE_CHECKING, Literal, Optional, Sequence
 
@@ -29,7 +29,7 @@ class QCNN(CNN, QNetwork):
         CNN.__post_init__(self)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (128, 128), mlp_noisy: bool = False):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: Sequence[int] = (128, 128), mlp_noisy: bool = False):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
@@ -40,20 +40,24 @@ class QCNN(CNN, QNetwork):
 
 @dataclass(unsafe_hash=True)
 class QMLP(MLP, QNetwork):
-    def __init__(
-        self,
-        input_size: int,
-        extras_size: int,
-        hidden_sizes: Sequence[int],
-        output_shape: int | tuple[int, int],
-        last_layer_noisy: bool = False,
-    ):
-        if isinstance(output_shape, int):
-            output = (output_shape,)
-        else:
-            output = output_shape
-        QNetwork.__init__(self, output)
-        MLP.__init__(self, input_size, extras_size, hidden_sizes, output, last_layer_noisy)
+    def __post_init__(self):
+        QNetwork.__post_init__(self)
+        MLP.__post_init__(self)
+
+    # def __init__(
+    #     self,
+    #     input_size: int,
+    #     extras_size: int,
+    #     output_shape: int | tuple[int, int],
+    #     hidden_sizes: Sequence[int] = (128, 128),
+    #     last_layer_noisy: bool = False,
+    # ):
+    #     if isinstance(output_shape, int):
+    #         output = (output_shape,)
+    #     else:
+    #         output = output_shape
+    #     QNetwork.__init__(self, output)
+    #     MLP.__init__(self, input_size, extras_size, output, hidden_sizes, noisy=last_layer_noisy)
 
 
 @dataclass(unsafe_hash=True)
@@ -109,7 +113,7 @@ class RNNQMix(RecurrentQNetwork):
 
 
 @dataclass(unsafe_hash=True)
-class MAVENTail(torch.nn.Module, ABC):
+class MAVENTail(torch.nn.Module):
     """
     Tail of the MAVEN agent-wise network. The paper only presents the "hyper-network" approach
     but the official code has two kinds of networks.
@@ -226,9 +230,9 @@ class MAVENCNN(MAVENNN):
     def __post_init__(self):
         super().__post_init__()
         self.head = CNN(
+            (self.agent_output_size,),
             self.obs_shape,
             self.extras_size - self.noise_size,
-            self.agent_output_size,
             mlp_sizes=(256, 256),
             output_activation="relu",
         )
@@ -252,14 +256,14 @@ class MAVENCNN(MAVENNN):
         )
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class MAVENMLP(MAVENNN):
     extras_size: int
     obs_size: int
 
     def __post_init__(self):
         super().__post_init__()
-        self.head = MLP(self.obs_size, self.extras_size - self.noise_size, (256, 256), (self.agent_output_size,), last_layer_noisy=False)
+        self.head = MLP((self.agent_output_size,), self.obs_size, self.extras_size - self.noise_size, (256, 256), noisy=False)
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace], tail_type: Literal["bmm", "mul"] = "bmm"):

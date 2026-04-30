@@ -20,4 +20,4 @@ class VDN(Mixer):
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
-        return VDN(env.n_agents, n_objectives=env.reward_space.size)
+        return VDN((env.n_actions,), env.n_agents, n_objectives=env.reward_space.size)

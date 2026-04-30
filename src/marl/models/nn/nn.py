@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Literal
 
@@ -13,15 +14,20 @@ def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
             init_fn(param.data)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class NN(torch.nn.Module):
     """Parent class of all neural networks"""
 
+    output_shape: tuple[int, ...]
     name: str = field(init=False)
 
     def __post_init__(self):
         super().__init__()
         self.name = self.__class__.__name__
+
+    @property
+    def output_size(self):
+        return math.prod(self.output_shape)
 
     def randomize(self, method: Literal["xavier", "orthogonal"] | Callable[[torch.Tensor], Any] = "xavier"):
         match method:
@@ -31,10 +37,6 @@ class NN(torch.nn.Module):
                 randomize(torch.nn.init.orthogonal_, self)
             case other:
                 randomize(other, self)
-
-    def __hash__(self) -> int:
-        # Required for deserialization (in torch.nn.module)
-        return hash(self.name)
 
     def to(self, device: torch.device):  # type: ignore
         super().to(device)
@@ -61,27 +63,27 @@ class NN(torch.nn.Module):
         return f"{self.name} (on {self.device})"
 
 
-@dataclass(repr=False)
+@dataclass(repr=False, unsafe_hash=True)
 class RecurrentNN(NN):
-    def __init__(self):
-        super().__init__()
-        self.hidden_states: Tensor | None = None
-        self.saved_hidden_states: Tensor | None = None
+    def __post_init__(self):
+        super().__post_init__()
+        self._hidden_states: Tensor | None = None
+        self._saved_hidden_states: Tensor | None = None
 
     def reset_hidden_states(self):
         """Reset the hidden states"""
-        self.hidden_states = None
+        self._hidden_states = None
 
     def train(self, mode: bool = True):
         if not mode:
             # Set test mode: save training hidden states
-            self.saved_hidden_states = self.hidden_states
+            self._saved_hidden_states = self._hidden_states
             self.reset_hidden_states()
         else:
             # Set train mode
             if not self.training:
                 # if not already in train mode, restore hidden states
-                self.hidden_states = self.saved_hidden_states
+                self._hidden_states = self._saved_hidden_states
         return super().train(mode)
 
     @property

@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass
 from typing import Literal, Sequence, override
 
 import torch
@@ -17,40 +17,44 @@ class MLP(NN):
     Multi layer perceptron
     """
 
-    layer_sizes: Sequence[int] = field(init=False)
+    obs_size: int
+    extras_size: int
+    hidden_sizes: Sequence[int] = (256, 256)
+    _: KW_ONLY
+    noisy: bool = False
+    output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
 
-    def __init__(
-        self,
-        input_size: int,
-        extras_size: int,
-        hidden_sizes: Sequence[int],
-        output_shape: tuple[int, ...],
-        last_layer_noisy: bool = False,
-        output_activation: None | Literal["sigmoid", "tanh", "relu"] = None,
-    ):
-        NN.__init__(self)
-        self.output_shape = output_shape
-        output_size = math.prod(self.output_shape)
-        self.layer_sizes = (input_size + extras_size, *hidden_sizes, output_size)
-        layers: list[torch.nn.Module] = [torch.nn.Linear(input_size + extras_size, hidden_sizes[0]), torch.nn.ReLU()]
-        for i in range(len(hidden_sizes) - 1):
-            layers.append(torch.nn.Linear(hidden_sizes[i], hidden_sizes[i + 1]))
+    def __post_init__(self):
+        NN.__post_init__(self)
+        self.layer_sizes = (self.input_size, *self.hidden_sizes, self.output_size)
+        layers: list[torch.nn.Module] = [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
+        for i in range(len(self.hidden_sizes) - 1):
+            layers.append(torch.nn.Linear(self.hidden_sizes[i], self.hidden_sizes[i + 1]))
             layers.append(torch.nn.ReLU())
-        if last_layer_noisy:
-            layers.append(NoisyLinear(hidden_sizes[-1], output_size))
+        if self.noisy:
+            layers.append(NoisyLinear(self.hidden_sizes[-1], self.output_size))
         else:
-            layers.append(torch.nn.Linear(hidden_sizes[-1], output_size))
-        if output_activation is not None:
-            match output_activation:
-                case "sigmoid":
-                    layers.append(torch.nn.Sigmoid())
-                case "tanh":
-                    layers.append(torch.nn.Tanh())
-                case "relu":
-                    layers.append(torch.nn.ReLU())
-                case other:
-                    raise ValueError(f"Unsupported output activation: {other}")
+            layers.append(torch.nn.Linear(self.hidden_sizes[-1], self.output_size))
+        match self.output_activation:
+            case None:
+                pass
+            case "sigmoid":
+                layers.append(torch.nn.Sigmoid())
+            case "tanh":
+                layers.append(torch.nn.Tanh())
+            case "relu":
+                layers.append(torch.nn.ReLU())
+            case other:
+                raise ValueError(f"Unsupported output activation: {other}")
         self.nn = torch.nn.Sequential(*layers)
+
+    @property
+    def output_size(self):
+        return math.prod(self.output_shape)
+
+    @property
+    def input_size(self):
+        return self.obs_size + self.extras_size
 
     @classmethod
     def qnetwork(
@@ -63,12 +67,12 @@ class MLP(NN):
             output_shape = (env.n_actions, env.reward_space.size)
         else:
             output_shape = (env.n_actions,)
-        return cls(
-            env.observation_shape[0],
-            env.extras_shape[0],
-            tuple(hidden_sizes),
+        return MLP(
             output_shape,
-            last_layer_noisy,
+            env.observation_shape[0],
+            env.extras_size,
+            hidden_sizes,
+            noisy=last_layer_noisy,
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
@@ -87,8 +91,7 @@ class CNN(NN):
 
     input_shape: tuple[int, int, int]
     extras_size: int
-    output: int | tuple[int, ...]
-    mlp_sizes: tuple[int, ...] = (64, 64)
+    mlp_sizes: Sequence[int] = (64, 64)
     mlp_noisy: bool = False
     output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
 
@@ -98,13 +101,14 @@ class CNN(NN):
         strides = [1, 1, 1]
         filters = [32, 64, 64]
         self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
-        self.linear = MLP(n_features, self.extras_size, self.mlp_sizes, self.output_shape, self.mlp_noisy, self.output_activation)
-
-    @property
-    def output_shape(self):
-        if isinstance(self.output, tuple):
-            return self.output
-        return (self.output,)
+        self.linear = MLP(
+            self.output_shape,
+            n_features,
+            self.extras_size,
+            self.mlp_sizes,
+            noisy=self.mlp_noisy,
+            output_activation=self.output_activation,
+        )
 
     @classmethod
     def qnetwork(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
@@ -130,20 +134,17 @@ class CNN(NN):
 
 @dataclass(unsafe_hash=True)
 class SimpleRNN(RecurrentNN):
-    def __init__(
-        self,
-        n_inputs: int,
-        n_outputs: int,
-        hidden_size: int = 256,
-    ):
-        super().__init__()
+    n_inputs: int
+    hidden_size: int = 256
+
+    def __post_init__(self):
+        super().__post_init__()
         self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(n_inputs, hidden_size),
+            torch.nn.Linear(self.n_inputs, self.hidden_size),
             torch.nn.ReLU(),
         )
-        self.gru = torch.nn.GRU(input_size=hidden_size, hidden_size=hidden_size, batch_first=False, num_layers=2)
-        self.fc2 = torch.nn.Linear(hidden_size, n_outputs)
-        self.n_outputs = n_outputs
+        self.gru = torch.nn.GRU(input_size=self.hidden_size, hidden_size=self.hidden_size, batch_first=False, num_layers=2)
+        self.fc2 = torch.nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
@@ -165,5 +166,5 @@ class SimpleRNN(RecurrentNN):
             x, self.hidden_states = self.gru.forward(x, self.hidden_states)
         x = self.fc2.forward(x)
         # Restore the original shape of the batch
-        x = x.view(episode_length, *batch_agents, self.n_outputs)
+        x = x.view(episode_length, *batch_agents, self.output_size)
         return x

@@ -18,6 +18,8 @@ class MAVENAgent(HierarchicalAgent[npt.NDArray[np.int64], npt.NDArray[np.int64]]
         if self._episode_noise is None:
             meta_obs = observation.as_joint()
             meta_obs.available_actions = np.full((1, self.noise_size), True)
+            extras_without_noise = observation.extras[:, : -self.noise_size].flatten()
+            meta_obs.extras = extras_without_noise[np.newaxis]
             noise = self.meta_agent.choose_action(meta_obs).action
             noise = np.squeeze(noise, 0)
             self._episode_noise = noise.astype(np.float32)

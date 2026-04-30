@@ -3,16 +3,18 @@ import os
 
 import dotenv
 import lle
+from marlenv import Builder, catalog
 
 import marl
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 from marl.training import MAVEN
 
+NOISE_SIZE = 16
 
-def main():
-    NOISE_SIZE = 16
-    env = (
+
+def make_lle():
+    return (
         lle.level(6)
         .obs_type("layered")
         .state_type("state")
@@ -23,10 +25,18 @@ def main():
         .pad("extra", NOISE_SIZE, label="maven")
         .build()
     )
-    assert len(env.observation_shape) == 3
-    meta_agent_input = (env.observation_shape[0] * env.n_agents, *env.observation_shape[1:])
+
+
+def make_nsteps_matrix():
+    return Builder(catalog.MStepsMatrix(10)).agent_id().pad("extra", NOISE_SIZE, "maven").build()
+
+
+def main():
+    env = make_nsteps_matrix()
+    # assert len(env.observation_shape) == 3
+    meta_agent_input = env.observation_shape[0] * env.n_agents
     trainer = MAVEN(
-        qnetworks.MAVENCNN.from_env(env),
+        qnetworks.MAVENMLP.from_env(env),
         marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
         "return",
         NOISE_SIZE,
@@ -34,7 +44,7 @@ def main():
         env.n_agents,
         env.state_size,
         env.state_extras_size,
-        return_bandit_nn=qnetworks.QCNN(NOISE_SIZE, meta_agent_input, env.extras_size * env.n_agents),
+        return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, (env.extras_size - NOISE_SIZE) * env.n_agents),
         mixer=mixers.VDN.from_env(env),
         test_policy=marl.policy.ArgMax(),
         grad_norm_clipping=10.0,
@@ -52,6 +62,7 @@ def main():
     #     train_interval=(1, "episode"),
     # )
     logdir = f"logs/{trainer.name}-{env.name}"
+    logdir = "test"
     exp = marl.Experiment.create(
         env,
         100_000,
@@ -59,7 +70,6 @@ def main():
         test_interval=5000,
         logdir=logdir,
         save_weights=False,
-        replace_if_exists=True,
     )
     exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[0, 1, 5, 6, 7], n_parallel=1)
 

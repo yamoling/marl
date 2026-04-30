@@ -63,6 +63,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
                 assert self.return_bandit_nn is not None, "return_bandit_nn must be provided when z_policy_type is 'return'"
                 self.meta_trainer = ExpectedReturnTrainer(
                     self.return_bandit_nn,
+                    self.noise_size,
                     undiscounted=self.undiscounted,
                     optimiser_type=self.optimiser_type,
                     lr=self.lr,

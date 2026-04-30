@@ -1,6 +1,5 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Optional
+from abc import abstractmethod
+from dataclasses import KW_ONLY, dataclass
 
 import torch
 
@@ -8,10 +7,7 @@ from .nn import NN
 
 
 @dataclass
-class Actor[T: torch.distributions.Distribution](NN, ABC):
-    def __init__(self):
-        NN.__init__(self)
-
+class Actor[T: torch.distributions.Distribution](NN):
     @abstractmethod
     def policy(
         self,
@@ -38,11 +34,8 @@ class Actor[T: torch.distributions.Distribution](NN, ABC):
 
 
 @dataclass
-class Critic(NN, ABC):
+class Critic(NN):
     """Critic neural network"""
-
-    def __init__(self):
-        NN.__init__(self)
 
     @abstractmethod
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -53,10 +46,6 @@ class Critic(NN, ABC):
 
 @dataclass
 class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
-    def __init__(self):
-        Actor.__init__(self)
-        Critic.__init__(self)
-
     @property
     @abstractmethod
     def policy_parameters(self) -> list[torch.nn.Parameter]:
@@ -85,13 +74,9 @@ class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
 class DiscreteActor(Actor[torch.distributions.Categorical]):
     """Discrete actor neural network"""
 
-    clip_logits_low: Optional[float]
-    clip_logits_high: Optional[float]
-
-    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
-        Actor.__init__(self)
-        self.clip_logits_low = clip_logits_low
-        self.clip_logits_high = clip_logits_high
+    _: KW_ONLY
+    clip_logits_low: float | None = None
+    clip_logits_high: float | None = None
 
     @abstractmethod
     def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
@@ -109,7 +94,7 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
     def to_one_hot(self):
         class DiscreteOneHotActor(Actor[torch.distributions.OneHotCategorical]):
             def __init__(self, actor: DiscreteActor):
-                super().__init__()
+                super().__init__(actor.output_shape)
                 self.actor = actor
 
             def __hash__(self):
@@ -124,6 +109,4 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
 
 @dataclass
 class DiscreteActorCritic(ActorCritic, DiscreteActor):
-    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
-        ActorCritic.__init__(self)
-        DiscreteActor.__init__(self, clip_logits_low, clip_logits_high)
+    pass

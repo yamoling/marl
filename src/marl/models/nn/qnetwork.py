@@ -1,4 +1,3 @@
-import math
 from abc import abstractmethod
 from dataclasses import dataclass
 
@@ -15,11 +14,9 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
-    output: int | tuple[int, ...]
-
     def __post_init__(self):
         super().__post_init__()
-        match self.output:
+        match self.output_shape:
             case int() | (_,):
                 self.action_dim = -1
                 self.is_multi_objective = False
@@ -28,18 +25,6 @@ class QNetwork(NN):
                 self.is_multi_objective = True
             case other:
                 raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
-
-    @property
-    def output_shape(self):
-        if isinstance(self.output, tuple):
-            return self.output
-        return (self.output,)
-
-    @property
-    def output_size(self) -> int:
-        if isinstance(self.output_shape, int):
-            return self.output_shape
-        return math.prod(self.output_shape)
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
@@ -71,7 +56,7 @@ class QNetwork(NN):
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
         if env.reward_space.size == 1:
-            output_shape = env.n_actions
+            output_shape = (env.n_actions,)
         else:
             output_shape = (env.n_actions, env.reward_space.size)
         return cls(output_shape)
@@ -81,7 +66,7 @@ class QNetwork(NN):
 
         class ActorFromQNet(DiscreteActor):
             def __init__(self, qnet: QNetwork):
-                super().__init__()
+                super().__init__(qnet.output_shape)
                 self.qnet = qnet
 
             def __hash__(self):
@@ -98,9 +83,9 @@ class QNetwork(NN):
 
 @dataclass
 class RecurrentQNetwork(QNetwork, RecurrentNN):
-    def __init__(self, output_shape: tuple[int] | tuple[int, int]):
-        QNetwork.__init__(self, output_shape)
-        RecurrentNN.__init__(self)
+    def __post_init__(self):
+        QNetwork.__post_init__(self)
+        RecurrentNN.__post_init__(self)
 
     def value(self, obs: Observation) -> torch.Tensor:
         """Compute the value function. Does not update the hidden states."""
