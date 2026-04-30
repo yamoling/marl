@@ -1,7 +1,7 @@
 import math
 import operator
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, InitVar, dataclass, field
 from functools import reduce
 from typing import TYPE_CHECKING, Literal, Optional, Sequence
 
@@ -12,7 +12,7 @@ from marlenv import MARLEnv, MultiDiscreteSpace
 from torch import Tensor, distributions
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from marl.models.nn import MAIC, MAICNN, QNetwork, RecurrentQNetwork
+from marl.models.nn import MAIC, MAICNN, NN, QNetwork, RecurrentQNetwork
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
@@ -185,23 +185,22 @@ class MAVENHyperMult(MAVENTail):
 
 
 @dataclass(unsafe_hash=True)
-class MAVENCNN(QNetwork):
+class MAVENNN(QNetwork):
     n_actions: int
     noise_size: int
     n_agents: int
-    obs_shape: tuple[int, int, int]
-    extras_size: int
+    head: NN = field(init=False)
+    _: KW_ONLY
     tail_type: Literal["bmm", "mul"] = "bmm"
+    agent_output_size: int = 128
 
     def __post_init__(self):
         super().__post_init__()
-        OUTPUT_SIZE = 128
-        self.cnn = CNN(self.obs_shape, self.extras_size - self.noise_size, OUTPUT_SIZE, mlp_sizes=(256, 256), output_activation="relu")
         match self.tail_type:
             case "bmm":
-                self.tail = MAVENHyperBMM(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
+                self.tail = MAVENHyperBMM(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions)
             case "mul":
-                self.tail = MAVENHyperMult(self.noise_size, self.n_agents, OUTPUT_SIZE, self.n_actions)
+                self.tail = MAVENHyperMult(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions)
             case other:
                 raise ValueError(f"Unknown hyper network type {other}")
 
@@ -215,11 +214,27 @@ class MAVENCNN(QNetwork):
                 extras = extras[:, :, :, : -self.noise_size]
             case _:
                 raise NotImplementedError()
-        x = self.cnn.forward(obs, extras)
+        x = self.head.forward(obs, extras)
         return self.tail.forward(noise, x)
 
+
+@dataclass(unsafe_hash=True)
+class MAVENCNN(MAVENNN):
+    obs_shape: tuple[int, int, int]
+    extras_size: int
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.head = CNN(
+            self.obs_shape,
+            self.extras_size - self.noise_size,
+            self.agent_output_size,
+            mlp_sizes=(256, 256),
+            output_activation="relu",
+        )
+
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], hyper_type: Literal["bmm", "mul"] = "bmm"):
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], tail_type: Literal["bmm", "mul"] = "bmm"):
         assert len(env.observation_shape) == 3
         noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
         if noise_size == 0:
@@ -233,7 +248,35 @@ class MAVENCNN(QNetwork):
             env.n_agents,
             env.observation_shape,
             env.extras_size,
-            hyper_type,
+            tail_type=tail_type,
+        )
+
+
+@dataclass
+class MAVENMLP(MAVENNN):
+    extras_size: int
+    obs_size: int
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.head = MLP(self.obs_size, self.extras_size - self.noise_size, (256, 256), (self.agent_output_size,), last_layer_noisy=False)
+
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], tail_type: Literal["bmm", "mul"] = "bmm"):
+        assert len(env.observation_shape) == 1
+        noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
+        if noise_size == 0:
+            raise ValueError(
+                "No noise found in the environment extras. Make sure to add noise to the environment extras with env.extra_noise() or to use the MAVEN agent."
+            )
+        return MAVENMLP(
+            (env.n_actions,),
+            env.n_actions,
+            noise_size,
+            env.n_agents,
+            env.extras_size,
+            env.observation_shape[0],
+            tail_type=tail_type,
         )
 
 
