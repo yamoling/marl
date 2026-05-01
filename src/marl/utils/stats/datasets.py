@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import polars.selectors as cs
 import polars.exceptions as pl_errors
 from typing import Sequence
 from marl.logging import TickColumn, TIME_STEP_COL, TIMESTAMP_COL
@@ -55,7 +56,36 @@ def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
         return df
 
 
-def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: TickColumn, granularity: int):
+def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, granularity: int):
+    dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs)]
+    return (
+        pl.concat(dfs, how="diagonal_relaxed")
+        .with_columns(
+            ticks=(
+                (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
+                if aggregate_by == "timestamp_sec"
+                else pl.col(TIME_STEP_COL)
+            )
+        )
+        # Round ticks to granularity
+        .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
+        # First compute the mean within each run
+        .group_by("ticks", "run_id")
+        .mean()
+        # Then compute the metrics' stats across runs
+        .group_by("ticks")
+        .agg(
+            cs.numeric().mean().name.prefix("mean-"),
+            cs.numeric().std().name.prefix("std-"),
+            cs.numeric().min().name.prefix("min-"),
+            cs.numeric().max().name.prefix("max-"),
+            (cs.numeric().std() * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
+        )
+        .sort("ticks")
+    )
+
+
+def compute_experiment_results2(dfs: Sequence[pl.LazyFrame], aggregate_by: TickColumn, granularity: int):
     preprocessed_dfs = list[pl.LazyFrame]()
     for df in dfs:
         if aggregate_by == "timestamp_sec":
@@ -133,16 +163,3 @@ def moving_average(x: np.ndarray, window_size: int) -> np.ndarray:
     data_shape = x.shape
     ones = np.ones_like((window_size, *data_shape[1:]))
     return np.convolve(x, ones, "valid") / window_size
-
-
-def ensure_numerical(df: pl.LazyFrame, drop_non_numeric: bool = True):
-    non_numerical = [col for col in df.select(~pl.selectors.numeric()).collect_schema().names()]
-    to_drop = []
-    for col in non_numerical:
-        try:
-            df = df.cast({col: pl.Float32})
-        except pl.exceptions.InvalidOperationError:
-            to_drop.append(col)
-    if drop_non_numeric:
-        df = df.drop(to_drop)
-    return df

@@ -35,7 +35,7 @@ def make_nsteps_matrix(with_padding: bool):
 
 
 def main():
-    use_maven = True
+    use_maven = False
     env = make_nsteps_matrix(with_padding=use_maven)
     # assert len(env.observation_shape) == 3
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 100)
@@ -70,16 +70,16 @@ def main():
             train_interval=(1, "episode"),
         )
     logdir = f"logs/{trainer.name}-{env.name}-eps0.01"
-    logdir = "test"
     exp = marl.Experiment.create(
         env,
-        100_000,
+        200_000,
         trainer=trainer,
         test_interval=2000,
         logdir=logdir,
-        save_weights=False,
+        save_weights=True,
+        replace_if_exists=True,
     )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2], n_parallel=1)
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2, 3], n_parallel=8)
 
 
 if __name__ == "__main__":

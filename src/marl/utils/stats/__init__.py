@@ -3,7 +3,6 @@ from .datasets import (
     ExperimentResults,
     compute_experiment_results,
     round_col,
-    ensure_numerical,
     compute_qvalues,
 )
 from .running_mean_std import RunningMeanStd
@@ -15,6 +14,5 @@ __all__ = [
     "ExperimentResults",
     "compute_experiment_results",
     "round_col",
-    "ensure_numerical",
     "compute_qvalues",
 ]
