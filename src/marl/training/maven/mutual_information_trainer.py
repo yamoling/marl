@@ -34,6 +34,9 @@ class MITrainer(DQN[EpisodeMemory]):
         if self.mixer is not None:
             self.name += f"-{self.mixer.name}"
 
+    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = True):
+        return {"maven_noise": batch["maven-noise"]}
+
     def train(self, time_step: int, batch: Batch):
         qvalues, chosen_qvalues = self._compute_qvalues(batch)
         with torch.no_grad():

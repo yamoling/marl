@@ -1,13 +1,12 @@
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal, cast
-import torch
 
 import numpy as np
 import numpy.typing as npt
 from marlenv import Episode
 
 from marl.agents.hierarchical import MAVENAgent
-from marl.models import Agent, IRModule, Mixer, Policy, QNetwork, Batch, EpisodeMemory, HierarchicalTrainer, Trainer
+from marl.models import Agent, IRModule, Mixer, Policy, QNetwork, EpisodeMemory, HierarchicalTrainer, Trainer
 
 from .expected_return_trainer import ExpectedReturnTrainer
 from .mutual_information_trainer import MITrainer
@@ -97,9 +96,6 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)
-
-    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool):
-        return {"maven_noise": batch["maven-noise"]}
 
     def make_agent(self) -> Agent[npt.NDArray[np.int64]]:
         workers = self.worker_trainer.make_agent()

@@ -63,8 +63,8 @@ class QNetwork(NN):
             def __hash__(self):
                 return hash(self.name)
 
-            def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
-                logits = self.qnet.forward(data, extras)
+            def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+                logits = self.qnet.forward(obs, extras)
                 if available_actions is not None:
                     logits = logits.masked_fill(~available_actions, -torch.inf)
                 return logits

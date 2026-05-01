@@ -41,6 +41,7 @@ def main():
     train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 100)
     if use_maven:
         meta_agent_input = env.observation_shape[0] * env.n_agents
+        meta_agent_extras = (env.extras_size - NOISE_SIZE) * env.n_agents
         trainer = training.MAVEN(
             qnetworks.MAVENMLP.from_env(env),
             train_policy,
@@ -50,7 +51,7 @@ def main():
             env.state_size,
             env.state_extras_size,
             z_policy_type="return",
-            return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, (env.extras_size - NOISE_SIZE) * env.n_agents),
+            return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, meta_agent_extras),
             mixer=mixers.QMix.from_env(env, maven_noise_size=NOISE_SIZE),
             test_policy=marl.policy.ArgMax(),
             grad_norm_clipping=10.0,
@@ -78,7 +79,7 @@ def main():
         logdir=logdir,
         save_weights=False,
     )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[0, 1, 2], n_parallel=1)
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2], n_parallel=1)
 
 
 if __name__ == "__main__":

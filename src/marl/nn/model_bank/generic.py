@@ -29,7 +29,7 @@ class MLP(NN):
         NN.__post_init__(self)
         self.nn = torch.nn.Sequential()
         # [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
-        for i in range(len(self.hidden_sizes) - 1):
+        for i in range(len(self.layer_sizes) - 1):
             self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
             self.nn.append(get_activation(self.intermediate_activation))
         if self.noisy:
@@ -51,27 +51,8 @@ class MLP(NN):
     def layer_sizes(self) -> tuple[int, ...]:
         return self.input_size, *self.hidden_sizes, self.output_size
 
-    @classmethod
-    def qnetwork(
-        cls,
-        env: MARLEnv[MultiDiscreteSpace],
-        hidden_sizes: Sequence[int] = (64,),
-        last_layer_noisy: bool = False,
-    ):
-        if env.is_multi_objective:
-            output_shape = (env.n_actions, env.reward_space.size)
-        else:
-            output_shape = (env.n_actions,)
-        return MLP(
-            output_shape,
-            env.observation_shape[0],
-            env.extras_size,
-            hidden_sizes,
-            noisy=last_layer_noisy,
-        )
-
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-        *dims, _obs_size = obs.shape
+        *dims, _ = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
         x = self.nn.forward(obs)
         return x.view(*dims, *self.output_shape)

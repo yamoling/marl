@@ -79,7 +79,7 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
     clip_logits_high: float | None = None
 
     @abstractmethod
-    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
         """Returns the logits of the policy distribution (clipped if necessary)"""
 
     def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
