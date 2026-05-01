@@ -6,16 +6,18 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence
 
+import numpy as np
 import orjson
 import torch
 from marlenv.models import MARLEnv, Space
 
 from marl import exceptions
-from marl.logging import LogSpecs
+from marl.logging import LogSpecs, TickColumn
 from marl.models.replay_episode import LightEpisodeSummary
 from marl.models.trainer import Trainer
 from marl.runners.simple_runner import get_test_seed
 from marl.utils import default_serialization, encode_b64_image, stats
+from marl.utils.stats import Dataset
 
 from .replay_episode import ReplayEpisode
 from .run import Run
@@ -257,35 +259,57 @@ class Experiment[A: Space]:
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_experiment_results(self, granularity: int | None = None, replace_inf=False, use_wall_time: bool = False):
-        """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
+    def get_experiment_datasets(self, granularity: int | None = None, aggregate_by: TickColumn = "time_step"):
+        results = self.get_experiment_results(granularity, aggregate_by)
+        datasets = list[Dataset]()
+        for category, stats_df in results.items():
+            stats_df = stats_df.collect()
+            columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]
+            ticks = stats_df["ticks"].to_list()
+            datasets += [
+                Dataset(
+                    logdir=self.logdir,
+                    ticks=ticks,
+                    label=col,
+                    category=category,
+                    mean=stats_df[f"mean-{col}"].to_numpy().astype(np.float32),
+                    std=stats_df[f"std-{col}"].to_numpy().astype(np.float32),
+                    min=stats_df[f"min-{col}"].to_numpy().astype(np.float32),
+                    max=stats_df[f"max-{col}"].to_numpy().astype(np.float32),
+                    ci95=stats_df[f"ci95-{col}"].to_numpy().astype(np.float32),
+                )
+                for col in columns
+            ]
+        return datasets
+
+    def get_experiment_results(self, granularity: int | None = None, aggregate_by: TickColumn = "time_step"):
+        """
+        Return the category-wise metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
+
+        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
+        """
         if granularity is None:
             granularity = self.test_interval
         runs = list(self.runs)
-        datasets = stats.compute_datasets(
-            [run.test_metrics_aggregated(granularity, use_wall_time=use_wall_time) for run in runs],
-            self.logdir,
-            replace_inf,
-            category="Test",
-            use_wall_time=use_wall_time,
-        )
-        datasets += stats.compute_datasets(
-            [run.train_metrics(granularity, use_wall_time=use_wall_time) for run in runs],
-            self.logdir,
-            replace_inf,
-            category="Train",
-            use_wall_time=use_wall_time,
-        )
-        datasets += stats.compute_datasets(
-            [run.training_data(granularity, use_wall_time=use_wall_time) for run in runs],
-            self.logdir,
-            replace_inf,
-            category="Other",
-            use_wall_time=use_wall_time,
-        )
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
-        return datasets
+        return {
+            "Test": stats.compute_experiment_results(
+                [run.test_metrics for run in runs],
+                aggregate_by,
+                granularity,
+            ),
+            "Train": stats.compute_experiment_results(
+                [run.train_metrics for run in runs],
+                aggregate_by,
+                granularity,
+            ),
+            "Training data": stats.compute_experiment_results(
+                [run.training_data for run in runs],
+                aggregate_by,
+                granularity,
+            ),
+        }
 
     def copy(self, new_logdir: str, copy_runs: bool = True):
         new_exp = deepcopy(self)

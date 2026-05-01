@@ -70,10 +70,7 @@ class Run:
 
     @property
     def test_metrics(self):
-        try:
-            return self.reader.test_metrics.collect()
-        except pl.exceptions.NoDataError:
-            return pl.DataFrame()
+        return self.reader.test_metrics
 
     def _elapsed_time(self, df: pl.LazyFrame) -> pl.LazyFrame:
         return df.with_columns((pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min()).cast(pl.Int64).alias(TIMESTAMP_COL))
@@ -91,7 +88,11 @@ class Run:
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
-    def train_metrics(self, granularity: int, use_wall_time: bool = False):
+    @property
+    def train_metrics(self):
+        return self.reader.train_metrics
+
+    def prepared_train_metrics(self, granularity: int, use_wall_time: bool = False):
         """
         Return the training metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
 
@@ -101,9 +102,7 @@ class Run:
             granularity = 5000
         group_col = TIMESTAMP_COL if use_wall_time else TIME_STEP_COL
         try:
-            df = self.reader.train_metrics
-            if use_wall_time:
-                df = self._elapsed_time(df)
+            df = self.train_metrics
             # Round the target axis to match the configured granularity
             df = stats.round_col(df, group_col, granularity)
             # Compute the mean of the metrics for each rounded bucket
@@ -112,26 +111,9 @@ class Run:
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
-    def training_data(self, granularity: int, use_wall_time: bool = False):
-        """
-        Return the training data aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
-
-        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
-        """
-        if granularity <= 0:
-            granularity = 5000
-        group_col = TIMESTAMP_COL if use_wall_time else TIME_STEP_COL
-        try:
-            df = self.reader.training_data
-            # Make sure we are working with numerical values
-            df = stats.ensure_numerical(df, drop_non_numeric=True)
-            if use_wall_time:
-                df = self._elapsed_time(df)
-            df = stats.round_col(df, group_col, granularity)
-            df = df.group_by(group_col).agg(pl.col("*").drop_nulls().mean())
-            return df.collect()
-        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
-            return pl.DataFrame()
+    @property
+    def training_data(self):
+        return self.reader.training_data
 
     @property
     def is_running(self) -> bool:

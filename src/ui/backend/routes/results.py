@@ -11,7 +11,8 @@ router = APIRouter()
 @router.get("/results/load/{logdir:path}")
 def get_experiment_results(logdir: str, granularity: int | None = None, use_wall_time: bool = False):
     exp = state.get_experiment(logdir)
-    metrics = exp.get_experiment_results(granularity=granularity, replace_inf=True, use_wall_time=use_wall_time)
+    aggregate_by = "timestamp_sec" if use_wall_time else "time_step"
+    metrics = exp.get_experiment_datasets(granularity=granularity, aggregate_by=aggregate_by)
     return Response(orjson.dumps(metrics, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
 
 

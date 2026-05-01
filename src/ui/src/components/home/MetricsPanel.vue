@@ -8,10 +8,18 @@
                         }} loaded experiments</span>
                 </div>
                 <label class="metrics-granularity-control" for="metrics-granularity-input">
-                    <span class="metrics-granularity-label">{{ granularityLabel }}</span>
-                    <input id="metrics-granularity-input" class="form-control form-control-sm" type="number" min="0"
-                        v-model.number="granularityInputValue" step="500"
-                        @change="() => resultsStore.granularity = granularityInputValue">
+                    <span class="metrics-granularity-label">Granularity</span>
+                    <div class="input-group">
+                        <input id="metrics-granularity-input" class="form-control form-control-sm " type="number"
+                            min="0" v-model.number="granularityInputValue"
+                            :step="granularityUnit == 'seconds' ? 30 : 500"
+                            @change="() => resultsStore.granularity = granularityInputValue">
+                        <select class="form-select form-select-sm" v-model="granularityUnit"
+                            aria-label="Granularity unit">
+                            <option value="timesteps">Time steps</option>
+                            <option value="seconds">Seconds</option>
+                        </select>
+                    </div>
                 </label>
             </div>
         </div>
@@ -91,7 +99,16 @@ const granularityInputValue = ref(resultsStore.granularity)
 const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
-const granularityLabel = computed(() => settingsStore.settings.visualization.useWallTime ? "Granularity (s)" : "Granularity");
+
+const granularityUnit = computed({
+    get: () => settingsStore.settings.visualization.useWallTime ? 'seconds' : 'timesteps',
+    set: (val: string) => {
+        settingsStore.setVisualizationSettings({
+            ...settingsStore.settings.visualization,
+            useWallTime: val === 'seconds',
+        });
+    },
+});
 
 type MetricGroup = {
     key: string;
@@ -195,6 +212,10 @@ onMounted(() => {
 
 .metrics-granularity-control input {
     width: 6.25rem;
+}
+
+.metrics-granularity-control select {
+    width: 8rem;
 }
 
 .selector-panel {

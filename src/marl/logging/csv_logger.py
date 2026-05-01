@@ -3,7 +3,7 @@ import time
 import csv
 import polars as pl
 from typing import Any
-from .logger import Logger, LogReader
+from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL
 
 QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
@@ -11,10 +11,6 @@ TEST = "test.csv"
 TRAINING_DATA = "training_data.csv"
 ACTIONS = "actions.json"
 PID = "pid"
-
-# Dataframe columns
-TIME_STEP_COL = "time_step"
-TIMESTAMP_COL = "timestamp_sec"
 
 
 class CSVLogWriter:
@@ -29,8 +25,8 @@ class CSVLogWriter:
         if len(data) == 0:
             return
         now = time.time()
-        data["timestamp_sec"] = now
-        data["time_step"] = time_step
+        data[TIMESTAMP_COL] = now
+        data[TIME_STEP_COL] = time_step
         if self._writer is None:
             os.makedirs(os.path.dirname(self.filename), exist_ok=True)
             self._file = open(self.filename, "w")
