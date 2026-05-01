@@ -18,7 +18,13 @@ if TYPE_CHECKING:
 
 @contextmanager
 def ignore_sigint():
-    original_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        original_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except ValueError:
+        # signal.signal can only be called from the main thread. If we're not in the main thread, we can't ignore SIGINT, but we also don't want to crash, so we just yield without changing the signal handler.
+        logging.warning("Cannot ignore SIGINT in a non-main thread. SIGINT will not be ignored for this run.")
+        yield
+        return
     try:
         yield
     finally:
@@ -42,7 +48,8 @@ class ParallelRunner:
     ):
         if n_jobs is None:
             n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
-        with mp.get_context("spawn").Pool(n_jobs) as pool:
+        # use maxtasksperchild=1 such that CUDA memory is freed after each run.
+        with mp.get_context("spawn").Pool(n_jobs, maxtasksperchild=1) as pool:
             estimated_gpu_memory, h = self._start_first_run(
                 pool,
                 runs[0],
