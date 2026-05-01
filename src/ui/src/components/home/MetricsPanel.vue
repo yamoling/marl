@@ -8,7 +8,7 @@
                         }} loaded experiments</span>
                 </div>
                 <label class="metrics-granularity-control" for="metrics-granularity-input">
-                    <span class="metrics-granularity-label">Granularity</span>
+                    <span class="metrics-granularity-label">{{ granularityLabel }}</span>
                     <input id="metrics-granularity-input" class="form-control form-control-sm" type="number" min="0"
                         v-model.number="granularityInputValue" step="500"
                         @change="() => resultsStore.granularity = granularityInputValue">
@@ -79,7 +79,9 @@ import { useMetricsStore } from '../../stores/MetricsStore';
 import { MetricSelection } from '../../models/Metrics';
 import { searchMatch } from '../../utils';
 import { useResultsStore } from '../../stores/ResultsStore';
+import { useSettingsStore } from '../../stores/SettingsStore';
 const resultsStore = useResultsStore();
+const settingsStore = useSettingsStore();
 const props = defineProps<{
     metrics: Set<string>,
     metricsByCategory: Map<string, Set<string>>,
@@ -89,6 +91,7 @@ const granularityInputValue = ref(resultsStore.granularity)
 const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
+const granularityLabel = computed(() => settingsStore.settings.visualization.useWallTime ? "Granularity (s)" : "Granularity");
 
 type MetricGroup = {
     key: string;

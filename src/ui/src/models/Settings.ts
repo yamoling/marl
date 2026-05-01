@@ -19,6 +19,7 @@ export interface TrackSettings {
 export interface VisualizationSettings {
   colours: Record<string, string>;
   tracks: TrackSettings;
+  useWallTime: boolean;
 }
 
 export interface UserSettings {
@@ -157,6 +158,7 @@ const TrackSettingsSchema = z.object({
 const VisualizationSettingsSchema = z.object({
   colours: z.record(z.string(), z.string()),
   tracks: TrackSettingsSchema,
+  useWallTime: z.boolean().default(false),
 });
 
 const UserSettingsSchema = z.object({
@@ -181,6 +183,7 @@ export function createDefaultSettings(): UserSettings {
           "/{probability,probabilities}/i": "numeric",
         },
       },
+      useWallTime: false,
     },
   };
 }

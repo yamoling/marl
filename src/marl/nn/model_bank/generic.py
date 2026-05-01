@@ -5,7 +5,7 @@ from typing import Literal, Sequence, override
 import torch
 from marlenv import MARLEnv, MultiDiscreteSpace
 
-from marl.models.nn import NN, RecurrentNN
+from marl.models.nn import NN, RecurrentNN, get_activation
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
@@ -23,30 +23,21 @@ class MLP(NN):
     _: KW_ONLY
     noisy: bool = False
     output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
+    intermediate_activation: Literal["sigmoid", "tanh", "relu"] = "relu"
 
     def __post_init__(self):
         NN.__post_init__(self)
-        self.layer_sizes = (self.input_size, *self.hidden_sizes, self.output_size)
-        layers: list[torch.nn.Module] = [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
+        self.nn = torch.nn.Sequential()
+        # [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(self.hidden_sizes) - 1):
-            layers.append(torch.nn.Linear(self.hidden_sizes[i], self.hidden_sizes[i + 1]))
-            layers.append(torch.nn.ReLU())
+            self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
+            self.nn.append(get_activation(self.intermediate_activation))
         if self.noisy:
-            layers.append(NoisyLinear(self.hidden_sizes[-1], self.output_size))
+            self.nn.append(NoisyLinear(self.layer_sizes[-1], self.output_size))
         else:
-            layers.append(torch.nn.Linear(self.hidden_sizes[-1], self.output_size))
-        match self.output_activation:
-            case None:
-                pass
-            case "sigmoid":
-                layers.append(torch.nn.Sigmoid())
-            case "tanh":
-                layers.append(torch.nn.Tanh())
-            case "relu":
-                layers.append(torch.nn.ReLU())
-            case other:
-                raise ValueError(f"Unsupported output activation: {other}")
-        self.nn = torch.nn.Sequential(*layers)
+            self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
+        if self.output_activation is not None:
+            self.nn.append((get_activation(self.output_activation)))
 
     @property
     def output_size(self):
@@ -55,6 +46,10 @@ class MLP(NN):
     @property
     def input_size(self):
         return self.obs_size + self.extras_size
+
+    @property
+    def layer_sizes(self) -> tuple[int, ...]:
+        return self.input_size, *self.hidden_sizes, self.output_size
 
     @classmethod
     def qnetwork(

@@ -35,37 +35,41 @@ def make_nsteps_matrix(with_padding: bool):
 
 
 def main():
-    env = make_nsteps_matrix(with_padding=False)
+    use_maven = True
+    env = make_nsteps_matrix(with_padding=use_maven)
     # assert len(env.observation_shape) == 3
-    meta_agent_input = env.observation_shape[0] * env.n_agents
-    # trainer = training.MAVEN(
-    #     qnetworks.MAVENMLP.from_env(env),
-    #     marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
-    #     NOISE_SIZE,
-    #     env.n_actions,
-    #     env.n_agents,
-    #     env.state_size,
-    #     env.state_extras_size,
-    #     z_policy_type="return",
-    #     return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, (env.extras_size - NOISE_SIZE) * env.n_agents),
-    #     mixer=mixers.QMix.from_env(env, maven_noise_size=NOISE_SIZE),
-    #     test_policy=marl.policy.ArgMax(),
-    #     grad_norm_clipping=10.0,
-    #     batch_size=32,
-    #     train_interval=(1, "episode"),
-    # )
-
-    trainer = training.DQN(
-        qnetworks.QMLP.from_env(env),
-        marl.policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
-        marl.models.EpisodeMemory(5000),
-        mixer=mixers.QMix.from_env(env),
-        test_policy=marl.policy.ArgMax(),
-        grad_norm_clipping=10.0,
-        batch_size=32,
-        train_interval=(1, "episode"),
-    )
-    logdir = f"logs/{trainer.name}-{env.name}"
+    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 100)
+    if use_maven:
+        meta_agent_input = env.observation_shape[0] * env.n_agents
+        trainer = training.MAVEN(
+            qnetworks.MAVENMLP.from_env(env),
+            train_policy,
+            NOISE_SIZE,
+            env.n_actions,
+            env.n_agents,
+            env.state_size,
+            env.state_extras_size,
+            z_policy_type="return",
+            return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, (env.extras_size - NOISE_SIZE) * env.n_agents),
+            mixer=mixers.QMix.from_env(env, maven_noise_size=NOISE_SIZE),
+            test_policy=marl.policy.ArgMax(),
+            grad_norm_clipping=10.0,
+            batch_size=32,
+            train_interval=(1, "episode"),
+        )
+    else:
+        trainer = training.DQN(
+            qnetworks.QMLP.from_env(env),
+            train_policy,
+            marl.models.EpisodeMemory(5000),
+            mixer=mixers.QMix.from_env(env),
+            test_policy=marl.policy.ArgMax(),
+            grad_norm_clipping=10.0,
+            batch_size=32,
+            train_interval=(1, "episode"),
+        )
+    logdir = f"logs/{trainer.name}-{env.name}-eps0.01"
+    logdir = "test"
     exp = marl.Experiment.create(
         env,
         100_000,
@@ -74,7 +78,7 @@ def main():
         logdir=logdir,
         save_weights=False,
     )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[0, 1, 2], n_parallel=10)
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=True, disabled_gpus=[0, 1, 2], n_parallel=1)
 
 
 if __name__ == "__main__":

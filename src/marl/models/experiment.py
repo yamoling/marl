@@ -257,14 +257,32 @@ class Experiment[A: Space]:
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_experiment_results(self, granularity: int | None = None, replace_inf=False):
+    def get_experiment_results(self, granularity: int | None = None, replace_inf=False, use_wall_time: bool = False):
         """Get all datasets of an experiment. If no qvalues were logged, the dataframe is empty"""
         if granularity is None:
             granularity = self.test_interval
         runs = list(self.runs)
-        datasets = stats.compute_datasets([run.test_metrics for run in runs], self.logdir, replace_inf, category="Test")
-        datasets += stats.compute_datasets([run.train_metrics(granularity) for run in runs], self.logdir, replace_inf, category="Train")
-        datasets += stats.compute_datasets([run.training_data(granularity) for run in runs], self.logdir, replace_inf, category="Other")
+        datasets = stats.compute_datasets(
+            [run.test_metrics_aggregated(granularity, use_wall_time=use_wall_time) for run in runs],
+            self.logdir,
+            replace_inf,
+            category="Test",
+            use_wall_time=use_wall_time,
+        )
+        datasets += stats.compute_datasets(
+            [run.train_metrics(granularity, use_wall_time=use_wall_time) for run in runs],
+            self.logdir,
+            replace_inf,
+            category="Train",
+            use_wall_time=use_wall_time,
+        )
+        datasets += stats.compute_datasets(
+            [run.training_data(granularity, use_wall_time=use_wall_time) for run in runs],
+            self.logdir,
+            replace_inf,
+            category="Other",
+            use_wall_time=use_wall_time,
+        )
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
         return datasets

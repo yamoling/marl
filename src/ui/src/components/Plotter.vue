@@ -10,12 +10,8 @@
                 </div>
                 <div class="plotter-button-group">
                     <div class="btn-group">
-                        <button
-                            class="btn btn-sm"
-                            :class="showOptions ? 'btn-success' : 'btn-light'"
-                            @click="showOptions = !showOptions"
-                            title="Toggle options"
-                        >
+                        <button class="btn btn-sm" :class="showOptions ? 'btn-success' : 'btn-light'"
+                            @click="showOptions = !showOptions" title="Toggle options">
                             <font-awesome-icon :icon="['fas', 'gear']" />
                         </button>
                         <button class="btn btn-sm btn-light" @click="resetZoom" title="Reset zoom">
@@ -29,7 +25,8 @@
                         </button>
                     </div>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')" :title="expanded ? 'Shrink' : 'Expand'">
+                        <button class="btn btn-sm btn-light" @click="$emit('toggle-expanded')"
+                            :title="expanded ? 'Shrink' : 'Expand'">
                             <font-awesome-icon :icon="['fas', expanded ? 'compress' : 'expand']" />
                         </button>
                         <button class="btn btn-sm btn-light" @click="$emit('close')" title="Close">
@@ -68,16 +65,14 @@
                 <div class="series-row" v-for="label in seriesLabels" :key="label">
                     <span class="series-name">{{ label }}</span>
                     <label class="option-label compact">
-                        <input type="checkbox" :checked="isSeriesVisible(label)" @change="toggleSeriesVisibility(label)" />
+                        <input type="checkbox" :checked="isSeriesVisible(label)"
+                            @change="toggleSeriesVisibility(label)" />
                         Series
                     </label>
                     <label class="option-label compact" :class="{ disabled: !enablePlusMinus }">
-                        <input
-                            type="checkbox"
-                            :checked="isBandVisible(label)"
+                        <input type="checkbox" :checked="isBandVisible(label)"
                             :disabled="!enablePlusMinus || !isSeriesVisible(label)"
-                            @change="toggleBandVisibility(label)"
-                        />
+                            @change="toggleBandVisibility(label)" />
                         Band
                     </label>
                 </div>
@@ -93,6 +88,7 @@ import { storeToRefs } from "pinia";
 import { Dataset } from "../models/Experiment";
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from "../stores/ColourStore";
+import { useSettingsStore } from "../stores/SettingsStore";
 
 const SCALES = ["Linear", "Logarithmic"] as const;
 const PLUS_MINUS = ["Standard deviation", "95% C.I."] as const;
@@ -105,6 +101,9 @@ const emits = defineEmits<{
 }>();
 const colourStore = useColourStore();
 const { colours } = storeToRefs(colourStore);
+const settingsStore = useSettingsStore();
+const useWallTime = computed(() => settingsStore.settings.visualization.useWallTime);
+const xAxisLabel = computed(() => (useWallTime.value ? "Duration (h/m)" : "Time steps"));
 const canvas = ref({} as HTMLCanvasElement);
 
 const props = defineProps<{
@@ -140,6 +139,16 @@ watch(seriesLabels, (labels) => {
 
 function tickedDataset(ticks: number[], dataset: number[]) {
     return dataset.map((d, i) => ({ x: ticks[i], y: d }));
+}
+
+function formatDuration(seconds: number) {
+    const totalMinutes = Math.floor(seconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours == 0) {
+        return `${minutes}m`;
+    }
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
 function updateChartData() {
@@ -348,6 +357,22 @@ function initialiseChart(): Chart {
                 },
             },
             scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: xAxisLabel.value,
+                    },
+                    ticks: {
+                        callback(value) {
+                            const tickValue = typeof value == "string" ? Number(value) : value;
+                            if (useWallTime.value) {
+                                return formatDuration(tickValue);
+                            }
+                            return tickValue;
+                        },
+                    },
+                },
                 y: {
                     display: true,
                     type: yScaleType.value == "Linear" ? "linear" : "logarithmic",
@@ -356,6 +381,15 @@ function initialiseChart(): Chart {
         },
     });
 }
+
+watch(useWallTime, () => {
+    if (chart == null) return;
+    if (!chart.options?.scales) return;
+    if (!chart.options.scales.x) return;
+    if (!chart.options.scales.x.title) return;
+    chart.options.scales.x.title.text = xAxisLabel.value;
+    chart.update();
+});
 
 function isSeriesVisible(label: string) {
     return !(hiddenSeries.value[label] ?? false);

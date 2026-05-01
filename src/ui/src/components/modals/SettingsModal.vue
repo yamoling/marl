@@ -14,14 +14,8 @@
 
                 <div class="modal-body settings-layout">
                     <nav class="settings-nav" aria-label="Settings categories">
-                        <button
-                            v-for="tab in tabs"
-                            :key="tab.id"
-                            type="button"
-                            class="settings-tab"
-                            :class="{ active: activeTab === tab.id }"
-                            @click="activeTab = tab.id"
-                        >
+                        <button v-for="tab in tabs" :key="tab.id" type="button" class="settings-tab"
+                            :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id">
                             <span class="settings-tab-title">{{ tab.label }}</span>
                             <span v-if="tab.badge != null" class="badge text-bg-light settings-tab-badge">
                                 {{ tab.badge }}
@@ -31,45 +25,52 @@
 
                     <section class="settings-content">
                         <div v-if="activeTab === 'homescreen'" class="settings-section settings-panel">
+                            <div class="settings-subsection">
+                                <h6 class="settings-subsection-title mb-0">Plotting axis</h6>
+                                <p class="text-muted mb-0">
+                                    Plot results against wall-time instead of training steps. When enabled, granularity
+                                    is interpreted
+                                    as seconds.
+                                </p>
+                                <label class="form-check settings-switch">
+                                    <input class="form-check-input" type="checkbox"
+                                        v-model="draft.homescreen.useWallTime"
+                                        @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                    <span class="form-check-label">Use wall-time on homescreen plots</span>
+                                </label>
+                            </div>
+
+                            <hr class="settings-divider" />
+
                             <div class="section-heading">
                                 <div>
                                     <h6 class="mb-1">Colours</h6>
-                                    <p class="text-muted mb-0">Manage saved experiment colours used on the homescreen plots and tables.</p>
+                                    <p class="text-muted mb-0">Manage saved experiment colours used on the homescreen
+                                        plots and tables.</p>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-outline-secondary" @click="addColourRule">Add colour</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    @click="addColourRule">Add colour</button>
                             </div>
 
-                            <div v-if="draft.homescreen.colours.length === 0" class="empty-state">No saved experiment colours yet.</div>
+                            <div v-if="draft.homescreen.colours.length === 0" class="empty-state">No saved experiment
+                                colours yet.</div>
 
-                            <div
-                                v-for="(rule, index) in draft.homescreen.colours"
-                                :key="`colour-${index}`"
-                                class="rule-row rule-row--color"
-                            >
+                            <div v-for="(rule, index) in draft.homescreen.colours" :key="`colour-${index}`"
+                                class="rule-row rule-row--color">
                                 <div class="color-preview" :style="{ backgroundColor: rule.value }"></div>
-                                <input
-                                    v-model="rule.key"
-                                    type="text"
-                                    class="form-control form-control-sm rule-key"
-                                    placeholder="logs/experiment-name"
-                                />
-                                <input
-                                    v-model="rule.value"
-                                    type="color"
-                                    class="form-control form-control-color color-input"
-                                    title="Edit colour"
-                                />
-                                <input
-                                    v-model="rule.value"
-                                    type="text"
-                                    class="form-control form-control-sm color-hex"
-                                    placeholder="#rrggbb"
-                                />
-                                <button type="button" class="btn btn-sm btn-outline-danger" @click="removeColourRule(index)">Remove</button>
+                                <input v-model="rule.key" type="text" class="form-control form-control-sm rule-key"
+                                    placeholder="logs/experiment-name" />
+                                <input v-model="rule.value" type="color"
+                                    class="form-control form-control-color color-input" title="Edit colour" />
+                                <input v-model="rule.value" type="text" class="form-control form-control-sm color-hex"
+                                    placeholder="#rrggbb" />
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                    @click="removeColourRule(index)">Remove</button>
                             </div>
 
                             <div class="settings-reset-actions">
-                                <button type="button" class="btn btn-outline-danger" @click="clearColours">Clear saved colours</button>
+                                <button type="button" class="btn btn-outline-danger" @click="clearColours">Clear saved
+                                    colours</button>
                             </div>
                         </div>
 
@@ -89,49 +90,37 @@
 
                                 <div class="rule-row rule-row--adding">
                                     <div class="rule-key-cell">
-                                        <input
-                                            v-model="newTimelineKindRule.key"
-                                            type="text"
+                                        <input v-model="newTimelineKindRule.key" type="text"
                                             class="form-control form-control-sm rule-key"
                                             placeholder="Track label or pattern"
-                                            @keydown.enter.prevent="commitNewTimelineKindRule"
-                                        />
-                                        <span
-                                            class="badge text-bg-secondary rule-match-badge"
-                                            :title="matchTooltip(newTimelineKindRule.key)"
-                                        >
+                                            @keydown.enter.prevent="commitNewTimelineKindRule" />
+                                        <span class="badge text-bg-secondary rule-match-badge"
+                                            :title="matchTooltip(newTimelineKindRule.key)">
                                             {{ matchCount(newTimelineKindRule.key) }}
                                         </span>
                                     </div>
-                                    <select
-                                        v-model="newTimelineKindRule.kind"
+                                    <select v-model="newTimelineKindRule.kind"
                                         class="form-select form-select-sm rule-value"
-                                        @keydown.enter.prevent="commitNewTimelineKindRule"
-                                    >
+                                        @keydown.enter.prevent="commitNewTimelineKindRule">
                                         <option value="numeric">Numerical</option>
                                         <option value="categorical">Categorical</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-secondary"
-                                        @click="commitNewTimelineKindRule"
-                                        title="Add track type rule"
-                                        aria-label="Add track type rule"
-                                    >
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        @click="commitNewTimelineKindRule" title="Add track type rule"
+                                        aria-label="Add track type rule">
                                         <font-awesome-icon :icon="['fas', 'plus']" />
                                     </button>
                                 </div>
 
-                                <div v-for="(rule, index) in draft.replay.timelineKinds" :key="`timeline-kind-${index}`" class="rule-row">
+                                <div v-for="(rule, index) in draft.replay.timelineKinds" :key="`timeline-kind-${index}`"
+                                    class="rule-row">
                                     <div class="rule-key-cell">
-                                        <input
-                                            v-model="rule.key"
-                                            type="text"
+                                        <input v-model="rule.key" type="text"
                                             class="form-control form-control-sm rule-key"
                                             placeholder="Track label or pattern"
-                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()"
-                                        />
-                                        <span class="badge text-bg-secondary rule-match-badge" :title="matchTooltip(rule.key)">
+                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                        <span class="badge text-bg-secondary rule-match-badge"
+                                            :title="matchTooltip(rule.key)">
                                             {{ matchCount(rule.key) }}
                                         </span>
                                     </div>
@@ -139,13 +128,9 @@
                                         <option value="numeric">Numerical</option>
                                         <option value="categorical">Categorical</option>
                                     </select>
-                                    <button
-                                        type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        @click="removeTrackKindRule(index)"
-                                        title="Remove track type rule"
-                                        aria-label="Remove track type rule"
-                                    >
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                        @click="removeTrackKindRule(index)" title="Remove track type rule"
+                                        aria-label="Remove track type rule">
                                         <font-awesome-icon :icon="['fas', 'trash']" />
                                     </button>
                                 </div>
@@ -161,16 +146,15 @@
                                         <h6 class="mb-1">Default replay type</h6>
                                     </div>
                                     <p class="text-muted mb-0">
-                                        If checked, the actions saved on disk from the training are used to replay the episode. If
-                                        unchecked, the saved weights are loaded at replay-time to provide more information in the UI.
+                                        If checked, the actions saved on disk from the training are used to replay the
+                                        episode. If
+                                        unchecked, the saved weights are loaded at replay-time to provide more
+                                        information in the UI.
                                     </p>
                                     <label class="form-check settings-switch">
-                                        <input
-                                            class="form-check-input"
-                                            type="checkbox"
+                                        <input class="form-check-input" type="checkbox"
                                             v-model="draft.replay.globalOnlySavedActions"
-                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()"
-                                        />
+                                            @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
                                         <span class="form-check-label">Only replay stored actions</span>
                                     </label>
                                 </div>
@@ -182,8 +166,10 @@
                                         <div>
                                             <h6 class="mb-1">Trainer-level replay rules</h6>
                                             <p class="text-muted mb-0">
-                                                Override replay type for all experiments with a specific trainer. Rule keys support exact
-                                                names, glob-like patterns (for example, <code>chat-gpt*</code>), or explicit regex with
+                                                Override replay type for all experiments with a specific trainer. Rule
+                                                keys support exact
+                                                names, glob-like patterns (for example, <code>chat-gpt*</code>), or
+                                                explicit regex with
                                                 slashes (for example, <code>/^llm/i</code>).
                                             </p>
                                         </div>
@@ -191,49 +177,37 @@
 
                                     <div class="rule-row rule-row--adding">
                                         <div class="rule-key-cell">
-                                            <input
-                                                v-model="newTrainerReplayRule.key"
-                                                type="text"
+                                            <input v-model="newTrainerReplayRule.key" type="text"
                                                 class="form-control form-control-sm rule-key"
                                                 placeholder="Trainer name or pattern"
-                                                @keydown.enter.prevent="commitNewTrainerReplayRule"
-                                            />
-                                            <span
-                                                class="badge text-bg-secondary rule-match-badge"
-                                                :title="trainerMatchTooltip(newTrainerReplayRule.key)"
-                                            >
+                                                @keydown.enter.prevent="commitNewTrainerReplayRule" />
+                                            <span class="badge text-bg-secondary rule-match-badge"
+                                                :title="trainerMatchTooltip(newTrainerReplayRule.key)">
                                                 {{ trainerMatchCount(newTrainerReplayRule.key) }}
                                             </span>
                                         </div>
-                                        <select
-                                            v-model="newTrainerReplayRule.value"
+                                        <select v-model="newTrainerReplayRule.value"
                                             class="form-select form-select-sm rule-value"
-                                            @keydown.enter.prevent="commitNewTrainerReplayRule"
-                                        >
+                                            @keydown.enter.prevent="commitNewTrainerReplayRule">
                                             <option :value="false">Allow agent replay</option>
                                             <option :value="true">Stored actions only</option>
                                         </select>
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-secondary"
-                                            @click="commitNewTrainerReplayRule"
-                                            title="Add trainer replay rule"
-                                            aria-label="Add trainer replay rule"
-                                        >
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            @click="commitNewTrainerReplayRule" title="Add trainer replay rule"
+                                            aria-label="Add trainer replay rule">
                                             <font-awesome-icon :icon="['fas', 'plus']" />
                                         </button>
                                     </div>
 
-                                    <div v-for="(rule, index) in draft.replay.trainerRules" :key="`trainer-${index}`" class="rule-row">
+                                    <div v-for="(rule, index) in draft.replay.trainerRules" :key="`trainer-${index}`"
+                                        class="rule-row">
                                         <div class="rule-key-cell">
-                                            <input
-                                                v-model="rule.key"
-                                                type="text"
+                                            <input v-model="rule.key" type="text"
                                                 class="form-control form-control-sm rule-key"
                                                 placeholder="Trainer name or pattern"
-                                                @keydown.enter="($event.target as HTMLInputElement)!.blur()"
-                                            />
-                                            <span class="badge text-bg-secondary rule-match-badge" :title="trainerMatchTooltip(rule.key)">
+                                                @keydown.enter="($event.target as HTMLInputElement)!.blur()" />
+                                            <span class="badge text-bg-secondary rule-match-badge"
+                                                :title="trainerMatchTooltip(rule.key)">
                                                 {{ trainerMatchCount(rule.key) }}
                                             </span>
                                         </div>
@@ -241,13 +215,9 @@
                                             <option :value="false">Allow agent replay</option>
                                             <option :value="true">Stored actions only</option>
                                         </select>
-                                        <button
-                                            type="button"
-                                            class="btn btn-sm btn-outline-danger"
-                                            @click="removeReplayTrainerRule(index)"
-                                            title="Remove trainer replay rule"
-                                            aria-label="Remove trainer replay rule"
-                                        >
+                                        <button type="button" class="btn btn-sm btn-outline-danger"
+                                            @click="removeReplayTrainerRule(index)" title="Remove trainer replay rule"
+                                            aria-label="Remove trainer replay rule">
                                             <font-awesome-icon :icon="['fas', 'trash']" />
                                         </button>
                                     </div>
@@ -264,7 +234,8 @@
                             </div>
 
                             <div class="settings-reset-actions">
-                                <button type="button" class="btn btn-outline-danger" @click="resetAll">Reset all settings</button>
+                                <button type="button" class="btn btn-outline-danger" @click="resetAll">Reset all
+                                    settings</button>
                             </div>
                         </div>
                     </section>
@@ -309,6 +280,7 @@ type EditableTrackKindRule = {
 
 type DraftSettings = {
     homescreen: {
+        useWallTime: boolean;
         colours: EditableColourRule[];
     };
     replay: {
@@ -395,6 +367,7 @@ function createDraft(): DraftSettings {
     const current = settingsStore.settings;
     return {
         homescreen: {
+            useWallTime: current.visualization.useWallTime,
             colours: entriesFromStringMap(current.visualization.colours),
         },
         replay: {
@@ -409,6 +382,7 @@ function snapshotSettings(): unknown {
     const settings = settingsStore.settings;
     return {
         homescreen: {
+            useWallTime: settings.visualization.useWallTime,
             colours: settings.visualization.colours,
         },
         replay: {
@@ -422,6 +396,7 @@ function snapshotSettings(): unknown {
 function snapshotDraft(value: DraftSettings): unknown {
     return {
         homescreen: {
+            useWallTime: value.homescreen.useWallTime,
             colours: stringEntriesToMap(value.homescreen.colours),
         },
         replay: {
@@ -531,6 +506,7 @@ function save() {
         tracks: {
             defaultKinds: trackKindEntriesToMap(draft.value.replay.timelineKinds),
         },
+        useWallTime: draft.value.homescreen.useWallTime,
     });
 
     modalInstance?.hide();

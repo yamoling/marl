@@ -89,3 +89,15 @@ class RecurrentNN(NN):
     @property
     def is_recurrent(self):
         return True
+
+
+def get_activation(activation: Literal["sigmoid", "tanh", "relu"]):
+    match activation:
+        case "sigmoid":
+            return torch.nn.Sigmoid()
+        case "tanh":
+            return torch.nn.Tanh()
+        case "relu":
+            return torch.nn.ReLU()
+        case other:
+            raise ValueError(f"Unsupported activation: {other}")

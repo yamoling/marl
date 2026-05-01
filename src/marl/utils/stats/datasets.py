@@ -11,7 +11,7 @@ from typing import Optional
 @dataclass
 class Dataset:
     logdir: str
-    ticks: list[int]
+    ticks: list[float]
     label: str
     category: str
     mean: npt.NDArray[np.float32]
@@ -120,6 +120,7 @@ def compute_datasets(
     logdir: str,
     replace_inf: bool,
     category: str,
+    use_wall_time: bool = False,
 ) -> list[Dataset]:
     """
     Aggregates dataframes and computes the stats (mean, std, etc) for each column.
@@ -129,9 +130,13 @@ def compute_datasets(
     dfs = [d for d in dfs if not d.is_empty()]
     if len(dfs) == 0:
         return []
+    tick_col = "timestamp_sec" if use_wall_time else "time_step"
+    other_tick_col = "time_step" if use_wall_time else "timestamp_sec"
     df = _concat_with_missing_columns(dfs)
-    if "timestamp_sec" in df.columns:
-        df = df.drop("timestamp_sec")
+    if tick_col not in df.columns:
+        return []
+    if other_tick_col in df.columns:
+        df = df.drop(other_tick_col)
     score_cols = [col for col in df.columns if col.startswith("score")]
     if len(score_cols) > 1:
         df = df.with_columns([pl.sum_horizontal(score_cols).alias("score-sum")])
@@ -140,11 +145,11 @@ def compute_datasets(
         if not dtype.is_numeric():
             to_drop.append(col)
     df = df.drop(to_drop)
-    df_stats = stats_by("time_step", df, replace_inf)
+    df_stats = stats_by(tick_col, df, replace_inf)
     res = list[Dataset]()
-    ticks = df_stats["time_step"].to_list()
+    ticks = df_stats[tick_col].to_list()
     for col in df.columns:
-        if col == "time_step":
+        if col == tick_col:
             continue
         res.append(
             Dataset(
