@@ -1,4 +1,5 @@
 from dataclasses import KW_ONLY, dataclass
+import math
 
 import torch
 import torch.nn as nn
@@ -67,11 +68,12 @@ class QMix(Mixer):
     ) -> torch.Tensor:
         q_totals = []
         batch_dims = states.shape[:-1]
-        states = states.flatten(1)
-        states_extras = states_extras.flatten(1)
+        bs = math.prod(batch_dims)
+        states = states.reshape(bs, -1)
+        states_extras = states_extras.reshape(bs, -1)
         inputs = [states, states_extras]
         if maven_noise is not None:
-            inputs.append(maven_noise.flatten(1))
+            inputs.append(maven_noise.reshape(bs, -1))
         inputs = torch.cat(inputs, dim=1)
         for i in range(self.n_objectives):
             if self.n_objectives == 1:
@@ -96,10 +98,20 @@ class QMix(Mixer):
         return torch.stack(q_totals, dim=-1).squeeze()
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], embed_size: int = 64, hypernet_embed_size: int = 64):
+    def from_env(
+        cls,
+        env: MARLEnv[MultiDiscreteSpace],
+        embed_size: int = 64,
+        hypernet_embed_size: int = 64,
+        maven_noise_size: int | None = None,
+    ):
+        state_size = env.state_size
+        if maven_noise_size is not None:
+            state_size += maven_noise_size
         return QMix(
+            (env.n_objectives,),
             env.n_agents,
-            env.state_size,
+            state_size,
             env.state_extras_size,
             embed_size=embed_size,
             hypernet_embed_size=hypernet_embed_size,

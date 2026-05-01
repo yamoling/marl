@@ -1,19 +1,18 @@
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal, cast
+import torch
 
 import numpy as np
 import numpy.typing as npt
 from marlenv import Episode
 
 from marl.agents.hierarchical import MAVENAgent
-from marl.models import Agent, IRModule, Mixer, Policy, QNetwork
-from marl.models.replay_memory.biased_memory import EpisodeMemory
-from marl.models.trainer import HierarchicalTrainer, Trainer
-from marl.training.no_train import NoTrain
-from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+from marl.models import Agent, IRModule, Mixer, Policy, QNetwork, Batch, EpisodeMemory, HierarchicalTrainer, Trainer
 
 from .expected_return_trainer import ExpectedReturnTrainer
 from .mutual_information_trainer import MITrainer
+from ..no_train import NoTrain
+from ..qtarget_updater import TargetParametersUpdater, SoftUpdate
 
 
 @dataclass
@@ -28,19 +27,19 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
 
     qnetwork: QNetwork
     train_policy: Policy
-    z_policy_type: Literal["uniform", "max-entropy", "return"]
     noise_size: int
     n_actions: int
     n_agents: int
     state_size: int
     state_extras_size: int
+    mixer: Mixer
     _: KW_ONLY
+    z_policy_type: Literal["uniform", "max-entropy", "return"] = "return"
     return_bandit_nn: QNetwork | None = None
     batch_size: int = 64
     gamma: float = 0.99
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
     double_qlearning: bool = True
-    mixer: Mixer | None = None
     ir_module: IRModule | None = None
     grad_norm_clipping: float | None = None
     test_policy: Policy | None = None
@@ -94,9 +93,13 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             grad_norm_clipping=self.grad_norm_clipping,
             test_policy=self.test_policy,
         )
+        self.name = f"{self.__class__.__name__}-{self.mixer.name}-{self.z_policy_type}"
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)
+
+    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool):
+        return {"maven_noise": batch["maven-noise"]}
 
     def make_agent(self) -> Agent[npt.NDArray[np.int64]]:
         workers = self.worker_trainer.make_agent()

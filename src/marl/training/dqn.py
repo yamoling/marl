@@ -1,6 +1,7 @@
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
+import logging
 
 import numpy as np
 import torch
@@ -68,7 +69,7 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
         if self.mixer is not None:
             self.name = self.mixer.name
         if self.ir_module is not None:
-            self.name = f"{self.name} - {self.ir_module.name}"
+            self.name = f"{self.name}-{self.ir_module.name}"
 
     def _update(self, time_step: int) -> dict[str, float]:
         if not self.memory.can_sample(self.batch_size):
@@ -103,7 +104,7 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
                 next_values,
                 batch.next_states,
                 batch.next_states_extras,
-                maven_noise=batch["maven-noise"],
+                **self.get_mixing_kwargs(batch, next_qvalues, is_next=True),
             )
         assert batch.rewards.shape == next_values.shape == batch.dones.shape == batch.masks.shape
         return batch.rewards + self.gamma * next_values * batch.not_dones
@@ -120,11 +121,14 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
+    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False):
+        return {}
+
     def _compute_qvalues(self, batch: Batch):
         all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras, masks=batch.masks)
         qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.states_extras)
+            qvalues = self.mixer.forward(qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues))
         return all_qvalues, qvalues
 
     def _compute_td_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch):
@@ -185,14 +189,18 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
         )
 
     def value(self, obs: Observation, state: State) -> float:
-        data, extras = obs.as_tensors(self.device)
-        state_data, state_extras = state.as_tensors(self.device)
-        with torch.no_grad():
-            qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
-            max_qvalues = qvalues.max(dim=-1).values
-            if self.mixer is None:
-                return float(max_qvalues.mean().item())
-            value = self.mixer.forward(
-                max_qvalues, state_data, state_extras, all_qvalues=qvalues, one_hot_actions=torch.zeros_like(qvalues)
-            )
-            return float(value.item())
+        try:
+            data, extras = obs.as_tensors(self.device)
+            state_data, state_extras = state.as_tensors(self.device)
+            with torch.no_grad():
+                qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
+                max_qvalues = qvalues.max(dim=-1).values
+                if self.mixer is None:
+                    return float(max_qvalues.mean().item())
+                value = self.mixer.forward(
+                    max_qvalues, state_data, state_extras, all_qvalues=qvalues, one_hot_actions=torch.zeros_like(qvalues)
+                )
+                return float(value.item())
+        except Exception:
+            logging.warning("Error while computing value, returning 0.0 instead")
+            return 0.0

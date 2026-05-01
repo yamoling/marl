@@ -1,6 +1,6 @@
 import math
 import operator
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from functools import reduce
 from typing import TYPE_CHECKING, Literal, Optional, Sequence
@@ -43,6 +43,15 @@ class QMLP(MLP, QNetwork):
     def __post_init__(self):
         QNetwork.__post_init__(self)
         MLP.__post_init__(self)
+
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: Sequence[int] = (128, 128), mlp_noisy: bool = False):
+        if env.is_multi_objective:
+            output_shape = (env.n_actions, env.reward_space.size)
+        else:
+            output_shape = (env.n_actions,)
+        assert len(env.observation_shape) == 1
+        return QMLP(output_shape, env.observation_shape[0], env.extras_size, mlp_sizes, noisy=mlp_noisy)
 
     # def __init__(
     #     self,

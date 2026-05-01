@@ -14,12 +14,6 @@ if TYPE_CHECKING:
 class IRModule(NN):
     """Intrinsic Reward Module: a class that adds intrinsic rewards."""
 
-    name: str
-
-    def __init__(self):
-        super().__init__()
-        self.name = self.__class__.__name__
-
     @abstractmethod
     def compute(self, batch: "Batch") -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""

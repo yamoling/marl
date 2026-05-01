@@ -3,7 +3,6 @@ from dataclasses import dataclass
 
 import torch
 from marlenv import Observation
-from marlenv.models import MARLEnv, MultiDiscreteSpace
 
 from .nn import NN, RecurrentNN
 
@@ -52,14 +51,6 @@ class QNetwork(NN):
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
         return self.forward(obs, extras, **kwargs)
-
-    @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace]):
-        if env.reward_space.size == 1:
-            output_shape = (env.n_actions,)
-        else:
-            output_shape = (env.n_actions, env.reward_space.size)
-        return cls(output_shape)
 
     def to_softmax_actor(self):
         from .actor_critic import DiscreteActor

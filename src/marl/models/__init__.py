@@ -14,7 +14,7 @@ from .replay_memory import (
     TransitionMemory,
 )
 from .run import Run
-from .trainer import Trainer
+from .trainer import Trainer, HierarchicalTrainer
 
 __all__ = [
     "Action",
@@ -40,6 +40,7 @@ __all__ = [
     "ReplayEpisode",
     "LightEpisodeSummary",
     "Trainer",
+    "HierarchicalTrainer",
     "Run",
     "IRModule",
     "Actor",

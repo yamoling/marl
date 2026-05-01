@@ -13,7 +13,7 @@ class AgentWrapper[T](Agent[T]):
         super().__init__()
         self.agent = agent
 
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         return self.agent.choose_action(observation, with_details=with_details)
 
     def new_episode(self):

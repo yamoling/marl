@@ -18,7 +18,7 @@ class Agent[T](ABC):
         self._training = True
 
     @abstractmethod
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         """
         Get the action to perform given the input observation.
 
