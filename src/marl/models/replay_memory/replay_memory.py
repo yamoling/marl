@@ -13,7 +13,7 @@ T = TypeVar("T")
 
 
 @dataclass
-class ReplayMemory[T, B: Batch](ABC):
+class ReplayMemory[T](ABC):
     """Parent class of any ReplayMemory"""
 
     max_size: int
@@ -32,13 +32,13 @@ class ReplayMemory[T, B: Batch](ABC):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
-    def sample(self, batch_size: int) -> B:
+    def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.choice(range(len(self)), batch_size, replace=False)
         return self.get_batch(indices)
 
     @abstractmethod
-    def make_batch(self, items: Iterable[T]) -> B:
+    def make_batch(self, items: Iterable[T]) -> Batch:
         """Create a `Batch` from the given items"""
 
     def can_sample(self, batch_size: int) -> bool:
@@ -52,12 +52,12 @@ class ReplayMemory[T, B: Batch](ABC):
     def is_full(self):
         return len(self) == self.max_size
 
-    def get_batch(self, indices: Iterable[int]) -> B:
+    def get_batch(self, indices: Iterable[int]) -> Batch:
         """Create a `Batch` from the given indices"""
         items = [self[i] for i in indices]
         return self.make_batch(items)
 
-    def as_batch(self) -> B:
+    def as_batch(self) -> Batch:
         return self.get_batch(range(len(self)))
 
     def __len__(self) -> int:
@@ -65,6 +65,10 @@ class ReplayMemory[T, B: Batch](ABC):
 
     def __getitem__(self, index: int) -> T:
         return self._memory[index]
+
+    def update(self, time_step: int, /, **kwargs) -> dict[str, float]:
+        """Update the memory with the given information. NO-OP for most memory types."""
+        return {}
 
     @property
     def updates_on(self):
@@ -74,7 +78,7 @@ class ReplayMemory[T, B: Batch](ABC):
 
 
 @dataclass
-class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
+class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
     def __init__(self, max_size: int):
@@ -85,7 +89,7 @@ class TransitionMemory(ReplayMemory[Transition, TransitionBatch]):
 
 
 @dataclass
-class EpisodeMemory(ReplayMemory[Episode, EpisodeBatch]):
+class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
     def __init__(self, max_size: int):

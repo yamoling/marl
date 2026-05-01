@@ -1,7 +1,7 @@
 import os
 from collections import defaultdict
 from dataclasses import KW_ONLY, InitVar, dataclass, field
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ from marl.models.nn import ActorCritic, IRModule
 
 
 @dataclass
-class PPO[B: Batch](Trainer):
+class PPO(Trainer):
     """Proximal Policy Optimization trainer. Either MAPPO (with a mixer) or IPPO (without mixer)."""
 
     actor_critic: ActorCritic
@@ -37,7 +37,7 @@ class PPO[B: Batch](Trainer):
     normalize_advantages: bool = True
     optimizer: torch.optim.Optimizer = field(init=False)
     train_on: Literal["episode", "transition"] = "transition"
-    memory: ReplayMemory[Any, B] = field(init=False)
+    memory: ReplayMemory = field(init=False)
     early_stopping_kl: float | None = None
     """Early stopping if the KL divergence between the old and new policy is higher than this threshold. If None, no early stopping is applied."""
     value_loss: Literal["huber", "mse"] = "huber"
@@ -87,8 +87,8 @@ class PPO[B: Batch](Trainer):
         values = self.actor_critic.value(batch.obs, batch.extras)
         next_values = self.actor_critic.value(batch.next_obs, batch.extras)
         if self.mixer is not None:
-            values = self.mixer.forward(values, batch.states)
-            next_values = self.mixer.forward(next_values, batch.next_states) * batch.not_dones
+            values = self.mixer.forward(values, batch.states, batch.states_extras)
+            next_values = self.mixer.forward(next_values, batch.next_states, batch.next_states_extras) * batch.not_dones
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
@@ -156,7 +156,7 @@ class PPO[B: Batch](Trainer):
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
             mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
             if self.mixer is not None:
-                mini_values = self.mixer.forward(mini_values, batch.states)
+                mini_values = self.mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
             mini_values[minibatch.masked_indices] = 0.0
             if self.value_loss == "huber":
                 # Same parameters as the MAPPO paper
@@ -210,9 +210,9 @@ class PPO[B: Batch](Trainer):
         return self.train(time_step)
 
     def make_agent(self):
-        from marl.agents import SimpleActor
+        from marl.agents import SimpleAgent
 
-        return SimpleActor(self.actor_critic)
+        return SimpleAgent(self.actor_critic)
 
     @property
     def device(self):

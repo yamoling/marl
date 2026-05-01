@@ -1,5 +1,5 @@
 from .action import Action
-from .agent import Agent
+from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
 from .experiment import Experiment
 from .nn import MAIC, MAICNN, NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
@@ -14,7 +14,7 @@ from .replay_memory import (
     TransitionMemory,
 )
 from .run import Run
-from .trainer import Trainer
+from .trainer import Trainer, HierarchicalTrainer
 
 __all__ = [
     "Action",
@@ -34,13 +34,17 @@ __all__ = [
     "BiasedMemory",
     "NStepMemory",
     "Agent",
+    "AgentWrapper",
+    "ContextualBandit",
     "Experiment",
     "ReplayEpisode",
     "LightEpisodeSummary",
     "Trainer",
+    "HierarchicalTrainer",
     "Run",
     "IRModule",
     "Actor",
     "Critic",
     "ActorCritic",
+    "HierarchicalAgent",
 ]

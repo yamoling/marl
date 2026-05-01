@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -10,9 +10,9 @@ class Policy:
     A policy takes decides which action to take given an input.
     """
 
-    name: str
+    name: str = field(init=False)
 
-    def __init__(self):
+    def __post_init__(self):
         self.name = self.__class__.__name__
 
     @abstractmethod

@@ -1,9 +1,9 @@
+import logging
 import os
 import shutil
 from copy import deepcopy
 from datetime import datetime
 from functools import cached_property
-import logging
 from typing import Any, Literal, Optional
 
 import marlenv
@@ -15,9 +15,9 @@ from marlenv.utils import Schedule
 import marl
 from marl import ReplayMemory
 from marl.exceptions import ExperimentAlreadyExistsException
+from marl.nn import model_bank
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
-from marl.nn import model_bank
 from marl.optimism import VBE
 from marl.training import DQN, SoftUpdate
 from marl.training.haven import HavenTrainer
@@ -147,7 +147,7 @@ def make_haven(agent_type: Literal["dqn", "ppo"], ir: bool):
                 qnetwork=marl.nn.model_bank.qnetworks.QCNN(
                     input_shape=meta_env.observation_shape,
                     extras_size=meta_env.extras_shape[0],
-                    output_shape=N_SUBGOALS,
+                    output=N_SUBGOALS,
                 ),
                 train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.05, 200_000),
                 memory=marl.models.TransitionMemory(5_000),
@@ -225,7 +225,7 @@ def make_dqn(
     gamma: float = 0.95,
     noisy: bool = False,
     use_vbe: bool = False,
-    memory: Optional[ReplayMemory[Any, Any]] = None,
+    memory: Optional[ReplayMemory[Any]] = None,
     update_every: tuple[int, Literal["step", "episode"]] = (5, "step"),
 ):
     mixer = make_mixer(env, mixing)
@@ -257,7 +257,7 @@ def make_dqn(
         qnetwork=qnetwork,
         train_policy=policy,
         memory=memory,
-        optimiser="adam",
+        optimiser_type="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,

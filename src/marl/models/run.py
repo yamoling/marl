@@ -10,7 +10,7 @@ import numpy as np
 import polars as pl
 
 from marl.exceptions import CorruptExperimentException
-from marl.logging import TIME_STEP_COL, LogSpecs, get_logger
+from marl.logging import TIME_STEP_COL, TIMESTAMP_COL, LogSpecs, get_logger
 from marl.utils import stats
 
 PID_FILENAME = "pid"
@@ -70,45 +70,50 @@ class Run:
 
     @property
     def test_metrics(self):
+        return self.reader.test_metrics
+
+    def _elapsed_time(self, df: pl.LazyFrame) -> pl.LazyFrame:
+        return df.with_columns((pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min()).cast(pl.Int64).alias(TIMESTAMP_COL))
+
+    def test_metrics_aggregated(self, granularity: int, use_wall_time: bool = False):
+        if not use_wall_time:
+            return self.test_metrics
+        if granularity <= 0:
+            granularity = 5000
         try:
-            return self.reader.test_metrics.collect()
-        except pl.exceptions.NoDataError:
+            df = self._elapsed_time(self.reader.test_metrics)
+            df = stats.round_col(df, TIMESTAMP_COL, granularity)
+            df = df.group_by(TIMESTAMP_COL).agg(pl.col("*").drop_nulls().mean())
+            return df.collect()
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
-    def train_metrics(self, granularity: int):
+    @property
+    def train_metrics(self):
+        return self.reader.train_metrics
+
+    def prepared_train_metrics(self, granularity: int, use_wall_time: bool = False):
         """
-        Return the training metrics aggregated by time step, where the time steps are rounded to the closest multiple of the given granularity.
+        Return the training metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
         if granularity <= 0:
             granularity = 5000
+        group_col = TIMESTAMP_COL if use_wall_time else TIME_STEP_COL
         try:
-            # Round the time step to match the closest test interval
-            df = stats.round_col(self.reader.train_metrics, TIME_STEP_COL, granularity)
-            # Compute the mean of the metrics for each time step
-            df = df.group_by(TIME_STEP_COL).mean()
+            df = self.train_metrics
+            # Round the target axis to match the configured granularity
+            df = stats.round_col(df, group_col, granularity)
+            # Compute the mean of the metrics for each rounded bucket
+            df = df.group_by(group_col).mean()
             return df.collect()
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return pl.DataFrame()
 
-    def training_data(self, granularity: int):
-        """
-        Return the training data aggregated by time step, where the time steps are rounded to the closest multiple of the given granularity.
-
-        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
-        """
-        if granularity <= 0:
-            granularity = 5000
-        try:
-            df = self.reader.training_data
-            # Make sure we are working with numerical values
-            df = stats.ensure_numerical(df, drop_non_numeric=True)
-            df = stats.round_col(df, TIME_STEP_COL, granularity)
-            df = df.group_by(TIME_STEP_COL).agg(pl.col("*").drop_nulls().mean())
-            return df.collect()
-        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
-            return pl.DataFrame()
+    @property
+    def training_data(self):
+        return self.reader.training_data
 
     @property
     def is_running(self) -> bool:

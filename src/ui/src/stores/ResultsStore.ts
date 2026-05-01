@@ -4,8 +4,10 @@ import { ReplayEpisodeSummarySchema } from "../models/Episode";
 import { ref, watch } from "vue";
 import { apiFetch } from "../api";
 import { HTTP_URL } from "../constants";
+import { useSettingsStore } from "./SettingsStore";
 
 export const useResultsStore = defineStore("ResultsStore", () => {
+  const settingsStore = useSettingsStore();
   const results = ref(new Map<string, ExperimentResults>());
   const loading = ref(new Map<string, boolean>());
   const granularity = ref<number | null>(null);
@@ -32,10 +34,11 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     defaultGranularity?: number,
   ): Promise<ExperimentResults> {
     const activeGranularity = currentGranularity(defaultGranularity);
+    const useWallTime = settingsStore.settings.visualization.useWallTime;
     loading.value.set(logdir, true);
     try {
       const resp = await apiFetch(
-        `${HTTP_URL}/results/load/${logdir}?granularity=${activeGranularity}`,
+        `${HTTP_URL}/results/load/${logdir}?granularity=${activeGranularity}&use_wall_time=${useWallTime}`,
         `Failed to load results for ${logdir}`,
       );
       const datasets = (await resp.json()) as Dataset[];
@@ -79,10 +82,15 @@ export const useResultsStore = defineStore("ResultsStore", () => {
   async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
     try {
       const activeGranularity = granularity.value;
+      const useWallTime = settingsStore.settings.visualization.useWallTime;
       const granularityQuery =
         activeGranularity == null ? "" : `?granularity=${activeGranularity}`;
+      const wallTimeQuery =
+        granularityQuery.length === 0
+          ? `?use_wall_time=${useWallTime}`
+          : `&use_wall_time=${useWallTime}`;
       const resp = await apiFetch(
-        `${HTTP_URL}/results/load-by-run/${logdir}${granularityQuery}`,
+        `${HTTP_URL}/results/load-by-run/${logdir}${granularityQuery}${wallTimeQuery}`,
         `Failed to load per-run results for ${logdir}`,
       );
       const datasets = (await resp.json()) as Dataset[][];
@@ -103,6 +111,15 @@ export const useResultsStore = defineStore("ResultsStore", () => {
       await reloadLoadedResults();
     }
   });
+
+  watch(
+    () => settingsStore.settings.visualization.useWallTime,
+    async (newUseWallTime, oldUseWallTime) => {
+      if (newUseWallTime !== oldUseWallTime) {
+        await reloadLoadedResults();
+      }
+    },
+  );
 
   return {
     results,

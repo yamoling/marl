@@ -1,54 +1,58 @@
 import torch
 import torch.nn as nn
+from dataclasses import KW_ONLY, dataclass
 
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
+@dataclass(unsafe_hash=True)
 class Qatten(Mixer):
-    def __init__(
-        self,
-        n_agents: int,
-        state_size: int,
-        agent_state_size: int,
-        mixer_embedding_dim: int = 32,
-        hypernetwork_embed_size: int = 64,
-        n_heads: int = 4,
-        weighted_head: bool = False,
-    ):
-        super().__init__(n_agents)
+    state_size: int
+    state_extras_size: int
+    unit_dim: int
+    _: KW_ONLY
+    mixer_embedding_dim: int = 32
+    hypernetwork_embed_size: int = 64
+    n_heads: int = 4
+    weighted_head: bool = False
 
-        self.n_agents = n_agents
-        self.unit_dim = agent_state_size
-        self.weighted_head = weighted_head
+    @property
+    def input_size(self):
+        return self.state_size + self.state_extras_size
+
+    def __post_init__(self):
+        super().__post_init__()
 
         self.value = nn.Sequential(
-            nn.Linear(state_size, mixer_embedding_dim),
+            nn.Linear(self.input_size, self.mixer_embedding_dim),
             nn.ReLU(),
-            nn.Linear(mixer_embedding_dim, 1),
+            nn.Linear(self.mixer_embedding_dim, 1),
         )
 
         self.hyper_w_head = nn.Sequential(
-            nn.Linear(state_size, mixer_embedding_dim),
+            nn.Linear(self.input_size, self.mixer_embedding_dim),
             nn.ReLU(),
-            nn.Linear(mixer_embedding_dim, n_heads),
+            nn.Linear(self.mixer_embedding_dim, self.n_heads),
             AbsLayer(),
         )
         self.key_extractors = nn.ModuleList()
         self.query_extractors = nn.ModuleList()
-        for _ in range(n_heads):  # Manual implementation of multi-head attention
+        for _ in range(self.n_heads):  # Manual implementation of multi-head attention
             self.query_extractors.append(
                 nn.Sequential(
-                    nn.Linear(state_size, hypernetwork_embed_size),
+                    nn.Linear(self.input_size, self.hypernetwork_embed_size),
                     nn.ReLU(),
-                    nn.Linear(hypernetwork_embed_size, mixer_embedding_dim, bias=False),
+                    nn.Linear(self.hypernetwork_embed_size, self.mixer_embedding_dim, bias=False),
                 )
             )
-            self.key_extractors.append(nn.Linear(agent_state_size, mixer_embedding_dim, bias=False))  # key
+            self.key_extractors.append(nn.Linear(self.unit_dim, self.mixer_embedding_dim, bias=False))  # key
 
-    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, **kwargs):
-        *dims, state_size = states.shape
-        states = states.reshape(-1, state_size)
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs):
+        dims = states.shape[:-1]
+        states = states.flatten(1)
+        states_extras = states_extras.flatten(1)
+        inputs = torch.cat([states, states_extras], dim=1)
         unit_states = states[:, : self.unit_dim * self.n_agents]  # get agent own features from state
         unit_states = unit_states.view(-1, self.n_agents, self.unit_dim)
 
@@ -60,7 +64,7 @@ class Qatten(Mixer):
         attentioned_qvalues = []
         for key_extractor, query_extractor in zip(self.key_extractors, self.query_extractors):
             keys = key_extractor(unit_states)  # shape (batch, n_agents, embed_dim)
-            queries = query_extractor(states)  # shape (batch, embed_dim)
+            queries = query_extractor.forward(inputs)  # shape (batch, embed_dim)
             queries = queries.unsqueeze(-2)  # Appropriate shape for dot product
             head_output = torch.nn.functional.scaled_dot_product_attention(queries, keys, values)
             attentioned_qvalues.append(head_output.squeeze(1))
@@ -71,11 +75,11 @@ class Qatten(Mixer):
 
         # If we use weighted heads (right path of the figure), then compute them from the states and apply them to q_h.
         if self.weighted_head:
-            w_head = self.hyper_w_head.forward(states)
+            w_head = self.hyper_w_head.forward(inputs)
             q_h = q_h * w_head
 
         # Top side of the figure: add c(s), which is V(s) in practice.
-        v = torch.squeeze(self.value.forward(states))
+        v = torch.squeeze(self.value.forward(inputs))
         q_sum = torch.sum(q_h, dim=1)
         q_tot = q_sum + v
         return q_tot.view(*dims)

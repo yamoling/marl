@@ -1,6 +1,5 @@
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from functools import cached_property
 from typing import Literal
 
@@ -8,22 +7,18 @@ import numpy as np
 import torch
 from marlenv import Observation
 
-from .action import Action
-from .nn import NN, RecurrentNN
+from ..action import Action
+from ..nn import NN, RecurrentNN
 
 
-@dataclass
 class Agent[T](ABC):
-    name: str
-
-    def __init__(self, device: Literal["cpu", "cuda"] | str | torch.device = "cpu"):
+    def __init__(self):
         self.name = self.__class__.__name__
-        if isinstance(device, str):
-            device = torch.device(device)
         self._device = torch.device("cpu")
+        self._training = True
 
     @abstractmethod
-    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action[T]:
+    def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         """
         Get the action to perform given the input observation.
 
@@ -31,6 +26,13 @@ class Agent[T](ABC):
         """
 
     @property
+    def is_training(self):
+        return self._training
+
+    @property
+    def is_testing(self):
+        return not self._training
+
     def networks(self):
         """Dynamic list of neural networks attributes in the agent"""
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
@@ -43,13 +45,13 @@ class Agent[T](ABC):
     @cached_property
     def recurrent_networks(self):
         """Dynamic list of recurrent neural networks attributes in the agent"""
-        return [nn for nn in self.networks if isinstance(nn, RecurrentNN)]
+        return [nn for nn in self.networks() if isinstance(nn, RecurrentNN)]
 
     def seed(self, seed: int):
         """
         Seed the algorithm for reproducibility (e.g. during testing).
 
-        Seed `ranom`, `numpy`, and `torch` libraries by default.
+        Seed `random`, `numpy`, and `torch` libraries by default.
         """
         import random
 
@@ -59,7 +61,7 @@ class Agent[T](ABC):
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the algorithm parameters"""
-        for nn in self.networks:
+        for nn in self.networks():
             nn.randomize(method)
 
     def new_episode(self):
@@ -74,7 +76,7 @@ class Agent[T](ABC):
     def to(self, device: torch.device):
         """Move the algorithm to the specified device"""
         self._device = device
-        for nn in self.networks:
+        for nn in self.networks():
             nn.to(device)
         return self
 
@@ -84,7 +86,8 @@ class Agent[T](ABC):
         This is useful for algorithms that have different behavior during training and testing,
         such as Dropout, BathNorm, or have different exploration strategies.
         """
-        for nn in self.networks:
+        self._training = True
+        for nn in self.networks():
             nn.train()
 
     def set_testing(self):
@@ -93,26 +96,27 @@ class Agent[T](ABC):
         This is useful for algorithms that have different behavior during training and testing,
         such as Dropout, BathNorm, or have different exploration strategies.
         """
-        for nn in self.networks:
+        self._training = False
+        for nn in self.networks():
             nn.eval()
 
-    @property
-    def __can_autosave(self):
+    def _can_autosave(self):
         """Check if the algorithm can be autosaved"""
-        names = set(nn.name for nn in self.networks)
-        return len(names) == len(self.networks)
+        networks = self.networks()
+        names = set(nn.name for nn in networks)
+        return len(names) == len(networks)
 
     def save(self, to_directory: str):
         """Save the algorithm to the specified directory"""
-        if not self.__can_autosave:
+        if not self._can_autosave():
             raise NotImplementedError("Duplicate network name, you need to implement a custom save method")
         os.makedirs(to_directory, exist_ok=True)
-        for nn in self.networks:
+        for nn in self.networks():
             torch.save(nn.state_dict(), os.path.join(to_directory, f"{nn.name}.pt"))
 
     def load(self, from_directory: str):
         """Load the algorithm parameters from the specified directory"""
-        if not self.__can_autosave:
+        if not self._can_autosave():
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
-        for nn in self.networks:
+        for nn in self.networks():
             nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt"), map_location=self.device))

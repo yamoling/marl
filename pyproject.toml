@@ -38,14 +38,19 @@ legacy-gpu = ["torch<2.8"]
 modern-gpu = ["torch"]
 
 [dependency-groups]
-dev = ["marker-pdf>=1.10.2", "pyinstrument>=5.1.2", "pytest>=8.3.2"]
+dev = [
+    "basedpyright>=1.39.3",
+    "marker-pdf>=1.10.2",
+    "pyinstrument>=5.1.2",
+    "pytest>=8.3.2",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.basedpyright]
-typeCheckingMode = "basic"
+typeCheckingMode = "standard"
 # Without overriding the default setting of "reportPrivateImportUsage", all torch functions are marked as private and thus cause a large number of errors in Pyright. Setting it to "none" suppresses these errors.
 reportPrivateImportUsage = "none"
 

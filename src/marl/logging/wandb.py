@@ -33,7 +33,7 @@ class WABLogger(Logger):
             name = name[5:]
         return name
 
-    def log_test_episodes(self, episodes: list[Episode], time_step: int):
+    def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions: bool = True):
         for episode in episodes:
             metrics = {f"test/{k}": v for k, v in episode.metrics.items()}
             wandb.log(metrics, step=time_step)

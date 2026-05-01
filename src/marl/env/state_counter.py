@@ -1,6 +1,4 @@
-from typing import Sequence
 from marlenv import RLEnvWrapper, MARLEnv, Space, State
-import numpy as np
 from dataclasses import dataclass
 
 
@@ -19,7 +17,7 @@ class StateCounter[S: Space](RLEnvWrapper[S]):
             h = hash((agent_data.tobytes(), eh))
             self._per_agent[i].add(h)
 
-    def step(self, action: np.ndarray | Sequence):
+    def step(self, action):
         step = super().step(action)
         self._register(step.state)
         if step.is_terminal:

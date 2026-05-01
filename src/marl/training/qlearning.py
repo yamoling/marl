@@ -1,11 +1,12 @@
 import pickle
-import numpy as np
 from collections import defaultdict
-from marlenv import Transition
-from marl.models import Trainer
-from marl.models.agent import Agent
 from dataclasses import dataclass
-from marl.models import Policy
+
+import numpy as np
+from marlenv import Transition
+
+from marl.models import Policy, Trainer
+from marl.models.agent import Agent
 
 
 @dataclass

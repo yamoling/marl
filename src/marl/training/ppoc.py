@@ -51,7 +51,7 @@ class PPOC(Trainer):
     target_updater: TargetParametersUpdater = field(init=False)
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
     optimizer: torch.optim.Optimizer = field(init=False)
-    memory: ReplayMemory[Transition | Episode, Batch] = field(init=False)
+    memory: ReplayMemory[Transition | Episode] = field(init=False)
     early_stopping_kl: float | None = 0.01
 
     def __post_init__(
@@ -90,7 +90,7 @@ class PPOC(Trainer):
             memory = TransitionMemory(self.train_interval)
         else:
             memory = EpisodeMemory(self.train_interval)
-        self.memory = cast(ReplayMemory[Transition | Episode, Batch], memory)
+        self.memory = cast(ReplayMemory[Transition | Episode], memory)
 
         if q_updater is None:
             q_updater = HardUpdate(200)
@@ -110,11 +110,11 @@ class PPOC(Trainer):
             q_options = self.target_oc.compute_q_options(batch.obs, batch.extras)
             values = torch.gather(q_options, dim=-1, index=options).squeeze(-1)
             if self.target_mixer is not None:
-                values = self.target_mixer.forward(values, batch.states)
+                values = self.target_mixer.forward(values, batch.states, batch.states_extras)
             # Next values computations
             next_values = self.target_oc.value_on_arrival(batch.next_obs, batch.next_extras, options)
             if self.target_mixer is not None:
-                next_values = self.target_mixer.forward(next_values, batch.next_states)
+                next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
         advantages = batch.compute_gae(self.gamma, values, next_values, trace_decay=self.gae_lambda, normalize=self.normalize_advantages)
@@ -204,7 +204,7 @@ class PPOC(Trainer):
         q_options = self.oc.compute_q_options(minibatch.obs, minibatch.extras)
         mini_values = torch.gather(q_options, dim=-1, index=mini_options).squeeze(-1)
         if self.target_mixer is not None:
-            mini_values = self.target_mixer.forward(mini_values, minibatch.states)
+            mini_values = self.target_mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
         td_error = (mini_values - mini_returns) * minibatch.masks
         critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
         return critic_loss
@@ -235,8 +235,8 @@ class PPOC(Trainer):
             next_q_max = next_q_options.max(dim=-1).values
             next_q_current = torch.gather(next_q_options, dim=-1, index=mini_options).squeeze(-1)
             if self.target_mixer is not None:
-                next_q_max = self.target_mixer.forward(next_q_max, minibatch.next_states)
-                next_q_current = self.target_mixer.forward(next_q_current, minibatch.next_states)
+                next_q_max = self.target_mixer.forward(next_q_max, minibatch.next_states, minibatch.next_states_extras)
+                next_q_current = self.target_mixer.forward(next_q_current, minibatch.next_states, minibatch.next_states_extras)
             next_advantage = next_q_current - next_q_max
             if self.target_mixer is not None:
                 next_advantage = next_advantage.repeat_interleave(self.n_agents).view(minibatch.size, self.n_agents)

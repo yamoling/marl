@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Iterable, Optional
+from typing import Iterable, Optional
 
 import torch
 from marlenv.utils import Schedule
@@ -7,12 +7,9 @@ from sumtree import SumTree
 
 from .replay_memory import ReplayMemory
 
-if TYPE_CHECKING:
-    from marl.models import Batch
-
 
 @dataclass
-class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
+class PrioritizedMemory[T](ReplayMemory[T]):
     """
     Prioritized Experience Replay.
     This class is a decorator around any other Replay Memory type.
@@ -21,7 +18,7 @@ class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
     Paper: https://arxiv.org/abs/1511.05952
     """
 
-    memory: ReplayMemory[T, B]
+    memory: ReplayMemory[T]
     alpha: Schedule
     beta: Schedule
     eps: float
@@ -30,7 +27,7 @@ class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
 
     def __init__(
         self,
-        memory: ReplayMemory[T, B],
+        memory: ReplayMemory[T],
         multi_objective: bool,
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
@@ -107,7 +104,9 @@ class PrioritizedMemory[T, B: Batch](ReplayMemory[T, B]):
     def __getitem__(self, idx: int) -> T:
         return self.memory[idx]
 
-    def update(self, td_error: torch.Tensor) -> dict[str, float]:
+    def update(self, time_step: int, /, td_error: torch.Tensor | None = None, **kwargs) -> dict[str, float]:
+        if td_error is None:
+            raise ValueError("'td_error' keyword argument must be provided to update the priorities of the sampled transitions.")
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)

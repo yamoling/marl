@@ -1,6 +1,5 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Optional
+from abc import abstractmethod
+from dataclasses import KW_ONLY, dataclass
 
 import torch
 
@@ -8,17 +7,14 @@ from .nn import NN
 
 
 @dataclass
-class Actor(NN, ABC):
-    def __init__(self):
-        NN.__init__(self)
-
+class Actor[T: torch.distributions.Distribution](NN):
     @abstractmethod
     def policy(
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: torch.Tensor,
-    ) -> torch.distributions.Distribution:
+        available_actions: torch.Tensor | None = None,
+    ) -> T:
         """
         Returns the probability distribution over the actions.
 
@@ -38,11 +34,8 @@ class Actor(NN, ABC):
 
 
 @dataclass
-class Critic(NN, ABC):
+class Critic(NN):
     """Critic neural network"""
-
-    def __init__(self):
-        NN.__init__(self)
 
     @abstractmethod
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -52,11 +45,7 @@ class Critic(NN, ABC):
 
 
 @dataclass
-class ActorCritic(Actor, Critic):
-    def __init__(self):
-        Actor.__init__(self)
-        Critic.__init__(self)
-
+class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
     @property
     @abstractmethod
     def policy_parameters(self) -> list[torch.nn.Parameter]:
@@ -75,26 +64,22 @@ class ActorCritic(Actor, Critic):
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: torch.Tensor,
-    ) -> tuple[torch.distributions.Distribution, torch.Tensor]:
+        available_actions: torch.Tensor | None = None,
+    ) -> tuple[T, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
 
 
 @dataclass
-class DiscreteActor(Actor, ABC):
+class DiscreteActor(Actor[torch.distributions.Categorical]):
     """Discrete actor neural network"""
 
-    clip_logits_low: Optional[float]
-    clip_logits_high: Optional[float]
-
-    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
-        Actor.__init__(self)
-        self.clip_logits_low = clip_logits_low
-        self.clip_logits_high = clip_logits_high
+    _: KW_ONLY
+    clip_logits_low: float | None = None
+    clip_logits_high: float | None = None
 
     @abstractmethod
-    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
+    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
         """Returns the logits of the policy distribution (clipped if necessary)"""
 
     def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
@@ -102,13 +87,26 @@ class DiscreteActor(Actor, ABC):
         x[~mask] = replacement
         return x
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
         logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
+
+    def to_one_hot(self):
+        class DiscreteOneHotActor(Actor[torch.distributions.OneHotCategorical]):
+            def __init__(self, actor: DiscreteActor):
+                super().__init__(actor.output_shape)
+                self.actor = actor
+
+            def __hash__(self):
+                return hash(self.name)
+
+            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
+                logits = self.actor.logits(obs, extras, available_actions)
+                return torch.distributions.OneHotCategorical(logits=logits)
+
+        return DiscreteOneHotActor(self)
 
 
 @dataclass
 class DiscreteActorCritic(ActorCritic, DiscreteActor):
-    def __init__(self, clip_logits_low: Optional[float] = None, clip_logits_high: Optional[float] = None):
-        ActorCritic.__init__(self)
-        DiscreteActor.__init__(self, clip_logits_low, clip_logits_high)
+    pass

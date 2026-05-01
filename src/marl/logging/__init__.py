@@ -1,4 +1,4 @@
-from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL
+from .logger import Logger, LogReader
 from .csv_logger import CSVLogger
 from .wandb import WABLogger
 from .neptune import NeptuneLogger
@@ -10,6 +10,10 @@ from typing import Literal, Sequence, TypeAlias
 
 LogSpec: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
 LogSpecs: TypeAlias = LogSpec | Sequence[LogSpec]
+# Dataframe columns
+TIME_STEP_COL = "time_step"
+TIMESTAMP_COL = "timestamp_sec"
+TickColumn = Literal["time_step", "timestamp_sec"]
 
 
 def get_logger(logdir: str, specs: LogSpecs) -> Logger:
@@ -47,4 +51,5 @@ __all__ = [
     "TBLogger",
     "LogSpec",
     "LogSpecs",
+    "TickColumn",
 ]

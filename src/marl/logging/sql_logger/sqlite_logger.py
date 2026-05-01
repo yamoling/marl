@@ -36,7 +36,7 @@ class SQLiteLogger(Logger):
     def log_test(self, data: dict[str, Any], time_step: int):
         raise NotImplementedError("Not implemented for now. Use log_test_episodes instead")
 
-    def log_test_episodes(self, episodes: list[Episode], time_step: int):
+    def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions:bool=True):
         timestamp = datetime.datetime.now().isoformat()
         test_entries = list[tuple[int, str, int, int]]()
         # First, build all test entries

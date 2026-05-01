@@ -12,9 +12,6 @@ from .nn import NN
 class OptionCriticNetwork(NN):
     n_options: int
 
-    def __init__(self, n_options: int):
-        super().__init__()
-        self.n_options = n_options
 
     @abstractmethod
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
+
 import numpy as np
 import torch
 from marlenv import Episode
@@ -73,6 +74,6 @@ class Reinforce(Trainer):
         }
 
     def make_agent(self):
-        from marl.agents import SimpleActor
+        from marl.agents import SimpleAgent
 
-        return SimpleActor(self.ac)
+        return SimpleAgent(self.ac)
