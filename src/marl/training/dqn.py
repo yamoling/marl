@@ -4,22 +4,22 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl.agents import DQNAgent
-from marl.config import NetworkConfig
-from marl.models import Batch, IRModule, Mixer, Policy, ReplayMemory, Trainer
+from marl.models import Batch, IRModule, Mixer, Policy, QNetwork, ReplayMemory, Trainer
 from marl.optimism import VBE
 
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass
-class DQN[M: ReplayMemory](Trainer[np.int64]):
-    qnet: NetworkConfig
+class DQN(Trainer[npt.NDArray[np.int64]]):
+    qnetwork: QNetwork
     train_policy: Policy
-    memory: M
+    memory: ReplayMemory
     _: KW_ONLY
     optimiser_type: Literal["adam", "rmsprop"] = "adam"
     gamma: float = 0.99
@@ -47,7 +47,6 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
                 self.episode_update_interval = n
             case other:
                 raise ValueError(f"Unknown train_interval: {other}. Expected (int, 'step' | 'episode').")
-        self.qnetwork = self.qnet.make("q-network")
         self.qtarget = deepcopy(self.qnetwork)
         self.policy = self.train_policy
         if self.test_policy is None:

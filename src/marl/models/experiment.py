@@ -94,6 +94,13 @@ class Experiment[A: Space]:
     @classmethod
     def load(cls, logdir: str):
         """Load an experiment from disk."""
+        from marl.config import ExperimentConf
+
+        conf_path = ExperimentConf.json_file(logdir)
+        if os.path.exists(conf_path):
+            conf = ExperimentConf.load(logdir)
+            return conf.build(logdir=logdir)
+
         with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
             experiment: Experiment = pickle.load(f)
         return experiment

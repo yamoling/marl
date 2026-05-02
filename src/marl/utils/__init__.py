@@ -1,7 +1,7 @@
-from .others import alpha_num_order, defaults_to, encode_b64_image, seed, hash_ndarray, obs_to_hashes
 from .dotdic import DotDic
-from .gpu import list_gpus, GPU, get_device, scatter_plan
-from .serialization import default_serialization
+from .gpu import GPU, get_device, list_gpus, scatter_plan
+from .others import alpha_num_order, defaults_to, encode_b64_image, hash_ndarray, obs_to_hashes, seed
+from .serialization import Serializable, default_serialization
 
 __all__ = [
     "defaults_to",
@@ -16,4 +16,5 @@ __all__ = [
     "hash_ndarray",
     "obs_to_hashes",
     "scatter_plan",
+    "Serializable",
 ]

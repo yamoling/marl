@@ -4,13 +4,13 @@ from typing import Literal
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence
 
-from marl.models import Batch, EpisodeMemory
+from marl.models import Batch
 
 from ..dqn import DQN
 
 
 @dataclass
-class MITrainer(DQN[EpisodeMemory]):
+class MITrainer(DQN):
     noise_size: int
     n_actions: int
     n_agents: int

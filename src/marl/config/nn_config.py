@@ -1,14 +1,17 @@
 import math
 from dataclasses import KW_ONLY, dataclass
-from typing import Literal, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence, overload
 
 from marlenv import MARLEnv
 
-from marl.models.nn import QNetwork
+from marl.utils import Serializable
+
+if TYPE_CHECKING:
+    from marl.models.nn import ActorCritic, QNetwork
 
 
 @dataclass
-class NetworkConfig:
+class NetworkConfig(Serializable):
     input_shape: tuple[int, ...]
     extras_shape: tuple[int, ...]
     output_shape: tuple[int, ...]
@@ -30,15 +33,20 @@ class NetworkConfig:
     def from_env(
         env: MARLEnv,
         mlp_sizes: Sequence[int] = (128, 128),
-        output: Literal["action-space"] = "action-space",
+        output: Literal["action-space"] | tuple[int, ...] = "action-space",
         hidden_activation: Literal["relu", "tanh", "sigmoid"] = "relu",
         noisy: bool = False,
     ):
-        match (output, env.is_multi_objective):
-            case ("action-space", True):
-                output_shape = (env.n_actions, env.n_objectives)
-            case ("action-space", False):
-                output_shape = (env.n_actions,)
+        if isinstance(output, tuple):
+            output_shape = output
+        else:
+            match (output, env.is_multi_objective):
+                case ("action-space", True):
+                    output_shape = (env.n_actions, env.n_objectives)
+                case ("action-space", False):
+                    output_shape = (env.n_actions,)
+                case (other, _):
+                    raise ValueError(f"Unknown output type: {other}.")
 
         return NetworkConfig(
             env.observation_shape,
@@ -48,6 +56,23 @@ class NetworkConfig:
             hidden_activation=hidden_activation,
             noisy=noisy,
         )
+
+    @overload
+    def build(self, kind: Literal["q-network"]) -> QNetwork:
+        """Construct a Q-Network from the configuration."""
+
+    @overload
+    def build(self, kind: Literal["actor-critic"]) -> ActorCritic:
+        """Construct an Actor-Critic from the configuration."""
+
+    def build(self, kind: Literal["q-network", "actor-critic"]):
+        match kind:
+            case "q-network":
+                return self.make_qnetwork()
+            case "actor-critic":
+                return self.make_actor_critic()
+            case other:
+                raise ValueError(f"Unknown kind: {other}. Expected 'q-network' or 'actor-critic'.")
 
     def make_qnetwork(self) -> QNetwork:
         from marl.nn.model_bank import qnetworks
@@ -65,5 +90,5 @@ class NetworkConfig:
             return qnetworks.QCNN(self.output_shape, self.input_shape, self.extras_size, self.mlp_sizes, self.noisy)
         raise NotImplementedError(f"QNetworks are not implemented for input shape {self.input_shape}")
 
-    def to_actor_critic(self):
+    def make_actor_critic(self) -> ActorCritic:
         raise NotImplementedError()

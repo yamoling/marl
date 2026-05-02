@@ -184,7 +184,6 @@ logs/
 previous-logs/
 archives/
 old/
-config/
 .devcontainer
 .vscode
 nohup*
