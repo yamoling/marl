@@ -2,9 +2,10 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 import polars as pl
+import polars.selectors as cs
 import polars.exceptions as pl_errors
 from typing import Sequence
-from marl.logging import TickColumn, TIME_STEP_COL, TIMESTAMP_COL
+from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
 
 
 @dataclass
@@ -27,20 +28,6 @@ class ExperimentResults:
     qvalue_ds: list[Dataset]
 
 
-def _concat_with_missing_columns(dfs: Sequence[pl.DataFrame]) -> pl.DataFrame:
-    """Concatenate frames with potentially different schemas by padding missing columns with nulls."""
-    if len(dfs) == 0:
-        return pl.DataFrame()
-    all_columns = sorted(set().union(*(df.columns for df in dfs)))
-    aligned = []
-    for df in dfs:
-        missing = [col for col in all_columns if col not in df.columns]
-        if len(missing) > 0:
-            df = df.with_columns([pl.lit(None).alias(col) for col in missing])
-        aligned.append(df.select(all_columns))
-    return pl.concat(aligned)
-
-
 def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
     """
     Round the values of `col_name` to the closest multiple of `round_value`.
@@ -55,28 +42,31 @@ def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
         return df
 
 
-def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: TickColumn, granularity: int):
-    preprocessed_dfs = list[pl.LazyFrame]()
-    for df in dfs:
-        if aggregate_by == "timestamp_sec":
-            df = df.with_columns(ticks=pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min())
-        else:
-            df = df.with_columns(ticks=pl.col(TIME_STEP_COL))
-        df = df.drop([TIMESTAMP_COL, TIME_STEP_COL])
-        # Round the ticks to the closest multiple of granularity, and compute the granularity-wise mean
-        df = df.with_columns(((pl.col("ticks") / granularity).round() * granularity).cast(pl.Int64))
-        df = df.group_by("ticks").mean()
-        preprocessed_dfs.append(df)
-    df = pl.concat(preprocessed_dfs, how="diagonal_relaxed")
-    cols = [col for col in df.collect_schema().names() if col != "ticks"]
+def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, granularity: int):
+    dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs)]
     return (
-        df.group_by("ticks")
+        pl.concat(dfs, how="diagonal_relaxed")
+        .with_columns(
+            ticks=(
+                (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
+                if aggregate_by == "timestamp_sec"
+                else pl.col(TIME_STEP_COL)
+            )
+        )
+        # Round ticks to granularity
+        .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
+        # First compute the mean within each run
+        .group_by("ticks", "run_id")
+        .agg(pl.all().exclude([TIME_STEP_COL, TIMESTAMP_COL, "run_id"]).mean())
+        .drop("run_id")
+        # Then compute the metrics' stats across runs
+        .group_by("ticks")
         .agg(
-            **{f"mean-{col}": pl.mean(col) for col in cols},
-            **{f"std-{col}": pl.std(col) for col in cols},
-            **{f"min-{col}": pl.min(col) for col in cols},
-            **{f"max-{col}": pl.max(col) for col in cols},
-            **{f"ci95-{col}": 1.96 * pl.std(col) / pl.count(col).sqrt() for col in cols},
+            cs.numeric().mean().name.prefix("mean-"),
+            cs.numeric().std().name.prefix("std-"),
+            cs.numeric().min().name.prefix("min-"),
+            cs.numeric().max().name.prefix("max-"),
+            (cs.numeric().std() * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
         )
         .sort("ticks")
     )
@@ -133,16 +123,3 @@ def moving_average(x: np.ndarray, window_size: int) -> np.ndarray:
     data_shape = x.shape
     ones = np.ones_like((window_size, *data_shape[1:]))
     return np.convolve(x, ones, "valid") / window_size
-
-
-def ensure_numerical(df: pl.LazyFrame, drop_non_numeric: bool = True):
-    non_numerical = [col for col in df.select(~pl.selectors.numeric()).collect_schema().names()]
-    to_drop = []
-    for col in non_numerical:
-        try:
-            df = df.cast({col: pl.Float32})
-        except pl.exceptions.InvalidOperationError:
-            to_drop.append(col)
-    if drop_non_numeric:
-        df = df.drop(to_drop)
-    return df

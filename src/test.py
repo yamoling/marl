@@ -14,8 +14,8 @@ from marl.nn.model_bank import qnetworks
 NOISE_SIZE = 16
 
 
-def make_lle():
-    return (
+def make_lle(with_padding: bool):
+    builder = (
         lle.level(6)
         .obs_type("layered")
         .state_type("state")
@@ -23,9 +23,10 @@ def make_lle():
         .builder()
         .agent_id()
         .time_limit(78)
-        .pad("extra", NOISE_SIZE, label="maven")
-        .build()
     )
+    if with_padding:
+        builder = builder.pad("extra", NOISE_SIZE, label="maven")
+    return builder.build()
 
 
 def make_nsteps_matrix(with_padding: bool):
@@ -36,10 +37,10 @@ def make_nsteps_matrix(with_padding: bool):
 
 
 def main():
-    use_maven = True
-    env = make_nsteps_matrix(with_padding=use_maven)
-    # assert len(env.observation_shape) == 3
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 100)
+    use_maven = False
+    # env = make_nsteps_matrix(with_padding=use_maven)
+    env = make_lle(with_padding=use_maven)
+    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 50_000)
     if use_maven:
         meta_agent_input = env.observation_shape[0] * env.n_agents
         meta_agent_extras = (env.extras_size - NOISE_SIZE) * env.n_agents
@@ -71,16 +72,16 @@ def main():
             train_interval=(1, "episode"),
         )
     logdir = f"logs/{trainer.name}-{env.name}-eps0.01"
-    logdir = "test"
     exp = marl.Experiment.create(
         env,
-        100_000,
+        200_000,
         trainer=trainer,
         test_interval=2000,
         logdir=logdir,
-        save_weights=False,
+        save_weights=True,
+        replace_if_exists=True,
     )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2], n_parallel=1)
+    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2, 3], n_parallel=8)
 
 
 if __name__ == "__main__":
