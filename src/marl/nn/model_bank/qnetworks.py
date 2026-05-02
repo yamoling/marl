@@ -29,7 +29,13 @@ class QCNN(CNN, QNetwork):
         CNN.__post_init__(self)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: Sequence[int] = (128, 128), mlp_noisy: bool = False):
+    def from_env(
+        cls,
+        env: MARLEnv[MultiDiscreteSpace],
+        mlp_sizes: Sequence[int] = (128, 128),
+        mlp_noisy: bool = False,
+        hidden_activation: Literal["sigmoid", "tanh", "relu"] = "relu",
+    ):
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.reward_space.size)
         else:
@@ -52,21 +58,6 @@ class QMLP(MLP, QNetwork):
             output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 1
         return QMLP(output_shape, env.observation_shape[0], env.extras_size, mlp_sizes, noisy=mlp_noisy)
-
-    # def __init__(
-    #     self,
-    #     input_size: int,
-    #     extras_size: int,
-    #     output_shape: int | tuple[int, int],
-    #     hidden_sizes: Sequence[int] = (128, 128),
-    #     last_layer_noisy: bool = False,
-    # ):
-    #     if isinstance(output_shape, int):
-    #         output = (output_shape,)
-    #     else:
-    #         output = output_shape
-    #     QNetwork.__init__(self, output)
-    #     MLP.__init__(self, input_size, extras_size, output, hidden_sizes, noisy=last_layer_noisy)
 
 
 @dataclass(unsafe_hash=True)

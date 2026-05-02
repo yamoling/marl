@@ -23,7 +23,7 @@ class MLP(NN):
     _: KW_ONLY
     noisy: bool = False
     output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
-    intermediate_activation: Literal["sigmoid", "tanh", "relu"] = "relu"
+    hidden_activation: Literal["sigmoid", "tanh", "relu"] = "relu"
 
     def __post_init__(self):
         NN.__post_init__(self)
@@ -31,7 +31,7 @@ class MLP(NN):
         # [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(self.layer_sizes) - 1):
             self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
-            self.nn.append(get_activation(self.intermediate_activation))
+            self.nn.append(get_activation(self.hidden_activation))
         if self.noisy:
             self.nn.append(NoisyLinear(self.layer_sizes[-1], self.output_size))
         else:
@@ -69,6 +69,7 @@ class CNN(NN):
     extras_size: int
     mlp_sizes: Sequence[int] = (64, 64)
     mlp_noisy: bool = False
+    hidden_activation: Literal["sigmoid", "tanh", "relu"] = "relu"
     output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
 
     def __post_init__(self):

@@ -6,9 +6,10 @@ import lle
 from marlenv import Builder, catalog
 
 import marl
+from marl import training
+from marl.config import NetworkConfig
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
-from marl import training
 
 NOISE_SIZE = 16
 
@@ -60,7 +61,7 @@ def main():
         )
     else:
         trainer = training.DQN(
-            qnetworks.QMLP.from_env(env),
+            NetworkConfig.from_env(env),
             train_policy,
             marl.models.EpisodeMemory(5000),
             mixer=mixers.QMix.from_env(env),
