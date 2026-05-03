@@ -4,11 +4,12 @@ from marlenv import MARLEnv, MultiDiscreteSpace
 
 from marl.models import Mixer
 from marl.nn import mixers
-from marl.utils import Serializable
+
+from .config import Config
 
 
 @dataclass
-class MixerConfig(Serializable[Mixer]):
+class MixerConfig(Config[Mixer]):
     n_agents: int
     n_actions: int
     state_size: int

@@ -9,24 +9,18 @@ from .nn import NN
 @dataclass
 class Actor[T: torch.distributions.Distribution](NN):
     @abstractmethod
-    def policy(
-        self,
-        obs: torch.Tensor,
-        extras: torch.Tensor,
-        available_actions: torch.Tensor | None = None,
-    ) -> T:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> T:
         """
         Returns the probability distribution over the actions.
 
         Note that the `available_actions` are only relevant to discrete action spaces.
         The `available_actions` should be a boolean tensor of shape (*dims, n_actions) where `True` means that the action is available.
-        The probability of actions that are not avaliable is zero.
+        The probability of actions that are not avaliable should be zero.
         """
 
     def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
         """Masks the input tensor `x` with the boolean tensor `mask`"""
-        x[~mask] = replacement
-        return x
+        return x.masked_fill(~mask, replacement)
 
     def log_probs(self, obs: torch.Tensor, extras: torch.Tensor, actions: torch.Tensor):
         dist = self.policy(obs, extras, torch.ones_like(actions, dtype=torch.bool))
@@ -64,7 +58,7 @@ class ActorCritic[T: torch.distributions.Distribution](Actor[T], Critic):
         self,
         obs: torch.Tensor,
         extras: torch.Tensor,
-        available_actions: torch.Tensor | None = None,
+        available_actions: torch.Tensor,
     ) -> tuple[T, torch.Tensor]:
         """Returns the logits of the policy distribution and the value function given an observation"""
         return self.policy(obs, extras, available_actions), self.value(obs, extras)
@@ -79,15 +73,10 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
     clip_logits_high: float | None = None
 
     @abstractmethod
-    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
         """Returns the logits of the policy distribution (clipped if necessary)"""
 
-    def mask(self, x: torch.Tensor, mask: torch.Tensor, replacement=-torch.inf) -> torch.Tensor:
-        """Masks the tensor `t` with the boolean tensor `mask`"""
-        x[~mask] = replacement
-        return x
-
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 
@@ -100,7 +89,7 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
             def __hash__(self):
                 return hash(self.name)
 
-            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None):
+            def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
                 logits = self.actor.logits(obs, extras, available_actions)
                 return torch.distributions.OneHotCategorical(logits=logits)
 

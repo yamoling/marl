@@ -91,7 +91,10 @@ class RecurrentNN(NN):
         return True
 
 
-def get_activation(activation: Literal["sigmoid", "tanh", "relu"]):
+ActivationType = Literal["relu", "tanh", "sigmoid", "leaky-relu"]
+
+
+def get_activation(activation: Literal["sigmoid", "tanh", "relu", "leaky-relu"]):
     match activation:
         case "sigmoid":
             return torch.nn.Sigmoid()
@@ -99,5 +102,7 @@ def get_activation(activation: Literal["sigmoid", "tanh", "relu"]):
             return torch.nn.Tanh()
         case "relu":
             return torch.nn.ReLU()
+        case "leaky-relu":
+            return torch.nn.LeakyReLU()
         case other:
             raise ValueError(f"Unsupported activation: {other}")

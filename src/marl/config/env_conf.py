@@ -1,11 +1,21 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import KW_ONLY, asdict, dataclass, field
 from typing import Any, Literal, cast
 
 import marlenv
 from marlenv import MARLEnv
 
+from .config import Config
+
 type LLELevel = Literal[1, 2, 3, 4, 5, 6]
 type LLEObsType = Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]
+
+
+@dataclass
+class EnvConfig(Config[MARLEnv]):
+    _: KW_ONLY
+    agent_id: bool = True
+    time_limit: int | None = None
+    last_action: bool = False
 
 
 @dataclass

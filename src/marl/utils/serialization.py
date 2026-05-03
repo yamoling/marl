@@ -1,11 +1,14 @@
-from abc import abstractmethod
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, dataclass, fields
 from typing import Any, Self, Type, Union, get_args, get_origin
 
 import numpy as np
 import orjson
 import torch
 from lle import World
+
+# Use a hyphen (-) in the discriminator such that no attribute ever
+# deserializes to that key.
+DISCRIMINATOR_KEY = "class-name"
 
 
 def default_serialization(obj):
@@ -43,7 +46,7 @@ def get_subclass_map(base_class: Type):
     return mapping
 
 
-def get_subclass_with_name(base_class: Type, class_name: str) -> Type | None:
+def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
     """
     Retrieve the subclass whose name is `class_name`, if if exist.
 
@@ -53,32 +56,25 @@ def get_subclass_with_name(base_class: Type, class_name: str) -> Type | None:
         if subclass.__name__ == class_name:
             return subclass
         # Recurse in case there are subclasses of subclasses
-        result = get_subclass_with_name(subclass, class_name)
+        result = get_subclass_from_name(subclass, class_name)
         if result is not None:
             return result
     return None
 
 
 @dataclass
-class Serializable[T]:
-    name: str = field(init=False)
-
-    def __post_init__(self):
-        self.name = self.__class__.__name__
-
-    @abstractmethod
-    def make(self) -> T: ...
-
+class Serializable:
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Self:
         """
         Recursively build the configuration from a dictionary.
         Child objects that are serializable are deserialized thanks to their `from_dict` method.
         """
-        # If the "name" field is no longer there, it means that a parent class has already handled this case.
-        class_name = d.pop("name", cls.__name__)
+        # If the DISCRIMINATOR_KEY field is no longer there, it means that a parent class has already
+        # tasked a subclass (current cls) to handle deserialisation.
+        class_name = d.pop(DISCRIMINATOR_KEY, cls.__name__)
         if class_name != cls.__name__:
-            subtype = get_subclass_with_name(cls, class_name)
+            subtype = get_subclass_from_name(cls, class_name)
             if subtype is None:
                 raise KeyError(f"Unknown subclass {class_name} for {cls.__name__}")
             return subtype.from_dict(d)
@@ -108,7 +104,9 @@ class Serializable[T]:
         return cls.from_dict(d)
 
     def to_dict(self):
-        return asdict(self)
+        d = asdict(self)
+        d[DISCRIMINATOR_KEY] = self.__class__.__name__
+        return d
 
     def to_json(self):
         return orjson.dumps(self.to_dict())

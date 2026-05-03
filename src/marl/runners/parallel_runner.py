@@ -90,7 +90,7 @@ class ParallelRunner:
                     try:
                         handle.get(timeout=1)
                     except Exception as e:
-                        print(f"Error in one of the runs: {e}")
+                        logging.error(f"Error in one of the runs: {e}", exc_info=e)
                     finally:
                         # Always remove completed handles (including failures)
                         # to avoid waiting forever on an already-failed run.

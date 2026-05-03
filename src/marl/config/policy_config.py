@@ -5,17 +5,18 @@ from marlenv.utils import Schedule
 
 from marl import policy
 from marl.models import Policy
-from marl.utils import Serializable
+
+from .config import Config
 
 
 @dataclass
-class ScheduleConfig(Serializable):
+class ScheduleConfig(Config[Schedule]):
     kind: Literal["constant", "linear", "exponential"]
     start: float
     end: float
     n_steps: int
 
-    def make(self) -> Schedule:
+    def make(self):
         match self.kind:
             case "constant":
                 return Schedule.constant(self.start)
@@ -40,7 +41,7 @@ class ScheduleConfig(Serializable):
 
 
 @dataclass
-class PolicyConfig(Serializable[Policy]):
+class PolicyConfig(Config[Policy]):
     @staticmethod
     def argmax():
         return ArgmaxConfig()
