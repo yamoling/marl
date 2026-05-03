@@ -12,7 +12,7 @@ class Config[T](Serializable):
 
     def to_dict(self):
         d = super().to_dict()
-        d[DISPLAY_NAME] = self.__class__.__name__
+        d[DISPLAY_NAME] = self.__class__.__name__.removesuffix("Config").removesuffix("Conf")
         return d
 
     @classmethod

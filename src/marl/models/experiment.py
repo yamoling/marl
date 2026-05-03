@@ -4,11 +4,11 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Collection, Literal, Sequence
+from signal import SIGINT
+from typing import TYPE_CHECKING, Collection, Literal, Sequence
 
 import numpy as np
 import numpy.typing as npt
-import orjson
 import torch
 from marlenv.models import Space
 
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from marl.config import EnvConfig, TrainerConfig
     from marl.logging import LoggerType, TickColumn
     from marl.models.replay_episode import LightEpisodeSummary
+
+
+EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
@@ -41,6 +44,11 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
             self.creation_timestamp = datetime.now()
         if not self.logdir.startswith("logs"):
             self.logdir = Path("logs", self.logdir).as_posix()
+        if self.logpath.exists():
+            if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
+                self.delete()
+        else:
+            self.save()
 
     def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):
         if isinstance(seeds, int):
@@ -50,7 +58,7 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
         runs = [
             Run(
                 seed,
-                self.logpath / f"run-{seed}",
+                (self.logpath / f"run-{seed}").as_posix(),
                 self.trainer,
                 self.env,
                 self.test_env,
@@ -70,8 +78,9 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
     def logpath(self):
         return Path(self.logdir)
 
-    def save(self):
-        self.to_file(self.logpath / "experiment.json")
+    @property
+    def experiment_file(self):
+        return self.logpath / EXPERIMENT_FILENAME
 
     def run(
         self,
@@ -98,35 +107,41 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
             return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
         return parallel_run(runs, n_jobs, device, gpu_strategy, render_tests, disabled_gpus, quiet)
 
-    def replay_episode(self, run_num: int, time_step: int, test_num: int, *, only_saved_actions: bool = False):
+    def replay_episode(self, run_seed: int, time_step: int, test_num: int, *, only_saved_actions: bool = False):
         """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
-        run = self.get_run(run_num)
+        run = self.get_run(run_seed)
+        assert run is not None
         return run.replay_episode(time_step, test_num, only_saved_actions)
 
-    def move(self, new_logdir: str):
+    def move(self, new_logdir: Path):
         """Move an experiment to a new directory."""
         shutil.move(self.logdir, new_logdir)
-        self.logdir = new_logdir
+        self.logdir = new_logdir.as_posix()
         self.save()
+        for run in self.runs:
+            run.rundir = (new_logdir / run.runpath.parts[-1]).as_posix()
+            run.save()
 
     @staticmethod
     def json_file(logdir: str):
         return os.path.join(logdir, "experiment.json")
 
-    def get_run(self, run_num: int) -> Run[A, T]:
-        rundir = self.rundirs[run_num]
-        return Run.load(rundir, self.logger)
+    def get_run(self, run_seed: int):
+        for run in self.runs:
+            if run.seed == run_seed:
+                return run
 
     @property
     def runs(self):
         """All the runs related to the experiment."""
-        for rundir in self.rundirs:
-            yield Run.from_file(rundir / "run.json")
-
-    @property
-    def rundirs(self):
-        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
-        return [os.path.join(self.logdir, run) for run in ls]
+        for f in os.listdir(self.logdir):
+            rundir = self.logpath / f
+            if not rundir.is_dir():
+                continue
+            try:
+                yield Run[A, T].load(self.logpath / f)
+            except FileNotFoundError:
+                pass
 
     @staticmethod
     def is_experiment_directory(logdir: str) -> bool:
@@ -149,18 +164,32 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
     @property
     def is_running(self):
         """Check if an experiment is running."""
-        for run in self.runs:
-            if run.is_running:
-                return True
-        return False
+        return any(r.is_running for r in self.runs)
 
     def kill_runs(self):
         """Kill all runs of an experiment."""
+        ppids = set[int]()
+        n_killed = 0
         for run in self.runs:
-            run.kill()
+            ppid = run.ppid
+            if ppid is not None:
+                ppids.add(ppid)
+            if run.kill():
+                n_killed += 1
+        # If there was one single parent, we assume it was a parallel_runner and kill it as well
+        if n_killed > 1 and len(ppids) == 1:
+            ppid = ppids.pop()
+            try:
+                os.kill(ppid, SIGINT)
+            except ProcessLookupError:
+                pass
+
+    def save(self):
+        self.to_file(self.experiment_file)
 
     def delete(self):
-        shutil.rmtree(self.logdir)
+        print(f"Removing  experiment at {self.logpath}")
+        shutil.rmtree(self.logpath)  # , ignore_errors=True)
 
     def get_tests_at(self, time_step: int):
         summary = list[LightEpisodeSummary]()
@@ -221,20 +250,17 @@ class Experiment[A: Space, T: npt.ArrayLike](Serializable):
             ),
         }
 
-    def copy(self, new_logdir: str, copy_runs: bool = True):
+    def copy(self, new_logdir: Path, copy_runs: bool = True):
         new_exp = deepcopy(self)
-        new_exp.logdir = new_logdir
+        new_exp.logdir = new_logdir.as_posix()
         new_exp.save()
-        if copy_runs:
-            for run in self.runs:
-                new_rundir = run.rundir.replace(self.logdir, new_logdir)
-                shutil.copytree(run.rundir, new_rundir)
+        if not copy_runs:
+            return new_exp
+        for run in self.runs:
+            new_rundir = new_logdir / run.runpath.parts[-1]
+            run.runpath.replace(new_rundir)
+            # shutil.copytree(run.rundir, new_rundir)
         return new_exp
-
-    @staticmethod
-    def get_parameters(logdir: str) -> dict[str, Any]:
-        with open(Experiment.json_file(logdir), "rb") as f:
-            return orjson.loads(f.read())
 
     def get_run_with_seed(self, seed: int):
         for run in self.runs:

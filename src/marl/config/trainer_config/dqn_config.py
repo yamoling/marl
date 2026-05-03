@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+import numpy as np
+import numpy.typing as npt
 from marlenv import MARLEnv
 
 from marl.config.nn_config import QNetworkConfig
@@ -15,7 +17,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class DQNConfig(TrainerConfig):
+class DQNConfig(TrainerConfig[npt.NDArray[np.int64]]):
     qnetwork: QNetworkConfig
     train_policy: PolicyConfig
     memory: MemoryConfig

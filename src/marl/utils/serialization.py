@@ -1,13 +1,9 @@
-import os
 from dataclasses import Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Self, Type, Union, get_args, get_origin
 
-import numpy as np
 import orjson
-import torch
-from lle import World
 
 # Use a hyphen (-) in the discriminator such that no attribute ever
 # deserializes to that key.
@@ -17,23 +13,10 @@ DISCRIMINATOR_KEY = "class-name"
 def default_serialization(obj):
     """Default behaviour for orjson serialization"""
     match obj:
-        case torch.nn.Parameter() as param:
-            return f"Parameter(shape={param.shape}, dtype={param.dtype})"
         case set():
             return list(obj)
-        case torch.optim.Optimizer() as optim:
-            return {
-                "name": optim.__class__.__name__,
-                "param_groups": [{k: v for k, v in group.items()} for group in optim.param_groups],
-            }
-        case np.ndarray():
-            return obj.tolist()
-        case np.signedinteger():
-            return int(obj)
-        case np.floating():
-            return float(obj)
-        case World():
-            return obj.world_string
+        case Path():
+            return obj.as_posix()
     raise TypeError(f"Type {type(obj)} is not serializable")
 
 
@@ -140,7 +123,7 @@ class Serializable:
         option = None
         if beautify:
             option = orjson.OPT_INDENT_2
-        return orjson.dumps(self.to_dict(), option=option)
+        return orjson.dumps(self.to_dict(), option=option, default=default_serialization)
 
     @classmethod
     def from_file(cls, path: Path | str):
@@ -150,6 +133,6 @@ class Serializable:
     def to_file(self, path: Path | str, beautify: bool = False):
         if not isinstance(path, Path):
             path = Path(path)
-        os.makedirs(path.parent, exist_ok=True)
+        path.parent.mkdir(exist_ok=True)
         with open(path, "wb") as f:
             f.write(self.to_json(beautify=beautify))

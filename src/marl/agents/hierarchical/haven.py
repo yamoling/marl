@@ -57,8 +57,8 @@ class Haven(Agent):
         assert observation.extras_shape[0] == self.n_meta_extras + self.n_agent_extras + self.n_subgoals
         if self._t % self.k == 0:
             meta_obs = self.make_meta_observation(observation)
-            meta_action = self.meta.choose_action(meta_obs)
-            if meta_action.action.ndim == 1:
+            meta_action = np.array(self.meta.choose_action(meta_obs))
+            if meta_action.ndim == 1:
                 # Encode discrete actions as one-hot
                 subgoals = np.eye(self.n_subgoals, dtype=np.float32)[meta_action]
             else:

@@ -8,7 +8,6 @@ from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
 
 if TYPE_CHECKING:
-    import marl
     from marl import Agent, Run, Trainer
 
 
@@ -22,6 +21,8 @@ def simple_run[A: Space, T: npt.ArrayLike](run: Run[A, T], quiet: bool, render_t
         - Log training and testing data
     """
     with tqdm(total=run.n_steps, desc="Training", unit="step", leave=True, disable=quiet) as pbar, run:
+        import marl
+
         env, test_env = run.env.make(), run.test_env.make()
         marl.seed(run.seed, env, test_env)
         trainer = run.trainer.make().to(device)
@@ -33,6 +34,7 @@ def simple_run[A: Space, T: npt.ArrayLike](run: Run[A, T], quiet: bool, render_t
             time_step += len(episode)
             pbar.update(len(episode))
         # Test the final agent
+        print(f"Last time step: {time_step}")
         if run.should_test_at(time_step):
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
 

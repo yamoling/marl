@@ -16,11 +16,13 @@ from marl.utils import Serializable, encode_b64_image
 if TYPE_CHECKING:
     from marl.config import EnvConfig, TrainerConfig
 
+RUN_FILE = "run.json"
+
 
 @dataclass
 class Run[A: Space, T: npt.ArrayLike](Serializable):
     seed: int
-    rundir: Path
+    rundir: str
     trainer: TrainerConfig[T]
     env: EnvConfig[A]
     test_env: EnvConfig[A]
@@ -30,6 +32,14 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
     loggers: Collection[LoggerType]
     save_weights: bool = True
     save_actions: bool = True
+
+    def __post_init__(self):
+        if not self.runpath.exists():
+            self.save()
+
+    @property
+    def runpath(self):
+        return Path(self.rundir)
 
     def should_test_at(self, time_step: int):
         if self.n_tests <= 0:
@@ -46,11 +56,11 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
 
     @property
     def run_file(self):
-        return self.rundir / "run.json"
+        return self.runpath / RUN_FILE
 
     @property
     def pid_filename(self):
-        return self.rundir / "pid"
+        return self.runpath / "pid"
 
     def save(self):
         self.to_file(self.run_file)
@@ -62,13 +72,13 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
         loggers = list[Logger]()
         for spec in set(self.loggers):
             if spec == "tensorboard":
-                loggers.append(TBLogger(self.rundir))
+                loggers.append(TBLogger(self.runpath))
             elif spec == "csv":
-                loggers.append(CSVLogger(self.rundir))
+                loggers.append(CSVLogger(self.runpath))
             elif spec == "wandb":
-                loggers.append(WABLogger(self.rundir))
+                loggers.append(WABLogger(self.runpath))
             elif spec == "neptune":
-                loggers.append(NeptuneLogger(self.rundir))
+                loggers.append(NeptuneLogger(self.runpath))
             elif spec == "sqlite":
                 raise NotImplementedError("SQLite logger requires additional parameters. Use SQLiteLogger directly.")
             else:
@@ -131,15 +141,17 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
         return psutil.Process(self.pid).ppid()
 
     def kill(self, signal: Signals | int = SIGINT):
-        if not isinstance(signal, int):
-            signal = int(signal)
+        """Kill the run, if it is running and return whether the run was killed or not."""
         pid = self.pid
+        killed = False
         if pid is not None:
             try:
                 os.kill(pid, signal)
+                killed = True
             except ProcessLookupError:
                 pass
         self._cleanup_pid_file()
+        return killed
 
     def _cleanup_pid_file(self):
         try:
@@ -190,4 +202,8 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, self.seed, compute_frames=True)
         frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(self.rundir, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
+        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
+
+    @classmethod
+    def load(cls, rundir: Path):
+        return cls.from_file(rundir / RUN_FILE)

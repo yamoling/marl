@@ -60,7 +60,7 @@ class ReplayActionsOnlyAgent(ReplayAgent):
 
 
 class SimpleReplayAgent(ReplayAgent):
-    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: str):
+    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: Path):
         super().__init__()
         agent.load(weights_path)
         self.agent = agent
