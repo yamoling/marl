@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 from marlenv import Episode, Space
 
 from .action import Action
@@ -36,7 +38,7 @@ class ReplayEpisode(LightEpisodeSummary):
 
     def __init__(
         self,
-        rundir: str,
+        rundir: Path,
         time_step: int,
         test_num: int,
         episode: Episode,
@@ -45,7 +47,7 @@ class ReplayEpisode(LightEpisodeSummary):
         action_space: Space,
         replay_agent: "ReplayAgent",
     ):
-        super().__init__(rundir, episode.metrics, time_step, test_num)
+        super().__init__(rundir.as_posix(), episode.metrics, time_step, test_num)
         self.episode = episode
         self.frames = frames
         self.agent_details = [a.details for a in detailed_actions]

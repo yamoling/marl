@@ -1,9 +1,12 @@
+import csv
 import os
 import time
-import csv
-import polars as pl
+from pathlib import Path
 from typing import Any
-from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL
+
+import polars as pl
+
+from .logger import TIME_STEP_COL, TIMESTAMP_COL, Logger, LogReader
 
 QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
@@ -96,7 +99,7 @@ class CSVLogReader(LogReader):
 
 
 class CSVLogger(Logger):
-    def __init__(self, logdir: str, flush_interval_sec: float = 30):
+    def __init__(self, logdir: Path, flush_interval_sec: float = 30):
         super().__init__(logdir)
         self.test = CSVLogWriter(os.path.join(logdir, TEST), flush_interval_sec)
         self.train = CSVLogWriter(os.path.join(logdir, TRAIN), flush_interval_sec)

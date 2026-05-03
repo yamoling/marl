@@ -1,5 +1,6 @@
 import os
-from dataclasses import dataclass, fields
+from dataclasses import Field, dataclass, fields
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Self, Type, Union, get_args, get_origin
 
@@ -64,6 +65,36 @@ def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
     return None
 
 
+def deserialize_field(f: Field, value: Any):
+    """
+    Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
+        - datetimes are deserialized from ISO format
+        - non-dict values are left unchanged
+        - fields that inherit from `Serializable` return their deserialied value
+
+    **Notes:**
+        - These rules assume that there is no complex types such as `list[SomeComplexClass]` and currently
+    fail at deserialising such values.
+        - Union types other than `T | None` are not yet supported.
+    """
+    if f.type is datetime:
+        return datetime.fromisoformat(value)
+    if not isinstance(value, dict):
+        return value
+    actual_type = f.type
+    # For union types like `X | None`, get the `X` type
+    if get_origin(actual_type) is Union:
+        # Filter out NoneType to find the actual class
+        union_types = [a for a in get_args(actual_type) if a is not type(None)]
+        if len(union_types) > 1:
+            raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
+        actual_type = union_types[0]
+    # If the resulting type is a Serializable subclass, then deserialize it
+    if isinstance(actual_type, type) and issubclass(actual_type, Serializable):
+        return actual_type.from_dict(value)
+    return value
+
+
 @dataclass
 class Serializable:
     def to_dict(self):
@@ -96,20 +127,7 @@ class Serializable:
 
         # Iterate on all fields to identify complex ones that require deserialization
         for f in fields(cls):
-            # Don't bother for simple types, None values or values not in `d`
-            if f.type in (int, str, float, bool) or d.get(f.name) is None:
-                continue
-            actual_type = f.type
-            # For union types like `X | None`, get the `X` type
-            if get_origin(actual_type) is Union:
-                # Filter out NoneType to find the actual class
-                union_types = [a for a in get_args(actual_type) if a is not type(None)]
-                if len(union_types) > 1:
-                    raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
-                actual_type = union_types[0]
-            # If the resulting type is a Serializable subclass, then deserialize it
-            if isinstance(actual_type, type) and issubclass(actual_type, Serializable):
-                d[f.name] = actual_type.from_dict(d[f.name])
+            d[f.name] = deserialize_field(f, d[f.name])
         return cls(**d)
 
     @classmethod

@@ -1,6 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from functools import cached_property
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -74,7 +75,7 @@ class Agent[T](ABC):
             nn.reset_hidden_states()
 
     def to(self, device: torch.device):
-        """Move the algorithm to the specified device"""
+        """Move the agent's networks to the specified device."""
         self._device = device
         for nn in self.networks():
             nn.to(device)
@@ -106,17 +107,17 @@ class Agent[T](ABC):
         names = set(nn.name for nn in networks)
         return len(names) == len(networks)
 
-    def save(self, to_directory: str):
+    def save(self, to_directory: Path):
         """Save the algorithm to the specified directory"""
         if not self._can_autosave():
             raise NotImplementedError("Duplicate network name, you need to implement a custom save method")
         os.makedirs(to_directory, exist_ok=True)
         for nn in self.networks():
-            torch.save(nn.state_dict(), os.path.join(to_directory, f"{nn.name}.pt"))
+            torch.save(nn.state_dict(), to_directory / f"{nn.name}.pt")
 
-    def load(self, from_directory: str):
+    def load(self, from_directory: Path):
         """Load the algorithm parameters from the specified directory"""
         if not self._can_autosave():
             raise NotImplementedError("Duplicate network name, you need to implement a custom load method")
         for nn in self.networks():
-            nn.load_state_dict(torch.load(os.path.join(from_directory, f"{nn.name}.pt"), map_location=self.device))
+            nn.load_state_dict(torch.load(from_directory / f"{nn.name}.pt", map_location=self.device))

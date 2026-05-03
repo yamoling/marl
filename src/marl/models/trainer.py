@@ -1,6 +1,7 @@
 import os
 from abc import ABC
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal, Self, Sequence
 
 import torch
@@ -47,22 +48,15 @@ class Trainer[T](ABC):
         """
         return 0.0
 
-    def config(self) -> dict[str, Any]:
-        """
-        Get the configuration of the trainer, typically used for logging.
-        """
-        return asdict(self)
-
-    def save(self, directory_path: str):
-        if not os.path.exists(directory_path):
+    def save(self, directory_path: Path):
+        if not directory_path.exists():
             os.makedirs(directory_path)
         for i, nn in enumerate(self.networks()):
-            os.path.join(directory_path, f"{nn.name}_{i}.pt")
-            torch.save(nn.state_dict(), f"{directory_path}_{i}.pt")
+            torch.save(nn.state_dict(), directory_path / f"{nn.name}_{i}.pt")
 
-    def load(self, directory_path: str):
+    def load(self, directory_path: Path):
         for i, nn in enumerate(self.networks()):
-            path = os.path.join(directory_path, f"{nn.name}_{i}.pt")
+            path = directory_path / f"{nn.name}_{i}.pt"
             nn.load_state_dict(torch.load(path))
 
     @property
@@ -112,9 +106,6 @@ class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
         self.meta_trainer.to(device)
         self.worker_trainer.to(device)
         return self
-
-    def config(self) -> dict[str, Any]:
-        return self.merge_logs(self.meta_trainer.config(), self.worker_trainer.config())
 
     def value(self, obs: Observation, state: State):
         return self.meta_trainer.value(obs, state)

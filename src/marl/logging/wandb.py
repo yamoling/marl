@@ -1,5 +1,6 @@
 import os
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import dotenv
@@ -13,7 +14,7 @@ from .logger import Logger
 
 
 class WABLogger(Logger):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         super().__init__(logdir)
         dotenv.load_dotenv()
         wandb.login()

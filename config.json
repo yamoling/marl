@@ -1,5 +1,4 @@
 {
-  "logdir": "logs/test",
   "env": {
     "agent_id": true,
     "time_limit": 78,
@@ -33,7 +32,7 @@
       ],
       "is_recurrent": false,
       "mlp_sizes": [
-        128,
+        256,
         128
       ],
       "hidden_activation": "relu",
@@ -72,12 +71,11 @@
     "dislay-name": "DQNConfig"
   },
   "n_steps": 1000000,
-  "test_interval": 5000,
+  "logdir": "logs/test",
   "test_env": null,
-  "save_weights": false,
-  "logger": "csv",
-  "save_actions": true,
-  "creation_timestamp": null,
-  "class-name": "ExperimentConfig",
-  "dislay-name": "ExperimentConfig"
+  "loggers": [
+    "csv"
+  ],
+  "creation_timestamp": "2026-05-03T21:48:58.814886",
+  "class-name": "Experiment"
 }

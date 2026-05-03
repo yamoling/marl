@@ -1,7 +1,5 @@
 import os
-import shutil
 from abc import ABC, abstractmethod
-from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -9,7 +7,7 @@ import cv2
 import numpy as np
 import orjson
 import polars as pl
-from marlenv import Episode, MARLEnv
+from marlenv import Episode
 
 from marl.models.replay_episode import LightEpisodeSummary
 
@@ -84,16 +82,9 @@ class LogReader(ABC, LogHelper):
 class Logger(ABC, LogHelper):
     """Logger base class."""
 
-    logdir: str
-
     def __init__(self, logdir: Path):
         super().__init__(logdir)
-        if not logdir.startswith("logs/"):
-            logdir = os.path.join("logs", logdir)
         LogHelper.__init__(self, logdir)
-        if os.path.exists(logdir):
-            if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
-                shutil.rmtree(logdir)
 
     def log_train(self, data: dict[str, Any], time_step: int):
         if len(data) == 0:
@@ -109,12 +100,6 @@ class Logger(ABC, LogHelper):
         if len(data) == 0:
             return
         self.log(data, time_step, prefix="test/")
-
-    def log_params(self, trainer: "Trainer", agent: "Agent", env: MARLEnv, test_env: MARLEnv):
-        self.log(asdict(trainer), prefix="params/trainer/", time_step=0)
-        self.log(asdict(agent), prefix="params/agent/", time_step=0)
-        self.log(asdict(env), prefix="params/env/", time_step=0)
-        self.log(asdict(test_env), prefix="params/test_env/", time_step=0)
 
     @abstractmethod
     def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
@@ -162,6 +147,6 @@ class Logger(ABC, LogHelper):
 
     def save_agent(self, agent: "Agent", time_step: int):
         directory = self.get_saved_algo_dir(time_step)
-        if not os.path.exists(directory):
+        if not directory.exists():
             os.makedirs(directory)
         agent.save(directory)

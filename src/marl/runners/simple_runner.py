@@ -1,6 +1,5 @@
 import logging
-from copy import deepcopy
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -8,147 +7,89 @@ import torch
 from marlenv import Episode, MARLEnv, Space, Transition
 from tqdm import tqdm
 
-from marl.utils import get_device
-
 if TYPE_CHECKING:
-    from marl import Agent, Experiment, Run, Trainer
-    from marl.logging import Logger
+    import marl
+    from marl import Agent, Run, Trainer
 
 
-class SimpleRunner[A: Space]:
+def simple_run[A: Space, T: npt.ArrayLike](run: Run[A, T], quiet: bool, render_tests: bool, device: torch.device):
     """
-    The Simple Runner contains the main logic to perform one single run. Every runner should rely on `SimpleRunner` to perform the training loop in order to remain consistent.
+    Boilerplate to run an RL experiment:
+        - Seeding first
+        - Creation of the trainer, agent, logger and training and testing environments
+        - Train the agent
+        - Tests **exactly** every `run.test_interval` steps
+        - Log training and testing data
     """
+    with tqdm(total=run.n_steps, desc="Training", unit="step", leave=True, disable=quiet) as pbar, run:
+        env, test_env = run.env.make(), run.test_env.make()
+        marl.seed(run.seed, env, test_env)
+        trainer = run.trainer.make().to(device)
+        agent = trainer.make_agent().to(device)
+        episode_num, time_step = 0, 0
+        while time_step < run.n_steps:
+            episode = _train_episode(env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run)
+            episode_num += 1
+            time_step += len(episode)
+            pbar.update(len(episode))
+        # Test the final agent
+        if run.should_test_at(time_step):
+            _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
 
-    def __init__(
-        self,
-        n_steps: int,
-        env: MARLEnv[A],
-        n_tests: int = 1,
-        test_interval: int = 5000,
-        quiet: bool = False,
-        agent: "Agent[npt.ArrayLike] | None" = None,
-        trainer: "Trainer[npt.ArrayLike] | None" = None,
-        test_env: MARLEnv[A] | None = None,
-        save_weights: bool = False,
-        save_actions: bool = True,
-    ):
-        if trainer is None:
-            from marl.training import NoTrain
 
-            trainer = NoTrain(env)
-        self.n_steps = n_steps
-        self.test_interval = test_interval
-        self.n_tests = n_tests
-        self._trainer = trainer
-        self._env = env
-        self._save_weights = save_weights
-        self._save_actions = save_actions
-        if agent is None:
-            agent = trainer.make_agent()
-        self._agent = agent
-        if test_env is None:
-            test_env = deepcopy(env)
-        self._test_env = test_env
-        self._quiet = quiet
+def _train_episode(
+    env: MARLEnv,
+    test_env: MARLEnv,
+    agent: Agent,
+    trainer: Trainer,
+    time_step: int,
+    episode_num: int,
+    render_tests: bool,
+    quiet: bool,
+    run: Run,
+):
+    obs, state = env.reset()
+    agent.new_episode()
+    episode = Episode.new(obs, state, metrics={"episode_num": episode_num})
+    while not episode.is_finished:
+        if run.should_test_at(time_step):
+            _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
+        action = agent.choose_action(obs)
+        step = env.step(action)
+        if time_step == run.n_steps:
+            step.truncated = True
+        transition = Transition.from_step(obs, state, action.action, step, **action.details)
+        training_metrics = trainer.update_step(transition, time_step)
+        run.logger.log_training_data(training_metrics, time_step)
+        episode.add(transition)
+        obs = step.obs
+        state = step.state
+        time_step += 1
+    run.logger.log_train(episode.metrics, time_step)
+    training_logs = trainer.update_episode(episode, episode_num, time_step)
+    run.logger.log_training_data(training_logs, time_step)
+    return episode
 
-    def start(self, run: "Run", render_tests: bool = False):
-        """Start the training loop."""
-        import marl
 
-        if run.is_running or run.is_completed(self.n_steps):
-            return
-
-        marl.seed(run.seed, self._env)
-        self._agent.randomize()
-        self._trainer.randomize()
-
-        with (
-            tqdm(total=self.n_steps, desc="Training", unit="Step", leave=True, disable=self._quiet) as pbar,
-            run as logger,
-        ):
-            episode_num = 0
-            step = 0
-            while step < self.n_steps:
-                episode = self._train_episode(logger, step, episode_num, render_tests)
-                episode_num += 1
-                step += len(episode)
-                pbar.update(len(episode))
-            # Test the final agent
-            if self.n_tests > 0 and self.test_interval > 0:
-                self._test_and_log(logger, self.n_steps, render_tests)
-
-    @staticmethod
-    def from_experiment(
-        exp: "Experiment[A]",
-        n_tests: int = 1,
-        quiet: bool = False,
-    ):
-        return SimpleRunner(
-            exp.n_steps,
-            exp.env,
-            n_tests,
-            exp.test_interval,
-            quiet,
-            exp.trainer.make_agent(),
-            exp.trainer,
-            exp.test_env,
-            save_weights=exp.save_weights,
-        )
-
-    def _train_episode(self, logger: "Logger", step_num: int, episode_num: int, render_tests: bool):
-        obs, state = self._env.reset()
-        self._agent.new_episode()
-        episode = Episode.new(obs, state, metrics={"initial_value": self._trainer.value(obs, state), "episode_num": episode_num})
-        while not episode.is_finished and step_num < self.n_steps:
-            if self.n_tests > 0 and self.test_interval > 0 and step_num % self.test_interval == 0:
-                self._test_and_log(logger, step_num, render_tests)
-            action = self._agent.choose_action(obs)
-            step = self._env.step(action)
-            if step_num == self.n_steps:
-                step.truncated = True
-            transition = Transition.from_step(obs, state, action.action, step, **action.details)
-            training_metrics = self._trainer.update_step(transition, step_num)
-            logger.log_training_data(training_metrics, step_num)
-            episode.add(transition)
-            obs = step.obs
-            state = step.state
-            step_num += 1
-        logger.log_train(episode.metrics, step_num)
-        training_logs = self._trainer.update_episode(episode, episode_num, step_num)
-        logger.log_training_data(training_logs, step_num)
-        return episode
-
-    def _test_and_log(self, logger: "Logger", time_step: int, render: bool):
-        if self._save_weights:
-            logger.save_agent(self._agent, time_step)
-        episodes = self.perform_tests(time_step, render)
-        logger.log_test_episodes(episodes, time_step, self._save_actions)
-
-    def perform_tests(self, time_step: int, render: bool = False):
-        """Test the agent"""
-        self._agent.set_testing()
-        episodes = list[Episode]()
-        for test_num in tqdm(range(self.n_tests), desc="Testing", unit="Episode", leave=True, disable=self._quiet):
-            seed = get_test_seed(time_step, test_num)
-            episodes.append(seeded_rollout(self._test_env, self._agent, seed, render, compute_frames=False)[0])
-        if not self._quiet:
-            metrics = episodes[0].metrics.keys()
-            avg_metrics = {}
-            for key in metrics:
-                try:
-                    avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / self.n_tests
-                except TypeError:
-                    pass
-            logging.info(avg_metrics)
-        self._agent.set_training()
-        return episodes
-
-    def to(self, device: Literal["auto", "cpu"] | int | torch.device):
-        device = get_device(device)
-        self._agent = self._agent.to(device)
-        self._trainer = self._trainer.to(device)
-        return self
+def _test_and_log(test_env: MARLEnv, agent: Agent, time_step: int, render: bool, quiet: bool, run: Run):
+    if run.save_weights:
+        run.logger.save_agent(agent, time_step)
+    agent.set_testing()
+    episodes = list[Episode]()
+    for test_num in tqdm(range(run.n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
+        seed = get_test_seed(time_step, test_num)
+        episodes.append(seeded_rollout(test_env, agent, seed, render, compute_frames=False)[0])
+    if not quiet:
+        metrics = episodes[0].metrics.keys()
+        avg_metrics = {}
+        for key in metrics:
+            try:
+                avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / run.n_tests
+            except TypeError:
+                pass
+        logging.info(avg_metrics)
+    run.logger.log_test_episodes(episodes, time_step, run.save_actions)
+    agent.set_training()
 
 
 def seeded_rollout(env: MARLEnv, agent: "Agent", seed: int, render=False, compute_frames=False):
