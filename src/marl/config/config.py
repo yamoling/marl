@@ -1,27 +1,23 @@
 from abc import abstractmethod
-from dataclasses import dataclass, field
 from typing import Any
 
 from marl.utils import Serializable
 
+DISPLAY_NAME = "dislay-name"
 
-@dataclass
+
 class Config[T](Serializable):
-    name: str = field(init=False)
-
-    def __post_init__(self):
-        name = self.__class__.__name__.removesuffix("Config").removesuffix("Conf")
-        if len(name) == 0:
-            name = self.__class__.__name__
-        self.name = name
-
     @abstractmethod
     def make(self) -> T: ...
 
+    def to_dict(self):
+        d = super().to_dict()
+        d[DISPLAY_NAME] = self.__class__.__name__
+        return d
+
     @classmethod
     def from_dict(cls, d: dict[str, Any]):
-        # Remove the "name" field because it is not part of the constructor arguments.
-        # We must add a default value such that it does not fail if `from_dict` is called recursively
-        # due to child class dispatching.
-        d.pop("name", None)
+        # Remove the DISPLAY_NAME field because it is not part of the constructor arguments.
+        # We add a default value such that it does not fail if `from_dict` is called recursively due to child class dispatching.
+        d.pop(DISPLAY_NAME, None)
         return super().from_dict(d)

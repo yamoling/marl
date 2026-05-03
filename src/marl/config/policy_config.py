@@ -56,23 +56,27 @@ class PolicyConfig(Config[Policy]):
 
     @overload
     @staticmethod
-    def epsilon(kind: Literal["linear"], start: float, end: float, n_steps: int, /) -> "EpsilonGreedyConfig": ...
+    def epsilon(kind: Literal["linear"], n_steps: int, end: float, start: float = 1.0, /) -> "EpsilonGreedyConfig": ...
 
     @overload
     @staticmethod
-    def epsilon(kind: Literal["exponential"], start: float, end: float, n_steps: int, /) -> "EpsilonGreedyConfig": ...
+    def epsilon(kind: Literal["exponential"], end: float, n_steps: int, start: float = 1.0, /) -> "EpsilonGreedyConfig": ...
 
     @staticmethod
-    def epsilon(kind: Literal["constant", "linear", "exponential"], /, *args):
-        match kind:
-            case "constant":
-                schedule = ScheduleConfig.constant(*args)
-            case "linear":
-                schedule = ScheduleConfig.linear(*args)
-            case "exponential":
-                schedule = ScheduleConfig.exponential(*args)
+    def epsilon(*args):
+        match args:
+            case ("constant", value):
+                schedule = ScheduleConfig.constant(value)
+            case ("linear", n_steps, end):
+                schedule = ScheduleConfig.linear(1.0, end, n_steps)
+            case ("linear", n_steps, end, start):
+                schedule = ScheduleConfig.linear(start, end, n_steps)
+            case ("exponential", n_steps, end):
+                schedule = ScheduleConfig.exponential(1.0, end, n_steps)
+            case ("exponential", n_steps, end, start):
+                schedule = ScheduleConfig.exponential(start, end, n_steps)
             case _:
-                raise ValueError(f"Unknown epsilon kind: {kind}")
+                raise ValueError(f"Unknown argument combination kind: {args}")
         return EpsilonGreedyConfig(schedule)
 
 

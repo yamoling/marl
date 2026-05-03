@@ -1,8 +1,9 @@
-import typed_argparse as tap
 import logging
 import os
-import dotenv
 import sys
+
+import dotenv
+import typed_argparse as tap
 
 
 class Arguments(tap.TypedArgs):
@@ -20,8 +21,6 @@ if __name__ == "__main__":
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
         handlers=[logging.FileHandler("server.log", mode="a"), logging.StreamHandler()],
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
     )
     try:
         tap.Parser(Arguments).bind(main).run()

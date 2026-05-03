@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -42,7 +43,7 @@ class TBReader(LogReader):
 
 
 class TBLogger(Logger):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         super().__init__(logdir)
         self.writer = SummaryWriter(logdir)
 

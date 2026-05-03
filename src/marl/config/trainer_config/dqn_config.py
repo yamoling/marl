@@ -1,9 +1,9 @@
-from dataclasses import asdict, dataclass, field
-from typing import TYPE_CHECKING, Any, Literal
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Literal
 
 from marlenv import MARLEnv
 
-from marl.config.nn_config import NetworkConfig
+from marl.config.nn_config import QNetworkConfig
 
 from ..memory_config import MemoryConfig
 from ..policy_config import PolicyConfig
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class DQNConfig(TrainerConfig):
-    qnetwork: NetworkConfig
+    qnetwork: QNetworkConfig
     train_policy: PolicyConfig
     memory: MemoryConfig
     optimiser_type: Literal["adam", "rmsprop"] = "adam"
@@ -29,7 +29,7 @@ class DQNConfig(TrainerConfig):
         from marl.training import DQN
 
         return DQN(
-            qnetwork=self.qnetwork.make_qnetwork(),
+            qnetwork=self.qnetwork.make(),
             train_policy=self.train_policy.make(),
             memory=self.memory.make(),
             optimiser_type=self.optimiser_type,
@@ -42,6 +42,3 @@ class DQNConfig(TrainerConfig):
             grad_norm_clipping=self.grad_norm_clipping,
             test_policy=self.test_policy.make() if self.test_policy is not None else None,
         )
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)

@@ -1,5 +1,5 @@
-from dataclasses import KW_ONLY, dataclass
 import math
+from dataclasses import KW_ONLY, dataclass
 
 import torch
 import torch.nn as nn
@@ -10,7 +10,7 @@ from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class QMix(Mixer):
     """
     QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning
@@ -18,6 +18,7 @@ class QMix(Mixer):
     (almost) copy-pasted from https://github.com/oxwhirl/pymarl
     """
 
+    n_agents: int
     state_size: int
     state_extras_size: int
     _: KW_ONLY
@@ -109,7 +110,6 @@ class QMix(Mixer):
         if maven_noise_size is not None:
             state_size += maven_noise_size
         return QMix(
-            (env.n_objectives,),
             env.n_agents,
             state_size,
             env.state_extras_size,

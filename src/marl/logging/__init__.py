@@ -1,15 +1,15 @@
-from .logger import Logger, LogReader
-from .csv_logger import CSVLogger
-from .wandb import WABLogger
-from .neptune import NeptuneLogger
-from .tensorboard import TBLogger
-from .sql_logger import SQLiteLogger
-from .multi_logger import MultiLogger
 from typing import Literal, Sequence, TypeAlias
 
+from .csv_logger import CSVLogger
+from .logger import Logger, LogReader
+from .multi_logger import MultiLogger
+from .neptune import NeptuneLogger
+from .sql_logger import SQLiteLogger
+from .tensorboard import TBLogger
+from .wandb import WABLogger
 
-LogSpec: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
-LogSpecs: TypeAlias = LogSpec | Sequence[LogSpec]
+LoggerType: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
+LogSpecs: TypeAlias = LoggerType | Sequence[LoggerType]
 # Dataframe columns
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
@@ -49,7 +49,7 @@ __all__ = [
     "WABLogger",
     "NeptuneLogger",
     "TBLogger",
-    "LogSpec",
+    "LoggerType",
     "LogSpecs",
     "TickColumn",
 ]

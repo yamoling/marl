@@ -17,12 +17,6 @@ class MixerConfig(Config[Mixer]):
     _: KW_ONLY
     n_objectives: int = 1
 
-    @property
-    def output_shape(self):
-        if self.n_objectives == 1:
-            return (self.n_actions,)
-        return (self.n_actions, self.n_objectives)
-
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace], **kwargs):
         return cls(env.n_agents, env.n_actions, env.state_size, env.state_extras_size, n_objectives=env.n_objectives, **kwargs)
@@ -31,7 +25,7 @@ class MixerConfig(Config[Mixer]):
 @dataclass
 class VDNConfig(MixerConfig):
     def make(self):
-        return mixers.VDN(self.output_shape, self.n_agents, n_objectives=self.n_objectives)
+        return mixers.VDN(n_objectives=self.n_objectives)
 
 
 @dataclass
@@ -42,7 +36,6 @@ class QMixConfig(MixerConfig):
 
     def make(self):
         return mixers.QMix(
-            self.output_shape,
             self.n_agents,
             self.state_size,
             self.state_extras_size,

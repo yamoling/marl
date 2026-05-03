@@ -1,4 +1,6 @@
-from dataclasses import asdict, dataclass, fields
+import os
+from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Any, Self, Type, Union, get_args, get_origin
 
 import numpy as np
@@ -64,6 +66,19 @@ def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
 
 @dataclass
 class Serializable:
+    def to_dict(self):
+        res = {}
+        for field in fields(self):
+            if not field.init:
+                continue
+            value = self.__dict__[field.name]
+            if isinstance(value, Serializable):
+                res[field.name] = value.to_dict()
+            else:
+                res[field.name] = value
+        res[DISCRIMINATOR_KEY] = self.__class__.__name__
+        return res
+
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> Self:
         """
@@ -90,7 +105,7 @@ class Serializable:
                 # Filter out NoneType to find the actual class
                 union_types = [a for a in get_args(actual_type) if a is not type(None)]
                 if len(union_types) > 1:
-                    raise NotImplementedError(f"Union type {actual_type} has more than one non-None type")
+                    raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
                 actual_type = union_types[0]
             # If the resulting type is a Serializable subclass, then deserialize it
             if isinstance(actual_type, type) and issubclass(actual_type, Serializable):
@@ -103,10 +118,20 @@ class Serializable:
         d = orjson.loads(data)
         return cls.from_dict(d)
 
-    def to_dict(self):
-        d = asdict(self)
-        d[DISCRIMINATOR_KEY] = self.__class__.__name__
-        return d
+    def to_json(self, *, beautify: bool = False):
+        option = None
+        if beautify:
+            option = orjson.OPT_INDENT_2
+        return orjson.dumps(self.to_dict(), option=option)
 
-    def to_json(self):
-        return orjson.dumps(self.to_dict())
+    @classmethod
+    def from_file(cls, path: Path | str):
+        with open(path, "rb") as f:
+            return cls.from_json(f.read())
+
+    def to_file(self, path: Path | str, beautify: bool = False):
+        if not isinstance(path, Path):
+            path = Path(path)
+        os.makedirs(path.parent, exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(self.to_json(beautify=beautify))

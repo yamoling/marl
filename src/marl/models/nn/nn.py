@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 import torch
@@ -14,16 +14,14 @@ def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
             init_fn(param.data)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class NN(torch.nn.Module):
     """Parent class of all neural networks"""
 
     output_shape: tuple[int, ...]
-    name: str = field(init=False)
 
     def __post_init__(self):
         super().__init__()
-        self.name = self.__class__.__name__
 
     @property
     def output_size(self):
@@ -63,10 +61,9 @@ class NN(torch.nn.Module):
         return f"{self.name} (on {self.device})"
 
 
-@dataclass(repr=False, unsafe_hash=True)
 class RecurrentNN(NN):
-    def __post_init__(self):
-        super().__post_init__()
+    def __init__(self, output_shape: tuple[int, ...]):
+        super().__init__(output_shape)
         self._hidden_states: Tensor | None = None
         self._saved_hidden_states: Tensor | None = None
 

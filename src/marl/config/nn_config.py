@@ -5,6 +5,7 @@ from typing import Literal, Sequence
 
 from marlenv import MARLEnv
 
+from marl.config.env_config import EnvConfig
 from marl.models.nn import NN, ActorCritic, QNetwork
 from marl.nn.model_bank import actor_critics, qnetworks
 
@@ -75,11 +76,13 @@ class QNetworkConfig(NetworkConfig[QNetwork]):
 
     @staticmethod
     def from_env(
-        env: MARLEnv,
-        mlp_sizes: Sequence[int] = (128, 128),
+        env: EnvConfig | MARLEnv,
+        mlp_sizes: Sequence[int] = (256, 128),
         hidden_activation: Literal["relu", "tanh", "sigmoid"] = "relu",
         noisy: bool = False,
     ):
+        if not isinstance(env, MARLEnv):
+            env = env.make()
         if env.is_multi_objective:
             output_shape = (env.n_actions, env.n_objectives)
         else:

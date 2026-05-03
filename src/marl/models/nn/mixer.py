@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from dataclasses import KW_ONLY, dataclass
+from dataclasses import KW_ONLY, dataclass, field
 
 import torch
 
@@ -8,16 +8,19 @@ from .nn import NN
 
 @dataclass
 class Mixer(NN):
-    n_agents: int
+    output_shape: tuple[int, ...] = field(init=False)
     _: KW_ONLY
     n_objectives: int = 1
 
     def __post_init__(self):
         super().__post_init__()
+        self.output_shape = (self.n_objectives,)
+
+    @property
+    def agent_dim(self):
         if self.n_objectives == 1:
-            self.agent_dim = -1
-        else:
-            self.agent_dim = -2
+            return -1
+        return -2
 
     @abstractmethod
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs) -> torch.Tensor:

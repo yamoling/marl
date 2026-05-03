@@ -1,111 +1,111 @@
 import os
 import shutil
-import time
 from copy import deepcopy
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Collection, Literal
 
-import orjson
+import torch
+from marlenv import Space
 
-from marl.logging import LogSpecs
+from marl.logging import LoggerType
+from marl.models.experiment import Experiment
+from marl.models.run import Run
 
-from .env_conf import EnvConf, env_conf_from_dict
+from .config import Config
+from .env_config import EnvConfig
+from .log_config import LogConfig
+from .run_config import RunConfig
 from .trainer_config import TrainerConfig
 
 
 @dataclass
-class ExperimentConfig:
-    logdir: str
-    env: EnvConf
+class ExperimentConfig[A: Space](Config[Experiment[A]]):
+    env: EnvConfig[A]
     trainer: TrainerConfig
-    n_steps: int
-    test_interval: int = 5_000
-    test_env: EnvConf | None = None
-    save_weights: bool = False
-    logger: LogSpecs = "csv"
-    save_actions: bool = True
-    creation_timestamp: int | None = None
+    n_steps: int = 1_000_000
+    logdir: str = "logs/test"
+    test_env: EnvConfig[A] | None = None
+    """Environment configuration to test the trained agent against. Defaults to `self.env`."""
+    loggers: list[LoggerType] = field(default_factory=lambda: ["csv"])
 
-    @staticmethod
-    def json_file(logdir: str) -> str:
-        return os.path.join(logdir, "experiment.conf.json")
+    @property
+    def logpath(self):
+        return Path(self.logdir)
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+    @property
+    def config_path(self):
+        return self.logpath / "experiment.json"
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExperimentConfig":
-        env_data = data.get("env")
-        trainer_data = data.get("trainer")
-        test_env_data = data.get("test_env")
-        if not isinstance(env_data, dict):
-            raise ValueError("experiment configuration expects a nested 'env' object")
-        if not isinstance(trainer_data, dict):
-            raise ValueError("experiment configuration expects a nested 'trainer' object")
+    @property
+    def may_overwrite(self):
+        """Whether a previous existing experiment with the same name may be overwritten or not."""
+        return self.logpath.parts[1] in ("test", "tests", "debug")
 
-        test_env = None
-        if isinstance(test_env_data, dict):
-            test_env = env_conf_from_dict(test_env_data)
+    def get_run_with_seed(self, seed: int):
+        for run in self.runs:
+            if run.seed == seed:
+                return run
+        return None
 
-        return cls(
-            logdir=str(data["logdir"]),
-            env=env_conf_from_dict(env_data),
-            trainer=trainer_conf_from_dict(trainer_data),
-            n_steps=int(data["n_steps"]),
-            test_interval=int(data.get("test_interval", 5_000)),
-            test_env=test_env,
-            save_weights=bool(data.get("save_weights", False)),
-            logger=data.get("logger", "csv"),
-            save_actions=bool(data.get("save_actions", True)),
-            creation_timestamp=data.get("creation_timestamp"),
-        )
+    def create_runs(self, seeds: int | Collection[int], test_interval: int, save_weights: bool, save_actions: bool):
+        if isinstance(seeds, int):
+            seeds = list(range(seeds))
+        if self.test_env is None:
+            self.test_env = self.env
+        for seed in seeds:
+            # Deepcopy to prevent modifying the original config
+            yield deepcopy(
+                RunConfig(
+                    seed,
+                    self.logpath / f"run-{seed}",
+                    self.trainer,
+                    self.env,
+                    self.test_env,
+                    self.n_steps,
+                    test_interval,
+                    LogConfig(self.logdir, self.loggers),
+                    save_weights,
+                    save_actions,
+                )
+            )
 
-    def save(self, path: str | None = None):
-        if path is None:
-            path = self.json_file(self.logdir)
-        if os.path.isdir(path):
-            path = self.json_file(path)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(orjson.dumps(self.to_dict(), option=orjson.OPT_SERIALIZE_NUMPY))
+    def run(
+        self,
+        seeds: int | Collection[int] = 1,
+        fill_strategy: Literal["scatter", "group"] = "group",
+        quiet: bool = False,
+        device: Literal["cpu", "auto"] | int = "auto",
+        n_tests: int = 1,
+        render_tests: bool = False,
+        n_parallel: int = torch.cuda.device_count(),
+        disabled_gpus: Collection[int] = (),
+    ):
+        pass
 
-    @staticmethod
-    def load(path_or_logdir: str) -> "ExperimentConfig":
-        path = path_or_logdir
-        if os.path.isdir(path_or_logdir):
-            path = ExperimentConfig.json_file(path_or_logdir)
-        with open(path, "rb") as f:
-            return ExperimentConfig.from_dict(orjson.loads(f.read()))
+    def save(self):
+        if self.may_overwrite:
+            shutil.rmtree(self.logdir, ignore_errors=True)
+        os.makedirs(self.logdir)
+        self.to_file(self.config_path)
 
-    def build(self, *, logdir: str | None = None):
-        from marl.models import Experiment
-
-        runtime_logdir = self.logdir if logdir is None else logdir
+    def make(self):
+        logger = self.logger.make()
         env = self.env.make()
-        trainer = self.trainer.make(env)
-        test_env = self.test_env.make() if self.test_env is not None else deepcopy(env)
-        if self.creation_timestamp is None:
-            creation_timestamp = int(time.time() * 1000)
-        else:
-            creation_timestamp = self.creation_timestamp
-        experiment = Experiment(
-            logdir=runtime_logdir,
-            trainer=trainer,
-            env=env,
-            n_steps=self.n_steps,
-            test_interval=self.test_interval,
-            creation_timestamp=creation_timestamp,
-            test_env=test_env,
-            logger=self.logger,
-            save_weights=self.save_weights,
-            save_actions=self.save_actions,
-        )
-        return experiment
+        trainer = self.trainer.make()
+        raise NotImplementedError()
 
-    def make_experiment(self, *, replace_if_exists: bool = False):
-        experiment = self.build()
-        if replace_if_exists and os.path.exists(experiment.logdir):
-            shutil.rmtree(experiment.logdir, ignore_errors=True)
-        experiment.save()
-        self.save(experiment.logdir)
-        return experiment
+    def get_run(self, run_num: int):
+        rundir = self.rundirs[run_num]
+        return Run.load(rundir, self.logger)
+
+    @property
+    def runs(self):
+        """All the runs related to the experiment."""
+        for rundir in self.rundirs:
+            yield Run.load(rundir, self.logger)
+
+    @property
+    def rundirs(self):
+        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
+        return [os.path.join(self.logdir, run) for run in ls]
