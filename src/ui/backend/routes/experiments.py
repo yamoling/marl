@@ -36,7 +36,7 @@ def list_running_experiments(logdir: str):
 
 @router.get("/experiment/{logdir:path}")
 def get_experiment(logdir: str):
-    return Response(orjson.dumps(marl.Experiment.get_parameters(logdir)), media_type="application/json")
+    return Response(marl.Experiment.from_file(logdir).to_json(), media_type="application/json")
 
 
 @router.post("/experiment/load/{logdir:path}")
@@ -94,9 +94,8 @@ def stop_experiment_runs(logdir: str):
 
 
 @router.get("/experiment/image/{seed}/{logdir:path}")
-def get_env_image(seed: str, logdir: str):
+def get_env_image(seed: int, logdir: str):
     exp = state.get_experiment(logdir)
-    exp.env.seed(int(seed))
-    exp.env.reset()
-    image = exp.env.get_image()
-    return encode_b64_image(image)
+    env = exp.env.make()
+    env.reset(seed=seed)
+    return encode_b64_image(env.get_image())

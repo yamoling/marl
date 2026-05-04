@@ -1,11 +1,11 @@
 from dataclasses import KW_ONLY, dataclass
 
-import numpy as np
 import torch
 import torch.nn as nn
 from marlenv import MARLEnv, MultiDiscreteSpace
 
-from marl.models.nn import Mixer
+from marl.config import EnvConfig
+from marl.models.nn import StateMixer
 
 
 class DMAQSIWeight(nn.Module):
@@ -73,7 +73,7 @@ class DMAQSIWeight(nn.Module):
 
 
 @dataclass(unsafe_hash=True)
-class QPlex(Mixer):
+class QPlex(StateMixer):
     """
     QPLEX mixer close to the official implementation in `qplex_official`.
 
@@ -82,7 +82,6 @@ class QPlex(Mixer):
     - advantage stream: weighted advantage wrt per-agent greedy values
     """
 
-    state_shape: int | tuple[int, ...]
     n_actions: int
     _: KW_ONLY
     embed_dim: int = 32
@@ -96,20 +95,18 @@ class QPlex(Mixer):
 
     def __post_init__(self):
         super().__post_init__()
-        self.state_dim = int(np.prod(self.state_shape))
-
         self.hyper_w_final = nn.Sequential(
-            nn.Linear(self.state_dim, self.hypernet_embed),
+            nn.Linear(self.state_size, self.hypernet_embed),
             nn.ReLU(),
             nn.Linear(self.hypernet_embed, self.n_agents),
         )
         self.V = nn.Sequential(
-            nn.Linear(self.state_dim, self.hypernet_embed),
+            nn.Linear(self.state_size, self.hypernet_embed),
             nn.ReLU(),
             nn.Linear(self.hypernet_embed, self.n_agents),
         )
         self.si_weight = DMAQSIWeight(
-            state_dim=self.state_dim,
+            state_dim=self.state_size,
             n_agents=self.n_agents,
             n_actions=self.n_actions,
             num_kernel=self.num_kernel,
@@ -144,7 +141,7 @@ class QPlex(Mixer):
         all_qvalues: torch.Tensor,
         available_actions: torch.Tensor | None,
     ) -> torch.Tensor:
-        states_flat = states.reshape(-1, self.state_dim)
+        states_flat = states.reshape(-1, self.state_size)
         agent_qs = qvalues.reshape(-1, self.n_agents)
 
         # Compute per-agent greedy baseline max_a Q_i(s, a).
@@ -195,7 +192,7 @@ class QPlex(Mixer):
     @classmethod
     def from_env(
         cls,
-        env: MARLEnv[MultiDiscreteSpace],
+        env: MARLEnv[MultiDiscreteSpace] | EnvConfig,
         embed_dim: int = 32,
         hypernet_embed: int = 64,
         num_kernel: int = 10,
@@ -204,10 +201,12 @@ class QPlex(Mixer):
         is_minus_one: bool = True,
         weighted_head: bool = True,
         is_stop_gradient: bool = True,
+        **kwargs,
     ):
-        return cls(
-            state_shape=env.state_shape,
-            n_agents=env.n_agents,
+        if not isinstance(env, MARLEnv):
+            env = env.make()
+        return super().from_env(
+            env,
             n_actions=env.n_actions,
             embed_dim=embed_dim,
             hypernet_embed=hypernet_embed,
@@ -217,13 +216,4 @@ class QPlex(Mixer):
             is_minus_one=is_minus_one,
             weighted_head=weighted_head,
             is_stop_gradient=is_stop_gradient,
-            n_objectives=env.reward_space.size,
         )
-
-    def save(self, to_directory: str):
-        filename = f"{to_directory}/qplex.weights"
-        torch.save(self.state_dict(), filename)
-
-    def load(self, from_directory: str):
-        filename = f"{from_directory}/qplex.weights"
-        self.load_state_dict(torch.load(filename, weights_only=True))

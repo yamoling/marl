@@ -1,6 +1,7 @@
 import pickle
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
+from pathlib import Path
 
 import numpy as np
 from marlenv import Transition
@@ -13,7 +14,7 @@ from marl.models.agent import Agent
 class QLearning(Trainer):
     n_actions: int
     n_agents: int
-    gamma: float = 0.99
+    _: KW_ONLY
     lr: float = 0.1
     default_qvalue: float = 1.0
 
@@ -36,17 +37,17 @@ class QLearning(Trainer):
             qmatrix[i][a] = newq
         return {}
 
-    def save(self, directory_path: str):
+    def save(self, directory: Path):
         import os
 
-        qtable_file = os.path.join(directory_path, "qlearning.pkl")
+        qtable_file = os.path.join(directory, "qlearning.pkl")
         with open(qtable_file, "wb") as f:
             pickle.dump(self, f)
 
-    def load(self, directory_path: str):
+    def load(self, directory: Path):
         import os
 
-        file = os.path.join(directory_path, "qtable.pkl")
+        file = os.path.join(directory, "qtable.pkl")
         with open(file, "rb") as f:
             loaded: QLearning = pickle.load(f)
         self._qtable = loaded._qtable

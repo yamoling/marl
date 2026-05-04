@@ -1,45 +1,144 @@
 import math
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import torch
 from marlenv import MARLEnv, MultiDiscreteSpace
 from torch import Tensor
 
-from marl.models.nn import NN, QNetwork, RecurrentQNetwork
+from marl.models.nn import NN, ActivationType, QNetwork, RecurrentQNetwork
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
 from .generic import CNN, CRNN, MLP, RNN
 
-
-@dataclass(unsafe_hash=True)
-class QCNN(CNN, QNetwork):
-    def __post_init__(self):
-        QNetwork.__post_init__(self)
-        CNN.__post_init__(self)
+if TYPE_CHECKING:
+    from marl.config import EnvConfig
 
 
 @dataclass(unsafe_hash=True)
-class QMLP(MLP, QNetwork):
+class QCNN(QNetwork):
+    _: KW_ONLY
+    mlp_sizes: Sequence[int] = (256, 128)
+    hidden_activation: ActivationType = "relu"
+    noisy: bool = False
+
     def __post_init__(self):
-        QNetwork.__post_init__(self)
-        MLP.__post_init__(self)
+        super().__post_init__()
+        assert len(self.obs_shape) == 3
+        if self.noisy:
+            self.noisy_layer = NoisyLinear(self.mlp_sizes[-1], self.output_size)
+            cnn_output_shape = (self.mlp_sizes[-1],)
+            cnn_output_activation = self.hidden_activation
+        else:
+            self.noisy_layer = None
+            cnn_output_shape = self.output_shape
+            cnn_output_activation = None
+        self.cnn = CNN(
+            cnn_output_shape,
+            self.obs_shape,
+            self.extras_size,
+            self.mlp_sizes,
+            self.hidden_activation,
+            output_activation=cnn_output_activation,
+        )
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
+        x = self.cnn.forward(obs, extras, **kwargs)
+        if self.noisy_layer is not None:
+            return self.noisy_layer.forward(x)
+        return x
 
 
 @dataclass(unsafe_hash=True)
-class QRNN(RNN, RecurrentQNetwork):
+class QMLP(QNetwork):
+    _: KW_ONLY
+    hidden_sizes: Sequence[int] = (256, 128)
+    activation: ActivationType = "relu"
+    noisy: bool = False
+
     def __post_init__(self):
-        RecurrentQNetwork.__post_init__(self)
-        RNN.__post_init__(self)
+        super().__post_init__()
+
+        if self.noisy:
+            self.nn = MLP(
+                (self.hidden_sizes[-1],),
+                self.obs_size,
+                self.extras_size,
+                self.hidden_sizes,
+                self.activation,
+                output_activation=self.activation,
+            )
+            self.noisy_layer = NoisyLinear(self.hidden_sizes[1], self.n_actions)
+        else:
+            self.nn = MLP(self.output_shape, self.obs_size, self.extras_size, self.hidden_sizes, self.activation)
+            self.noisy_layer = None
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
+        x = self.nn.forward(obs, extras, **kwargs)
+        if self.noisy_layer is not None:
+            return self.noisy_layer.forward(x)
+        return x
 
 
 @dataclass(unsafe_hash=True)
-class QCRNN(CRNN, RecurrentQNetwork):
+class QRNN(RecurrentQNetwork):
+    _: KW_ONLY
+    hidden_sizes: Sequence[int] = (256, 128)
+    activation: ActivationType = "relu"
+
     def __post_init__(self):
-        RecurrentQNetwork.__post_init__(self)
-        CRNN.__post_init__(self)
+        super().__post_init__()
+        self.rnn = RNN(self.output_shape, self.obs_size, self.extras_size, self.hidden_sizes, self.activation)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+        return self.rnn.forward(obs, extras, **kwargs)
+
+    def reset_hidden_states(self):
+        return self.rnn.reset_hidden_states()
+
+
+@dataclass(unsafe_hash=True)
+class QCRNN(RecurrentQNetwork):
+    _: KW_ONLY
+    mlp_sizes: Sequence[int] = (256, 128)
+    hidden_activation: ActivationType = "relu"
+    kernel_sizes: Sequence[int] = (3, 3, 3)
+    strides: Sequence[int] = (1, 1, 1)
+    filters: Sequence[int] = (32, 64, 64)
+
+    def __post_init__(self):
+        super().__post_init__()
+        assert len(self.obs_shape) == 3
+        self.nn = CRNN(
+            self.output_shape,
+            self.obs_shape,
+            self.extras_size,
+            self.mlp_sizes,
+            self.hidden_activation,
+            kernel_sizes=self.kernel_sizes,
+            strides=self.strides,
+            filters=self.filters,
+        )
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+        return self.nn.forward(obs, extras, **kwargs)
+
+
+def from_env(env: MARLEnv[MultiDiscreteSpace] | EnvConfig, recurrent: bool = False) -> QNetwork:
+    if not isinstance(env, MARLEnv):
+        env = env.make()
+    match (len(env.observation_shape), recurrent):
+        case (1, False):
+            return QMLP.from_env(env)
+        case (3, False):
+            return QCNN.from_env(env)
+        case (1, True):
+            return QRNN.from_env(env)
+        case (3, True):
+            return QCRNN.from_env(env)
+    raise NotImplementedError("Unsupported environment observation shape and recurrent combination. Create your own Q-network !")
 
 
 @dataclass(unsafe_hash=True)
@@ -120,11 +219,10 @@ class MAVENHyperMult(MAVENTail):
 
 @dataclass(unsafe_hash=True)
 class MAVENNN(QNetwork):
-    n_actions: int
     noise_size: int
     n_agents: int
-    head: NN = field(init=False)
     _: KW_ONLY
+    head: NN = field(init=False)
     tail_type: Literal["bmm", "mul"] = "bmm"
     agent_output_size: int = 128
 
@@ -315,41 +413,3 @@ class IndependentCNN(QNetwork):
             res = value + adv - mean_adv
         res = res.transpose(0, 1)
         return res.view(batch_size, n_agents, *self.output_shape)
-
-
-# class QRCNN(RecurrentQNetwork):
-#     """
-#     Recurrent CNN Q-Network.
-#     """
-
-#     def __init__(
-#         self, input_shape: tuple[int, int, int], extras_size: int, n_actions: int, activation: ActivationType, mlp_sizes: Sequence[int]
-#     ):
-#         super().__init__((n_actions,))
-
-#         kernel_sizes = [3, 3, 3]
-#         strides = [1, 1, 1]
-#         filters = [32, 64, 64]
-#         self.cnn, self.n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-#         self.rnn = QRNN(self.n_features, extras_size, n_actions, activation, mlp_sizes)
-#         self.extras_shape = (extras_size,)
-
-#     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-#         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
-#         # For episodes, the shape is (time, batch_size, n_agents, channels, height, width)
-#         *dims, channels, height, width = obs.shape
-#         obs = obs.view(-1, channels, height, width)
-#         features = self.cnn.forward(obs)
-#         features = torch.reshape(features, (*dims, self.n_features))
-#         extras = extras.view(*dims, *self.extras_shape)
-#         res = self.rnn.forward(features, extras)
-#         return res.view(*dims, *self.output_shape)
-
-#     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-#         *dims, channels, height, width = obs.shape
-#         obs = obs.reshape(-1, channels, height, width)
-#         features = self.cnn.forward(obs)
-#         features = torch.reshape(features, (*dims, self.n_features))
-#         extras = extras.view(*dims, *self.extras_shape)
-#         res = self.rnn.batch_forward(features, extras)
-#         return res.view(*dims, *self.output_shape)

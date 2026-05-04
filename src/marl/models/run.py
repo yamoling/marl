@@ -7,23 +7,26 @@ from typing import TYPE_CHECKING, Collection
 
 import numpy as np
 import numpy.typing as npt
+import polars as pl
 import psutil
+from cachetools.func import ttl_cache
 from marlenv import Space
 
-from marl.logging import Logger, LoggerType
+from marl.logging import TIME_STEP_COL, Logger, LoggerType
 from marl.utils import Serializable, encode_b64_image
 
 if TYPE_CHECKING:
-    from marl.config import EnvConfig, TrainerConfig
+    from marl import Trainer
+    from marl.config import EnvConfig
 
 RUN_FILE = "run.json"
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class Run[A: Space, T: npt.ArrayLike](Serializable):
     seed: int
     rundir: str
-    trainer: TrainerConfig[T]
+    trainer: Trainer[T]
     env: EnvConfig[A]
     test_env: EnvConfig[A]
     n_steps: int
@@ -52,7 +55,7 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
         return time_step % self.test_interval == 0
 
     def make_agent(self):
-        return self.trainer.make().make_agent()
+        return self.trainer.make_agent()
 
     @property
     def run_file(self):
@@ -87,7 +90,7 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
             return loggers[0]
         return MultiLogger(*loggers)
 
-    @property
+    @cached_property
     def reader(self):
         return self.logger.reader()
 
@@ -121,17 +124,43 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
         return self.pid is not None
 
     @property
-    def pid(self):
-        pid_file = self.pid_filename
+    def latest_train_step(self) -> int:
         try:
-            with open(pid_file, "r") as f:
-                pid = int(f.read())
-            if not psutil.pid_exists(pid):
-                self._cleanup_pid_file()
-                return
-            return pid
-        except FileNotFoundError:
-            return None
+            max_train = self.train_metrics.last().select(TIME_STEP_COL).collect().item()
+            if max_train == self.n_steps:
+                return max_train
+            max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).collect().item()
+            return max(max_train, max_training_data)
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
+            return 0
+
+    @property
+    def latest_test_step(self) -> int:
+        try:
+            return self.reader.test_metrics.last().select(TIME_STEP_COL).collect().item()
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
+            return 0
+
+    @property
+    def is_complete(self):
+        return self.latest_test_step == self.n_steps
+
+    @property
+    def latest_time_step(self) -> int:
+        latest_test = self.latest_test_step
+        if latest_test == self.n_steps:
+            return latest_test
+        return max(latest_test, self.latest_train_step)
+
+    @property
+    def progress(self) -> float:
+        """The progress between 0 and 1."""
+        return self.latest_time_step / self.n_steps
+
+    @property
+    def pid(self):
+        # 1second TTL-cached property
+        return _get_pid(self.pid_filename)
 
     @property
     def ppid(self):
@@ -207,3 +236,27 @@ class Run[A: Space, T: npt.ArrayLike](Serializable):
     @classmethod
     def load(cls, rundir: Path):
         return cls.from_file(rundir / RUN_FILE)
+
+
+@ttl_cache(ttl=1)
+def _get_pid(file: Path):
+    try:
+        with open(file, "r") as f:
+            pid = int(f.read())
+        if not psutil.pid_exists(pid):
+            _cleanup(file)
+            return
+        return pid
+    except FileNotFoundError:
+        return None
+
+
+def _cleanup(file: Path):
+    try:
+        os.remove(file)
+    except FileNotFoundError:
+        pass
+
+
+def _():
+    pass

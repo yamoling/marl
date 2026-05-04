@@ -97,5 +97,18 @@ class DiscreteActor(Actor[torch.distributions.Categorical]):
 
 
 @dataclass
-class DiscreteActorCritic(ActorCritic, DiscreteActor):
+class DiscreteActorCritic(ActorCritic[torch.distributions.Categorical], DiscreteActor):
+    pass
+
+
+ContinuousDistribution = torch.distributions.Normal | torch.distributions.MultivariateNormal
+
+
+@dataclass
+class ContinuousActor(Actor[ContinuousDistribution]):
+    pass
+
+
+@dataclass
+class ContinuousActorCritic(ActorCritic[ContinuousDistribution]):
     pass

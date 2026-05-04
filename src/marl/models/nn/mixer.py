@@ -1,7 +1,11 @@
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
+from pathlib import Path
 
 import torch
+from marlenv import MARLEnv, MultiDiscreteSpace
+
+from marl.config import EnvConfig
 
 from .nn import NN
 
@@ -15,6 +19,10 @@ class Mixer(NN):
     def __post_init__(self):
         super().__post_init__()
         self.output_shape = (self.n_objectives,)
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
     @property
     def agent_dim(self):
@@ -32,12 +40,30 @@ class Mixer(NN):
         - states: the state of the environment. (batch, state_size)
         """
 
-    def save(self, to_directory: str):
+    def save(self, directory: Path):
         """Save the mixer to a directory."""
-        filename = f"{to_directory}/mixer.weights"
-        torch.save(self.state_dict(), filename)
+        filename = f"{directory}/mixer.weights"
+        state_dict = self.state_dict()
+        if len(state_dict) == 0:
+            return
+        torch.save(state_dict, filename)
 
-    def load(self, from_directory: str):
-        """Load the mixer from a directory."""
-        filename = f"{from_directory}/mixer.weights"
-        self.load_state_dict(torch.load(filename, weights_only=True))
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace] | EnvConfig, **kwargs):
+        """Create a mixer from an environment."""
+        if not isinstance(env, MARLEnv):
+            env = env.make()
+        return cls(n_objectives=env.n_objectives, **kwargs)
+
+
+@dataclass
+class StateMixer(Mixer):
+    n_agents: int
+    state_size: int
+    state_extras_size: int
+
+    @classmethod
+    def from_env(cls, env: MARLEnv[MultiDiscreteSpace] | EnvConfig, **kwargs):
+        if not isinstance(env, MARLEnv):
+            env = env.make()
+        return super().from_env(env, n_agents=env.n_agents, state_size=env.state_size, state_extras_size=env.state_extras_size, **kwargs)

@@ -1,26 +1,34 @@
+import logging
 import math
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from marl.config.mixer_config import QMixConfig
-from marl.models.nn import Mixer
+from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
 
-@dataclass
-class QMix(Mixer, QMixConfig):
+@dataclass(unsafe_hash=True)
+class QMix(StateMixer):
     """
-    QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning
+    QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning. Supports multiple objectives.
 
-    (almost) copy-pasted from https://github.com/oxwhirl/pymarl
+    **Notes**:
+        - Paper: https://proceedings.mlr.press/v80/rashid18a/rashid18a.pdf
+        - Code inspired from https://github.com/oxwhirl/pymarl
+        - In theory, multi-objective should not work with QMIX. Paper: https://openreview.net/pdf?id=NkRZaT2eAk
     """
+
+    _: KW_ONLY
+    embed_size: int = 64
+    hypernet_embed_size: int = 64
 
     def __post_init__(self):
-        Mixer.__post_init__(self)
-        QMixConfig.__post_init__(self)
+        super().__post_init__()
+        if self.n_objectives > 1:
+            logging.warning("QMIX should not work with multiple objective. See paper at https://openreview.net/pdf?id=NkRZaT2eAk")
         self.hyper_w_1 = nn.Sequential(
             nn.Linear(self.input_size, self.hypernet_embed_size),
             nn.ReLU(),
@@ -90,11 +98,3 @@ class QMix(Mixer, QMixConfig):
             y = torch.reshape(y, batch_dims)
             q_totals.append(y)
         return torch.stack(q_totals, dim=-1).squeeze()
-
-    def save(self, to_directory: str):
-        filename = f"{to_directory}/qmix.weights"
-        torch.save(self.state_dict(), filename)
-
-    def load(self, from_directory: str):
-        filename = f"{from_directory}/qmix.weights"
-        self.load_state_dict(torch.load(filename, weights_only=True))

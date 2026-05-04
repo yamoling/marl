@@ -1,15 +1,49 @@
 import math
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Sequence, overload
 
 import torch
-from marlenv import MARLEnv
+from marlenv import ContinuousSpace, DiscreteSpace, MARLEnv, MultiDiscreteSpace, Space
 from torch import Tensor
 
-from marl.models.nn import ActivationType, Actor, ActorCritic, Critic, DiscreteActorCritic, RecurrentNN, get_activation
+from marl.models.nn import (
+    ActivationType,
+    Actor,
+    ActorCritic,
+    ContinuousActorCritic,
+    Critic,
+    DiscreteActorCritic,
+    RecurrentNN,
+    get_activation,
+)
 
 from ..utils import make_cnn
 from .generic import CNN, MLP, RNN
+
+
+@overload
+def from_env(env: MARLEnv[ContinuousSpace]) -> ContinuousActorCritic:
+    pass
+
+
+@overload
+def from_env(env: MARLEnv[MultiDiscreteSpace] | MARLEnv[DiscreteSpace]) -> DiscreteActorCritic:
+    pass
+
+
+def from_env[A: Space](env: MARLEnv[A], mlp_sizes: Sequence[int] = (256, 128), activation: ActivationType = "relu"):
+    input_shape = env.input_shape
+    action_space = env.action_space
+    match (input_shape, action_space):
+        case ((input_size,), DiscreteSpace() | MultiDiscreteSpace()):
+            return SimpleActorCritic(input_size, env.extras_size, env.n_actions, mlp_sizes, activation)
+        case ((input_size,), ContinuousSpace()):
+            return MLPContinuousActorCritic(input_size, env.extras_size, env.n_actions, mlp_sizes, activation)
+        case ((c, h, w), DiscreteSpace() | MultiDiscreteSpace()):
+            return CNN_ActorCritic((c, h, w), env.extras_size, env.n_actions, activation, mlp_sizes)
+        case ((c, h, w), ContinuousSpace()):
+            return CNNContinuousActorCritic((c, h, w), env.extras_size, env.n_actions, mlp_sizes, activation)
+    raise NotImplementedError(f"No default model configured for input shape {env.input_shape} and action space {env.action_space}")
 
 
 @dataclass(unsafe_hash=True)

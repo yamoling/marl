@@ -1,10 +1,15 @@
+import math
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
+from typing import TYPE_CHECKING
 
 import torch
-from marlenv import Observation
+from marlenv import MARLEnv, MultiDiscreteSpace, Observation
 
 from .nn import NN, RecurrentNN
+
+if TYPE_CHECKING:
+    from marl.config import EnvConfig
 
 
 @dataclass
@@ -13,17 +18,35 @@ class QNetwork(NN):
     Takes as input observations of the environment and outputs Q-values for each action.
     """
 
+    n_actions: int
+    obs_shape: tuple[int, ...]
+    extras_shape: tuple[int, ...]
+    _: KW_ONLY
+    output_shape: tuple[int, ...] = field(init=False)
+    n_objectives: int = 1
+
     def __post_init__(self):
+        if self.n_objectives == 1:
+            self.output_shape = (self.n_actions,)
+        else:
+            self.output_shape = (self.n_actions, self.n_objectives)
         super().__post_init__()
-        match self.output_shape:
-            case int() | (_,):
-                self.action_dim = -1
-                self.is_multi_objective = False
-            case (_, _):
-                self.action_dim = -2
-                self.is_multi_objective = True
-            case other:
-                raise ValueError(f"Cannot compute action_dim for output_shape: {other}")
+        if self.n_objectives == 1:
+            self.action_dim = -1
+        else:
+            self.action_dim = -2
+
+    @property
+    def is_multi_objective(self):
+        return len(self.output_shape) > 1
+
+    @property
+    def obs_size(self):
+        return math.prod(self.obs_shape)
+
+    @property
+    def extras_size(self):
+        return math.prod(self.extras_shape)
 
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
@@ -32,13 +55,6 @@ class QNetwork(NN):
         obs_tensor, extra_tensor = obs.as_tensors(self.device)
         qvalues = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         return qvalues.squeeze(0)
-
-    def value(self, obs: Observation) -> torch.Tensor:
-        """Compute the value function (maximal q-value of each agent)."""
-        objective_qvalues = self.qvalues(obs)
-        qvalues = torch.sum(objective_qvalues, dim=-1)
-        agent_values = qvalues.max(dim=-1).values
-        return agent_values.mean(dim=-1)
 
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
@@ -71,21 +87,18 @@ class QNetwork(NN):
 
         return ActorFromQNet(self)
 
+    @classmethod
+    def from_env(cls, env: EnvConfig | MARLEnv[MultiDiscreteSpace], **kwargs):
+        if not isinstance(env, MARLEnv):
+            env = env.make()
+        return cls(env.n_actions, env.observation_shape, env.extras_shape, **kwargs)
+
 
 @dataclass
 class RecurrentQNetwork(QNetwork, RecurrentNN):
     def __post_init__(self):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
-
-    def value(self, obs: Observation) -> torch.Tensor:
-        """Compute the value function. Does not update the hidden states."""
-        hidden_states = self.hidden_states
-        objective_qvalues = self.qvalues(obs)
-        qvalues = torch.sum(objective_qvalues, dim=-1)
-        agent_values = torch.max(qvalues, dim=-1).values
-        self.hidden_states = hidden_states
-        return agent_values.mean(dim=-1)
 
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """

@@ -7,10 +7,10 @@ from typing import Callable, TypeVar
 import cv2
 import numpy as np
 import torch
-from marlenv import MARLEnv, Observation
+from marlenv import MARLEnv, Observation, Space
 
 
-def seed(seed: int, *envs: MARLEnv):
+def seed[T: Space](seed: int, *envs: MARLEnv[T]):
     """Seeds `random`, `numpy`, `torch` and the provided environments with the given seed value."""
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)

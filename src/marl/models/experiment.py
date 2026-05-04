@@ -8,6 +8,7 @@ from signal import SIGINT
 from typing import TYPE_CHECKING, Collection, Literal, Sequence
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv.models import Space
 
@@ -18,8 +19,9 @@ from marl.utils.stats import Dataset
 from .run import Run
 
 if TYPE_CHECKING:
-    from marl.config import EnvConfig, TrainerConfig
+    from marl.config import EnvConfig
     from marl.logging import LoggerType, TickColumn
+    from marl.models import Trainer
     from marl.models.replay_episode import LightEpisodeSummary
 
 
@@ -29,7 +31,7 @@ EXPERIMENT_FILENAME = "experiment.json"
 @dataclass
 class Experiment[A: Space, T: Trainer](Serializable):
     env: EnvConfig[A]
-    trainer: TrainerConfig[T]
+    trainer: T
     n_steps: int = 1_000_000
     logdir: str = "logs/test"
     test_env: EnvConfig[A] | None = None
@@ -139,7 +141,7 @@ class Experiment[A: Space, T: Trainer](Serializable):
             if not rundir.is_dir():
                 continue
             try:
-                yield Run[A, T].load(self.logpath / f)
+                yield Run[A, npt.ArrayLike].load(self.logpath / f)
             except FileNotFoundError:
                 pass
 

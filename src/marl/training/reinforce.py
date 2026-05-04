@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
@@ -15,27 +15,15 @@ if TYPE_CHECKING:
 class Reinforce(Trainer):
     """Vanilla policy gradient algorithm."""
 
-    lr: float
     n_agents: int
     ac: "ActorCritic"
-    gamma: float
-    computation_method: Literal["monte_carlo", "td1"]
+    _: KW_ONLY
+    lr: float = 1e-4
+    returns_computation_method: Literal["monte_carlo", "td1"] = "monte_carlo"
 
-    def __init__(
-        self,
-        lr: float,
-        n_agents: int,
-        actor_critic: "ActorCritic",
-        gamma: float,
-        returns_computation: Literal["monte_carlo", "td1"] = "monte_carlo",
-    ):
-        super().__init__()
-        self.lr = lr
-        self.n_agents = n_agents
-        self.ac = actor_critic
-        self.gamma = gamma
-        self._optim = torch.optim.AdamW(actor_critic.parameters(), lr=lr)
-        self.computation_method = returns_computation
+    def __post_init__(self):
+        super().__post_init__()
+        self._optim = torch.optim.AdamW(self.actor_critic.parameters(), lr=self.lr)
 
     def compute_td1_returns(self, episode: Episode):
         obs = torch.from_numpy(episode.next_obs).to(self.device)
@@ -44,7 +32,7 @@ class Reinforce(Trainer):
         return episode.rewards + self.gamma * next_values.numpy(force=True)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
-        match self.computation_method:
+        match self.returns_computation_method:
             case "monte_carlo":
                 G = torch.from_numpy(episode.compute_returns(self.gamma))
             case "td1":

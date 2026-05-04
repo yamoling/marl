@@ -6,7 +6,6 @@ import torch
 
 from marl.models.nn import NN, ActivationType, RecurrentNN, get_activation
 
-from ..layers import NoisyLinear
 from ..utils import make_cnn
 
 
@@ -21,7 +20,6 @@ class MLP(NN):
     hidden_sizes: Sequence[int]
     hidden_activation: ActivationType
     _: KW_ONLY
-    noisy: bool = False
     output_activation: None | ActivationType = None
 
     def __post_init__(self):
@@ -31,10 +29,7 @@ class MLP(NN):
         for i in range(len(self.layer_sizes) - 1):
             self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
             self.nn.append(get_activation(self.hidden_activation))
-        if self.noisy:
-            self.nn.append(NoisyLinear(self.layer_sizes[-1], self.output_size))
-        else:
-            self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
+        self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
         if self.output_activation is not None:
             self.nn.append((get_activation(self.output_activation)))
 
@@ -69,22 +64,23 @@ class CNN(NN):
     mlp_sizes: Sequence[int]
     hidden_activation: ActivationType
     _: KW_ONLY
-    noisy: bool = False
     output_activation: None | ActivationType = None
+    kernel_sizes: Sequence[int] = (3, 3, 3)
+    strides: Sequence[int] = (1, 1, 1)
+    filters: Sequence[int] = (32, 64, 64)
 
     def __post_init__(self):
         super().__post_init__()
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides, self.hidden_activation)
+        assert len(self.strides) == len(self.kernel_sizes) == len(self.filters), (
+            "The number of strides, kernel sizes and filters must be the same."
+        )
+        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
         self.linear = MLP(
             self.output_shape,
             n_features,
             self.extras_size,
             self.mlp_sizes,
             self.hidden_activation,
-            noisy=self.noisy,
             output_activation=self.output_activation,
         )
 
@@ -107,8 +103,6 @@ class RNN(RecurrentNN):
     extras_size: int
     mlp_sizes: Sequence[int]
     hidden_activation: ActivationType
-    _: KW_ONLY
-    noisy: bool = False
 
     def __post_init__(self):
         super().__post_init__()
@@ -151,6 +145,7 @@ class RNN(RecurrentNN):
         return x
 
 
+@dataclass(unsafe_hash=True)
 class CRNN(RecurrentNN):
     """Convolutional Recurrent Neural Network."""
 
@@ -159,7 +154,6 @@ class CRNN(RecurrentNN):
     mlp_sizes: Sequence[int]
     hidden_activation: ActivationType
     _: KW_ONLY
-    mlp_noisy: bool = False
     output_activation: None | ActivationType = None
     kernel_sizes: Sequence[int] = (3, 3, 3)
     strides: Sequence[int] = (1, 1, 1)
@@ -174,5 +168,4 @@ class CRNN(RecurrentNN):
             self.extras_size,
             self.mlp_sizes,
             self.hidden_activation,
-            noisy=self.mlp_noisy,
         )

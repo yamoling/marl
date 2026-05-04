@@ -1,9 +1,12 @@
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Literal
 
 import torch
 from torch import Tensor
+
+from marl.utils import Serializable
 
 
 def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
@@ -15,13 +18,14 @@ def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
 
 
 @dataclass
-class NN(torch.nn.Module):
+class NN(torch.nn.Module, Serializable):
     """Parent class of all neural networks"""
 
     output_shape: tuple[int, ...]
 
     def __post_init__(self):
-        super().__init__()
+        torch.nn.Module.__init__(self)
+        Serializable.__post_init__(self)
 
     @property
     def output_size(self):
@@ -59,6 +63,20 @@ class NN(torch.nn.Module):
 
     def __repr__(self):
         return f"{self.name} (on {self.device})"
+
+    def weights_filename(self, directory: Path):
+        return directory / self.__class__.__name__
+
+    def save(self, directory: Path):
+        state_dict = self.state_dict()
+        if len(state_dict) == 0:
+            return
+        torch.save(state_dict, self.weights_filename(directory))
+
+    def load(self, directory: Path):
+        if len(self.state_dict()) == 0:
+            return
+        self.load_state_dict(torch.load(self.weights_filename(directory), weights_only=True))
 
 
 class RecurrentNN(NN):

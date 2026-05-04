@@ -54,16 +54,15 @@ class Trainer[T](Serializable):
         """
         return 0.0
 
-    def save(self, directory_path: Path):
-        if not directory_path.exists():
-            os.makedirs(directory_path)
-        for i, nn in enumerate(self.networks()):
-            torch.save(nn.state_dict(), directory_path / f"{nn.name}_{i}.pt")
+    def save(self, directory: Path):
+        if not directory.exists():
+            os.makedirs(directory)
+        for nn in self.networks():
+            nn.save(directory)
 
-    def load(self, directory_path: Path):
-        for i, nn in enumerate(self.networks()):
-            path = directory_path / f"{nn.name}_{i}.pt"
-            nn.load_state_dict(torch.load(path))
+    def load(self, directory: Path):
+        for nn in self.networks():
+            nn.load(directory)
 
     @property
     def device(self):
@@ -71,7 +70,7 @@ class Trainer[T](Serializable):
 
     def networks(self):
         """Dynamic list of neural networks attributes in the trainer"""
-        return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
+        return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the parameters of all the neural networks in the trainer."""

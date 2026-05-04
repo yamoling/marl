@@ -1,15 +1,19 @@
 from marl import Experiment
-from marl.config import DQNConfig, LLEConfig, MemoryConfig, PolicyConfig, QNetworkConfig
-from marl.config.mixer_config import MixerConfig, QMixConfig, VDNConfig
+from marl.config import LLEConfig
+from marl.models import TransitionMemory
+from marl.nn import mixers
+from marl.nn.model_bank import qnetworks
+from marl.policy import EpsilonGreedy
+from marl.training import DQN
 
 env = LLEConfig(6)
-qnet = QNetworkConfig.from_env(env)
 experiment = Experiment(
     env,
-    DQNConfig(
-        qnet,
-        PolicyConfig.epsilon("linear", 50_000, 0.01, 1),
-        MemoryConfig("transition", 50_000),
+    DQN(
+        qnetworks.from_env(env),
+        EpsilonGreedy.linear(50_000, 0.01, 1),
+        TransitionMemory(50_000),
+        mixer=mixers.QPlex.from_env(env),
     ),
     2_000,
 )

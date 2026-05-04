@@ -1,70 +1,66 @@
 from abc import abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Iterable
 
 import torch
 
+from marl.utils import Serializable
+
 
 @dataclass
-class TargetParametersUpdater:
-    name: str = field(init=False)
-
-    def __init__(self, parameters: list[torch.nn.Parameter] | None = None, target_params: list[torch.nn.Parameter] | None = None):
-        self.name = self.__class__.__name__
-        if parameters is None or target_params is None:
-            parameters = []
-            target_params = []
-        self.parameters = parameters
-        self.target_params = target_params
-        self.add_parameters(parameters, target_params)
+class TargetParametersUpdater(Serializable):
+    def __post_init__(self):
+        self._parameters = list[torch.nn.Parameter]()
+        self._target_params = list[torch.nn.Parameter]()
 
     def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
         parameters = list(parameters)
         target_params = list(target_params)
         for param, target in zip(parameters, target_params):
             assert param.shape == target.shape, "Parameter and target parameter shapes must match"
-        self.parameters.extend(parameters)
-        self.target_params.extend(target_params)
+        self._parameters.extend(parameters)
+        self._target_params.extend(target_params)
 
     @abstractmethod
     def update(self, time_step: int) -> dict[str, float]:
         """Update the target network parameters based on the current network parameters and return the logs."""
 
+    @property
+    def parameters(self):
+        return self._parameters
+
+    @property
+    def target_parameters(self):
+        return self._target_params
+
 
 @dataclass
 class HardUpdate(TargetParametersUpdater):
-    update_period: int
+    update_period: int = 200
 
-    def __init__(
-        self,
-        update_period: int,
-        params: list[torch.nn.Parameter] | None = None,
-        target_params: list[torch.nn.Parameter] | None = None,
-    ):
-        super().__init__(params, target_params)
-        assert update_period > 0, "Update period must be positive"
-        self.update_period = update_period
+    def __post_init__(self):
+        super().__post_init__()
+        assert self.update_period > 0, "Update period must be positive"
         self._update_num = 0
 
     def update(self, time_step: int) -> dict[str, float]:
         self._update_num += 1
         if self._update_num % self.update_period == 0:
-            for param, target in zip(self.parameters, self.target_params):
+            for param, target in zip(self._parameters, self._target_params):
                 target.data.copy_(param.data, non_blocking=True)
         return {}
 
 
 @dataclass
 class SoftUpdate(TargetParametersUpdater):
-    tau: float
+    tau: float = 0.01
 
-    def __init__(self, tau: float = 0.01):
-        super().__init__()
-        assert 0 < tau < 1, "Soft update ratio must be between 0 and 1"
-        self.tau = tau
+    def __post_init__(self):
+        super().__post_init__()
+        assert 0 < self.tau < 1, "Soft update ratio must be between 0 and 1"
 
     def update(self, time_step: int) -> dict[str, float]:
-        for param, target in zip(self.parameters, self.target_params):
+        for param, target in zip(self._parameters, self._target_params):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
         return {}
