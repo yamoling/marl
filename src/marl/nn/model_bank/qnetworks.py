@@ -90,6 +90,9 @@ class RNNQMix(RecurrentQNetwork):
         self.fc1 = torch.nn.Sequential(torch.nn.Linear(self.input_size, 64), torch.nn.ReLU())
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, self.output_size)
+    
+    def __hash__(self):
+        return hash(self.name)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
@@ -409,6 +412,7 @@ class IndependentCNN(QNetwork):
         return res.view(batch_size, n_agents, *self.output_shape)
 
 
+@dataclass
 class RCNN(RecurrentQNetwork):
     """
     Recurrent CNN.
@@ -423,6 +427,9 @@ class RCNN(RecurrentQNetwork):
         self.cnn, self.n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
         self.rnn = RNNQMix(output_shape, self.n_features, extras_size)
         self.extras_shape = (extras_size,)
+
+    def __hash__(self):
+        return hash(self.name)
 
     @classmethod
     def from_env(cls, env: MARLEnv):

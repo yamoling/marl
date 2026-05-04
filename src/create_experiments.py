@@ -271,6 +271,48 @@ def make_dqn(
     )
 
 
+def make_recurrent_dqn(
+    env: MARLEnv[MultiDiscreteSpace],
+    mixing: Optional[Literal["vdn", "qmix", "qplex"]] = "vdn",
+    gamma: float = 0.95,
+    noisy: bool = False,
+    use_vbe: bool = False,
+    memory: Optional[ReplayMemory[Any, Any]] = None,):
+    mixer = make_mixer(env, mixing)
+    if len(env.observation_shape) == 1:
+        qnetwork = marl.nn.model_bank.RCNN.from_env(env)
+    elif len(env.observation_shape) == 3:
+        qnetwork = marl.nn.model_bank.RCNN.from_env(env)
+    else:
+        raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
+    ir = None
+    if noisy:
+        policy = marl.policy.ArgMax()
+    else:
+        policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
+    vbe = None
+    if use_vbe:
+        vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
+    if memory is None:
+        memory = marl.models.EpisodeMemory(5000)
+    return DQN(
+        qnetwork=qnetwork,
+        train_policy=policy,
+        memory=memory,
+        optimiser="adam",
+        double_qlearning=True,
+        target_updater=SoftUpdate(0.01),
+        lr=5e-4,
+        batch_size=16,
+        train_interval=(1, "episode"),
+        gamma=gamma,
+        mixer=mixer,
+        grad_norm_clipping=10,
+        ir_module=ir,
+        vbe=vbe,
+    )  
+
+
 def make_mappo(env: MARLEnv, mixing: Literal["vdn", "qmix", "qplex"] | None = "vdn"):
     match env.observation_shape:
         case (c, h, w):
@@ -318,26 +360,17 @@ def make_overcooked():
     return env, test_env
 
 
+def make_partial_obs():
+    env = LLE.level(6).obs_type("partial7x7").state_type("state").build()
+    env = marlenv.Builder(env).agent_id().time_limit(78).build()
+    return env, None
+
+
 def main(args: Arguments):
     try:
         # env, test_env = make_lle()
-
-        env = (
-            LLE.from_file("maps/four_rooms.toml")
-            .obs_type("layered")
-            .state_type("state")
-            .builder()
-            .randomize_actions(1 / 3)
-            .agent_id()
-            .time_limit(1000)
-            .build()
-        )
-
-        # env, test_env = make_smac("8m")
-        # trainer = make_mappo(env, mixing=None)
-        # memory = marl.models.replay_memory.EpisodeMemory(10_000)
-        # trainer = make_dqn(env, mixing="qplex", gamma=0.99, memory=memory, update_every=(1, "episode"))
-        trainer = make_option_critic(env)
+        env, test_env = make_partial_obs()
+        trainer = make_recurrent_dqn(env, mixing="qmix", gamma=0.95, memory=None)
         exp = marl.Experiment.create(
             logdir=args.logdir,
             trainer=trainer,
