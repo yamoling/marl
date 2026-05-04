@@ -1,23 +1,23 @@
-from abc import abstractmethod
-from typing import Any
+from dataclasses import asdict, dataclass
+from typing import ClassVar, Type, get_args
 
 from marl.utils import Serializable
 
-DISPLAY_NAME = "dislay-name"
 
-
+@dataclass
 class Config[T](Serializable):
-    @abstractmethod
-    def make(self) -> T: ...
+    _concrete_class: ClassVar[Type | None] = None
 
-    def to_dict(self):
-        d = super().to_dict()
-        d[DISPLAY_NAME] = self.__class__.__name__.removesuffix("Config").removesuffix("Conf")
-        return d
+    def __init_subclass__(cls) -> None:
+        if cls._concrete_class is None:
+            cls.__name__
+        return super().__init_subclass__()
 
-    @classmethod
-    def from_dict(cls, d: dict[str, Any]):
-        # Remove the DISPLAY_NAME field because it is not part of the constructor arguments.
-        # We add a default value such that it does not fail if `from_dict` is called recursively due to child class dispatching.
-        d.pop(DISPLAY_NAME, None)
-        return super().from_dict(d)
+    def make(self) -> T:
+        if not hasattr(self, "__orig_class__"):
+            raise TypeError(f"{self.__class__.__name__} must be instantiated with a generic type !")
+        generic_types = get_args(self.__orig_class__)  # type: ignore (__orig_class__ is not detected)
+        if len(generic_types) != 1:
+            raise TypeError(f"{self.__class__.__name__} must be instantiated with exactly one generic type, but got {generic_types}")
+        target_class: Type[T] = generic_types[0]
+        return target_class(**asdict(self))

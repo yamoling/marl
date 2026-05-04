@@ -8,7 +8,7 @@ from ..ir_config import IRConfig
 
 
 @dataclass
-class TrainerConfig[T](Config[Trainer[T]]):
+class TrainerConfig[T: Trainer](Config[T]):
     _: KW_ONLY
     gamma: float = 0.99
     ir_config: IRConfig | None = None

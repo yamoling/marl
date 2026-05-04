@@ -1,33 +1,26 @@
 import math
-from dataclasses import KW_ONLY, dataclass
+from dataclasses import dataclass
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from marlenv import MARLEnv, MultiDiscreteSpace
 
+from marl.config.mixer_config import QMixConfig
 from marl.models.nn import Mixer
 from marl.nn.layers import AbsLayer
 
 
 @dataclass
-class QMix(Mixer):
+class QMix(Mixer, QMixConfig):
     """
     QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning
 
     (almost) copy-pasted from https://github.com/oxwhirl/pymarl
     """
 
-    n_agents: int
-    state_size: int
-    state_extras_size: int
-    _: KW_ONLY
-    embed_size: int = 64
-    hypernet_embed_size: int = 64
-
     def __post_init__(self):
-        super().__post_init__()
-
+        Mixer.__post_init__(self)
+        QMixConfig.__post_init__(self)
         self.hyper_w_1 = nn.Sequential(
             nn.Linear(self.input_size, self.hypernet_embed_size),
             nn.ReLU(),
@@ -97,26 +90,6 @@ class QMix(Mixer):
             y = torch.reshape(y, batch_dims)
             q_totals.append(y)
         return torch.stack(q_totals, dim=-1).squeeze()
-
-    @classmethod
-    def from_env(
-        cls,
-        env: MARLEnv[MultiDiscreteSpace],
-        embed_size: int = 64,
-        hypernet_embed_size: int = 64,
-        maven_noise_size: int | None = None,
-    ):
-        state_size = env.state_size
-        if maven_noise_size is not None:
-            state_size += maven_noise_size
-        return QMix(
-            env.n_agents,
-            state_size,
-            env.state_extras_size,
-            embed_size=embed_size,
-            hypernet_embed_size=hypernet_embed_size,
-            n_objectives=env.n_objectives,
-        )
 
     def save(self, to_directory: str):
         filename = f"{to_directory}/qmix.weights"

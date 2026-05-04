@@ -1,25 +1,31 @@
 import os
-from abc import ABC
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Self, Sequence
 
 import torch
 from marlenv import Episode, Observation, State, Transition
 
+from marl.utils import Serializable
+
 from .agent import Agent
-from .nn import NN, randomize
+from .nn import NN, IRModule, randomize
 
 
 @dataclass
-class Trainer[T](ABC):
-    """Algorithm trainer class. Needed to train an algorithm but not to test it."""
+class Trainer[T](Serializable):
+    """Algorithm trainer class."""
 
-    name: str = field(init=False)
+    _: KW_ONLY
+    gamma: float = 0.99
+    ir_module: IRModule | None = None
+    grad_norm_clipping: float | None = None
+    batch_size: int = 64
+    train_interval: tuple[int, Literal["step", "episode"]] = (5, "step")
 
     def __post_init__(self):
+        super().__post_init__()
         self._device = torch.device("cpu")
-        self.name = self.__class__.__name__
 
     def make_agent(self) -> Agent[T]:
         raise NotImplementedError("Trainer must implement make_agent method")

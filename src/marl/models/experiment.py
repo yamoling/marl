@@ -8,10 +8,10 @@ from signal import SIGINT
 from typing import TYPE_CHECKING, Collection, Literal, Sequence
 
 import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv.models import Space
 
+from marl.models.trainer import Trainer
 from marl.utils import Serializable, stats
 from marl.utils.stats import Dataset
 
@@ -27,7 +27,7 @@ EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
-class Experiment[A: Space, T: npt.ArrayLike](Serializable):
+class Experiment[A: Space, T: Trainer](Serializable):
     env: EnvConfig[A]
     trainer: TrainerConfig[T]
     n_steps: int = 1_000_000

@@ -80,6 +80,9 @@ def deserialize_field(f: Field, value: Any):
 
 @dataclass
 class Serializable:
+    def __post_init__(self):
+        return
+
     def to_dict(self):
         res = {}
         for field in fields(self):

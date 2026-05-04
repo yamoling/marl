@@ -3,33 +3,31 @@ from dataclasses import KW_ONLY, dataclass
 from marlenv import MARLEnv, MultiDiscreteSpace
 
 from marl.models import Mixer
-from marl.nn import mixers
+from marl.nn.mixers import VDN, QMix
 
 from .config import Config
 
 
 @dataclass
-class MixerConfig(Config[Mixer]):
-    n_agents: int
-    n_actions: int
-    state_size: int
-    state_extras_size: int
+class MixerConfig[T: Mixer](Config[T]):
     _: KW_ONLY
     n_objectives: int = 1
 
     @classmethod
     def from_env(cls, env: MARLEnv[MultiDiscreteSpace], **kwargs):
-        return cls(env.n_agents, env.n_actions, env.state_size, env.state_extras_size, n_objectives=env.n_objectives, **kwargs)
+        return cls(n_objectives=env.n_objectives, **kwargs)
 
 
 @dataclass
-class VDNConfig(MixerConfig):
-    def make(self):
-        return mixers.VDN(n_objectives=self.n_objectives)
+class VDNConfig(MixerConfig[VDN]):
+    pass
 
 
 @dataclass
-class QMixConfig(MixerConfig):
+class QMixConfig(MixerConfig[QMix]):
+    n_agents: int
+    state_size: int
+    state_extras_size: int
     _: KW_ONLY
     embed_size: int = 64
     hypernet_embed_size: int = 64
