@@ -46,31 +46,43 @@ def parallel_run[E: MARLEnv, T: npt.ArrayLike](
         n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
     runs = list(runs)
     # use maxtasksperchild=1 such that CUDA memory is freed after each run.
-    with mp.get_context("spawn").Pool(n_jobs, maxtasksperchild=1) as pool:
-        # Start first run to measure GPU memory used
-        pids = get_gpu_processes()
-        handles = [submit(pool, runs[0], "auto", quiet, render_tests, 0, gpu_strategy, disabled_gpus)]
-        estimated_gpu_memory = _estimate_required_gpu_memory(pids, handles[0])
-        devices = []
-        if gpu_strategy == "scatter":
-            devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus)
-            logging.info(f"Preplanned device assignments for scatter strategy: {devices}")
-        devices += [device] * (len(runs) - 1 - len(devices))
-        for run, device in zip(runs[1:], devices):
-            handles.append(submit(pool, run, device, True, False, estimated_gpu_memory, gpu_strategy, disabled_gpus))
-        # Actively loop over the results to free up memory as soon as a run is finished
-        while len(handles) > 0:
-            ready_indices = [(i, h) for i, h in enumerate(handles) if h.ready()]
-            for index, handle in reversed(ready_indices):
-                try:
-                    handle.get(timeout=1)
-                except Exception as e:
-                    logging.error(f"Error in one of the runs: {e}", exc_info=e)
-                finally:
-                    # Always remove completed handles (including failures)
-                    # to avoid waiting forever on an already-failed run.
-                    handles.pop(index)
-            time.sleep(1)
+    try:
+        with mp.get_context("spawn").Pool(n_jobs, maxtasksperchild=1) as pool:
+            # Start first run to measure GPU memory used
+            pids = get_gpu_processes()
+            handles = [submit(pool, runs[0], "auto", quiet, render_tests, 0, gpu_strategy, disabled_gpus)]
+            estimated_gpu_memory = _estimate_required_gpu_memory(pids, handles[0])
+            devices = []
+            if gpu_strategy == "scatter":
+                devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus)
+                logging.info(f"Preplanned device assignments for scatter strategy: {devices}")
+            devices += [device] * (len(runs) - 1 - len(devices))
+            for run, device in zip(runs[1:], devices):
+                handles.append(submit(pool, run, device, True, False, estimated_gpu_memory, gpu_strategy, disabled_gpus))
+            # Actively loop over the results to free up memory as soon as a run is finished
+            while len(handles) > 0:
+                ready_indices = [(i, h) for i, h in enumerate(handles) if h.ready()]
+                for index, handle in reversed(ready_indices):
+                    try:
+                        handle.get(timeout=1)
+                    except Exception as e:
+                        logging.error(f"Error in one of the runs: {e}", exc_info=e)
+                    finally:
+                        # Always remove completed handles (including failures)
+                        # to avoid waiting forever on an already-failed run.
+                        handles.pop(index)
+                time.sleep(1)
+    except RuntimeError as e:
+        logging.error(f"RuntimeError in parallel_run: {e}", exc_info=e)
+        if "__main__" in str(e):
+            raise RuntimeError("""
+This error occurred while the ProcessPool tried to spawn processes and is likely caused by not protecting the entry point with if __name__ == '__main__'.
+Make sure to guard the entry of your program with the following:
+
+if __name__ == '__main__':
+    # Your code here
+    experiment.run(...)
+""") from e
 
 
 def submit(

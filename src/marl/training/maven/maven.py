@@ -4,11 +4,13 @@ from typing import Literal, cast
 import numpy as np
 import numpy.typing as npt
 from marlenv import Episode
-from marl.env import EnvConfig
+
+from marl import policy
 from marl.agents.hierarchical import MAVENAgent
+from marl.env import EnvConfig
 from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Policy, QNetwork, Trainer
 from marl.nn.mixers import QMixMAVEN
-from marl.nn.model_bank import qnetworks
+from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
 from ..no_train import NoTrain
 from ..qtarget_updater import SoftUpdate, TargetParametersUpdater
@@ -26,14 +28,15 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     Paper: https://proceedings.neurips.cc/paper_files/paper/2019/file/f816dc0acface7498e10496222e9db10-Paper.pdf
     """
 
-    qnetwork: QNetwork
+    qnetwork: MAVENQnetwork
     train_policy: Policy
     env: EnvConfig
     _: KW_ONLY
+    tail_type: Literal["bmm", "mul"] = "bmm"
     z_policy_type: Literal["uniform", "max-entropy", "return"] = "return"
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
     double_qlearning: bool = True
-    test_policy: Policy | None = None
+    test_policy: Policy = field(default_factory=policy.ArgMax)
     memory_size: int = 5_000
     batch_size: int = 16
     optimiser_type: Literal["adam", "rms"] = "adam"
@@ -59,7 +62,6 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
                     bandit_nn = qnetworks.QCNN(self.env.noise_size, self.env.maven_bandit_obs_shape, self.env.maven_bandit_extras_shape)
                 else:
                     raise ValueError(f"Unsupported bandit observation shape: {self.env.maven_bandit_obs_shape}")
-
                 self.meta_trainer = ExpectedReturnTrainer(
                     bandit_nn,
                     self.env.noise_size,

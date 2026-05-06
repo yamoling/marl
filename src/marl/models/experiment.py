@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 from copy import deepcopy
@@ -5,7 +6,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-import logging
 from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
 
 import numpy as np
@@ -33,23 +33,27 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     env: "EnvConfig[E]"
     trainer: T
     n_steps: int = 1_000_000
-    logdir: str = "logs/test"
+    logdir: str | Literal["auto"] = "logs/test"
     test_env: "EnvConfig[E] | None" = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
     loggers: "Collection[LoggerType]" = field(default_factory=lambda: ["csv"])
     creation_timestamp: datetime | None = None
 
     def __post_init__(self):
+        if self.logdir == "auto":
+            self.logdir = Path("logs", f"{self.trainer.name}-{self.env.name}").as_posix()
         if not self.logdir.startswith("logs"):
             self.logdir = Path("logs", self.logdir).as_posix()
         # Only create the timestamp the first time the experiment is created.
         # The other times, the attribute will already be set by the deserializer.
         is_new = self.creation_timestamp is None
         if is_new:
-            self.creation_timestamp = datetime.now()
             if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
                 logging.info(f"Discarding pre-existing experiment {self.logpath}.")
                 self.delete()
+            if self.logpath.exists():
+                raise FileExistsError(f"Experiment directory {self.logpath} already exists.")
+            self.creation_timestamp = datetime.now()
             self.save()
 
     def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):

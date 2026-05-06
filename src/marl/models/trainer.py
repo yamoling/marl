@@ -1,7 +1,7 @@
 import os
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Self, Sequence
+from typing import Any, Literal, Self, Sequence, overload
 
 import torch
 from marlenv import Episode, Observation, State, Transition
@@ -70,8 +70,18 @@ class Trainer[T](Serializable):
     def device(self):
         return self._device
 
-    def networks(self):
+    @overload
+    def networks(self, modules: Literal[True]) -> list[NN | torch.nn.Module]:
+        """Return all the networks in the training, including mere torch.nn.Modules."""
+
+    @overload
+    def networks(self, modules: Literal[False] = False) -> list[NN]:
+        """Return all the networks that inherit from NN."""
+
+    def networks(self, modules: bool = False):
         """Dynamic list of neural networks attributes in the trainer"""
+        if modules:
+            return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -86,7 +96,7 @@ class Trainer[T](Serializable):
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""
         self._device = device
-        for nn in self.networks():
+        for nn in self.networks(modules=True):
             nn.to(device)
         return self
 
@@ -106,8 +116,10 @@ class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
         worker_logs = self.worker_trainer.update_episode(episode, episode_num, time_step)
         return self.merge_logs(worker_logs, meta_logs)
 
-    def networks(self):
-        return self.meta_trainer.networks() + self.worker_trainer.networks()
+    def networks(self, modules: bool = False) -> list:
+        if modules:
+            return self.meta_trainer.networks(modules) + self.worker_trainer.networks(modules)
+        return self.meta_trainer.networks(modules) + self.worker_trainer.networks(modules)
 
     def to(self, device: torch.device) -> Self:
         self.meta_trainer.to(device)

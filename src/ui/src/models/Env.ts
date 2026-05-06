@@ -32,9 +32,9 @@ export const EnvSchema = z.object({
 export const EnvConfigSchema = z.object({
     name: z.string(),
     agent_id: z.boolean(),
-    time_limit: z.number().optional(),
+    time_limit: z.number().nullable(),
     last_action: z.boolean(),
-    maven_noise_size: z.number().optional(),
+    maven_noise_size: z.number().nullable(),
     env: EnvSchema.optional(),
 }).loose();
 

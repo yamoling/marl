@@ -208,3 +208,4 @@ logs.txt
 papers/
 *.log
 .playwright-mcp
+envs/*

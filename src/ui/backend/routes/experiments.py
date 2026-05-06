@@ -2,6 +2,7 @@ import logging
 import shutil
 import time
 from http import HTTPStatus
+from pathlib import Path
 
 import orjson
 from fastapi import APIRouter, Request
@@ -61,10 +62,10 @@ async def rename_experiment(request: Request):
     json_data = await request.json()
     if json_data is None:
         return Response(status_code=HTTPStatus.BAD_REQUEST)
-    logdir = json_data["logdir"]
-    new_logdir = json_data["newLogdir"]
+    logdir = str(json_data["logdir"])
+    new_logdir = str(json_data["newLogdir"])
     exp = state.get_experiment(logdir)
-    exp.move(new_logdir)
+    exp.move(Path(new_logdir))
     # exp.copy(new_logdir, copy_runs=True)
     state.unload_experiment(logdir)
     state.load_experiment(new_logdir)
