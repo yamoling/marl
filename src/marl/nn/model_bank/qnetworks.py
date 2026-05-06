@@ -1,20 +1,18 @@
 import math
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
-from typing import TYPE_CHECKING, Literal, Sequence
+from typing import Literal, Sequence
 
 import torch
 from marlenv import DiscreteMARLEnv
 from torch import Tensor
 
+from marl.env import EnvConfig
 from marl.models.nn import NN, ActivationType, QNetwork, RecurrentQNetwork
 
 from ..layers import NoisyLinear
 from ..utils import make_cnn
 from .generic import CNN, CRNN, MLP, RNN
-
-if TYPE_CHECKING:
-    from marl.env import EnvConfig
 
 
 @dataclass(unsafe_hash=True)

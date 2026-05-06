@@ -1,15 +1,13 @@
 import math
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
-from typing import TYPE_CHECKING
 
 import torch
 from marlenv import DiscreteMARLEnv, Observation
 
-from .nn import NN, RecurrentNN
+from marl.env import EnvConfig
 
-if TYPE_CHECKING:
-    from marl.env import EnvConfig
+from .nn import NN, RecurrentNN
 
 
 @dataclass

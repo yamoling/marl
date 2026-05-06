@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 def sequential_run(
-    runs: Collection[Run],
+    runs: "Collection[Run]",
     device: int | torch.device | str | Literal["auto", "cpu"] = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
     quiet: bool = False,

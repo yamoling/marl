@@ -34,7 +34,7 @@ def ignore_sigint():
 
 
 def parallel_run[E: MARLEnv, T: npt.ArrayLike](
-    runs: Collection[Run[E, T]],
+    runs: "Collection[Run[E, T]]",
     n_jobs: int | None = None,
     device: int | str | Literal["auto", "cpu"] = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
@@ -75,7 +75,7 @@ def parallel_run[E: MARLEnv, T: npt.ArrayLike](
 
 def submit(
     pool: Pool,
-    run: Run,
+    run: "Run",
     device: Literal["cpu", "auto", "cuda"] | str | int | None,
     quiet: bool,
     render_tests: bool,
@@ -100,7 +100,7 @@ def submit(
 
 
 def _start_run(
-    run: Run,
+    run: "Run",
     device_type: Literal["cpu", "auto", "cuda"] | str | int | None,
     quiet: bool,
     render_tests: bool,

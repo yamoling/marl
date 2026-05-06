@@ -26,9 +26,9 @@ RUN_FILE = "run.json"
 class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
     seed: int
     rundir: str
-    trainer: Trainer[T]
-    env: EnvConfig[E]
-    test_env: EnvConfig[E]
+    trainer: "Trainer[T]"
+    env: "EnvConfig[E]"
+    test_env: "EnvConfig[E]"
     n_steps: int
     test_interval: int
     n_tests: int

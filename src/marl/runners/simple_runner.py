@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from marl import Agent, Run, Trainer
 
 
-def simple_run[E: MARLEnv, T: npt.ArrayLike](run: Run[E, T], quiet: bool, render_tests: bool, device: torch.device):
+def simple_run[E: MARLEnv, T: npt.ArrayLike](run: "Run[E, T]", quiet: bool, render_tests: bool, device: torch.device):
     """
     Boilerplate to run an RL experiment:
         - Seeding first
@@ -41,16 +41,16 @@ def simple_run[E: MARLEnv, T: npt.ArrayLike](run: Run[E, T], quiet: bool, render
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
 
 
-def _train_episode(
-    env: MARLEnv,
-    test_env: MARLEnv,
-    agent: Agent,
-    trainer: Trainer,
+def _train_episode[A](
+    env: MARLEnv[A],
+    test_env: MARLEnv[A],
+    agent: "Agent[A]",
+    trainer: "Trainer[A]",
     time_step: int,
     episode_num: int,
     render_tests: bool,
     quiet: bool,
-    run: Run,
+    run: "Run",
 ):
     obs, state = env.reset()
     agent.new_episode()
@@ -75,7 +75,7 @@ def _train_episode(
     return episode
 
 
-def _test_and_log(test_env: MARLEnv, agent: Agent, time_step: int, render: bool, quiet: bool, run: Run):
+def _test_and_log[A](test_env: MARLEnv[A], agent: "Agent[A]", time_step: int, render: bool, quiet: bool, run: "Run"):
     if run.save_weights:
         run.logger.save_agent(agent, time_step)
     agent.set_testing()
@@ -96,7 +96,7 @@ def _test_and_log(test_env: MARLEnv, agent: Agent, time_step: int, render: bool,
     agent.set_training()
 
 
-def seeded_rollout(env: MARLEnv, agent: "Agent", seed: int, render=False, compute_frames=False):
+def seeded_rollout[A](env: MARLEnv[A], agent: "Agent[A]", seed: int, render=False, compute_frames=False):
     agent.set_testing()
     env.seed(seed)
     agent.seed(seed)

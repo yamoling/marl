@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from marl.env import EnvConfig
     from marl.logging import LoggerType, TickColumn
     from marl.models import Trainer
-    from marl.models.replay_episode import LightEpisodeSummary
 
 
 EXPERIMENT_FILENAME = "experiment.json"
@@ -31,13 +30,13 @@ EXPERIMENT_FILENAME = "experiment.json"
 
 @dataclass
 class Experiment[E: MARLEnv, T: Trainer](Serializable):
-    env: EnvConfig[E]
+    env: "EnvConfig[E]"
     trainer: T
     n_steps: int = 1_000_000
     logdir: str = "logs/test"
-    test_env: EnvConfig[E] | None = None
+    test_env: "EnvConfig[E] | None" = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
-    loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
+    loggers: "Collection[LoggerType]" = field(default_factory=lambda: ["csv"])
     creation_timestamp: datetime | None = None
 
     def __post_init__(self):
@@ -210,18 +209,16 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
     def delete(self):
         print(f"Removing  experiment at {self.logpath}")
-        shutil.rmtree(self.logpath)
+        shutil.rmtree(self.logpath, ignore_errors=True)
 
     def get_tests_at(self, time_step: int):
-        summary = list[LightEpisodeSummary]()
-        for run in self.runs:
-            summary += run.get_test_episodes(time_step)
-        return summary
+        summaries = [run.get_test_episodes(time_step) for run in self.runs]
+        return [summary for run_summaries in summaries for summary in run_summaries]
 
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_results_datasets(self, granularity: int, aggregate_by: TickColumn = "time_step"):
+    def get_results_datasets(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
         results = self.get_results(granularity, aggregate_by)
         datasets = list[Dataset]()
         for category, stats_df in results.items():
@@ -244,7 +241,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             ]
         return datasets
 
-    def get_results(self, granularity: int, aggregate_by: TickColumn = "time_step"):
+    def get_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
         """
         Return the category-wise metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
 

@@ -26,7 +26,8 @@ class EnvConfig[E: MARLEnv](Serializable):
     def __post_init__(self):
         super().__post_init__()
         self.env = self.make()
-        self.name = self.env.name
+        if len(self.name) == 0:
+            self.name = self.env.name
 
     @abstractmethod
     def make_base_env(self) -> E: ...
@@ -117,7 +118,6 @@ class LLEConfig(EnvConfig[lle.LLE]):
     obs_type: LLEObsType = "layered"
     state_type: LLEObsType = "state"
     _: KW_ONLY
-    name: str = "LLE"
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
 

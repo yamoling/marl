@@ -1,6 +1,7 @@
 import optuna
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
+import torch
 import marl
 import logging
 import dotenv
@@ -41,7 +42,7 @@ def objective(trial: optuna.Trial, algo: Literal["vdn", "qmix", "qplex", "maven"
         logdir=os.path.join("logs", f"optuna-{algo}-{trial.number}"),
         replace_if_exists=True,
     )
-    exp.run(4, "scatter", quiet=True, n_parallel=4, n_tests=30, device="auto")
+    exp.run(4, "scatter", quiet=True, n_parallel=4, n_tests=30, device=trial.number % torch.cuda.device_count())
     result = exp.get_experiment_results()
     df = result["Test"]
     score = df.select("mean-exit_rate").last().collect().item()
@@ -85,8 +86,6 @@ def suggest_dqn(trial: optuna.Trial, env: MARLEnv[MultiDiscreteSpace]) -> dict[s
 
 
 if __name__ == "__main__":
-    import time
-
     dotenv.load_dotenv()
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
@@ -94,17 +93,19 @@ if __name__ == "__main__":
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    try:
-        # Sleep for two hours
-        time.sleep(5400)
-        study = optuna.create_study(
-            direction="maximize",
-            study_name=f"QMIX - {'shaping' if SHAPING else 'no shaping'}",
-            storage=JournalStorage(JournalFileBackend("optuna_study.journal")),
-            load_if_exists=True,
-        )
-        study.optimize(lambda trial: objective(trial, algo="qmix"), n_trials=24, n_jobs=8)
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        logging.error("An error occurred during optimization.", exc_info=e)
+    for algo in ("vdn", "qmix"):
+        try:
+            study = optuna.create_study(
+                direction="maximize",
+                study_name=f"{algo.upper()} - {'shaping' if SHAPING else 'no shaping'}",
+                storage=JournalStorage(JournalFileBackend("optuna_study.journal")),
+                load_if_exists=True,
+            )
+            n_trials = 24
+            if algo == "vdn":
+                n_trials = 18
+            study.optimize(lambda trial: objective(trial, algo=algo), n_trials=n_trials, n_jobs=8)
+        except KeyboardInterrupt:
+            pass
+        except Exception as e:
+            logging.error("An error occurred during optimization.", exc_info=e)

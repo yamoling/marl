@@ -1,98 +1,18 @@
-import logging
-import os
-
-import dotenv
-import lle
-from marlenv import Builder, catalog
-
-import marl
-from marl import training
-from marl.config import NetworkConfig
-from marl.nn import mixers
+from marl import Experiment
+from marl.env import LLEConfig
 from marl.nn.model_bank import qnetworks
+from marl.policy import EpsilonGreedy
+from marl.training import MAVEN
 
-NOISE_SIZE = 16
-
-
-def make_lle(with_padding: bool):
-    builder = (
-        lle.level(6)
-        .obs_type("layered")
-        .state_type("state")
-        .pbrs(gamma=1.0, reward_value=1.0, lasers_to_reward=[(4, 0), (6, 12)])
-        .builder()
-        .agent_id()
-        .time_limit(78)
-    )
-    if with_padding:
-        builder = builder.pad("extra", NOISE_SIZE, label="maven")
-    return builder.build()
-
-
-def make_nsteps_matrix(with_padding: bool):
-    builder = Builder(catalog.MStepsMatrix(10)).agent_id()
-    if with_padding:
-        builder = builder.pad("extra", NOISE_SIZE, label="maven")
-    return builder.build()
-
-
-def main():
-    use_maven = False
-    # env = make_nsteps_matrix(with_padding=use_maven)
-    env = make_lle(with_padding=use_maven)
-    train_policy = marl.policy.EpsilonGreedy.linear(1.0, 0.01, 50_000)
-    if use_maven:
-        meta_agent_input = env.observation_shape[0] * env.n_agents
-        meta_agent_extras = (env.extras_size - NOISE_SIZE) * env.n_agents
-        trainer = training.MAVEN(
-            qnetworks.MAVENMLP.from_env(env),
-            train_policy,
-            NOISE_SIZE,
-            env.n_actions,
-            env.n_agents,
-            env.state_size,
-            env.state_extras_size,
-            z_policy_type="return",
-            return_bandit_nn=qnetworks.QMLP((NOISE_SIZE,), meta_agent_input, meta_agent_extras),
-            mixer=mixers.QMix.from_env(env, maven_noise_size=NOISE_SIZE),
-            test_policy=marl.policy.ArgMax(),
-            grad_norm_clipping=10.0,
-            batch_size=32,
-            train_interval=(1, "episode"),
-        )
-    else:
-        trainer = training.DQN(
-            NetworkConfig.from_env(env),
-            train_policy,
-            marl.models.EpisodeMemory(5000),
-            mixer=mixers.QMix.from_env(env),
-            test_policy=marl.policy.ArgMax(),
-            grad_norm_clipping=10.0,
-            batch_size=32,
-            train_interval=(1, "episode"),
-        )
-    logdir = f"logs/{trainer.name}-{env.name}-eps0.01"
-    exp = marl.Experiment.create(
+env = LLEConfig(6, maven_noise_size=16)
+experiment = Experiment(
+    env,
+    MAVEN(
+        qnetworks.from_env(env),
+        EpsilonGreedy.linear(50_000, 0.01, 1),
         env,
-        200_000,
-        trainer=trainer,
-        test_interval=2000,
-        logdir=logdir,
-        save_weights=True,
-        replace_if_exists=True,
-    )
-    exp.run(seeds=20, n_tests=10, fill_strategy="scatter", quiet=False, disabled_gpus=[0, 1, 2, 3], n_parallel=8)
+    ),
+    2_000,
+)
 
-
-if __name__ == "__main__":
-    dotenv.load_dotenv()
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        handlers=[logging.FileHandler("test.log", mode="a"), logging.StreamHandler()],
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-    try:
-        main()
-    except Exception as e:
-        logging.exception("An error occurred during execution.", exc_info=e)
+experiment.run(test_interval=500)
