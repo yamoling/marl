@@ -69,13 +69,13 @@ class CSVLogWriter:
 
 
 class CSVLogReader(LogReader):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         super().__init__(logdir)
-        self.test_filename = os.path.join(logdir, TEST)
-        self.train_filename = os.path.join(logdir, TRAIN)
-        self.training_data_filename = os.path.join(logdir, TRAINING_DATA)
+        self.test_filename = logdir / TEST
+        self.train_filename = logdir / TRAIN
+        self.training_data_filename = logdir / TRAINING_DATA
 
-    def _read(self, filename: str) -> pl.LazyFrame:
+    def _read(self, filename: Path) -> pl.LazyFrame:
         if not os.path.exists(filename):
             return pl.LazyFrame()
         try:

@@ -96,6 +96,6 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, data: unknown): T {
 
   const errorStore = useErrorStore();
   errorStore.push("Parsing error", detail, "ZodError");
-
+  console.error(result.error);
   throw result.error;
 }

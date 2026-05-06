@@ -26,6 +26,21 @@
                     <section class="settings-content">
                         <div v-if="activeTab === 'homescreen'" class="settings-section settings-panel">
                             <div class="settings-subsection">
+                                <h6 class="settings-subsection-title mb-0">Results loading</h6>
+                                <p class="text-muted mb-0">
+                                    Default granularity used when opening experiment results. This value must be a
+                                    strictly positive integer.
+                                </p>
+                                <div class="input-group settings-number-input">
+                                    <span class="input-group-text">Granularity</span>
+                                    <input v-model.number="draft.homescreen.granularity" type="number" min="1" step="1"
+                                        class="form-control" />
+                                </div>
+                            </div>
+
+                            <hr class="settings-divider" />
+
+                            <div class="settings-subsection">
                                 <h6 class="settings-subsection-title mb-0">Plotting axis</h6>
                                 <p class="text-muted mb-0">
                                     Plot results against wall-time instead of training steps. When enabled, granularity
@@ -260,8 +275,9 @@ import { Modal } from "bootstrap";
 import { useSettingsStore } from "../../stores/SettingsStore";
 import { useTracksStore } from "../../stores/TracksStore";
 import { useExperimentStore } from "../../stores/ExperimentStore";
+import { useResultsStore } from "../../stores/ResultsStore";
 import type { TimelineTrackKind } from "../../models/Timeline";
-import { matchesTrackRuleKey } from "../../models/Settings";
+import { matchesTrackRuleKey, normalizeGranularity } from "../../models/Settings";
 
 type EditableReplayRule = {
     key: string;
@@ -280,6 +296,7 @@ type EditableTrackKindRule = {
 
 type DraftSettings = {
     homescreen: {
+        granularity: number;
         useWallTime: boolean;
         colours: EditableColourRule[];
     };
@@ -299,6 +316,7 @@ type SettingsTab = {
 const settingsStore = useSettingsStore();
 const tracksStore = useTracksStore();
 const experimentStore = useExperimentStore();
+const resultsStore = useResultsStore();
 const modal = ref<HTMLDivElement | null>(null);
 let modalInstance: Modal | null = null;
 const activeTab = ref<SettingsTab["id"]>("homescreen");
@@ -367,6 +385,7 @@ function createDraft(): DraftSettings {
     const current = settingsStore.settings;
     return {
         homescreen: {
+            granularity: current.granularity,
             useWallTime: current.visualization.useWallTime,
             colours: entriesFromStringMap(current.visualization.colours),
         },
@@ -382,6 +401,7 @@ function snapshotSettings(): unknown {
     const settings = settingsStore.settings;
     return {
         homescreen: {
+            granularity: settings.granularity,
             useWallTime: settings.visualization.useWallTime,
             colours: settings.visualization.colours,
         },
@@ -396,6 +416,7 @@ function snapshotSettings(): unknown {
 function snapshotDraft(value: DraftSettings): unknown {
     return {
         homescreen: {
+            granularity: value.homescreen.granularity,
             useWallTime: value.homescreen.useWallTime,
             colours: stringEntriesToMap(value.homescreen.colours),
         },
@@ -500,6 +521,10 @@ function save() {
         globalOnlySavedActions: draft.value.replay.globalOnlySavedActions,
         trainerRules: booleanEntriesToMap(draft.value.replay.trainerRules),
     });
+
+    const nextGranularity = normalizeGranularity(draft.value.homescreen.granularity);
+    settingsStore.setGranularity(nextGranularity);
+    resultsStore.granularity = nextGranularity;
 
     settingsStore.setVisualizationSettings({
         colours: stringEntriesToMap(draft.value.homescreen.colours),

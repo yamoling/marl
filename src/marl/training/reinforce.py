@@ -23,7 +23,7 @@ class Reinforce(Trainer):
 
     def __post_init__(self):
         super().__post_init__()
-        self._optim = torch.optim.AdamW(self.actor_critic.parameters(), lr=self.lr)
+        self._optim = torch.optim.AdamW(self.ac.parameters(), lr=self.lr)
 
     def compute_td1_returns(self, episode: Episode):
         obs = torch.from_numpy(episode.next_obs).to(self.device)

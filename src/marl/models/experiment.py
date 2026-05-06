@@ -5,12 +5,12 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import TYPE_CHECKING, Collection, Literal, Sequence
+from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
 
 import numpy as np
 import numpy.typing as npt
 import torch
-from marlenv.models import Space
+from marlenv import MARLEnv
 
 from marl.models.trainer import Trainer
 from marl.utils import Serializable, stats
@@ -19,7 +19,7 @@ from marl.utils.stats import Dataset
 from .run import Run
 
 if TYPE_CHECKING:
-    from marl.config import EnvConfig
+    from marl.env import EnvConfig
     from marl.logging import LoggerType, TickColumn
     from marl.models import Trainer
     from marl.models.replay_episode import LightEpisodeSummary
@@ -29,12 +29,12 @@ EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
-class Experiment[A: Space, T: Trainer](Serializable):
-    env: EnvConfig[A]
+class Experiment[E: MARLEnv, T: Trainer](Serializable):
+    env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
     logdir: str = "logs/test"
-    test_env: EnvConfig[A] | None = None
+    test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
     loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
     creation_timestamp: datetime | None = None
@@ -125,12 +125,27 @@ class Experiment[A: Space, T: Trainer](Serializable):
             run.save()
 
     @staticmethod
-    def json_file(logdir: str):
-        return os.path.join(logdir, "experiment.json")
+    def json_file(logdir: str | Path):
+        logdir = Path(logdir)
+        return logdir / EXPERIMENT_FILENAME
 
-    def get_run(self, run_seed: int):
+    @overload
+    def get_run(self, run_seed: int, /): ...
+    @overload
+    def get_run(self, rundir: str, /): ...
+
+    def get_run(self, seed_or_rundir: str | int):
+        seed = None
+        rundir = None
+        match seed_or_rundir:
+            case int(seed):
+                pass
+            case str(rundir):
+                pass
+            case other:
+                raise ValueError(f"Invalid seed or rundir: {other}")
         for run in self.runs:
-            if run.seed == run_seed:
+            if run.seed == seed or run.rundir == rundir:
                 return run
 
     @property
@@ -141,17 +156,15 @@ class Experiment[A: Space, T: Trainer](Serializable):
             if not rundir.is_dir():
                 continue
             try:
-                yield Run[A, npt.ArrayLike].load(self.logpath / f)
+                yield Run[E, npt.ArrayLike].load(self.logpath / f)
             except FileNotFoundError:
                 pass
 
     @staticmethod
-    def is_experiment_directory(logdir: str) -> bool:
+    def is_experiment_directory(logdir: str | Path) -> bool:
         """Check if a directory is an experiment directory."""
-        try:
-            return os.path.exists(os.path.join(logdir, "experiment.json"))
-        except FileNotFoundError:
-            return False
+        logdir = Path(logdir)
+        return Experiment.json_file(logdir).exists()
 
     @classmethod
     def find_experiment_directory(cls, subdir: str) -> str | None:
@@ -185,6 +198,11 @@ class Experiment[A: Space, T: Trainer](Serializable):
                 os.kill(ppid, SIGINT)
             except ProcessLookupError:
                 pass
+
+    @classmethod
+    def load(cls, logdir: Path | str):
+        json_file = cls.json_file(logdir)
+        return cls.from_file(json_file)
 
     def save(self):
         self.to_file(self.experiment_file)

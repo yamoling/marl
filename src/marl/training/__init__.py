@@ -1,4 +1,4 @@
-from .ddpg import DDPGTrainer
+from .ddpg import DDPG
 from .dqn import DQN
 from .intrinsic_reward import RND
 from .maven import MAVEN
@@ -19,9 +19,7 @@ __all__ = [
     "PPOC",
     "DQN",
     "PPO",
-    "DDPGTrainer",
-    "CNetTrainer",
-    "MAICTrainer",
+    "DDPG",
     "TargetParametersUpdater",
     "SoftUpdate",
     "HardUpdate",

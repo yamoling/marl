@@ -4,7 +4,7 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import TYPE_CHECKING, Literal, Sequence
 
 import torch
-from marlenv import MARLEnv, MultiDiscreteSpace
+from marlenv import DiscreteMARLEnv
 from torch import Tensor
 
 from marl.models.nn import NN, ActivationType, QNetwork, RecurrentQNetwork
@@ -14,7 +14,7 @@ from ..utils import make_cnn
 from .generic import CNN, CRNN, MLP, RNN
 
 if TYPE_CHECKING:
-    from marl.config import EnvConfig
+    from marl.env import EnvConfig
 
 
 @dataclass(unsafe_hash=True)
@@ -39,8 +39,8 @@ class QCNN(QNetwork):
             cnn_output_shape,
             self.obs_shape,
             self.extras_size,
-            self.mlp_sizes,
-            self.hidden_activation,
+            mlp_sizes=self.mlp_sizes,
+            hidden_activation=self.hidden_activation,
             output_activation=cnn_output_activation,
         )
 
@@ -66,13 +66,15 @@ class QMLP(QNetwork):
                 (self.hidden_sizes[-1],),
                 self.obs_size,
                 self.extras_size,
-                self.hidden_sizes,
-                self.activation,
+                hidden_sizes=self.hidden_sizes,
+                hidden_activation=self.activation,
                 output_activation=self.activation,
             )
             self.noisy_layer = NoisyLinear(self.hidden_sizes[1], self.n_actions)
         else:
-            self.nn = MLP(self.output_shape, self.obs_size, self.extras_size, self.hidden_sizes, self.activation)
+            self.nn = MLP(
+                self.output_shape, self.obs_size, self.extras_size, hidden_sizes=self.hidden_sizes, hidden_activation=self.activation
+            )
             self.noisy_layer = None
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
@@ -126,9 +128,7 @@ class QCRNN(RecurrentQNetwork):
         return self.nn.forward(obs, extras, **kwargs)
 
 
-def from_env(env: MARLEnv[MultiDiscreteSpace] | EnvConfig, recurrent: bool = False) -> QNetwork:
-    if not isinstance(env, MARLEnv):
-        env = env.make()
+def from_env(env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], recurrent: bool = False) -> QNetwork:
     match (len(env.observation_shape), recurrent):
         case (1, False):
             return QMLP.from_env(env)
@@ -253,7 +253,6 @@ class MAVENNN(QNetwork):
 @dataclass(unsafe_hash=True)
 class MAVENCNN(MAVENNN):
     obs_shape: tuple[int, int, int]
-    extras_size: int
 
     def __post_init__(self):
         super().__post_init__()
@@ -267,57 +266,31 @@ class MAVENCNN(MAVENNN):
         )
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], tail_type: Literal["bmm", "mul"] = "bmm"):
+    def from_env(cls, env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], tail_type: Literal["bmm", "mul"] = "bmm", **kwargs):
         assert len(env.observation_shape) == 3
         noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
         if noise_size == 0:
             raise ValueError(
                 "No noise found in the environment extras. Make sure to add noise to the environment extras with env.extra_noise() or to use the MAVEN agent."
             )
-        return MAVENCNN(
-            (env.n_actions,),
-            env.n_actions,
-            noise_size,
-            env.n_agents,
-            env.observation_shape,
-            env.extras_size,
-            tail_type=tail_type,
-        )
+        return MAVENCNN(env.n_actions, env.observation_shape, env.extras_shape, noise_size, env.n_agents, tail_type=tail_type)
 
 
 @dataclass(unsafe_hash=True)
 class MAVENMLP(MAVENNN):
-    extras_size: int
-    obs_size: int
-
     def __post_init__(self):
         super().__post_init__()
-        self.head = MLP(
-            (self.agent_output_size,),
-            self.obs_size,
-            self.extras_size - self.noise_size,
-            (256, 256),
-            "relu",
-            noisy=False,
-        )
+        self.head = MLP((self.agent_output_size,), self.obs_size, self.extras_size - self.noise_size)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace], tail_type: Literal["bmm", "mul"] = "bmm"):
+    def from_env(cls, env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], tail_type: Literal["bmm", "mul"] = "bmm", **kwargs):
         assert len(env.observation_shape) == 1
         noise_size = len([m for m in env.extras_meanings if "noise" in m.lower() or "maven" in m.lower()])
         if noise_size == 0:
             raise ValueError(
                 "No noise found in the environment extras. Make sure to add noise to the environment extras with env.extra_noise() or to use the MAVEN agent."
             )
-        return MAVENMLP(
-            (env.n_actions,),
-            env.n_actions,
-            noise_size,
-            env.n_agents,
-            env.extras_size,
-            env.observation_shape[0],
-            tail_type=tail_type,
-        )
+        return MAVENMLP(env.n_actions, env.observation_shape, env.extras_shape, noise_size, env.n_agents, tail_type=tail_type, **kwargs)
 
 
 @dataclass(unsafe_hash=True)
@@ -328,62 +301,52 @@ class IndependentCNN(QNetwork):
     The CNN part of the network is shared but the linear layers are separated.
     """
 
-    duelling: bool
+    n_agents: int
+    _: KW_ONLY
+    mlp_sizes: tuple[int, ...] = (256, 128)
+    kernel_sizes: tuple[int, ...] = (3, 3, 3)
+    strides: tuple[int, ...] = (1, 1, 1)
+    filters: tuple[int, ...] = (32, 64, 64)
+    duelling: bool = True
+    mlp_noisy: bool = False
 
-    def __init__(
-        self,
-        n_agents: int,
-        input_shape: tuple[int, int, int],
-        extras_size: int,
-        output_shape: tuple[int] | tuple[int, int],
-        mlp_sizes: tuple[int, ...] = (64, 64),
-        kernel_sizes: tuple[int, ...] = (3, 3, 3),
-        strides: tuple[int, ...] = (1, 1, 1),
-        filters: tuple[int, ...] = (32, 64, 64),
-        duelling: bool = True,
-        mlp_noisy: bool = False,
-    ):
-        super().__init__(output_shape)
-        self.n_agents = n_agents
-        assert len(strides) == len(filters) == len(kernel_sizes)
-        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides, "relu")
-        self.duelling = duelling
-        n_outputs = math.prod(self.output_shape)
-        if duelling:
+    def __post_init__(self):
+        super().__post_init__()
+        assert len(self.obs_shape) == 3
+        self.cnn, n_features = make_cnn(self.obs_shape, self.filters, self.kernel_sizes, self.strides, "relu")
+        n_outputs = self.output_size
+        if self.duelling:
             n_outputs += 1
         linears = []
-        for _ in range(n_agents):
-            layers: list[torch.nn.Module] = [torch.nn.Linear(n_features + extras_size, mlp_sizes[0]), torch.nn.ReLU()]
-            for i in range(len(mlp_sizes) - 1):
-                layers.append(torch.nn.Linear(mlp_sizes[i], mlp_sizes[i + 1]))
+        for _ in range(self.n_agents):
+            layers: list[torch.nn.Module] = [torch.nn.Linear(n_features + self.extras_size, self.mlp_sizes[0]), torch.nn.ReLU()]
+            for i in range(len(self.mlp_sizes) - 1):
+                layers.append(torch.nn.Linear(self.mlp_sizes[i], self.mlp_sizes[i + 1]))
                 layers.append(torch.nn.ReLU())
-            if mlp_noisy:
-                layers.append(NoisyLinear(mlp_sizes[-1], n_outputs))
+            if self.mlp_noisy:
+                layers.append(NoisyLinear(self.mlp_sizes[-1], n_outputs))
             else:
-                layers.append(torch.nn.Linear(mlp_sizes[-1], n_outputs))
+                layers.append(torch.nn.Linear(self.mlp_sizes[-1], n_outputs))
             linears.append(torch.nn.Sequential(*layers))
         self.linears = torch.nn.ModuleList(linears)
 
     @classmethod
     def from_env(
         cls,
-        env: MARLEnv[MultiDiscreteSpace],
+        env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv],
         mlp_sizes: tuple[int, ...] = (64, 64),
         duelling: bool = True,
         mlp_noisy: bool = False,
+        **kwargs,
     ):
-        if env.is_multi_objective:
-            output_shape = (env.n_actions, env.reward_space.size)
-        else:
-            output_shape = (env.n_actions,)
         assert len(env.observation_shape) == 3
         c, h, w = env.observation_shape
-        return IndependentCNN(
-            env.n_agents,
+        return cls(
+            env.n_actions,
             (c, h, w),
-            env.extras_shape[0],
-            output_shape,
-            mlp_sizes,
+            env.extras_shape,
+            env.n_agents,
+            mlp_sizes=mlp_sizes,
             duelling=duelling,
             mlp_noisy=mlp_noisy,
         )

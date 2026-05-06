@@ -2,9 +2,9 @@ from dataclasses import KW_ONLY, dataclass
 
 import torch
 import torch.nn as nn
-from marlenv import MARLEnv, MultiDiscreteSpace
+from marlenv import DiscreteMARLEnv
 
-from marl.config import EnvConfig
+from marl.env import EnvConfig
 from marl.models.nn import StateMixer
 
 
@@ -192,7 +192,7 @@ class QPlex(StateMixer):
     @classmethod
     def from_env(
         cls,
-        env: MARLEnv[MultiDiscreteSpace] | EnvConfig,
+        env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv],
         embed_dim: int = 32,
         hypernet_embed: int = 64,
         num_kernel: int = 10,
@@ -203,8 +203,6 @@ class QPlex(StateMixer):
         is_stop_gradient: bool = True,
         **kwargs,
     ):
-        if not isinstance(env, MARLEnv):
-            env = env.make()
         return super().from_env(
             env,
             n_actions=env.n_actions,

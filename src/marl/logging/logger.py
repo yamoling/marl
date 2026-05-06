@@ -44,7 +44,7 @@ class LogHelper:
 
 
 class LogReader(ABC, LogHelper):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         self.logdir = logdir
 
     @property
@@ -83,7 +83,6 @@ class Logger(ABC, LogHelper):
     """Logger base class."""
 
     def __init__(self, logdir: Path):
-        super().__init__(logdir)
         LogHelper.__init__(self, logdir)
 
     def log_train(self, data: dict[str, Any], time_step: int):

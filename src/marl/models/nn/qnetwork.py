@@ -4,12 +4,12 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import TYPE_CHECKING
 
 import torch
-from marlenv import MARLEnv, MultiDiscreteSpace, Observation
+from marlenv import DiscreteMARLEnv, Observation
 
 from .nn import NN, RecurrentNN
 
 if TYPE_CHECKING:
-    from marl.config import EnvConfig
+    from marl.env import EnvConfig
 
 
 @dataclass
@@ -88,9 +88,7 @@ class QNetwork(NN):
         return ActorFromQNet(self)
 
     @classmethod
-    def from_env(cls, env: EnvConfig | MARLEnv[MultiDiscreteSpace], **kwargs):
-        if not isinstance(env, MARLEnv):
-            env = env.make()
+    def from_env(cls, env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv, **kwargs):
         return cls(env.n_actions, env.observation_shape, env.extras_shape, **kwargs)
 
 

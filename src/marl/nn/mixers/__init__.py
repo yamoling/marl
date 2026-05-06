@@ -1,12 +1,12 @@
 # from .mixer import Mixer
-from .qmix import QMix
-from .vdn import VDN
-from .qplex import QPlex
 from .qatten import Qatten
-
+from .qmix import QMix, QMixMAVEN
+from .qplex import QPlex
+from .vdn import VDN
 
 __all__ = [
     "QMix",
+    "QMixMAVEN",
     "VDN",
     "QPlex",
     "Qatten",

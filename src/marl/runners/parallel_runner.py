@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Collection, Literal
 
 import numpy.typing as npt
 import torch
-from marlenv import Space
+from marlenv import MARLEnv
 
 from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
 
@@ -33,8 +33,8 @@ def ignore_sigint():
         signal.signal(signal.SIGINT, original_handler)
 
 
-def parallel_run[A: Space, T: npt.ArrayLike](
-    runs: Collection[Run[A, T]],
+def parallel_run[E: MARLEnv, T: npt.ArrayLike](
+    runs: Collection[Run[E, T]],
     n_jobs: int | None = None,
     device: int | str | Literal["auto", "cpu"] = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",

@@ -1,24 +1,52 @@
-import { EnvSchema, EnvWrapperSchema } from "./Env";
+import { EnvSchema, getEnvDisplayName } from "./Env";
 import { z } from "zod";
 
-export const TrainerSchema = z
+const SerializablePayloadSchema = z
   .object({
-    name: z.string(),
+    "class-name": z.string().optional(),
   })
   .catchall(z.any());
 
-export const ExperimentSchema = z.object({
-  logdir: z.string(),
-  trainer: TrainerSchema,
-  env: z.union([EnvSchema, EnvWrapperSchema]),
-  test_env: z.union([EnvSchema, EnvWrapperSchema]).optional(),
-  test_interval: z.number(),
-  n_steps: z.number(),
-  creation_timestamp: z.number(),
+export const TrainerSchema = SerializablePayloadSchema.extend({
+  gamma: z.number(),
+  ir_module: z.object().catchall(z.any()).nullable(),
+  grad_norm_clipping: z.number().nullable(),
+  train_interval: z.tuple([z.string(), z.number()]),
 });
 
-export type Trainer = z.infer<typeof TrainerSchema>;
+const EnvConfigSchema = z.object({
+  name: z.string(),
+  agent_id: z.boolean(),
+  time_limit: z.number().optional(),
+  last_action: z.boolean(),
+  maven_noise_size: z.number().optional(),
+});
+
+const ExperimentSchema = z.object({
+  logdir: z.string(),
+  trainer: TrainerSchema,
+  env: EnvConfigSchema,
+  test_env: EnvConfigSchema.nullable(),
+  n_steps: z.number(),
+  creation_timestamp: z.coerce.date(),
+  loggers: z.array(z.string()),
+});
+
 export type Experiment = z.infer<typeof ExperimentSchema>;
+export type Trainer = z.infer<typeof TrainerSchema>;
+export type EnvConfig = z.infer<typeof EnvConfigSchema>;
+
+export const DatasetSchema = z.object({
+  ticks: z.array(z.number()),
+  label: z.string(),
+  category: z.string(),
+  logdir: z.string(),
+  mean: z.array(z.number()),
+  std: z.array(z.number()),
+  min: z.array(z.number()),
+  max: z.array(z.number()),
+  ci95: z.array(z.number()),
+});
 
 export class ExperimentResults {
   public logdir: string;
@@ -43,8 +71,6 @@ export class ExperimentResults {
 export interface Dataset {
   ticks: number[];
   label: string;
-  metric: string;
-  source: string;
   category: string | "Test" | "Train";
   logdir: string;
   mean: number[];
@@ -66,20 +92,20 @@ function groupByLabel(datasets: Dataset[]): Map<string, Dataset[]> {
 }
 
 export class DatasetTable {
-  public items: { step: number;[key: string]: number }[];
+  public items: { step: number; [key: string]: number }[];
 
-  public constructor(items: { step: number;[key: string]: number }[]) {
+  public constructor(items: { step: number; [key: string]: number }[]) {
     this.items = items;
   }
 
   public static fromTestDatasets(datasets: Dataset[]) {
     return DatasetTable.fromDatasets(
-      datasets.filter((d) => d.source === "test" || d.category === "Test"),
+      datasets.filter((d) => d.category === "Test"),
     );
   }
 
   public static fromDatasets(datasets: Dataset[]) {
-    const items = [] as { step: number;[key: string]: number }[];
+    const items = [] as { step: number; [key: string]: number }[];
     datasets.forEach((ds) => {
       for (let i = 0; i < ds.ticks.length; i++) {
         const step = ds.ticks[i];

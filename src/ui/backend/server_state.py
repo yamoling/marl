@@ -85,7 +85,7 @@ class ServerState:
         if target_run is None:
             raise FileNotFoundError(f"Could not find run {rundir}")
 
-        if target_run.is_running or target_run.is_completed(experiment.n_steps):
+        if target_run.is_running or target_run.is_complete:
             return
         self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed, device=device)
 
@@ -121,8 +121,9 @@ class ServerState:
                 f"Experiment not loaded — call POST /experiment/load/{rundir} first, "
                 f"or navigate to the experiment page before replaying an episode."
             )
-        run_num = matching_experiment.rundirs.index(rundir)
-        return matching_experiment.replay_episode(run_num, time_step, test_num, only_saved_actions=only_saved_actions)
+        run = matching_experiment.get_run(rundir)
+        assert run is not None
+        return run.replay_episode(time_step, test_num, only_saved_actions=only_saved_actions)
 
 
 class GarbageCollector(Thread):

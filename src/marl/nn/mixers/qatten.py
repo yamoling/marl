@@ -1,13 +1,14 @@
-import torch
-import torch.nn as nn
 from dataclasses import KW_ONLY, dataclass
 
-from marl.models.nn import Mixer
+import torch
+import torch.nn as nn
+
+from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
 
 @dataclass(unsafe_hash=True)
-class Qatten(Mixer):
+class Qatten(StateMixer):
     state_size: int
     state_extras_size: int
     unit_dim: int

@@ -1,77 +1,63 @@
-import os
 from collections import defaultdict
-from dataclasses import KW_ONLY, InitVar, dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv import Episode, Transition
 from marlenv.utils import Schedule
 
-from marl.models import Batch, Mixer, ReplayMemory, Trainer
+from marl.models import Batch, EpisodeMemory, Mixer, Trainer, TransitionMemory
 from marl.models.batch import EpisodeBatch
-from marl.models.nn import ActorCritic, IRModule
+from marl.models.nn import ActorCritic
 
 
 @dataclass
-class PPO(Trainer):
+class PPO(Trainer[npt.NDArray[np.int64]]):
     """Proximal Policy Optimization trainer. Either MAPPO (with a mixer) or IPPO (without mixer)."""
 
     actor_critic: ActorCritic
     mixer: Mixer | None
     _: KW_ONLY
-    ir_module: IRModule | None = None
-    gamma: float = 0.99
+    train_interval: tuple[int, Literal["step", "episode"]] = (64, "step")
     lr_actor: float = 5e-4
     lr_critic: float = 1e-3
     n_epochs: int = 20
     eps_clip: float = 0.2
-    critic_c1: InitVar[Schedule | float] = 0.5
-    c1: Schedule = field(init=False)
-    entropy_c2: InitVar[Schedule | float] = 0.01
-    c2: Schedule = field(init=False)
-    train_interval: int = 64
+    c1: Schedule = field(default_factory=lambda: Schedule.constant(0.5))
+    c2: Schedule = field(default_factory=lambda: Schedule.constant(0.01))
     gae_lambda: float = 0.95
-    grad_norm_clipping: float | None = None
     minibatch_size: int = 32
     normalize_advantages: bool = True
-    optimizer: torch.optim.Optimizer = field(init=False)
-    train_on: Literal["episode", "transition"] = "transition"
-    memory: ReplayMemory = field(init=False)
     early_stopping_kl: float | None = None
     """Early stopping if the KL divergence between the old and new policy is higher than this threshold. If None, no early stopping is applied."""
     value_loss: Literal["huber", "mse"] = "huber"
 
-    def __post_init__(self, critic_c1: Schedule | float, entropy_c2: Schedule | float):
-        super().__init__()
-        assert self.minibatch_size <= self.train_interval
-        self.actor_critic = self.actor_critic
-        if self.mixer is not None:
-            self.mixer = self.mixer
-            self.name = f"MAPPO-{self.mixer.name}"
-        else:
-            self.name = "IPPO"
+    def __post_init__(self):
+        super().__post_init__()
+        match self.train_interval:
+            case (n, "step"):
+                if self.actor_critic.is_recurrent:
+                    raise ValueError("Recurrent neural networks should train on full episodes, not on transaitions !")
+                self.memory = TransitionMemory(n)
+            case (n, "episode"):
+                self.memory = EpisodeMemory(n)
+        self.batch_size = n
+        assert self.minibatch_size <= self.batch_size, (
+            f"The batch size (i.e.: train_interval={self.batch_size}) should be greater than the minibatch size ({self.minibatch_size})."
+        )
         self._ratio_min = 1 - self.eps_clip
         self._ratio_max = 1 + self.eps_clip
         self._parameters = list(self.actor_critic.parameters())
         param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
-        self.optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
-        if isinstance(critic_c1, (float, int)):
-            critic_c1 = Schedule.constant(critic_c1)
-        self.c1 = critic_c1
-        if isinstance(entropy_c2, (float, int)):
-            entropy_c2 = Schedule.constant(entropy_c2)
-        self.c2 = entropy_c2
-        if self.train_on == "transition":
-            from marl.models.replay_memory import TransitionMemory
+        self._optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
 
-            self.memory = TransitionMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
-        else:
-            from marl.models.replay_memory import EpisodeMemory
-
-            self.memory = EpisodeMemory(self.train_interval)  # pyright: ignore[reportAttributeAccessIssue]
-        if self.actor_critic.is_recurrent and not self.train_on == "episode":
-            raise ValueError("Recurrent neural networks should train on full episodes, not on transaitions !")
+    @property
+    def name(self):
+        if self.mixer is None:
+            return "IPPO"
+        return f"MAPPO-{self.mixer.name}"
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
@@ -174,14 +160,14 @@ class PPO(Trainer):
             entropy = entropy * minibatch.masks
             entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
 
-            self.optimizer.zero_grad()
+            self._optimizer.zero_grad()
             # Equation (9) in the paper
             loss = actor_loss + self.c1 * critic_loss + self.c2 * entropy_loss
             loss.backward()
             if self.grad_norm_clipping is not None:
                 norm = torch.nn.utils.clip_grad_norm_(self._parameters, self.grad_norm_clipping)
                 log_lists["norms"].append(norm.detach().cpu().item())
-            self.optimizer.step()
+            self._optimizer.step()
             log_lists["actor_loss"].append(actor_loss.item())
             log_lists["critic_loss"].append(critic_loss.item())
             log_lists["entropy_loss"].append(entropy_loss.item())
@@ -198,13 +184,13 @@ class PPO(Trainer):
         }
 
     def update_step(self, transition: Transition, time_step: int):
-        if not self.memory.update_on_transitions:
+        if not isinstance(self.memory, TransitionMemory):
             return {}
         self.memory.add(transition)
         return self.train(time_step)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        if not self.memory.update_on_episodes:
+        if not isinstance(self.memory, EpisodeMemory):
             return {}
         self.memory.add(episode)
         return self.train(time_step)
@@ -213,18 +199,3 @@ class PPO(Trainer):
         from marl.agents import SimpleAgent
 
         return SimpleAgent(self.actor_critic)
-
-    @property
-    def device(self):
-        return self._device
-
-    def save(self, directory_path: str):
-        os.makedirs(directory_path, exist_ok=True)
-        filename = os.path.join(directory_path, "actor_critic.weights")
-        with open(filename, "wb") as f:
-            torch.save(self.actor_critic.state_dict(), f)
-
-    def load(self, directory_path: str):
-        filename = os.path.join(directory_path, "actor_critic.weights")
-        with open(filename, "rb") as f:
-            self.actor_critic.load_state_dict(torch.load(f))

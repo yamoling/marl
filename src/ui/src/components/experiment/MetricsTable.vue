@@ -65,6 +65,7 @@ import { useResultsStore } from "../../stores/ResultsStore";
 import { useRoute } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import { ReplayEpisodeSummary } from "../../models/Episode";
+import { useSettingsStore } from "../../stores/SettingsStore";
 
 const props = defineProps<{
     logdir: string;
@@ -73,6 +74,7 @@ const props = defineProps<{
 const expanded = ref({} as Record<string, boolean>);
 const resultsStore = useResultsStore();
 const experimentStore = useExperimentStore();
+const settingsStore = useSettingsStore();
 const loadError = ref<string | null>(null);
 const dataset = computed(() => {
     const experimentResults = resultsStore.results.get(props.logdir);
@@ -102,7 +104,7 @@ onMounted(async () => {
             return;
         }
         try {
-            await resultsStore.load(props.logdir, experiment.test_interval);
+            await resultsStore.load(props.logdir, settingsStore.settings.granularity);
         } catch (e) {
             loadError.value = e instanceof Error ? e.message : String(e);
         }

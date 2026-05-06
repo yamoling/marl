@@ -1,5 +1,3 @@
-import math
-import os
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
@@ -41,11 +39,10 @@ class RND(IRModule):
         Gamma is required if normalise_rewards is True since we have to compute the episode returns.
         normalise_rewards only works with EpisodeBatch.
         """
-        super().__init__()
+        super().__init__(output_shape)
         # RND should output one intrinsic reward per objective
         self._target = target
         self._predictor_head = deepcopy(target)
-        self.output_size = math.prod(output_shape)
         self._predictor_tail = torch.nn.Sequential(
             torch.nn.ReLU(),
             torch.nn.Linear(self.output_size, self.output_size),
@@ -128,44 +125,9 @@ class RND(IRModule):
             output_shape = (*env.reward_space.shape, n_outputs)
         match (env.state_shape, env.state_extra_shape):
             case ((size,), (n_extras,)):  # Linear
-                nn = model_bank.MLP(
-                    size,
-                    n_extras,
-                    (128, 256, 128),
-                    output_shape,
-                )
+                nn = model_bank.MLP(output_shape, size, n_extras)
             case ((_, _, _) as dimensions, (n_extras,)):  # CNN
-                nn = model_bank.CNN(
-                    dimensions,
-                    n_extras,
-                    output_shape,
-                )
+                nn = model_bank.CNN(output_shape, dimensions, n_extras)
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
         return RND(nn, env.observation_shape, env.extras_shape, output_shape, n_warmup_steps)
-
-    def save(self, to_directory: str):
-        os.makedirs(to_directory, exist_ok=True)
-        target_path = os.path.join(to_directory, "target.weights")
-        torch.save(self._target.state_dict(), target_path)
-        predictor_head_path = os.path.join(to_directory, "predictor_head.weights")
-        torch.save(self._predictor_head.state_dict(), predictor_head_path)
-        predictor_tail_path = os.path.join(to_directory, "predictor_tail.weights")
-        torch.save(self._predictor_tail.state_dict(), predictor_tail_path)
-
-    def load(self, from_directory: str):
-        target_path = os.path.join(from_directory, "target.weights")
-        self._target.load_state_dict(torch.load(target_path, weights_only=True))
-        predictor_head_path = os.path.join(from_directory, "predictor_head.weights")
-        self._predictor_head.load_state_dict(torch.load(predictor_head_path, weights_only=True))
-        predictor_tail_path = os.path.join(from_directory, "predictor_tail.weights")
-        self._predictor_tail.load_state_dict(torch.load(predictor_tail_path, weights_only=True))
-
-    def to(self, device: torch.device):
-        self._target.to(device)
-        self._predictor_head.to(device)
-        self._predictor_tail.to(device, non_blocking=True)
-        self._running_states.to(device)
-        self._running_returns.to(device)
-        self._running_extras.to(device)
-        return self

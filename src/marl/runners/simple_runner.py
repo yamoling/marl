@@ -4,14 +4,14 @@ from typing import TYPE_CHECKING
 import numpy as np
 import numpy.typing as npt
 import torch
-from marlenv import Episode, MARLEnv, Space, Transition
+from marlenv import Episode, MARLEnv, Transition
 from tqdm import tqdm
 
 if TYPE_CHECKING:
     from marl import Agent, Run, Trainer
 
 
-def simple_run[A: Space, T: npt.ArrayLike](run: Run[A, T], quiet: bool, render_tests: bool, device: torch.device):
+def simple_run[E: MARLEnv, T: npt.ArrayLike](run: Run[E, T], quiet: bool, render_tests: bool, device: torch.device):
     """
     Boilerplate to run an RL experiment:
         - Seeding first

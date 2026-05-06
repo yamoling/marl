@@ -1,12 +1,12 @@
 import numpy as np
 import numpy.typing as npt
-from marlenv import MARLEnv, Observation, Space
+from marlenv import MARLEnv, Observation
 
 from marl.models import Action, Agent
 
 
-class RandomAgent[S: Space[np.ndarray]](Agent[np.ndarray]):
-    def __init__(self, env: MARLEnv[S]):
+class RandomAgent[T: npt.NDArray](Agent[T]):
+    def __init__(self, env: MARLEnv[T]):
         super().__init__()
         self.env = env
 

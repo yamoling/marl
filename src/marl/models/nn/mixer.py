@@ -3,9 +3,9 @@ from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 
 import torch
-from marlenv import MARLEnv, MultiDiscreteSpace
+from marlenv import DiscreteMARLEnv
 
-from marl.config import EnvConfig
+from marl.env import EnvConfig
 
 from .nn import NN
 
@@ -49,10 +49,8 @@ class Mixer(NN):
         torch.save(state_dict, filename)
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace] | EnvConfig, **kwargs):
+    def from_env(cls, env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], **kwargs):
         """Create a mixer from an environment."""
-        if not isinstance(env, MARLEnv):
-            env = env.make()
         return cls(n_objectives=env.n_objectives, **kwargs)
 
 
@@ -63,7 +61,5 @@ class StateMixer(Mixer):
     state_extras_size: int
 
     @classmethod
-    def from_env(cls, env: MARLEnv[MultiDiscreteSpace] | EnvConfig, **kwargs):
-        if not isinstance(env, MARLEnv):
-            env = env.make()
+    def from_env(cls, env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], **kwargs):
         return super().from_env(env, n_agents=env.n_agents, state_size=env.state_size, state_extras_size=env.state_extras_size, **kwargs)

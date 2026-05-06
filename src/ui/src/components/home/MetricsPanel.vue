@@ -11,9 +11,8 @@
                     <span class="metrics-granularity-label">Granularity</span>
                     <div class="input-group">
                         <input id="metrics-granularity-input" class="form-control form-control-sm " type="number"
-                            min="0" v-model.number="granularityInputValue"
-                            :step="granularityUnit == 'seconds' ? 30 : 500"
-                            @change="() => resultsStore.granularity = granularityInputValue">
+                            min="1" v-model.number="granularityInputValue"
+                            :step="granularityUnit == 'seconds' ? 30 : 500">
                         <select class="form-select form-select-sm" v-model="granularityUnit"
                             aria-label="Granularity unit">
                             <option value="timesteps">Time steps</option>
@@ -88,6 +87,7 @@ import { MetricSelection } from '../../models/Metrics';
 import { searchMatch } from '../../utils';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useSettingsStore } from '../../stores/SettingsStore';
+import { normalizeGranularity } from '../../models/Settings';
 const resultsStore = useResultsStore();
 const settingsStore = useSettingsStore();
 const props = defineProps<{
@@ -95,10 +95,18 @@ const props = defineProps<{
     metricsByCategory: Map<string, Set<string>>,
 }>();
 const searchString = ref("");
-const granularityInputValue = ref(resultsStore.granularity)
 const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
+
+const granularityInputValue = computed({
+    get: () => resultsStore.granularity ?? settingsStore.settings.granularity,
+    set: (value: number) => {
+        const nextGranularity = normalizeGranularity(value);
+        resultsStore.granularity = nextGranularity;
+        settingsStore.setGranularity(nextGranularity);
+    },
+});
 
 const granularityUnit = computed({
     get: () => settingsStore.settings.visualization.useWallTime ? 'seconds' : 'timesteps',
@@ -134,7 +142,6 @@ const loadedResultsCount = computed(() => resultsStore.results.size);
 
 const emits = defineEmits<{
     (event: "change-selected-metrics", value: MetricSelection[]): void
-    (event: "change-granularity", value: number): void
 }>();
 
 function formatCategoryTitle(category: string) {

@@ -23,6 +23,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     _: KW_ONLY
     mixer: M = field(default=None)  # type: ignore
     lr: float = 1e-4
+    batch_size: int = 64
     double_qlearning: bool = True
     test_policy: Policy | None = None
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))

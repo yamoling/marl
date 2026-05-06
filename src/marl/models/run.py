@@ -10,25 +10,25 @@ import numpy.typing as npt
 import polars as pl
 import psutil
 from cachetools.func import ttl_cache
-from marlenv import Space
+from marlenv import MARLEnv
 
 from marl.logging import TIME_STEP_COL, Logger, LoggerType
 from marl.utils import Serializable, encode_b64_image
 
 if TYPE_CHECKING:
     from marl import Trainer
-    from marl.config import EnvConfig
+    from marl.env import EnvConfig
 
 RUN_FILE = "run.json"
 
 
 @dataclass(unsafe_hash=True)
-class Run[A: Space, T: npt.ArrayLike](Serializable):
+class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
     seed: int
     rundir: str
     trainer: Trainer[T]
-    env: EnvConfig[A]
-    test_env: EnvConfig[A]
+    env: EnvConfig[E]
+    test_env: EnvConfig[E]
     n_steps: int
     test_interval: int
     n_tests: int

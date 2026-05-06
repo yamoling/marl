@@ -28,6 +28,10 @@ class NN(torch.nn.Module, Serializable):
         Serializable.__post_init__(self)
 
     @property
+    def name(self):
+        return self.__class__.__name__
+
+    @property
     def output_size(self):
         return math.prod(self.output_shape)
 

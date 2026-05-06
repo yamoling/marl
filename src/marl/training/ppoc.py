@@ -1,14 +1,13 @@
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import KW_ONLY, InitVar, dataclass, field
-from typing import Literal, cast
 
 import numpy as np
 import torch
 from marlenv import Episode, Transition
 from marlenv.utils import Schedule
 
-from marl.models import Batch, Mixer, Policy, ReplayMemory, Trainer
+from marl.models import Batch, Mixer, Policy, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.models.nn.options import OptionCriticNetwork
 from marl.models.replay_memory import EpisodeMemory, TransitionMemory
@@ -31,7 +30,6 @@ class PPOC(Trainer):
     n_agents: int
     mixer: Mixer | None = None
     _: KW_ONLY
-    gamma: float = 0.99
     gae_lambda: float = 0.95
     lr: float = 3e-4
     n_epochs: int = 10
@@ -42,16 +40,11 @@ class PPOC(Trainer):
     c2: Schedule = field(init=False)
     termination_c3: float = 1.0
     termination_reg: float = 0.01
-    train_interval: int = 64
     minibatch_size: int = 32
     normalize_advantages: bool = True
-    grad_norm_clipping: float | None = 0.5
-    train_on: Literal["episode", "transition"] = "transition"
     q_updater: InitVar[TargetParametersUpdater | None] = None
     target_updater: TargetParametersUpdater = field(init=False)
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
-    optimizer: torch.optim.Optimizer = field(init=False)
-    memory: ReplayMemory[Transition | Episode] = field(init=False)
     early_stopping_kl: float | None = 0.01
 
     def __post_init__(
@@ -61,7 +54,8 @@ class PPOC(Trainer):
         q_updater: TargetParametersUpdater | None,
     ):
         super().__init__()
-        assert self.minibatch_size <= self.train_interval
+        self.batch_size, self.train_on = self.train_interval
+        assert self.minibatch_size <= self.batch_size
 
         self.oc = self.oc.to(self.device)
         self.target_oc = deepcopy(self.oc)
@@ -87,10 +81,9 @@ class PPOC(Trainer):
         self.c2 = entropy_c2
 
         if self.train_on == "transition":
-            memory = TransitionMemory(self.train_interval)
+            self.memory = TransitionMemory(self.batch_size)
         else:
-            memory = EpisodeMemory(self.train_interval)
-        self.memory = cast(ReplayMemory[Transition | Episode], memory)
+            self.memory = EpisodeMemory(self.batch_size)
 
         if q_updater is None:
             q_updater = HardUpdate(200)
@@ -246,7 +239,7 @@ class PPOC(Trainer):
         return termination_loss
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
-        if not self.memory.update_on_transitions:
+        if not isinstance(self.memory, TransitionMemory):
             return {}
         self.memory.add(transition)
         logs = self.option_train_policy.update(time_step)
@@ -258,7 +251,7 @@ class PPOC(Trainer):
         return logs
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, float]:
-        if not self.memory.update_on_episodes:
+        if not isinstance(self.memory, EpisodeMemory):
             return {}
         self.memory.add(episode)
         logs = self.option_train_policy.update(time_step)

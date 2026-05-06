@@ -5,12 +5,13 @@ import torch
 from torch.nn.utils.rnn import pack_padded_sequence
 
 from marl.models import Batch
+from marl.nn.mixers import QMixMAVEN
 
 from ..dqn import DQN
 
 
 @dataclass
-class MITrainer(DQN):
+class MITrainer(DQN[QMixMAVEN]):
     noise_size: int
     n_actions: int
     n_agents: int

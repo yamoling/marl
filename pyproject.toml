@@ -34,6 +34,7 @@ dependencies = [
   "optuna>=4.8.0",
   "optuna-dashboard>=0.20.0",
   "cachetools>=7.1.1",
+  "overcooked>=0.2.0",
 ]
 
 [project.optional-dependencies]

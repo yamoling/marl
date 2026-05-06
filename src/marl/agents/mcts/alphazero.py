@@ -1,10 +1,13 @@
+from collections import deque
+from copy import deepcopy
+
 import numpy as np
 import torch
-from marlenv import MARLEnv, State, MultiDiscreteSpace
+from marlenv import MARLEnv, MultiDiscreteSpace, State
+
 from marl.nn.model_bank import CNN_ActorCritic
-from collections import deque
+
 from .alpha_node import AlphaNode
-from copy import deepcopy
 
 
 class AlphaZero:
@@ -23,11 +26,7 @@ class AlphaZero:
         assert len(env.state_shape) == 3
         assert len(env.state_extra_shape) == 1
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.network = CNN_ActorCritic(
-            env.state_shape,
-            env.state_extra_shape,
-            (env.action_space.shape[-1],),
-        ).to(self.device)
+        self.network = CNN_ActorCritic(env.state_shape, env.state_extras_size, env.n_actions).to(self.device)
         self.tau = tau
         self.c = exploration_constant
         self.n_search_iterations = n_search_iterations

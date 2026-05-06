@@ -20,7 +20,6 @@ class Trainer[T](Serializable):
     gamma: float = 0.99
     ir_module: IRModule | None = None
     grad_norm_clipping: float | None = None
-    batch_size: int = 64
     train_interval: tuple[int, Literal["step", "episode"]] = (5, "step")
 
     def __post_init__(self):

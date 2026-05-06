@@ -2,6 +2,8 @@ import orjson
 from fastapi import APIRouter
 from fastapi.responses import Response
 
+from marl.utils import default_serialization
+
 from . import state
 
 router = APIRouter()
@@ -19,4 +21,4 @@ def get_experiment_results(logdir: str, granularity: int, use_wall_time: bool = 
 def get_test_results_at(time_step: str, logdir: str):
     exp = state.get_experiment(logdir)
     res = exp.get_tests_at(int(time_step))
-    return Response(orjson.dumps(res, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
+    return Response(orjson.dumps(res, option=orjson.OPT_SERIALIZE_NUMPY, default=default_serialization), media_type="application/json")

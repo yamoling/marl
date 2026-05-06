@@ -1,15 +1,13 @@
-from dataclasses import dataclass
-from typing import Literal
-from marlenv import Transition
-import torch
 from copy import deepcopy
+from dataclasses import KW_ONLY, dataclass, field
 
-from marl.models.batch import Batch
+import torch
+from marlenv import Transition
+
 from marl.models import TransitionMemory
-from marl.models.nn import Critic
-from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
-
-from marl.models.nn import IRModule
+from marl.models.batch import Batch
+from marl.models.nn import Critic, IRModule
+from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass
@@ -23,32 +21,21 @@ class AdvantageIntrinsicReward(IRModule):
     A(s_t, a_t) = r + \\gamma V(s_{t+1}) - V(s_t)
     """
 
-    def __init__(
-        self,
-        value_network: Critic,
-        gamma: float,
-        update_method: TargetParametersUpdater | Literal["soft", "hard"] = "soft",
-        lr: float = 1e-4,
-        batch_size: int = 64,
-        grad_norm_clipping: float | None = 10.0,
-    ):
-        match update_method:
-            case "soft":
-                update_method = SoftUpdate(1e-2)
-            case "hard":
-                update_method = HardUpdate(200)
-        super().__init__()
-        self.gamma = gamma
-        self.batch_size = batch_size
-        self.update_method = update_method
-        self.network = value_network
-        self.target_network = deepcopy(value_network)
+    network: Critic
+    gamma: float
+    _: KW_ONLY
+    update_method: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(0.01))
+    lr: float = 1e-4
+    batch_size: int = 64
+    grad_norm_clipping: float | None = 10.0
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.target_network = deepcopy(self.network)
         self.target_network.randomize()
         self.update_method.add_parameters(self.network.parameters(), self.target_network.parameters())
-        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=self.lr)
         self.memory = TransitionMemory(5_000)
-        self._device = self.network.device
-        self.grad_norm_clipping = grad_norm_clipping
 
     def compute(self, batch: Batch) -> torch.Tensor:
         with torch.no_grad():

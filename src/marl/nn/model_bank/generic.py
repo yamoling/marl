@@ -17,9 +17,9 @@ class MLP(NN):
 
     obs_size: int
     extras_size: int
-    hidden_sizes: Sequence[int]
-    hidden_activation: ActivationType
     _: KW_ONLY
+    hidden_sizes: Sequence[int] = (128, 256, 128)
+    hidden_activation: ActivationType = "relu"
     output_activation: None | ActivationType = None
 
     def __post_init__(self):
@@ -61,9 +61,9 @@ class CNN(NN):
 
     input_shape: tuple[int, int, int]
     extras_size: int
-    mlp_sizes: Sequence[int]
-    hidden_activation: ActivationType
     _: KW_ONLY
+    mlp_sizes: Sequence[int] = (256, 128)
+    hidden_activation: ActivationType = "relu"
     output_activation: None | ActivationType = None
     kernel_sizes: Sequence[int] = (3, 3, 3)
     strides: Sequence[int] = (1, 1, 1)
@@ -79,8 +79,8 @@ class CNN(NN):
             self.output_shape,
             n_features,
             self.extras_size,
-            self.mlp_sizes,
-            self.hidden_activation,
+            hidden_sizes=self.mlp_sizes,
+            hidden_activation=self.hidden_activation,
             output_activation=self.output_activation,
         )
 

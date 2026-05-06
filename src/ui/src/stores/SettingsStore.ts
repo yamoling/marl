@@ -6,6 +6,7 @@ import {
   parseSettings,
   resolveReplaySettings,
   resolveTrackRule,
+  normalizeGranularity,
   type ReplaySettings,
   type UserSettings,
   type VisualizationSettings,
@@ -64,6 +65,18 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
     replace({
       ...settings.value,
       visualization,
+    });
+  }
+
+  function setGranularity(granularity: number) {
+    const nextGranularity = normalizeGranularity(granularity);
+    if (settings.value.granularity === nextGranularity) {
+      return;
+    }
+
+    replace({
+      ...settings.value,
+      granularity: nextGranularity,
     });
   }
 
@@ -151,6 +164,7 @@ export const useSettingsStore = defineStore("SettingsStore", () => {
     settings,
     setReplaySettings,
     setVisualizationSettings,
+    setGranularity,
     setColour,
     clearColours,
     setDefaultTrackKind,

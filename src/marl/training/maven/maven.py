@@ -6,12 +6,13 @@ import numpy.typing as npt
 from marlenv import Episode
 
 from marl.agents.hierarchical import MAVENAgent
-from marl.models import Agent, IRModule, Mixer, Policy, QNetwork, EpisodeMemory, HierarchicalTrainer, Trainer
+from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Policy, QNetwork, Trainer
+from marl.nn.mixers import QMixMAVEN
 
+from ..no_train import NoTrain
+from ..qtarget_updater import SoftUpdate, TargetParametersUpdater
 from .expected_return_trainer import ExpectedReturnTrainer
 from .mutual_information_trainer import MITrainer
-from ..no_train import NoTrain
-from ..qtarget_updater import TargetParametersUpdater, SoftUpdate
 
 
 @dataclass
@@ -31,25 +32,21 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     n_agents: int
     state_size: int
     state_extras_size: int
-    mixer: Mixer
+    mixer: QMixMAVEN
     _: KW_ONLY
     z_policy_type: Literal["uniform", "max-entropy", "return"] = "return"
     return_bandit_nn: QNetwork | None = None
-    batch_size: int = 64
-    gamma: float = 0.99
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
     double_qlearning: bool = True
-    ir_module: IRModule | None = None
-    grad_norm_clipping: float | None = None
     test_policy: Policy | None = None
     memory_size: int = 5_000
     undiscounted: bool = True
+    batch_size: int = 64
     optimiser_type: Literal["adam", "rms"] = "adam"
     lr: float = 1e-5
     bandit_memory_size: int = 512
     bandit_batch_size: int = 64
     n_epochs: int = 8
-    train_interval: tuple[int, Literal["episode"]] = (1, "episode")
     mi_loss_coef: float = 1.0
 
     def __post_init__(self):
@@ -72,6 +69,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             case "max-entropy":
                 raise NotImplementedError("Max-entropy z policy is not implemented yet.")
         self.meta_trainer = cast(Trainer[npt.NDArray[np.int64]], self.meta_trainer)
+        assert self.train_interval[1] == "episode", "MAVEN only supports training at the end of episodes."
         self.worker_trainer = MITrainer(
             self.qnetwork,
             self.train_policy,
@@ -81,7 +79,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             self.n_agents,
             self.state_size,
             self.state_extras_size,
-            train_interval=self.train_interval,
+            train_interval=(self.train_interval[0], "episode"),
             mi_loss_coef=self.mi_loss_coef,
             batch_size=self.batch_size,
             gamma=self.gamma,

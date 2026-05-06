@@ -1,6 +1,7 @@
 export const HOST = "localhost" as const;
 export const HTTP_PORT = 5000 as const;
 export const HTTP_URL = `http://${HOST}:${HTTP_PORT}` as const;
+export const DEFAULT_TEST_INTERVAL = 5000 as const;
 export function wsURL(port: number) {
   return `ws://${HOST}:${port}`;
 }

@@ -56,9 +56,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   }
 
   async function getTestEpisodes(logdir: string, time_step: number) {
-    const resp = await apiFetch(`${HTTP_URL}/experiment/test/list/${time_step}/${logdir}`, "Failed to fetch test episodes");
+    const resp = await apiFetch(`${HTTP_URL}/results/test/${time_step}/${logdir}`, "Failed to fetch test episodes");
     const json = await resp.json();
-    return ReplayEpisodeSummarySchema.array().parse(json);
+    return parseOrThrow(ReplayEpisodeSummarySchema.array(), json);
   }
 
   async function rename(logdir: string, newLogdir: string) {

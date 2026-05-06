@@ -8,7 +8,6 @@ import neptune
 from marlenv import MARLEnv
 
 from marl.logging.logger import LogReader
-from marl.models.agent import Agent
 from marl.models.trainer import Trainer
 
 from .logger import Logger
@@ -21,11 +20,10 @@ class NeptuneLogger(Logger):
         dotenv.load_dotenv()
         project = os.getenv("NEPTUNE_PROJECT", "marl")
         api_key = os.getenv("NEPTUNE_API_TOKEN")
-        self.run = neptune.init_run(project=project, api_token=api_key, custom_run_id=logdir)
+        self.run = neptune.init_run(project=project, api_token=api_key, custom_run_id=logdir.as_posix())
 
-    def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
+    def log_params(self, trainer: Trainer, env: MARLEnv, test_env: MARLEnv):
         self.run["config/trainer"] = asdict(trainer)
-        self.run["config/agent"] = asdict(agent)
         self.run["config/env"] = asdict(env)
         self.run["config/test_env"] = asdict(test_env)
 

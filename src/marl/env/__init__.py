@@ -1,11 +1,9 @@
-"""
-Set of toy environments for testing MARL algorithms.
-"""
-
+from .env_config import EnvConfig, LLEConfig, SMACConfig
 from .state_counter import StateCounter
-from .reward_mask import NoReward
 
 __all__ = [
+    "EnvConfig",
+    "LLEConfig",
+    "SMACConfig",
     "StateCounter",
-    "NoReward",
 ]

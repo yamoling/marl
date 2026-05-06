@@ -1,56 +1,60 @@
 import { z } from "zod";
 
 export const RewardSpaceSchema = z.object({
-    size: z.number(),
-    labels: z.array(z.string()),
-});
+    size: z.number().optional(),
+    labels: z.array(z.string()).default([]),
+}).passthrough();
 
 export const ActionSpaceSchema = z.object({
-    space_type: z.union([z.literal("discrete").optional(), z.literal("continuous")]),
-    shape: z.array(z.number()),
+    space_type: z.union([z.literal("discrete"), z.literal("continuous")]).optional(),
+    shape: z.array(z.number()).default([]),
     size: z.number().optional(),
-    labels: z.array(z.string()),
+    labels: z.array(z.string()).default([]),
     low: z.array(z.number()).nullable().optional(),
     high: z.array(z.number()).nullable().optional(),
     space_class: z.string().optional(),
+}).passthrough();
+
+const SerializableObjectSchema = z.object({
+    "class-name": z.string(),
 });
 
-
-const envBase = {
-    name: z.string(),
-    n_agents: z.number(),
-    n_actions: z.number(),
-    observation_shape: z.array(z.number()),
-    state_shape: z.array(z.number()),
-    extras_shape: z.array(z.number()),
-    extras_meanings: z.array(z.string()),
-    action_space: ActionSpaceSchema,
-    reward_space: RewardSpaceSchema,
-}
-
-export const EnvSchema = z.object(envBase);
-
-export const EnvWrapperSchema = z.object(envBase).extend({
-    full_name: z.string(),
-    wrapped: z.union([EnvSchema, z.any()]),
+export const EnvConfigSchema = SerializableObjectSchema.extend({
+    agent_id: z.boolean().default(true),
+    time_limit: z.number().nullable().default(null),
+    last_action: z.boolean().default(false),
 });
 
+export const LLEConfigSchema = EnvConfigSchema.extend({
+    "class-name": z.literal("LLEConfig"),
+    level_or_path: z.union([z.number(), z.string()]),
+    obs_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]).default("layered"),
+    state_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]).default("state"),
+});
 
+export const SMACConfigSchema = EnvConfigSchema.extend({
+    "class-name": z.literal("SMACConfig"),
+    map_name: z.string(),
+    debug: z.boolean().default(false),
+});
 
+export const EnvSchema = z.union([LLEConfigSchema, SMACConfigSchema]);
+
+export type EnvConfig = z.infer<typeof EnvConfigSchema>;
+export type LLEConfig = z.infer<typeof LLEConfigSchema>;
+export type SMACConfig = z.infer<typeof SMACConfigSchema>;
 export type Env = z.infer<typeof EnvSchema>;
-export interface EnvWrapper extends Env {
-    full_name: string,
-    wrapped: Env | EnvWrapper
-}
 export type ActionSpace = z.infer<typeof ActionSpaceSchema>;
+export type DiscreteActionSpace = ActionSpace;
 export type RewardSpace = z.infer<typeof RewardSpaceSchema>;
 
-
-
-export function getWrapperParameters(env: EnvWrapper) {
-    const { wrapped, full_name, ...parameters } = env;
-    const childKeys = Object.keys(env.wrapped);
-    return Object.entries(parameters)
-        .filter(([key]) => !childKeys.includes(key))
-        .reduce((result, [key, value]) => result.set(key, value), new Map<string, any>());
+export function getEnvDisplayName(env: Env): string {
+    switch (env["class-name"]) {
+        case "LLEConfig":
+            return String(env.level_or_path);
+        case "SMACConfig":
+            return env.map_name;
+        default:
+            return env["class-name"];
+    }
 }

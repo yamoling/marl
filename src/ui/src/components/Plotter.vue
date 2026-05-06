@@ -385,9 +385,9 @@ function initialiseChart(): Chart {
 watch(useWallTime, () => {
     if (chart == null) return;
     if (!chart.options?.scales) return;
-    if (!chart.options.scales.x) return;
-    if (!chart.options.scales.x.title) return;
-    chart.options.scales.x.title.text = xAxisLabel.value;
+    const xScale = chart.options.scales.x as { title?: { text?: string } } | undefined;
+    if (!xScale?.title) return;
+    xScale.title.text = xAxisLabel.value;
     chart.update();
 });
 

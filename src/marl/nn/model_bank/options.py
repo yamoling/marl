@@ -1,6 +1,7 @@
 import random
-from dataclasses import dataclass
-from typing import Sequence
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal, Sequence
 
 import torch
 from marlenv import MARLEnv
@@ -9,7 +10,7 @@ from torch import Tensor
 from torch.distributions import Categorical
 from torch.nn import ModuleList
 
-from marl.models.nn import NN, Actor, QNetwork
+from marl.models.nn import NN, Actor, DiscreteActor, QNetwork
 from marl.models.nn.options import OptionCriticNetwork
 from marl.nn.model_bank.generic import CNN
 
@@ -21,22 +22,23 @@ class CNNOptionCritic(OptionCriticNetwork):
     options_termination: NN
 
     def __init__(self, policies: torch.nn.ModuleList, q_options: QNetwork, options_termination: NN):
-        assert isinstance(q_options.output_shape, int) or len(q_options.output_shape) == 1, "Multi-objective options are not supported"
-        OptionCriticNetwork.__init__(self, q_options.output_size)
+        assert len(q_options.output_shape) == 1, "Multi-objective options are not supported"
+        super().__init__((1,), q_options.output_size)
         self.policies = policies
         self.q_options = q_options
         self.options_termination = options_termination
 
-    @staticmethod
-    def from_env(env: MARLEnv, n_options: int):
+    @classmethod
+    def from_env(cls, env: MARLEnv, n_options: int, **kwargs):
         from marl.nn.model_bank.actor_critics import CNNActor
         from marl.nn.model_bank.qnetworks import QCNN
 
         assert len(env.observation_shape) == 3
         policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
-        terminations = CNN(env.observation_shape, env.extras_size, n_options, output_activation="sigmoid")
-        q_options = QCNN(n_options, env.observation_shape, env.extras_size)
-        return CNNOptionCritic(policies, q_options, terminations)
+        assert len(env.observation_shape) == 3
+        terminations = CNN((n_options,), env.observation_shape, env.extras_size, output_activation="sigmoid")
+        q_options = QCNN(n_options, env.observation_shape, env.extras_shape)
+        return CNNOptionCritic(policies, q_options, terminations, **kwargs)
 
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:
         return self.q_options.forward(obs, extras)
@@ -49,13 +51,7 @@ class CNNOptionCritic(OptionCriticNetwork):
         # Squeeze the last dimension introduced by the gathering
         return probs.squeeze(-1)
 
-    def policy(
-        self,
-        obs: Tensor,
-        extras: Tensor,
-        available_actions: torch.Tensor,
-        options: Sequence[int] | torch.Tensor,
-    ):
+    def policy(self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor):
         if not isinstance(options, Tensor):
             logits = [self.policies[option].forward(obs, extra) for option, obs, extra in zip(options, obs, extras)]
             logits = torch.stack(logits)
@@ -79,33 +75,20 @@ class SimpleOptionCritic(Actor):
     Article by Bacon, Harb & Precup: https://arxiv.org/pdf/1609.05140
     """
 
-    policies: ModuleList
-    q_options: QNetwork
-    options_termination: NN
     n_options: int
     n_agents: int
-    epsilon: Schedule
-    temperature: float
-    options: list[int]
+    options_policy: DiscreteActor
+    """The policy of one single option that is replicated (with different weights) for all options."""
+    q_options: QNetwork
+    options_termination: NN
+    epsilon: Schedule = field(default_factory=lambda: Schedule.constant(0.1))
+    temperature: float = 1.0
 
-    def __init__(
-        self,
-        policies: list[Actor],
-        q_options: QNetwork,
-        options_termination: NN,
-        n_agents: int,
-        epsilon: Schedule = Schedule.constant(0.1),
-        temperature: float = 1.0,
-    ):
-        super().__init__()
-        self.policies = ModuleList(policies)
-        self.q_options = q_options
-        self.options_termination = options_termination
-        self.n_options = len(policies)
-        self.n_agents = n_agents
-        self.epsilon = epsilon
-        self.temperature = temperature
-        self.options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
+    def __post_init__(self):
+        super().__post_init__()
+        self.policies = ModuleList([self.options_policy] + [deepcopy(self.options_policy) for p in range(self.n_options - 1)])
+        self.current_options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
+        """The options currently selected by the agents."""
 
     def value_upon_arrival(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         """
@@ -115,7 +98,7 @@ class SimpleOptionCritic(Actor):
         probs = self.compute_termination_probs(obs, extras)
         q_options = self.compute_q_options(obs, extras)
         values = []
-        for agent_option, terminations, q_option in zip(self.options, probs, q_options):
+        for agent_option, terminations, q_option in zip(self.current_options, probs, q_options):
             current_q_option = q_option[agent_option].item()
             best_q_option = q_option.max().item()
             term_prob = terminations[agent_option].item()
@@ -131,7 +114,7 @@ class SimpleOptionCritic(Actor):
     def policy(self, obs: torch.Tensor, extras: Tensor, available_actions: Tensor):
         logits = []
         obs, extras, available_actions = obs.squeeze(0), extras.squeeze(0), available_actions.squeeze(0)
-        for agent_num, option in enumerate(self.options):
+        for agent_num, option in enumerate(self.current_options):
             logits.append(self.policies[option].forward(obs[agent_num], extras[agent_num]))
         logits = torch.stack(logits)
         logits = self.mask(logits, available_actions)
@@ -141,13 +124,13 @@ class SimpleOptionCritic(Actor):
     def update_current_option(self, obs: Tensor, extras: Tensor):
         termination_probs = self.options_termination.forward(obs, extras)
         greedy_options = self._compute_greedy_option(obs, extras)
-        for agent_num, agent_option in enumerate(self.options):
+        for agent_num, agent_option in enumerate(self.current_options):
             is_terminated = random.random() < termination_probs[agent_num, agent_option].item()
             if is_terminated:
                 if random.random() < self.epsilon:
-                    self.options[agent_num] = random.randint(0, self.n_options - 1)
+                    self.current_options[agent_num] = random.randint(0, self.n_options - 1)
                 else:
-                    self.options[agent_num] = greedy_options[agent_num]
+                    self.current_options[agent_num] = greedy_options[agent_num]
 
     def _compute_greedy_option(self, obs, extras) -> list[int]:
         q_policies = self.compute_q_options(obs, extras)
@@ -159,12 +142,20 @@ class SimpleOptionCritic(Actor):
     def __hash__(self):
         return hash(self.name)
 
+    def randomize(self, method: Literal["xavier", "orthogonal"] | Callable[[torch.Tensor], Any] = "xavier"):
+        self.current_options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
+        return super().randomize(method)
 
+
+@dataclass
 class OptionTermination(NN):
-    def __init__(self, n_options: int, obs_shape: tuple[int, int, int], extras_shape: tuple[int, ...]):
-        super().__init__()
-        assert len(extras_shape) == 1
-        self.cnn = CNN(obs_shape, extras_shape[0], n_options)
+    n_options: int
+    obs_shape: tuple[int, int, int]
+    extras_shape: tuple[int, ...]
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.cnn = CNN((self.n_options,), self.obs_shape, self.extras_shape[0])
 
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
         output = self.cnn.forward(obs, extras)
