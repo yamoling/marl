@@ -62,11 +62,13 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
         # Then compute the metrics' stats across runs
         .group_by("ticks")
         .agg(
+            # Fill null std with 0.0, which happens when a group has one single value.
+            # Filling with zeros prevents NaNs that are not JSON serializable.
             cs.numeric().mean().name.prefix("mean-"),
-            cs.numeric().std().name.prefix("std-"),
+            cs.numeric().std().name.prefix("std-").fill_null(0.0),
             cs.numeric().min().name.prefix("min-"),
             cs.numeric().max().name.prefix("max-"),
-            (cs.numeric().std() * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
+            (cs.numeric().std().fill_null(0.0) * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
         )
         .sort("ticks")
     )
@@ -74,7 +76,7 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
 
 def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, reward_components: list[str], n_agents: int) -> list[Dataset]:
     """Aggregates qvalues"""
-    raise NotImplementedError("This function must be checked")
+    raise NotImplementedError("This function is legacy and must be checked")
     # dfs = [d for d in dfs if not d.is_empty()]
     # if len(dfs) == 0:
     #     return []

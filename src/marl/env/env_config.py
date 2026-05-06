@@ -92,6 +92,23 @@ class EnvConfig[E: MARLEnv](Serializable):
     def action_space(self):
         return self.env.action_space
 
+    @property
+    def noise_size(self):
+        """Convenience property to get the size of the MAVEN noise space without type-checking."""
+        if self.maven_noise_size is None:
+            raise ValueError("This environment does not have a maven noise space.")
+        return self.maven_noise_size
+
+    @property
+    def maven_bandit_obs_shape(self):
+        # MAVEN's bandit stacks the observations of all agents
+        return (self.env.observation_shape[0] * self.env.n_agents, *self.env.observation_shape[1:])
+
+    @property
+    def maven_bandit_extras_shape(self):
+        # MAVEN's bandit stacks the extras of all agents, but removes the noise extras
+        return ((self.env.extras_size - self.noise_size) * self.env.n_agents,)
+
 
 @dataclass
 class LLEConfig(EnvConfig[lle.LLE]):
@@ -105,6 +122,7 @@ class LLEConfig(EnvConfig[lle.LLE]):
     """If <= 0, set to width * height // 2."""
 
     def __post_init__(self):
+        super().__post_init__()
         if self.time_limit is None:
             return
         if self.time_limit <= -1:

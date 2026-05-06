@@ -11,7 +11,8 @@
                     <span class="metrics-granularity-label">Granularity</span>
                     <div class="input-group">
                         <input id="metrics-granularity-input" class="form-control form-control-sm " type="number"
-                            min="1" v-model.number="granularityInputValue"
+                            min="1" :value="granularityDraft" @input="updateGranularityDraft"
+                            @keydown.enter.prevent="commitGranularityDraft"
                             :step="granularityUnit == 'seconds' ? 30 : 500">
                         <select class="form-select form-select-sm" v-model="granularityUnit"
                             aria-label="Granularity unit">
@@ -81,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useMetricsStore } from '../../stores/MetricsStore';
 import { MetricSelection } from '../../models/Metrics';
 import { searchMatch } from '../../utils';
@@ -99,14 +100,12 @@ const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
 
-const granularityInputValue = computed({
-    get: () => resultsStore.granularity ?? settingsStore.settings.granularity,
-    set: (value: number) => {
-        const nextGranularity = normalizeGranularity(value);
-        resultsStore.granularity = nextGranularity;
-        settingsStore.setGranularity(nextGranularity);
-    },
-});
+const granularitySource = computed(() => resultsStore.granularity ?? settingsStore.settings.granularity);
+const granularityDraft = ref(String(granularitySource.value));
+
+watch(granularitySource, (value) => {
+    granularityDraft.value = String(value);
+}, { immediate: true });
 
 const granularityUnit = computed({
     get: () => settingsStore.settings.visualization.useWallTime ? 'seconds' : 'timesteps',
@@ -148,6 +147,23 @@ function formatCategoryTitle(category: string) {
     return category
         .replace(/[_-]+/g, ' ')
         .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function updateGranularityDraft(event: Event) {
+    granularityDraft.value = (event.target as HTMLInputElement).value;
+}
+
+function commitGranularityDraft() {
+    const parsedValue = Number(granularityDraft.value);
+    if (!Number.isFinite(parsedValue)) {
+        granularityDraft.value = String(granularitySource.value);
+        return;
+    }
+
+    const nextGranularity = normalizeGranularity(parsedValue);
+    resultsStore.granularity = nextGranularity;
+    settingsStore.setGranularity(nextGranularity);
+    granularityDraft.value = String(nextGranularity);
 }
 
 function countSelected(metrics: string[], category: string) {

@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { Dataset, DatasetSchema, ExperimentResults } from "../models/Experiment";
+import { DatasetSchema, ExperimentResults } from "../models/Results";
 import { ReplayEpisodeSummarySchema } from "../models/Episode";
 import { ref, watch } from "vue";
 import { apiFetch, parseOrThrow } from "../api";

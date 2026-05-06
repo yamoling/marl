@@ -85,7 +85,7 @@
 import { Chart, ChartDataset } from "chart.js/auto";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { Dataset } from "../models/Experiment";
+import { Dataset } from "../models/Results";
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from "../stores/ColourStore";
 import { useSettingsStore } from "../stores/SettingsStore";

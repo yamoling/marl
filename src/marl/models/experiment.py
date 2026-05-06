@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
+import logging
 from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
 
 import numpy as np
@@ -40,16 +41,16 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     creation_timestamp: datetime | None = None
 
     def __post_init__(self):
-        # Only create the timestamp the first time the experiment is created.
-        # The other times, the attribute will already be set by the deserializer.
-        if self.creation_timestamp is None:
-            self.creation_timestamp = datetime.now()
         if not self.logdir.startswith("logs"):
             self.logdir = Path("logs", self.logdir).as_posix()
-        if self.logpath.exists():
+        # Only create the timestamp the first time the experiment is created.
+        # The other times, the attribute will already be set by the deserializer.
+        is_new = self.creation_timestamp is None
+        if is_new:
+            self.creation_timestamp = datetime.now()
             if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
+                logging.info(f"Discarding pre-existing experiment {self.logpath}.")
                 self.delete()
-        else:
             self.save()
 
     def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):
@@ -209,7 +210,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
     def delete(self):
         print(f"Removing  experiment at {self.logpath}")
-        shutil.rmtree(self.logpath)  # , ignore_errors=True)
+        shutil.rmtree(self.logpath)
 
     def get_tests_at(self, time_step: int):
         summary = list[LightEpisodeSummary]()

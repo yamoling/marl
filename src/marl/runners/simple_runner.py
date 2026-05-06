@@ -37,7 +37,6 @@ def simple_run[E: MARLEnv, T: npt.ArrayLike](run: Run[E, T], quiet: bool, render
             time_step += len(episode)
             pbar.update(len(episode))
         # Test the final agent
-        print(f"Last time step: {time_step}")
         if run.should_test_at(time_step):
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
 

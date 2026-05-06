@@ -1,7 +1,7 @@
 import orjson
 from fastapi import APIRouter
 from fastapi.responses import Response
-
+from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
 from marl.utils import default_serialization
 
 from . import state
@@ -12,7 +12,7 @@ router = APIRouter()
 @router.get("/results/load/{logdir:path}")
 def get_experiment_results(logdir: str, granularity: int, use_wall_time: bool = False):
     exp = state.get_experiment(logdir)
-    aggregate_by = "timestamp_sec" if use_wall_time else "time_step"
+    aggregate_by = TIMESTAMP_COL if use_wall_time else TIME_STEP_COL
     metrics = exp.get_results_datasets(granularity=granularity, aggregate_by=aggregate_by)
     return Response(orjson.dumps(metrics, option=orjson.OPT_SERIALIZE_NUMPY), media_type="application/json")
 

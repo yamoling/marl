@@ -21,10 +21,13 @@ class Trainer[T](Serializable):
     ir_module: IRModule | None = None
     grad_norm_clipping: float | None = None
     train_interval: tuple[int, Literal["step", "episode"]] = (5, "step")
+    name: str = ""
 
     def __post_init__(self):
         super().__post_init__()
         self._device = torch.device("cpu")
+        if len(self.name) == 0:
+            self.name = self.__class__.__name__
 
     def make_agent(self) -> Agent[T]:
         raise NotImplementedError("Trainer must implement make_agent method")

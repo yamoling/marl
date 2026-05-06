@@ -60,7 +60,7 @@ import {
     DataTableRowExpandEvent,
 } from "primevue";
 import { computed, onMounted, ref, watch } from "vue";
-import { DatasetTable } from "../../models/Experiment";
+import { DatasetTable } from "../../models/Results";
 import { useResultsStore } from "../../stores/ResultsStore";
 import { useRoute } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";

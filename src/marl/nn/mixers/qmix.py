@@ -99,7 +99,7 @@ class QMix(StateMixer):
         return super().from_env(env, hypernet_embed_size=hypernet_embed_size, embed_size=embed_size, **kwargs)
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class QMixMAVEN(QMix):
     noise_size: int
 
@@ -116,7 +116,7 @@ class QMixMAVEN(QMix):
         maven_noise: torch.Tensor,
         **kwargs,
     ):
-        states_extras = torch.cat([states_extras, maven_noise])
+        states_extras = torch.cat([states_extras, maven_noise], dim=-1)
         return super().forward(qvalues, states, states_extras, **kwargs)
 
     @classmethod

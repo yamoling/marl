@@ -99,7 +99,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from "primevue";
-import { Experiment, toCSV } from "../../models/Experiment";
+import { Experiment } from "../../models/Experiment";
+import { toCSV } from "../../models/Results";
 import { downloadStringAsFile } from "../../utils";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import { useResultsStore } from "../../stores/ResultsStore";
