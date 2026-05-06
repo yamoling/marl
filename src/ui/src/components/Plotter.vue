@@ -138,7 +138,6 @@ watch(seriesLabels, (labels) => {
 });
 
 function tickedDataset(ticks: number[], dataset: (number | null)[]) {
-    console.log(ticks)
     return dataset.map((d, i) => ({ x: ticks[i], y: d }));
 }
 

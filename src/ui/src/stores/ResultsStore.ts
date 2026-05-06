@@ -40,7 +40,6 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         `Failed to load results for ${logdir}`,
       );
       const datasets = parseOrThrow(DatasetSchema.array(), await resp.json());
-      console.log(datasets[0].ticks)
       const experimentResults = new ExperimentResults(logdir, datasets);
       results.value.set(logdir, experimentResults);
       return experimentResults;
