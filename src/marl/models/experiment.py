@@ -226,8 +226,10 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         datasets = list[Dataset]()
         for category, stats_df in results.items():
             stats_df = stats_df.collect()
+            print(stats_df.head())
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]
             ticks = stats_df["ticks"].to_list()
+            print(ticks)
             datasets += [
                 Dataset(
                     logdir=self.logdir,

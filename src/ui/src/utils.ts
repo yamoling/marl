@@ -165,10 +165,15 @@ export function confidenceInterval(mean: number[], std: number[], nSamples: numb
     return { lower, upper };
 }
 
-export function clip(values: number[], min: number[], max: number[]) {
-    const result = new Array<number>(values.length);
+export function clip(values: (number | null)[], min: (number | null)[], max: (number | null)[]) {
+    const result = new Array<number | null>(values.length);
     for (let i = 0; i < values.length; i++) {
-        result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
+        //result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
+        if (values[i] == null || min[i] == null || max[i] == null) {
+            result[i] = null;
+        } else {
+            result[i] = Math.min(Math.max(values[i]!, min[i]!), max[i]!);
+        }
     }
     return result;
 }

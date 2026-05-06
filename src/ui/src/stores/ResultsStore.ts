@@ -40,12 +40,12 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         `Failed to load results for ${logdir}`,
       );
       const datasets = parseOrThrow(DatasetSchema.array(), await resp.json());
+      console.log(datasets[0].ticks)
       const experimentResults = new ExperimentResults(logdir, datasets);
       results.value.set(logdir, experimentResults);
       return experimentResults;
     } finally {
       loading.value.set(logdir, false);
-      // Note: if apiFetch throws, the finally still runs (clears loading), then the error propagates to the caller.
     }
   }
 

@@ -5,11 +5,11 @@ export const DatasetSchema = z.object({
     label: z.string(),
     category: z.string(),
     logdir: z.string(),
-    mean: z.array(z.number()),
-    std: z.array(z.number()),
-    min: z.array(z.number()),
-    max: z.array(z.number()),
-    ci95: z.array(z.number()),
+    mean: z.array(z.number().nullable()),
+    std: z.array(z.number().nullable()),
+    min: z.array(z.number().nullable()),
+    max: z.array(z.number().nullable()),
+    ci95: z.array(z.number().nullable()),
 });
 
 export class ExperimentResults {
@@ -46,9 +46,9 @@ function groupByLabel(datasets: Dataset[]): Map<string, Dataset[]> {
 }
 
 export class DatasetTable {
-    public items: { step: number;[key: string]: number }[];
+    public items: { step: number;[key: string]: number | null }[];
 
-    public constructor(items: { step: number;[key: string]: number }[]) {
+    public constructor(items: { step: number;[key: string]: number | null }[]) {
         this.items = items;
     }
 
@@ -59,7 +59,7 @@ export class DatasetTable {
     }
 
     public static fromDatasets(datasets: Dataset[]) {
-        const items = [] as { step: number;[key: string]: number }[];
+        const items = [] as { step: number;[key: string]: number | null }[];
         datasets.forEach((ds) => {
             for (let i = 0; i < ds.ticks.length; i++) {
                 const step = ds.ticks[i];
@@ -86,12 +86,7 @@ export function toCSV(datasets: readonly Dataset[], ticks: number[]) {
     const csv = [];
     let firstLine =
         "time-step," +
-        datasets
-            .map(
-                (ds) =>
-                    `${ds.label}-mean,${ds.label}-plus-std,${ds.label}-minus-std,${ds.label}-plus95,${ds.label}-minus95`,
-            )
-            .join(",");
+        datasets.map((ds) => `${ds.label}-mean,${ds.label}-std,${ds.label}-ci95`).join(",");
     firstLine = firstLine
         .replaceAll("[", "-")
         .replaceAll("]", "-")
@@ -100,15 +95,7 @@ export function toCSV(datasets: readonly Dataset[], ticks: number[]) {
         .replaceAll("--", "-");
     csv.push(firstLine);
     for (let i = 0; i < ticks.length; i++) {
-        const csvLine = datasets.reduce((acc, ds) => {
-            const stdPlus = Math.min(ds.mean[i] + ds.std[i], ds.max[i]);
-            const stdMinus = Math.max(ds.mean[i] - ds.std[i], ds.min[i]);
-            const ci95Plus = Math.min(ds.mean[i] + ds.ci95[i], ds.max[i]);
-            const ci95Minus = Math.max(ds.mean[i] - ds.ci95[i], ds.min[i]);
-            return (
-                acc + `,${ds.mean[i]},${stdPlus},${stdMinus},${ci95Plus},${ci95Minus}`
-            );
-        }, `${ticks[i]}`);
+        const csvLine = datasets.reduce((acc, ds) => acc + `,${ds.mean[i]},${ds.std[i]},${ds.ci95[i]}`, `${ticks[i]}`);
         csv.push(csvLine);
     }
     return csv.join("\n");
