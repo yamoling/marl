@@ -11,6 +11,7 @@ from .qmix import QMix
 from .qplex import QPlex
 from .qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 from .reinforce import Reinforce
+from .vdn import VDN
 
 __all__ = [
     "NoTrain",
@@ -29,4 +30,5 @@ __all__ = [
     "Reinforce",
     "QPlex",
     "QMix",
+    "VDN",
 ]

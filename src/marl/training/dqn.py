@@ -21,8 +21,8 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     qnetwork: QNetwork
     train_policy: Policy
     memory: ReplayMemory
+    mixer: M
     _: KW_ONLY
-    mixer: M = field(default=None)  # type: ignore
     lr: float = 1e-4
     batch_size: int = 64
     double_qlearning: bool = True

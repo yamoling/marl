@@ -12,6 +12,7 @@ from .dqn import DQN
 class QPlex(DQN[mixers.QPlex]):
     def __post_init__(self):
         super().__post_init__()
+        assert isinstance(self.mixer, mixers.QPlex), "QPlex training requires a QPlex mixer"
 
     def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False):
         kwargs = super().get_mixing_kwargs(batch, all_qvalues, is_next)

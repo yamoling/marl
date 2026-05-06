@@ -1,4 +1,3 @@
-import os
 import pickle
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
@@ -124,12 +123,12 @@ class EnvConfig[E: MARLEnv](Serializable):
 
     @property
     def maven_bandit_obs_shape(self):
-        # MAVEN's bandit stacks the observations of all agents
+        """MAVEN's bandit stacks the observations of all agents"""
         return (self.env.observation_shape[0] * self.env.n_agents, *self.env.observation_shape[1:])
 
     @property
     def maven_bandit_extras_shape(self):
-        # MAVEN's bandit stacks the extras of all agents, but removes the noise extras
+        """MAVEN's bandit stacks the extras of all agents, but removes the noise extras"""
         return ((self.env.extras_size - self.noise_size) * self.env.n_agents,)
 
 
@@ -178,7 +177,7 @@ class PickleEnvConfig(EnvConfig[MARLEnv]):
     pickle_path: str
     _: KW_ONLY
 
-    def make_base_env(self):
+    def make(self):
         with open(self.pickle_path, "rb") as f:
             return pickle.load(f)
 
