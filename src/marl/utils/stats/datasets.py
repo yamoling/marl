@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from typing import Sequence
+
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-import polars.selectors as cs
 import polars.exceptions as pl_errors
-from typing import Sequence
+import polars.selectors as cs
+
 from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
 
 
@@ -44,34 +46,41 @@ def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
 
 def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, granularity: int):
     dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs)]
-    return (
-        pl.concat(dfs, how="diagonal_relaxed")
-        .with_columns(
-            ticks=(
-                (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
-                if aggregate_by == "timestamp_sec"
-                else pl.col(TIME_STEP_COL)
+    try:
+        return (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .with_columns(
+                ticks=(
+                    (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
+                    if aggregate_by == "timestamp_sec"
+                    else pl.col(TIME_STEP_COL)
+                )
             )
+            # Round ticks to granularity
+            .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
+            # First compute the mean within each run
+            .group_by("ticks", "run_id")
+            .agg(pl.all().exclude([TIME_STEP_COL, TIMESTAMP_COL, "run_id"]).mean())
+            .drop("run_id")
+            # Then compute the metrics' stats across runs
+            .group_by("ticks")
+            .agg(
+                # Fill null std with 0.0, which happens when a group has one single value.
+                # Filling with zeros prevents NaNs that are not JSON serializable.
+                cs.numeric().mean().name.prefix("mean-"),
+                cs.numeric().std().name.prefix("std-").fill_null(0.0),
+                cs.numeric().min().name.prefix("min-"),
+                cs.numeric().max().name.prefix("max-"),
+                (cs.numeric().std().fill_null(0.0) * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
+            )
+            .sort("ticks")
         )
-        # Round ticks to granularity
-        .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
-        # First compute the mean within each run
-        .group_by("ticks", "run_id")
-        .agg(pl.all().exclude([TIME_STEP_COL, TIMESTAMP_COL, "run_id"]).mean())
-        .drop("run_id")
-        # Then compute the metrics' stats across runs
-        .group_by("ticks")
-        .agg(
-            # Fill null std with 0.0, which happens when a group has one single value.
-            # Filling with zeros prevents NaNs that are not JSON serializable.
-            cs.numeric().mean().name.prefix("mean-"),
-            cs.numeric().std().name.prefix("std-").fill_null(0.0),
-            cs.numeric().min().name.prefix("min-"),
-            cs.numeric().max().name.prefix("max-"),
-            (cs.numeric().std().fill_null(0.0) * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
-        )
-        .sort("ticks")
-    )
+    except pl_errors.NoDataError:
+        return pl.LazyFrame()
+    except ValueError as e:
+        if "cannot concat empty list" in str(e):
+            return pl.LazyFrame()
+        raise e
 
 
 def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, reward_components: list[str], n_agents: int) -> list[Dataset]:

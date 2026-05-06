@@ -121,10 +121,15 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
     def move(self, new_logdir: Path):
         """Move an experiment to a new directory."""
+        # Load the runs before moving the files, because we will not be able to load them after the move.
+        runs = list(self.runs)
+        # 1) move all files (with weights, logs, etc)
         shutil.move(self.logdir, new_logdir)
+        # 2) update the experiment.json file with the new logdir
         self.logdir = new_logdir.as_posix()
         self.save()
-        for run in self.runs:
+        # 3) each rundir has to be overwritten with the new logdir
+        for run in runs:
             run.rundir = (new_logdir / run.runpath.parts[-1]).as_posix()
             run.save()
 
@@ -159,10 +164,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             rundir = self.logpath / f
             if not rundir.is_dir():
                 continue
-            try:
-                yield Run[E, npt.ArrayLike].load(self.logpath / f)
-            except FileNotFoundError:
-                pass
+            yield Run[E, npt.ArrayLike].load(rundir)
 
     @staticmethod
     def is_experiment_directory(logdir: str | Path) -> bool:
@@ -227,6 +229,8 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         datasets = list[Dataset]()
         for category, stats_df in results.items():
             stats_df = stats_df.collect()
+            if stats_df.is_empty():
+                continue
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]
             ticks = stats_df["ticks"].to_list()
             datasets += [
