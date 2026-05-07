@@ -26,6 +26,9 @@ class Trainer[T](Serializable):
     def __post_init__(self):
         super().__post_init__()
         self._device = torch.device("cpu")
+        self._update_on_steps = self.train_interval[1] == "step"
+        self._update_on_episodes = self.train_interval[1] == "episode"
+        self._train_every_n = self.train_interval[0]
         if len(self.name) == 0:
             self.name = self.__class__.__name__
 
@@ -49,6 +52,19 @@ class Trainer[T](Serializable):
             dict[str, Any]: A dictionary of training metrics to log.
         """
         return {}
+
+    @overload
+    def should_update_at(self, *, time_step: int) -> bool: ...
+
+    @overload
+    def should_update_at(self, *, episode_num: int) -> bool: ...
+
+    def should_update_at(self, *, time_step: int | None = None, episode_num: int | None = None):
+        if time_step is not None and self._update_on_steps:
+            return time_step % self._train_every_n == 0
+        if episode_num is not None and self._update_on_episodes:
+            return episode_num % self._train_every_n == 0
+        return False
 
     def value(self, obs: Observation, state: State) -> float | Sequence:
         """

@@ -16,8 +16,8 @@ class TargetParametersUpdater(Serializable):
     def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
         for param, target in zip(parameters, target_params):
             assert param.shape == target.shape, "Parameter and target parameter shapes must match"
-        self._parameters.extend(parameters)
-        self._target_params.extend(target_params)
+            self._parameters.append(param)
+            self._target_params.append(target)
 
     @abstractmethod
     def update(self, time_step: int) -> dict[str, float]:

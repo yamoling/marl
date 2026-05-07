@@ -12,7 +12,7 @@ from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class QMix(StateMixer):
     """
     QMix: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning. Supports multiple objectives.
@@ -98,8 +98,11 @@ class QMix(StateMixer):
     def from_env(cls, env: DiscreteMARLEnv | EnvConfig, embed_size: int = 64, hypernet_embed_size: int = 64, **kwargs):
         return super().from_env(env, hypernet_embed_size=hypernet_embed_size, embed_size=embed_size, **kwargs)
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class QMixMAVEN(QMix):
     noise_size: int
 
@@ -125,3 +128,6 @@ class QMixMAVEN(QMix):
         if noise_size == 0:
             raise ValueError("No space for the maven noise detected in the environment extras (i.e. with label 'maven').")
         return super().from_env(env, noise_size=noise_size, hypernet_embed_size=hypernet_embed_size, embed_size=embed_size, **kwargs)
+
+    def __hash__(self):
+        return id(self)

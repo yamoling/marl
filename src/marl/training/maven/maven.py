@@ -8,7 +8,7 @@ from marlenv import Episode
 from marl import policy
 from marl.agents.hierarchical import MAVENAgent
 from marl.env import EnvConfig
-from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Policy, QNetwork, Trainer
+from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Policy, Trainer
 from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
@@ -81,6 +81,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             self.qnetwork,
             self.train_policy,
             EpisodeMemory(self.memory_size),
+            QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size),
             self.env,
             train_interval=(self.train_interval[0], "episode"),
             mi_loss_coef=self.mi_loss_coef,
@@ -88,7 +89,6 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             gamma=self.gamma,
             target_updater=self.target_updater,
             double_qlearning=self.double_qlearning,
-            mixer=QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size),
             ir_module=self.ir_module,
             grad_norm_clipping=self.grad_norm_clipping,
             test_policy=self.test_policy,

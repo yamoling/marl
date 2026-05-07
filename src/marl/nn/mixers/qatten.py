@@ -7,7 +7,7 @@ from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Qatten(StateMixer):
     state_size: int
     state_extras_size: int
@@ -21,6 +21,9 @@ class Qatten(StateMixer):
     @property
     def input_size(self):
         return self.state_size + self.state_extras_size
+
+    def __hash__(self):
+        return id(self)
 
     def __post_init__(self):
         super().__post_init__()

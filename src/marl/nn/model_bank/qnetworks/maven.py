@@ -13,7 +13,7 @@ from marl.models.nn import NN, QNetwork
 from ..generic import CNN, MLP
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class MAVENTail(torch.nn.Module):
     """
     Tail of the MAVEN agent-wise network. The paper only presents the "hyper-network" approach
@@ -33,8 +33,11 @@ class MAVENTail(torch.nn.Module):
     @abstractmethod
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor: ...
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class MAVENHyperBMM(MAVENTail):
     """
     This tail network is the approach presented in the MAVEN paper, i.e. a hyper-network that generates the weights to compute the q-values directly from the noise and agent ids.
@@ -69,8 +72,11 @@ class MAVENHyperBMM(MAVENTail):
         # Return in the original shape
         return res.view(*dims, self.n_agents, self.n_actions)
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class MAVENHyperMult(MAVENTail):
     def __post_init__(self):
         super().__post_init__()
@@ -90,8 +96,11 @@ class MAVENHyperMult(MAVENTail):
         weights = self.mult_weights_nn.forward(weights_inputs)
         return qs * weights
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class MAVENQnetwork(QNetwork):
     """
     MAVEN Q-Networks are composed of a standard head like any other DQN variant, but have a tail that
@@ -160,3 +169,6 @@ class MAVENQnetwork(QNetwork):
             tail_type=tail_type,
             **kwargs,
         )
+
+    def __hash__(self):
+        return id(self)

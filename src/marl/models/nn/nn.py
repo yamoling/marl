@@ -82,6 +82,9 @@ class NN(torch.nn.Module, Serializable):
             return
         self.load_state_dict(torch.load(self.weights_filename(directory), weights_only=True))
 
+    def __hash__(self):
+        return id(self)
+
 
 class RecurrentNN(NN):
     def __init__(self, output_shape: tuple[int, ...]):
@@ -108,6 +111,9 @@ class RecurrentNN(NN):
     @property
     def is_recurrent(self):
         return True
+
+    def __hash__(self):
+        return id(self)
 
 
 ActivationType = Literal["relu", "tanh", "sigmoid", "leaky-relu"]

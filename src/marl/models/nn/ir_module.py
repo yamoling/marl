@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
-from marlenv import Episode, Transition
 
 from .nn import NN
 
@@ -18,14 +17,6 @@ class IRModule(NN):
     @abstractmethod
     def compute(self, batch: "Batch") -> torch.Tensor:
         """Compute the intrinsic reward for the given batch."""
-
-    def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
-        """Update the Intrinsic Reward Module."""
-        return {}
-
-    def update_episode(self, episode: Episode, time_step: int) -> dict[str, float]:
-        """Update the Intrinsic Reward Module."""
-        return {}
 
     def update(self, batch: "Batch", time_step: int) -> dict[str, float]:
         """Update the Intrinsic Reward Module."""

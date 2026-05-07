@@ -74,6 +74,8 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
         logs = logs | self.train(time_step, batch)
         if self.ir_module is not None:
             logs = logs | self.ir_module.update(batch, time_step)
+        if self.vbe is not None:
+            logs = logs | self.vbe.update(batch)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
         return logs
@@ -101,7 +103,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
                 batch.next_states_extras,
                 **self.get_mixing_kwargs(batch, next_qvalues, is_next=True),
             )
-        assert batch.rewards.shape == next_values.shape == batch.dones.shape == batch.masks.shape
+        assert batch.rewards.shape == next_values.shape == batch.not_dones.shape == batch.masks.shape
         return batch.rewards + self.gamma * next_values * batch.not_dones
 
     def _prepare_batch(self, batch: Batch):
@@ -151,29 +153,21 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
             logs["grad_norm"] = grad_norm.item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
-        if self.vbe is not None:
-            logs = logs | self.vbe.update(batch)
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
-        logs = dict[str, float]()
-        if self.ir_module is not None:
-            logs = logs | self.ir_module.update_step(transition, time_step)
         if self.memory.update_on_transitions:
             self.memory.add(transition)
-        if self.update_on_steps and time_step % self.step_update_interval == 0:
-            logs = logs | self._update(time_step)
-        return logs
+        if self.should_update_at(time_step=time_step):
+            return self._update(time_step)
+        return dict[str, float]()
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        logs = {}
-        if self.ir_module is not None:
-            logs = logs | self.ir_module.update_episode(episode, time_step)
         if self.memory.update_on_episodes:
             self.memory.add(episode)
-        if self.update_on_episodes and episode_num % self.episode_update_interval == 0:
-            logs = logs | self._update(time_step)
-        return logs
+        if self.should_update_at(episode_num=episode_num):
+            return self._update(time_step)
+        return dict[str, float]()
 
     def make_agent(self):
         return DQNAgent(

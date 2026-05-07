@@ -46,7 +46,7 @@ def from_env(env: MARLEnv | EnvConfig, mlp_sizes: Sequence[int] = (256, 128), ac
     raise NotImplementedError(f"No default model configured for input shape {env.observation_shape} and action space {env.action_space}")
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class CNN_ActorCritic(DiscreteActorCritic):
     def __init__(
         self,
@@ -119,8 +119,11 @@ class CNN_ActorCritic(DiscreteActorCritic):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.actor_nn.parameters()) + list(self.cnn_actor.parameters())
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class SimpleActorCritic(ActorCritic[torch.distributions.Categorical]):
     def __init__(
         self,
@@ -163,6 +166,9 @@ class SimpleActorCritic(ActorCritic[torch.distributions.Categorical]):
     def policy_parameters(self):
         return list(self.policy_network.parameters())
 
+    def __hash__(self):
+        return id(self)
+
 
 class SimpleRecurrentActorCritic(ActorCritic[torch.distributions.Categorical], RecurrentNN):
     def __init__(self, n_actions: int, obs_size: int, extras_size: int, mlp_sizes: Sequence[int], activation: ActivationType):
@@ -191,8 +197,11 @@ class SimpleRecurrentActorCritic(ActorCritic[torch.distributions.Categorical], R
     def policy_parameters(self):
         return list(self.policy_network.parameters())
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class CNNCritic(Critic):
     def __init__(self, input_shape: tuple[int, int, int], n_extras: int, activation: ActivationType, hidden_sizes: Sequence[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
@@ -222,8 +231,11 @@ class CNNCritic(Critic):
         value = value.reshape(*dims)
         return value
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class CNNDiscreteAC(ActorCritic[torch.distributions.Categorical]):
     def __init__(self, input_shape: tuple[int, int, int], n_extras: int, n_actions: int):
         super().__init__((n_actions,))
@@ -257,8 +269,11 @@ class CNNDiscreteAC(ActorCritic[torch.distributions.Categorical]):
         self.critic.to(device)
         return self
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class CNNContinuousActor(Actor):
     def __init__(
         self, input_shape: tuple[int, int, int], extras_size: int, n_actions: int, activation: ActivationType, hidden_sizes: Sequence[int]
@@ -299,8 +314,11 @@ class CNNContinuousActor(Actor):
     def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
         return self.forward(obs, extras)
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class CNNContinuousActorCritic(ActorCritic[torch.distributions.Normal]):
     def __init__(
         self,
@@ -334,8 +352,11 @@ class CNNContinuousActorCritic(ActorCritic[torch.distributions.Normal]):
     def policy_parameters(self):
         return list(self.actor_network.parameters())
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class MLPContinuousActorCritic(ActorCritic):
     def __init__(
         self,
@@ -390,6 +411,9 @@ class MLPContinuousActorCritic(ActorCritic):
     @property
     def policy_parameters(self):
         return list(self.actor_nn.parameters())
+
+    def __hash__(self):
+        return id(self)
 
 
 @dataclass
