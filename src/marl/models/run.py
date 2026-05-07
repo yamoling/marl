@@ -144,12 +144,12 @@ class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
 
     @property
     def is_complete(self):
-        return self.latest_test_step == self.n_steps
+        return self.latest_time_step >= self.n_steps
 
     @property
     def latest_time_step(self) -> int:
         latest_test = self.latest_test_step
-        if latest_test == self.n_steps:
+        if latest_test >= self.n_steps:
             return latest_test
         return max(latest_test, self.latest_train_step)
 
