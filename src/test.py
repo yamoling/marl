@@ -54,5 +54,5 @@ if __name__ == "__main__":
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
     env = LLEConfig(6)
-    experiment = Experiment(env, vdn(env), logdir="VDN-steps", n_steps=1_000_000)
+    experiment = Experiment(env, vdn(env), logdir="test", n_steps=1_000_000)
     experiment.run(seeds=8, test_interval=5000, gpu_strategy="scatter", n_tests=5)

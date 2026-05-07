@@ -32,6 +32,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     vbe: VBE | None = None
 
     def __post_init__(self):
+        super().__post_init__()
         match self.train_interval:
             case (n, "step"):
                 self.step_update_interval = n

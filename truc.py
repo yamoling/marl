@@ -1,3 +1,5 @@
 import marl
 
-marl.Experiment.load("logs/VDN-steps")
+exp = marl.Experiment.load("logs/VDN-steps")
+run = exp.get_run(0)
+print(run)

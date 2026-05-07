@@ -83,6 +83,7 @@ class Serializable:
 
         # Iterate on all fields to identify complex ones that require deserialization
         init_dict = {}
+        type_hints = get_type_hints(cls)
         for f in fields(cls):
             if not f.init:
                 continue
@@ -92,9 +93,8 @@ class Serializable:
                 else:
                     raise KeyError(f"Missing required field {f.name} for class {cls.__name__}")
             else:
-                field_value = cls.deserialize_field(f, d[f.name])
+                field_value = cls.deserialize_field(f, type_hints[f.name], d[f.name])
                 init_dict[f.name] = field_value
-        print(cls, init_dict)
         return cls(**init_dict)
 
     @classmethod
@@ -122,7 +122,7 @@ class Serializable:
             f.write(self.to_json(beautify=beautify))
 
     @classmethod
-    def deserialize_field(cls, f: Field, value: Any):
+    def deserialize_field(cls, f: Field, field_type: Any, value: Any):
         """
         Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
             - datetimes are deserialized from ISO format
@@ -134,25 +134,30 @@ class Serializable:
         fail at deserialising such values.
             - Union types other than `T | None` are not yet supported.
         """
-        actual_type = f.type
-        if isinstance(actual_type, TypeVar):
-            actual_type = actual_type.__bound__
-        if not isinstance(actual_type, type):
-            actual_type = get_origin(f.type)
-        #     resolved_hints = get_type_hints(cls)
-        #     actual_type = resolved_hints.get(f.name, f.type)
-        if actual_type is datetime:
+        # Early returns for simple types
+        if field_type is datetime:
             return datetime.fromisoformat(value)
         if not isinstance(value, dict):
             return value
-        assert isinstance(actual_type, type), f"Unsupported type {f.type} for field {f.name} of class {cls.__name__}"
-        # For union types like `X | None`, get the `X` type
-        if actual_type is Union:
-            # Filter out NoneType to find the actual class
-            union_types = [a for a in get_args(f.type) if a is not type(None)]
-            if len(union_types) > 1:
-                raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
-            actual_type = union_types[0]
-        if issubclass(actual_type, Serializable):
-            return actual_type.from_dict(value)
-        return value
+        # Resolve field of the shape `x: T` where `T: SomeClass` to `SomeClass`
+        if isinstance(field_type, TypeVar):
+            field_type = field_type.__bound__
+        # Resolve fields of the shape `x: SomeGenericType[T]` to `SomeGenericType`
+        origin = get_origin(field_type)
+        if origin is not None:
+            field_type = origin
+        # Resolve optional type of the shape `x: X | None` to `X` (since the value is a dict, hence not None)
+        if field_type is Union:
+            field_type = resolve_optional_type(field_type)
+        assert issubclass(field_type, Serializable), (
+            f"Attribute {f.name} of class {cls} is of type {field_type}, which is not Serializable !"
+        )
+        return field_type.from_dict(value)
+
+
+def resolve_optional_type(field_type):
+    # Filter out NoneType to find the actual class
+    union_types = [a for a in get_args(field_type) if a is not type(None)]
+    if len(union_types) > 1:
+        raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {field_type}.")
+    return union_types[0]
