@@ -1,13 +1,14 @@
 from typing import Any, Literal
-from marlenv import Episode, Transition
 
 import torch
-from marl.models.replay_memory.replay_memory import ReplayMemory
+from marlenv import Episode, Transition
+
 from marl.models.nn import DiscreteActorCritic
+from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.models.trainer import Trainer
 
 
-class DDPGTrainer(Trainer):
+class DDPG(Trainer):
     def __init__(
         self,
         network: DiscreteActorCritic,

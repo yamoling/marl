@@ -1,9 +1,12 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Literal
 
 import torch
 from torch import Tensor
+
+from marl.utils import Serializable
 
 
 def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
@@ -14,16 +17,19 @@ def randomize(init_fn: Callable[[torch.Tensor], Any], nn: torch.nn.Module):
             init_fn(param.data)
 
 
-@dataclass(unsafe_hash=True)
-class NN(torch.nn.Module):
+@dataclass
+class NN(torch.nn.Module, Serializable):
     """Parent class of all neural networks"""
 
     output_shape: tuple[int, ...]
-    name: str = field(init=False)
 
     def __post_init__(self):
-        super().__init__()
-        self.name = self.__class__.__name__
+        torch.nn.Module.__init__(self)
+        Serializable.__post_init__(self)
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
     @property
     def output_size(self):
@@ -62,11 +68,24 @@ class NN(torch.nn.Module):
     def __repr__(self):
         return f"{self.name} (on {self.device})"
 
+    def weights_filename(self, directory: Path):
+        return directory / self.__class__.__name__
 
-@dataclass(repr=False, unsafe_hash=True)
+    def save(self, directory: Path):
+        state_dict = self.state_dict()
+        if len(state_dict) == 0:
+            return
+        torch.save(state_dict, self.weights_filename(directory))
+
+    def load(self, directory: Path):
+        if len(self.state_dict()) == 0:
+            return
+        self.load_state_dict(torch.load(self.weights_filename(directory), weights_only=True))
+
+
 class RecurrentNN(NN):
-    def __post_init__(self):
-        super().__post_init__()
+    def __init__(self, output_shape: tuple[int, ...]):
+        super().__init__(output_shape)
         self._hidden_states: Tensor | None = None
         self._saved_hidden_states: Tensor | None = None
 
@@ -91,7 +110,10 @@ class RecurrentNN(NN):
         return True
 
 
-def get_activation(activation: Literal["sigmoid", "tanh", "relu"]):
+ActivationType = Literal["relu", "tanh", "sigmoid", "leaky-relu"]
+
+
+def get_activation(activation: Literal["sigmoid", "tanh", "relu", "leaky-relu"]):
     match activation:
         case "sigmoid":
             return torch.nn.Sigmoid()
@@ -99,5 +121,7 @@ def get_activation(activation: Literal["sigmoid", "tanh", "relu"]):
             return torch.nn.Tanh()
         case "relu":
             return torch.nn.ReLU()
+        case "leaky-relu":
+            return torch.nn.LeakyReLU()
         case other:
             raise ValueError(f"Unsupported activation: {other}")

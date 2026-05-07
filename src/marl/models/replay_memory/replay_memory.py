@@ -1,6 +1,7 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from collections import deque
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Deque, Iterable, Literal
 
 import numpy as np
@@ -8,25 +9,28 @@ from marlenv import Episode, Transition
 from typing_extensions import TypeVar
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
+from marl.utils import Serializable
 
 T = TypeVar("T")
 
 
 @dataclass
-class ReplayMemory[T](ABC):
+class ReplayMemory[T](Serializable):
     """Parent class of any ReplayMemory"""
 
     max_size: int
-    name: str
-    update_on_transitions: bool
-    update_on_episodes: bool
+    update_on: Literal["transition", "episode"]
 
-    def __init__(self, max_size: int, update_on: Literal["transition", "episode"]):
-        self._memory: Deque[T] = deque(maxlen=max_size)
-        self.max_size = max_size
-        self.name = self.__class__.__name__
-        self.update_on_transitions = update_on == "transition"
-        self.update_on_episodes = update_on == "episode"
+    def __post_init__(self):
+        self._memory: Deque[T] = deque(maxlen=self.max_size)
+
+    @cached_property
+    def update_on_transitions(self):
+        return self.update_on == "transition"
+
+    @cached_property
+    def update_on_episodes(self):
+        return self.update_on == "episode"
 
     def add(self, item: T):
         """Add an item (transition, episode, ...) to the memory"""

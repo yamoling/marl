@@ -184,7 +184,6 @@ logs/
 previous-logs/
 archives/
 old/
-config/
 .devcontainer
 .vscode
 nohup*
@@ -209,3 +208,4 @@ logs.txt
 papers/
 *.log
 .playwright-mcp
+envs/*

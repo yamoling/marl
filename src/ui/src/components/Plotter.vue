@@ -85,7 +85,7 @@
 import { Chart, ChartDataset } from "chart.js/auto";
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
-import { Dataset } from "../models/Experiment";
+import { Dataset } from "../models/Results";
 import { clip, downloadStringAsFile } from "../utils";
 import { useColourStore } from "../stores/ColourStore";
 import { useSettingsStore } from "../stores/SettingsStore";
@@ -137,7 +137,7 @@ watch(seriesLabels, (labels) => {
     hiddenBands.value = nextBands;
 });
 
-function tickedDataset(ticks: number[], dataset: number[]) {
+function tickedDataset(ticks: number[], dataset: (number | null)[]) {
     return dataset.map((d, i) => ({ x: ticks[i], y: d }));
 }
 
@@ -168,13 +168,13 @@ function updateChartData() {
             let lower;
             if (plusMinus.value == "Standard deviation") {
                 lower = clip(
-                    ds.mean.map((m, i) => m - ds.std[i]),
+                    ds.mean.map((m, i) => (m != null && ds.std[i] != null) ? m - ds.std[i] : null),
                     ds.min,
                     ds.max,
                 );
             } else if (plusMinus.value == "95% C.I.") {
                 lower = clip(
-                    ds.mean.map((m, i) => m - ds.ci95[i]),
+                    ds.mean.map((m, i) => (m != null && ds.ci95[i] != null) ? m - ds.ci95[i] : null),
                     ds.min,
                     ds.max,
                 );
@@ -202,13 +202,13 @@ function updateChartData() {
             let upper;
             if (plusMinus.value == "Standard deviation") {
                 upper = clip(
-                    ds.mean.map((m, i) => m + ds.std[i]),
+                    ds.mean.map((m, i) => (m != null && ds.std[i] != null) ? m + ds.std[i] : null),
                     ds.min,
                     ds.max,
                 );
             } else if (plusMinus.value == "95% C.I.") {
                 upper = clip(
-                    ds.mean.map((m, i) => m + ds.ci95[i]),
+                    ds.mean.map((m, i) => (m != null && ds.ci95[i] != null) ? m + ds.ci95[i] : null),
                     ds.min,
                     ds.max,
                 );
@@ -225,10 +225,9 @@ function updateChartData() {
             index += 1;
         }
     });
-    const ticks = Array.from(new Set(allTicks)).sort((a, b) => a - b);
     seriesIndicesByLabel.value = seriesIndices;
     bandIndicesByLabel.value = bandIndices;
-    chart.data = { labels: ticks, datasets };
+    chart.data = { datasets };
     applyVisibilityState();
     chart.update();
 }
@@ -289,7 +288,6 @@ function initialiseChart(): Chart {
     return new Chart(canvas.value, {
         type: "line",
         data: {
-            labels: [],
             datasets: [],
         },
         options: {
@@ -359,6 +357,7 @@ function initialiseChart(): Chart {
             scales: {
                 x: {
                     display: true,
+                    type: "linear",
                     title: {
                         display: true,
                         text: xAxisLabel.value,
@@ -385,9 +384,9 @@ function initialiseChart(): Chart {
 watch(useWallTime, () => {
     if (chart == null) return;
     if (!chart.options?.scales) return;
-    if (!chart.options.scales.x) return;
-    if (!chart.options.scales.x.title) return;
-    chart.options.scales.x.title.text = xAxisLabel.value;
+    const xScale = chart.options.scales.x as { title?: { text?: string } } | undefined;
+    if (!xScale?.title) return;
+    xScale.title.text = xAxisLabel.value;
     chart.update();
 });
 

@@ -1,13 +1,15 @@
+# type: ignore
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Literal
-from marlenv import Transition
-import torch
-from copy import deepcopy
 
-from marl.models.batch import Batch
+import torch
+from marlenv import Transition
+
 from marl.models import TransitionMemory
+from marl.models.batch import Batch
 from marl.models.nn import Critic, IRModule
-from marl.training.qtarget_updater import TargetParametersUpdater, SoftUpdate, HardUpdate
+from marl.training.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 
 
 @dataclass

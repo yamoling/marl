@@ -1,13 +1,11 @@
 import math
 from dataclasses import KW_ONLY, dataclass
-from typing import Literal, Sequence, override
+from typing import Sequence, override
 
 import torch
-from marlenv import MARLEnv, MultiDiscreteSpace
 
-from marl.models.nn import NN, RecurrentNN, get_activation
+from marl.models.nn import NN, ActivationType, RecurrentNN, get_activation
 
-from ..layers import NoisyLinear
 from ..utils import make_cnn
 
 
@@ -19,11 +17,10 @@ class MLP(NN):
 
     obs_size: int
     extras_size: int
-    hidden_sizes: Sequence[int] = (256, 256)
     _: KW_ONLY
-    noisy: bool = False
-    output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
-    intermediate_activation: Literal["sigmoid", "tanh", "relu"] = "relu"
+    hidden_sizes: Sequence[int] = (128, 256, 128)
+    hidden_activation: ActivationType = "relu"
+    output_activation: None | ActivationType = None
 
     def __post_init__(self):
         NN.__post_init__(self)
@@ -31,11 +28,8 @@ class MLP(NN):
         # [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(self.layer_sizes) - 1):
             self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
-            self.nn.append(get_activation(self.intermediate_activation))
-        if self.noisy:
-            self.nn.append(NoisyLinear(self.layer_sizes[-1], self.output_size))
-        else:
-            self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
+            self.nn.append(get_activation(self.hidden_activation))
+        self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
         if self.output_activation is not None:
             self.nn.append((get_activation(self.output_activation)))
 
@@ -62,38 +56,33 @@ class MLP(NN):
 class CNN(NN):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
-    concatenated to this output. The CNN is followed by three linear layers (512, 256, output_shape[0]).
+    concatenated to this output. The CNN is followed by three linear layers of shape (*mlp_sizes, output_shape[0]).
     """
 
     input_shape: tuple[int, int, int]
     extras_size: int
-    mlp_sizes: Sequence[int] = (64, 64)
-    mlp_noisy: bool = False
-    output_activation: None | Literal["sigmoid", "tanh", "relu"] = None
+    _: KW_ONLY
+    mlp_sizes: Sequence[int] = (256, 128)
+    hidden_activation: ActivationType = "relu"
+    output_activation: None | ActivationType = None
+    kernel_sizes: Sequence[int] = (3, 3, 3)
+    strides: Sequence[int] = (1, 1, 1)
+    filters: Sequence[int] = (32, 64, 64)
 
     def __post_init__(self):
         super().__post_init__()
-        kernel_sizes = [3, 3, 3]
-        strides = [1, 1, 1]
-        filters = [32, 64, 64]
-        self.cnn, n_features = make_cnn(self.input_shape, filters, kernel_sizes, strides)
+        assert len(self.strides) == len(self.kernel_sizes) == len(self.filters), (
+            "The number of strides, kernel sizes and filters must be the same."
+        )
+        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
         self.linear = MLP(
             self.output_shape,
             n_features,
             self.extras_size,
-            self.mlp_sizes,
-            noisy=self.mlp_noisy,
+            hidden_sizes=self.mlp_sizes,
+            hidden_activation=self.hidden_activation,
             output_activation=self.output_activation,
         )
-
-    @classmethod
-    def qnetwork(cls, env: MARLEnv[MultiDiscreteSpace], mlp_sizes: tuple[int, ...] = (64, 64)):
-        if env.reward_space.size == 1:
-            output_shape = (env.n_actions,)
-        else:
-            output_shape = (env.n_actions, env.reward_space.size)
-        assert len(env.observation_shape) == 3
-        return cls(env.observation_shape, env.extras_shape[0], output_shape, mlp_sizes)  # type: ignore
 
     @override
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
@@ -109,18 +98,28 @@ class CNN(NN):
 
 
 @dataclass(unsafe_hash=True)
-class SimpleRNN(RecurrentNN):
-    n_inputs: int
-    hidden_size: int = 256
+class RNN(RecurrentNN):
+    obs_size: int
+    extras_size: int
+    mlp_sizes: Sequence[int]
+    hidden_activation: ActivationType
 
     def __post_init__(self):
         super().__post_init__()
-        self.fc1 = torch.nn.Sequential(
-            torch.nn.Linear(self.n_inputs, self.hidden_size),
-            torch.nn.ReLU(),
-        )
-        self.gru = torch.nn.GRU(input_size=self.hidden_size, hidden_size=self.hidden_size, batch_first=False, num_layers=2)
-        self.fc2 = torch.nn.Linear(self.hidden_size, self.output_size)
+        if len(self.mlp_sizes) < 2:
+            raise ValueError("At least two layers of MLP are required.")
+        before_gru = [self.obs_size + self.extras_size, *self.mlp_sizes[: len(self.mlp_sizes) // 2]]
+        after_gru = self.mlp_sizes[len(self.mlp_sizes) // 2 :]
+        self.fc1 = torch.nn.Sequential()
+        self.fc2 = torch.nn.Sequential()
+        for dim, next_dim in zip(before_gru[:-1], before_gru[1:]):
+            self.fc1.append(torch.nn.Linear(dim, next_dim))
+            self.fc1.append(get_activation(self.hidden_activation))
+        self.gru = torch.nn.GRU(before_gru[-1], before_gru[-1], batch_first=False)
+        for dim, next_dim in zip(after_gru[:-2], after_gru[1:-1]):
+            self.fc2.append(torch.nn.Linear(dim, next_dim))
+            self.fc2.append(get_activation(self.hidden_activation))
+        self.fc2.append(torch.nn.Linear(self.mlp_sizes[-1], self.output_size))
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
@@ -144,3 +143,29 @@ class SimpleRNN(RecurrentNN):
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_agents, self.output_size)
         return x
+
+
+@dataclass(unsafe_hash=True)
+class CRNN(RecurrentNN):
+    """Convolutional Recurrent Neural Network."""
+
+    input_shape: tuple[int, int, int]
+    extras_size: int
+    mlp_sizes: Sequence[int]
+    hidden_activation: ActivationType
+    _: KW_ONLY
+    output_activation: None | ActivationType = None
+    kernel_sizes: Sequence[int] = (3, 3, 3)
+    strides: Sequence[int] = (1, 1, 1)
+    filters: Sequence[int] = (32, 64, 64)
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
+        self.rnn = RNN(
+            self.output_shape,
+            n_features,
+            self.extras_size,
+            self.mlp_sizes,
+            self.hidden_activation,
+        )

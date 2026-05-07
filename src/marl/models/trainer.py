@@ -1,24 +1,33 @@
 import os
-from abc import ABC
-from dataclasses import asdict, dataclass, field
-from typing import Any, Literal, Self, Sequence
+from dataclasses import KW_ONLY, dataclass, field
+from pathlib import Path
+from typing import Any, Literal, Self, Sequence, overload
 
 import torch
 from marlenv import Episode, Observation, State, Transition
 
+from marl.utils import Serializable
+
 from .agent import Agent
-from .nn import NN, randomize
+from .nn import NN, IRModule, randomize
 
 
 @dataclass
-class Trainer[T](ABC):
-    """Algorithm trainer class. Needed to train an algorithm but not to test it."""
+class Trainer[T](Serializable):
+    """Algorithm trainer class."""
 
-    name: str = field(init=False)
+    _: KW_ONLY
+    gamma: float = 0.99
+    ir_module: IRModule | None = None
+    grad_norm_clipping: float | None = None
+    train_interval: tuple[int, Literal["step", "episode"]] = (5, "step")
+    name: str = ""
 
     def __post_init__(self):
+        super().__post_init__()
         self._device = torch.device("cpu")
-        self.name = self.__class__.__name__
+        if len(self.name) == 0:
+            self.name = self.__class__.__name__
 
     def make_agent(self) -> Agent[T]:
         raise NotImplementedError("Trainer must implement make_agent method")
@@ -47,31 +56,33 @@ class Trainer[T](ABC):
         """
         return 0.0
 
-    def config(self) -> dict[str, Any]:
-        """
-        Get the configuration of the trainer, typically used for logging.
-        """
-        return asdict(self)
+    def save(self, directory: Path):
+        if not directory.exists():
+            os.makedirs(directory)
+        for nn in self.networks():
+            nn.save(directory)
 
-    def save(self, directory_path: str):
-        if not os.path.exists(directory_path):
-            os.makedirs(directory_path)
-        for i, nn in enumerate(self.networks()):
-            os.path.join(directory_path, f"{nn.name}_{i}.pt")
-            torch.save(nn.state_dict(), f"{directory_path}_{i}.pt")
-
-    def load(self, directory_path: str):
-        for i, nn in enumerate(self.networks()):
-            path = os.path.join(directory_path, f"{nn.name}_{i}.pt")
-            nn.load_state_dict(torch.load(path))
+    def load(self, directory: Path):
+        for nn in self.networks():
+            nn.load(directory)
 
     @property
     def device(self):
         return self._device
 
-    def networks(self):
+    @overload
+    def networks(self, modules: Literal[True]) -> list[NN | torch.nn.Module]:
+        """Return all the networks in the training, including mere torch.nn.Modules."""
+
+    @overload
+    def networks(self, modules: Literal[False] = False) -> list[NN]:
+        """Return all the networks that inherit from NN."""
+
+    def networks(self, modules: bool = False):
         """Dynamic list of neural networks attributes in the trainer"""
-        return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
+        if modules:
+            return [nn for nn in self.__dict__.values() if isinstance(nn, (NN, torch.nn.Module))]
+        return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
         """Randomize the parameters of all the neural networks in the trainer."""
@@ -85,7 +96,7 @@ class Trainer[T](ABC):
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""
         self._device = device
-        for nn in self.networks():
+        for nn in self.networks(modules=True):
             nn.to(device)
         return self
 
@@ -105,16 +116,15 @@ class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
         worker_logs = self.worker_trainer.update_episode(episode, episode_num, time_step)
         return self.merge_logs(worker_logs, meta_logs)
 
-    def networks(self):
-        return self.meta_trainer.networks() + self.worker_trainer.networks()
+    def networks(self, modules: bool = False) -> list:
+        if modules:
+            return self.meta_trainer.networks(modules) + self.worker_trainer.networks(modules)
+        return self.meta_trainer.networks(modules) + self.worker_trainer.networks(modules)
 
     def to(self, device: torch.device) -> Self:
         self.meta_trainer.to(device)
         self.worker_trainer.to(device)
         return self
-
-    def config(self) -> dict[str, Any]:
-        return self.merge_logs(self.meta_trainer.config(), self.worker_trainer.config())
 
     def value(self, obs: Observation, state: State):
         return self.meta_trainer.value(obs, state)

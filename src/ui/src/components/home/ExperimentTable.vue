@@ -3,9 +3,9 @@
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
         <DataTable v-model:expandedRows="expandedRows" :value="experimentStore.experiments" dataKey="logdir"
             size="small" v-model:filters="filters" filterDisplay="menu"
-            :globalFilterFields="['logdir', 'env.name', 'trainer.name']" :sortField="'creation_timestamp'"
-            :sortOrder="-1" :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked"
-            @row-expand="onRowExpanded" @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
+            :globalFilterFields="['logdir', 'env.name', 'trainer.name']" sortField="creation_timestamp" :sortOrder="-1"
+            :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked" @row-expand="onRowExpanded"
+            @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
             :rowsPerPageOptions="[5, 10, 20, 50]">
             <template #header>
                 <div class="input-group">
@@ -81,7 +81,7 @@
             </Column>
             <Column field="creation_timestamp" header="Start date" sortable style="min-width: 12rem">
                 <template #body="{ data }">
-                    {{ new Date(data.creation_timestamp).toLocaleString() }}
+                    {{ data.creation_timestamp.toLocaleString() }}
                 </template>
             </Column>
             <template #empty> No experiments match the current filters. </template>
@@ -99,7 +99,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from "primevue";
-import { Experiment, toCSV } from "../../models/Experiment";
+import { Experiment } from "../../models/Experiment";
+import { toCSV } from "../../models/Results";
 import { downloadStringAsFile } from "../../utils";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import { useResultsStore } from "../../stores/ResultsStore";
@@ -153,7 +154,7 @@ const contextMenuItems = computed(() => {
         {
             label: isLoaded ? "Unload" : "Load",
             icon: isLoaded ? "pi pi-times-circle" : "pi pi-download",
-            command: () => (isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir, exp.test_interval)),
+            command: () => (isLoaded ? resultsStore.unload(logdir) : onExperimentClicked(logdir)),
         },
     ];
 
@@ -250,7 +251,7 @@ function experimentRowClass(data: Experiment) {
 
 async function onRowClicked(event: DataTableRowClickEvent) {
     const experiment = event.data as Experiment;
-    onExperimentClicked(experiment.logdir, experiment.test_interval);
+    onExperimentClicked(experiment.logdir);
 }
 
 async function onRowExpanded(event: DataTableRowExpandEvent) {
@@ -264,8 +265,8 @@ function onRowContextMenu(event: DataTableRowContextMenuEvent) {
     (contextMenuRef.value as any)?.show(event.originalEvent);
 }
 
-function onExperimentClicked(logdir: string, testInterval: number) {
-    resultsStore.load(logdir, testInterval);
+function onExperimentClicked(logdir: string) {
+    resultsStore.load(logdir);
     runStore.refresh(logdir);
 }
 

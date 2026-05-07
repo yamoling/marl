@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
@@ -34,14 +33,6 @@ class SimpleAgent[T: torch.distributions.Distribution, U: np.ndarray](Agent[U]):
         return Action(actions)
 
 
-class DiscreteAgent(SimpleAgent[torch.distributions.Categorical, npt.NDArray[np.int64]]):
-    pass
-
-
-class DiscreteOneHotAgent(SimpleAgent[torch.distributions.OneHotCategorical, npt.NDArray[np.int64]]):
-    pass
-
-
-@dataclass
-class ContinuousAgent(SimpleAgent[torch.distributions.MultivariateNormal, npt.NDArray[np.float32]]):
-    pass
+DiscreteAgent = SimpleAgent[torch.distributions.Categorical, npt.NDArray[np.int64]]
+DiscreteOneHotAgent = SimpleAgent[torch.distributions.OneHotCategorical, npt.NDArray[np.int64]]
+ContinuousAgent = SimpleAgent[torch.distributions.MultivariateNormal, npt.NDArray[np.float32]]

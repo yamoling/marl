@@ -11,9 +11,9 @@
                     <span class="metrics-granularity-label">Granularity</span>
                     <div class="input-group">
                         <input id="metrics-granularity-input" class="form-control form-control-sm " type="number"
-                            min="0" v-model.number="granularityInputValue"
-                            :step="granularityUnit == 'seconds' ? 30 : 500"
-                            @change="() => resultsStore.granularity = granularityInputValue">
+                            min="1" :value="granularityDraft" @input="updateGranularityDraft"
+                            @keydown.enter.prevent="commitGranularityDraft"
+                            :step="granularityUnit == 'seconds' ? 30 : 500">
                         <select class="form-select form-select-sm" v-model="granularityUnit"
                             aria-label="Granularity unit">
                             <option value="timesteps">Time steps</option>
@@ -82,12 +82,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useMetricsStore } from '../../stores/MetricsStore';
 import { MetricSelection } from '../../models/Metrics';
 import { searchMatch } from '../../utils';
 import { useResultsStore } from '../../stores/ResultsStore';
 import { useSettingsStore } from '../../stores/SettingsStore';
+import { normalizeGranularity } from '../../models/Settings';
 const resultsStore = useResultsStore();
 const settingsStore = useSettingsStore();
 const props = defineProps<{
@@ -95,10 +96,16 @@ const props = defineProps<{
     metricsByCategory: Map<string, Set<string>>,
 }>();
 const searchString = ref("");
-const granularityInputValue = ref(resultsStore.granularity)
 const metricsStore = useMetricsStore();
 const selectedMetrics = computed(() => metricsStore.getSelectedMetrics());
 const filteredMetrics = computed(() => Array.from(props.metrics).filter(m => searchMatch(searchString.value, m)).sort());
+
+const granularitySource = computed(() => resultsStore.granularity ?? settingsStore.settings.granularity);
+const granularityDraft = ref(String(granularitySource.value));
+
+watch(granularitySource, (value) => {
+    granularityDraft.value = String(value);
+}, { immediate: true });
 
 const granularityUnit = computed({
     get: () => settingsStore.settings.visualization.useWallTime ? 'seconds' : 'timesteps',
@@ -134,13 +141,29 @@ const loadedResultsCount = computed(() => resultsStore.results.size);
 
 const emits = defineEmits<{
     (event: "change-selected-metrics", value: MetricSelection[]): void
-    (event: "change-granularity", value: number): void
 }>();
 
 function formatCategoryTitle(category: string) {
     return category
         .replace(/[_-]+/g, ' ')
         .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function updateGranularityDraft(event: Event) {
+    granularityDraft.value = (event.target as HTMLInputElement).value;
+}
+
+function commitGranularityDraft() {
+    const parsedValue = Number(granularityDraft.value);
+    if (!Number.isFinite(parsedValue)) {
+        granularityDraft.value = String(granularitySource.value);
+        return;
+    }
+
+    const nextGranularity = normalizeGranularity(parsedValue);
+    resultsStore.granularity = nextGranularity;
+    settingsStore.setGranularity(nextGranularity);
+    granularityDraft.value = String(nextGranularity);
 }
 
 function countSelected(metrics: string[], category: string) {

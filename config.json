@@ -1,0 +1,81 @@
+{
+  "env": {
+    "agent_id": true,
+    "time_limit": 78,
+    "last_action": false,
+    "level_or_path": 6,
+    "obs_type": "layered",
+    "state_type": "state",
+    "class-name": "LLEConfig",
+    "dislay-name": "LLEConfig"
+  },
+  "trainer": {
+    "gamma": 0.99,
+    "ir_config": null,
+    "grad_norm_clipping": null,
+    "batch_size": 64,
+    "train_interval": [
+      5,
+      "step"
+    ],
+    "qnetwork": {
+      "input_shape": [
+        11,
+        12,
+        13
+      ],
+      "extras_shape": [
+        5
+      ],
+      "output_shape": [
+        5
+      ],
+      "is_recurrent": false,
+      "mlp_sizes": [
+        256,
+        128
+      ],
+      "hidden_activation": "relu",
+      "noisy": false,
+      "class-name": "QNetworkConfig",
+      "dislay-name": "QNetworkConfig"
+    },
+    "train_policy": {
+      "schedule": {
+        "kind": "linear",
+        "start": 1,
+        "end": 0.01,
+        "n_steps": 50000,
+        "class-name": "ScheduleConfig",
+        "dislay-name": "ScheduleConfig"
+      },
+      "class-name": "EpsilonGreedyConfig",
+      "dislay-name": "EpsilonGreedyConfig"
+    },
+    "memory": {
+      "kind": "transition",
+      "max_size": 50000,
+      "class-name": "MemoryConfig"
+    },
+    "optimiser_type": "adam",
+    "lr": 0.0001,
+    "target_updater": {
+      "kind": "soft",
+      "tau": 0.01,
+      "update_interval": null,
+      "class-name": "TargetUpdaterConfig"
+    },
+    "double_qlearning": true,
+    "test_policy": null,
+    "class-name": "DQNConfig",
+    "dislay-name": "DQNConfig"
+  },
+  "n_steps": 1000000,
+  "logdir": "logs/test",
+  "test_env": null,
+  "loggers": [
+    "csv"
+  ],
+  "creation_timestamp": "2026-05-03T21:48:58.814886",
+  "class-name": "Experiment"
+}

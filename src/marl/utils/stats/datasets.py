@@ -1,11 +1,13 @@
 from dataclasses import dataclass
+from typing import Sequence
+
 import numpy as np
 import numpy.typing as npt
 import polars as pl
-import polars.selectors as cs
 import polars.exceptions as pl_errors
-from typing import Sequence
-from marl.logging import TickColumn, TIME_STEP_COL, TIMESTAMP_COL
+import polars.selectors as cs
+
+from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
 
 
 @dataclass
@@ -28,20 +30,6 @@ class ExperimentResults:
     qvalue_ds: list[Dataset]
 
 
-def _concat_with_missing_columns(dfs: Sequence[pl.DataFrame]) -> pl.DataFrame:
-    """Concatenate frames with potentially different schemas by padding missing columns with nulls."""
-    if len(dfs) == 0:
-        return pl.DataFrame()
-    all_columns = sorted(set().union(*(df.columns for df in dfs)))
-    aligned = []
-    for df in dfs:
-        missing = [col for col in all_columns if col not in df.columns]
-        if len(missing) > 0:
-            df = df.with_columns([pl.lit(None).alias(col) for col in missing])
-        aligned.append(df.select(all_columns))
-    return pl.concat(aligned)
-
-
 def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
     """
     Round the values of `col_name` to the closest multiple of `round_value`.
@@ -58,63 +46,46 @@ def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
 
 def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, granularity: int):
     dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs)]
-    return (
-        pl.concat(dfs, how="diagonal_relaxed")
-        .with_columns(
-            ticks=(
-                (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
-                if aggregate_by == "timestamp_sec"
-                else pl.col(TIME_STEP_COL)
+    try:
+        return (
+            pl.concat(dfs, how="diagonal_relaxed")
+            .with_columns(
+                ticks=(
+                    (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))
+                    if aggregate_by == "timestamp_sec"
+                    else pl.col(TIME_STEP_COL)
+                )
             )
+            # Round ticks to granularity
+            .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
+            # First compute the mean within each run
+            .group_by("ticks", "run_id")
+            .agg(pl.all().exclude([TIME_STEP_COL, TIMESTAMP_COL, "run_id"]).mean())
+            .drop("run_id")
+            # Then compute the metrics' stats across runs
+            .group_by("ticks")
+            .agg(
+                # Fill null std with 0.0, which happens when a group has one single value.
+                # Filling with zeros prevents NaNs that are not JSON serializable.
+                cs.numeric().mean().name.prefix("mean-"),
+                cs.numeric().std().name.prefix("std-").fill_null(0.0),
+                cs.numeric().min().name.prefix("min-"),
+                cs.numeric().max().name.prefix("max-"),
+                (cs.numeric().std().fill_null(0.0) * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
+            )
+            .sort("ticks")
         )
-        # Round ticks to granularity
-        .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
-        # First compute the mean within each run
-        .group_by("ticks", "run_id")
-        .mean()
-        # Then compute the metrics' stats across runs
-        .group_by("ticks")
-        .agg(
-            cs.numeric().mean().name.prefix("mean-"),
-            cs.numeric().std().name.prefix("std-"),
-            cs.numeric().min().name.prefix("min-"),
-            cs.numeric().max().name.prefix("max-"),
-            (cs.numeric().std() * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
-        )
-        .sort("ticks")
-    )
-
-
-def compute_experiment_results2(dfs: Sequence[pl.LazyFrame], aggregate_by: TickColumn, granularity: int):
-    preprocessed_dfs = list[pl.LazyFrame]()
-    for df in dfs:
-        if aggregate_by == "timestamp_sec":
-            df = df.with_columns(ticks=pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min())
-        else:
-            df = df.with_columns(ticks=pl.col(TIME_STEP_COL))
-        df = df.drop([TIMESTAMP_COL, TIME_STEP_COL])
-        # Round the ticks to the closest multiple of granularity, and compute the granularity-wise mean
-        df = df.with_columns(((pl.col("ticks") / granularity).round() * granularity).cast(pl.Int64))
-        df = df.group_by("ticks").mean()
-        preprocessed_dfs.append(df)
-    df = pl.concat(preprocessed_dfs, how="diagonal_relaxed")
-    cols = [col for col in df.collect_schema().names() if col != "ticks"]
-    return (
-        df.group_by("ticks")
-        .agg(
-            **{f"mean-{col}": pl.mean(col) for col in cols},
-            **{f"std-{col}": pl.std(col) for col in cols},
-            **{f"min-{col}": pl.min(col) for col in cols},
-            **{f"max-{col}": pl.max(col) for col in cols},
-            **{f"ci95-{col}": 1.96 * pl.std(col) / pl.count(col).sqrt() for col in cols},
-        )
-        .sort("ticks")
-    )
+    except pl_errors.NoDataError:
+        return pl.LazyFrame()
+    except ValueError as e:
+        if "cannot concat empty list" in str(e):
+            return pl.LazyFrame()
+        raise e
 
 
 def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, reward_components: list[str], n_agents: int) -> list[Dataset]:
     """Aggregates qvalues"""
-    raise NotImplementedError("This function must be checked")
+    raise NotImplementedError("This function is legacy and must be checked")
     # dfs = [d for d in dfs if not d.is_empty()]
     # if len(dfs) == 0:
     #     return []

@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import numpy as np
 import numpy.typing as npt
@@ -18,11 +19,11 @@ class ReplayAgent(Agent[npt.ArrayLike]):
         return ReplayActionsOnlyAgent(actions)
 
     @staticmethod
-    def from_agent_only(agent: Agent[npt.ArrayLike], weights_path: str):
+    def from_agent_only(agent: Agent[npt.ArrayLike], weights_path: Path):
         return SimpleReplayAgent(agent, weights_path)
 
     @staticmethod
-    def from_agent_and_actions(agent: Agent[npt.ArrayLike], actions: np.ndarray, weights_path: str):
+    def from_agent_and_actions(agent: Agent[npt.ArrayLike], actions: np.ndarray, weights_path: Path):
         agent.load(weights_path)
         return CombinedReplayAgent(actions, agent)
 
@@ -59,7 +60,7 @@ class ReplayActionsOnlyAgent(ReplayAgent):
 
 
 class SimpleReplayAgent(ReplayAgent):
-    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: str):
+    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: Path):
         super().__init__()
         agent.load(weights_path)
         self.agent = agent

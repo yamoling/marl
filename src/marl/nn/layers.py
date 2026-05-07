@@ -1,6 +1,7 @@
 import math
-import torch
 from typing import Callable
+
+import torch
 
 
 class AbsLayer(torch.nn.Module):

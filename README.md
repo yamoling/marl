@@ -47,7 +47,12 @@ $ python src/serve.py       # In an other terminal
 
 
 ## Repository Architecture & Guidelines
-This repository is aimed at prototyping but tries to follows good software engineering practicies as much as possible.
+This repository is aimed at prototyping but tries to follows good software engineering practices as much as possible.
+
+## Serialization
+To serialize and deserialize experiments to/from the disk, many classes are Python dataclasses. The `Serializable` class handles the heavy lifting, dynamically finding the appropriate class to instanciate.
+
+**TODO**: complete this section
 
 ### Models (`src/marl/models/`)
 The models module exposes:
@@ -56,11 +61,11 @@ The models module exposes:
 
 The `models` module should absolutely not contain implementations of neural networks or algorithms.
 
-### A few important classes
-- **Agent**: Abstract class that encapsulate the decision-making logic. It exposes the `choose_action()` method and is agnostic to the learning algorithm.
-- **Trainer**: Abstract base class for learning algorithms that train agents. Trainers implement `update_step()` and `update_episode()` methods, expose trainable neural networks, and implement `make_agent()` to produce their corresponding agent.
-- **Experiment** and **Run**: an `Experiment` is defined by a specific training algorithm and a specific environment and their related set of parameters. Each `Experiment` is stored in its dedicated folder. An `Experiment` can be run multiple times with different seeds, hence the `Run` class. Every `Run` has its own results stored in its dedicated folder.
-- **Runner**: the runner orchestrates the training/testing loop. The runner manages the lifecycle of training runs with proper seeding and checkpointing such that test episodes can be replayed.
+### A few important classes and functions
+- `Agent`: Abstract class that encapsulate the decision-making logic. It exposes the `choose_action()` method and is agnostic to the learning algorithm.
+- `Trainer`: Abstract base class for learning algorithms that train agents. Trainers implement `update_step()` and `update_episode()` methods, expose trainable neural networks, and implement `make_agent()` to produce their corresponding agent.
+- `Experiment` and `Run`: an `Experiment` is defined by a specific training algorithm and a specific environment and their related set of parameters. Each `Experiment` is stored in its dedicated folder. An `Experiment` can be run multiple times with different seeds, hence the `Run` class. Every `Run` has its own results stored in its dedicated folder.
+- `simple_run`: this function contains the boilerplate regarding the training of an agent. It essentially takes a trainer and an environment as input and trains the agent over. It orchestrates the training/testing loop. Tests are seeded to be reproduceable and the agent's weights can be stored at test steps to be re-loaded afterwards.
 
 ### Neural Networks (`src/marl/nn/`)
 This module contains neural network related classes and functions as well as a *model bank*. The *model bank* contains a series of models that serve a specific purpose (e.g. a CNN Q-network, a MLP Q-network, etc). Mixing networks such as VDN, QMIX or QPLEX also have their own `src/marl/nn/mixers` module.

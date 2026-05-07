@@ -127,3 +127,6 @@ class PrioritizedMemory[T](ReplayMemory[T]):
             "per-alpha": self.alpha.value,
             "per-beta": self.beta.value,
         }
+
+    def make_batch(self, items: Iterable[T]):
+        raise NotImplementedError("TODO: just move some code here to comply with the new ReplayMemory interface")

@@ -5,7 +5,7 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 import torch
-from marlenv import Episode, Observation
+from marlenv import Episode
 
 from marl.agents import DiscreteOneHotAgent
 from marl.models import QNetwork, Trainer

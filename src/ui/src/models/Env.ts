@@ -1,56 +1,56 @@
 import { z } from "zod";
 
-export const RewardSpaceSchema = z.object({
-    size: z.number(),
-    labels: z.array(z.string()),
-});
 
-export const ActionSpaceSchema = z.object({
-    space_type: z.union([z.literal("discrete").optional(), z.literal("continuous")]),
+export const SpaceSchema = z.object({
     shape: z.array(z.number()),
-    size: z.number().optional(),
-    labels: z.array(z.string()),
-    low: z.array(z.number()).nullable().optional(),
-    high: z.array(z.number()).nullable().optional(),
-    space_class: z.string().optional(),
+    size: z.number(),
+    labels: z.array(z.string())
 });
 
+export const MultiDiscreteSpaceSchema = SpaceSchema.extend({
+    spaces: z.array(SpaceSchema),
+    n_dims: z.number(),
+});
 
-const envBase = {
-    name: z.string(),
-    n_agents: z.number(),
-    n_actions: z.number(),
-    observation_shape: z.array(z.number()),
-    state_shape: z.array(z.number()),
-    extras_shape: z.array(z.number()),
-    extras_meanings: z.array(z.string()),
+export const ContinuousSpaceSchema = SpaceSchema.extend({
+    low: z.array(z.number()),
+    high: z.array(z.number()),
+});
+
+export const ActionSpaceSchema = z.union([MultiDiscreteSpaceSchema, ContinuousSpaceSchema]);
+
+export const EnvSchema = z.object({
     action_space: ActionSpaceSchema,
-    reward_space: RewardSpaceSchema,
-}
+    observation_shape: z.array(z.number()),
+    extras_shape: z.array(z.number()),
+    n_agents: z.number(),
+    state_shape: z.array(z.number()),
+    extras_meanings: z.array(z.string()),
+    reward_space: z.union([SpaceSchema, ContinuousSpaceSchema]),
+}).loose();
 
-export const EnvSchema = z.object(envBase);
+export const EnvConfigSchema = z.object({
+    name: z.string(),
+    agent_id: z.boolean(),
+    time_limit: z.number().nullable(),
+    last_action: z.boolean(),
+    maven_noise_size: z.number().nullable(),
+    env: EnvSchema.optional(),
+}).loose();
 
-export const EnvWrapperSchema = z.object(envBase).extend({
-    full_name: z.string(),
-    wrapped: z.union([EnvSchema, z.any()]),
+
+
+
+export const LLEConfigSchema = EnvConfigSchema.extend({
+    level_or_path: z.union([z.number(), z.string()]),
+    obs_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
+    state_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
 });
 
+export const SMACConfigSchema = EnvConfigSchema.extend({
+    map_name: z.string(),
+    debug: z.boolean().default(false),
+});
 
-
-export type Env = z.infer<typeof EnvSchema>;
-export interface EnvWrapper extends Env {
-    full_name: string,
-    wrapped: Env | EnvWrapper
-}
-export type ActionSpace = z.infer<typeof ActionSpaceSchema>;
-export type RewardSpace = z.infer<typeof RewardSpaceSchema>;
-
-
-
-export function getWrapperParameters(env: EnvWrapper) {
-    const { wrapped, full_name, ...parameters } = env;
-    const childKeys = Object.keys(env.wrapped);
-    return Object.entries(parameters)
-        .filter(([key]) => !childKeys.includes(key))
-        .reduce((result, [key, value]) => result.set(key, value), new Map<string, any>());
-}
+export type ActionSpace = z.infer<typeof MultiDiscreteSpaceSchema> | z.infer<typeof ContinuousSpaceSchema>;
+export type EnvConfig = z.infer<typeof EnvConfigSchema>;

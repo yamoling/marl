@@ -1,34 +1,31 @@
-import os
-import pickle
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
 
+import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv import Observation
 
-from marl.models import Agent, Action
+from marl.models import Action, Agent, Policy, QNetwork, RecurrentQNetwork
 from marl.optimism import VBE
-
-if TYPE_CHECKING:
-    from marl.models import Policy, QNetwork, RecurrentQNetwork
 
 
 @dataclass
-class DQNAgent(Agent):
+class DQNAgent[Q: QNetwork](Agent[npt.NDArray[np.int64]]):
     """
     Deep Q-Network Interface with shared QNetwork.
     """
 
-    qnetwork: "QNetwork"
+    qnetwork: Q
     train_policy: "Policy"
     test_policy: "Policy"
 
     def __init__(
         self,
-        qnetwork: "QNetwork",
+        qnetwork: Q,
         train_policy: "Policy",
         test_policy: "Policy|None" = None,
-        vbe: Optional[VBE] = None,
+        vbe: VBE | None = None,
     ):
         super().__init__()
         self.qnetwork = qnetwork
@@ -65,33 +62,24 @@ class DQNAgent(Agent):
         self._is_training = True
         super().set_training()
 
-    def save(self, to_directory: str):
-        os.makedirs(to_directory, exist_ok=True)
-        torch.save(self.qnetwork.state_dict(), f"{to_directory}/qnetwork.weights")
-        train_policy_path = os.path.join(to_directory, "train_policy")
-        test_policy_path = os.path.join(to_directory, "test_policy")
-        with open(train_policy_path, "wb") as f, open(test_policy_path, "wb") as g:
-            pickle.dump(self.train_policy, f)
-            pickle.dump(self.test_policy, g)
+    def save(self, to_directory: Path):
+        super().save(to_directory)
+        self.train_policy.to_file(to_directory / "train_policy.json")
+        self.test_policy.to_file(to_directory / "test_policy.json")
 
-    def load(self, from_directory: str):
-        self.qnetwork.load_state_dict(torch.load(f"{from_directory}/qnetwork.weights", weights_only=True, map_location="cpu"))
-        train_policy_path = os.path.join(from_directory, "train_policy")
-        test_policy_path = os.path.join(from_directory, "test_policy")
-        with open(train_policy_path, "rb") as f, open(test_policy_path, "rb") as g:
-            self.train_policy = pickle.load(f)
-            self.test_policy = pickle.load(g)
+    def load(self, from_directory: Path):
+        super().load(from_directory)
+        self.train_policy = Policy.from_file(from_directory / "train_policy.json")
+        self.test_policy = Policy.from_file(from_directory / "test_policy.json")
         self.policy = self.train_policy
 
 
-class RDQNAgent(DQNAgent):
+class RDQNAgent(DQNAgent[RecurrentQNetwork]):
     """
     Recurrent DQN agent.
 
     Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
     """
-
-    qnetwork: "RecurrentQNetwork"  # type: ignore
 
     def new_episode(self):
         self.qnetwork.reset_hidden_states()

@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import { Dataset, ExperimentResults } from "../models/Experiment";
+import { DatasetSchema, ExperimentResults } from "../models/Results";
 import { ReplayEpisodeSummarySchema } from "../models/Episode";
 import { ref, watch } from "vue";
-import { apiFetch } from "../api";
+import { apiFetch, parseOrThrow } from "../api";
 import { HTTP_URL } from "../constants";
 import { useSettingsStore } from "./SettingsStore";
 
@@ -21,10 +21,8 @@ export const useResultsStore = defineStore("ResultsStore", () => {
 
   function currentGranularity(defaultGranularity?: number): number {
     if (granularity.value == null) {
-      if (defaultGranularity == null) {
-        throw new Error("Granularity must be set before loading results");
-      }
-      granularity.value = normalizeGranularity(defaultGranularity);
+      const fallbackGranularity = defaultGranularity ?? settingsStore.settings.granularity;
+      granularity.value = normalizeGranularity(fallbackGranularity);
     }
     return granularity.value;
   }
@@ -41,13 +39,12 @@ export const useResultsStore = defineStore("ResultsStore", () => {
         `${HTTP_URL}/results/load/${logdir}?granularity=${activeGranularity}&use_wall_time=${useWallTime}`,
         `Failed to load results for ${logdir}`,
       );
-      const datasets = (await resp.json()) as Dataset[];
+      const datasets = parseOrThrow(DatasetSchema.array(), await resp.json());
       const experimentResults = new ExperimentResults(logdir, datasets);
       results.value.set(logdir, experimentResults);
       return experimentResults;
     } finally {
       loading.value.set(logdir, false);
-      // Note: if apiFetch throws, the finally still runs (clears loading), then the error propagates to the caller.
     }
   }
 
@@ -75,32 +72,11 @@ export const useResultsStore = defineStore("ResultsStore", () => {
       `Failed to fetch test results at step ${timeStep}`,
     );
     const json = await resp.json();
-    return ReplayEpisodeSummarySchema.array().parse(json);
+    return parseOrThrow(ReplayEpisodeSummarySchema.array(), json);
 
   }
 
-  async function getResultsByRun(logdir: string): Promise<ExperimentResults[]> {
-    try {
-      const activeGranularity = granularity.value;
-      const useWallTime = settingsStore.settings.visualization.useWallTime;
-      const granularityQuery =
-        activeGranularity == null ? "" : `?granularity=${activeGranularity}`;
-      const wallTimeQuery =
-        granularityQuery.length === 0
-          ? `?use_wall_time=${useWallTime}`
-          : `&use_wall_time=${useWallTime}`;
-      const resp = await apiFetch(
-        `${HTTP_URL}/results/load-by-run/${logdir}${granularityQuery}${wallTimeQuery}`,
-        `Failed to load per-run results for ${logdir}`,
-      );
-      const datasets = (await resp.json()) as Dataset[][];
-      return datasets
-        .filter((ds) => ds.length > 0)
-        .map((ds) => new ExperimentResults(ds[0].logdir, ds));
-    } catch {
-      return [];
-    }
-  }
+
 
   function isLoaded(logdir: string): boolean {
     return results.value.has(logdir);
@@ -130,6 +106,5 @@ export const useResultsStore = defineStore("ResultsStore", () => {
     isLoaded,
     reloadLoadedResults,
     getTestsResultsAt,
-    getResultsByRun,
   };
 });

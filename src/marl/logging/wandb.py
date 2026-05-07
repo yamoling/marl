@@ -1,34 +1,33 @@
 import os
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import dotenv
 import wandb
 from marlenv import Episode, MARLEnv
 
-from marl.models.agent import Agent
 from marl.models.trainer import Trainer
 
 from .logger import Logger
 
 
 class WABLogger(Logger):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         super().__init__(logdir)
         dotenv.load_dotenv()
         wandb.login()
         project = os.getenv("WANDB_PROJECT", "marl")
         self._run = wandb.init(project=project, name=self.run_name)
 
-    def log_params(self, trainer: Trainer, agent: Agent, env: MARLEnv, test_env: MARLEnv):
+    def log_params(self, trainer: Trainer, env: MARLEnv, test_env: MARLEnv):
         self._run.config.update({"trainer": asdict(trainer)})
-        self._run.config.update({"agent": asdict(agent)})
         self._run.config.update({"env": asdict(env)})
         self._run.config.update({"test_env": asdict(test_env)})
 
     @property
     def run_name(self):
-        name = self.logdir
+        name = self.logdir.as_posix()
         if name.startswith("logs/"):
             name = name[5:]
         return name

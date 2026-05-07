@@ -1,5 +1,8 @@
-import torch
 from typing import Sequence
+
+import torch
+
+from marl.models.nn.nn import ActivationType, get_activation
 
 
 def make_cnn(
@@ -7,6 +10,7 @@ def make_cnn(
     filters: Sequence[int],
     kernel_sizes: Sequence[int],
     strides: Sequence[int],
+    activation: ActivationType,
     min_output_size=1024,
 ):
     """Create a CNN with flattened output based on the given filters, kernel sizes and strides."""
@@ -25,7 +29,7 @@ def make_cnn(
     modules = []
     for f, k, s, p in zip(filters, kernel_sizes, strides, paddings):
         modules.append(torch.nn.Conv2d(in_channels=channels, out_channels=f, kernel_size=k, stride=s, padding=p))
-        modules.append(torch.nn.ReLU())
+        modules.append(get_activation(activation))
         channels = f
     modules.append(torch.nn.Flatten())
     return torch.nn.Sequential(*modules), output_size

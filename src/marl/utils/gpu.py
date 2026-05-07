@@ -1,7 +1,7 @@
 import subprocess
-from dataclasses import dataclass
 import time
-from typing import Literal, Sequence
+from dataclasses import dataclass
+from typing import Collection, Literal
 
 import torch
 
@@ -29,7 +29,7 @@ class GPU:
         self.utilization = utilization / 100
 
 
-def list_gpus(disabled_devices: Sequence[int] | None = None) -> list[GPU]:
+def list_gpus(disabled_devices: Collection[int] | None = None) -> list[GPU]:
     """List all available GPU devices except disabled ones"""
     if disabled_devices is None:
         disabled_devices = []
@@ -70,7 +70,7 @@ def get_gpu_processes() -> set[int]:
         return set[int]()
 
 
-def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Sequence[int] = ()):
+def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Collection[int] = ()):
     gpus = list_gpus(disabled_gpus)
     devices = list[int]()
     for _ in range(n_runs):
@@ -124,7 +124,7 @@ def get_gpu_usage_by_pid() -> dict[int, int]:
 def select_gpu(
     fit_strategy: Literal["scatter", "group"] = "group",
     estimated_memory_MB: int = 0,
-    disabled_devices: Sequence[int] | None = None,
+    disabled_devices: Collection[int] | None = None,
 ):
     """Select a GPU that can fit the estimated memory requirements."""
 
@@ -155,7 +155,7 @@ def select_gpu(
 def wait_for_fitting_gpu(
     fit_strategy: Literal["scatter", "group"],
     estimated_memory_MB: int,
-    disabled_devices: Sequence[int] | None = None,
+    disabled_devices: Collection[int] | None = None,
     timeout_s: float = 300.0,
     poll_interval_s: float = 1.0,
 ):
@@ -173,7 +173,7 @@ def get_device(
     device: Literal["auto", "cpu"] | int | torch.device | str = "auto",
     fit_strategy: Literal["scatter", "group"] = "group",
     estimated_memory_MB: int = 0,
-    disabled_devices: Sequence[int] | None = None,
+    disabled_devices: Collection[int] | None = None,
 ):
     """
     Get the given (GPU) device that fits the requirements.

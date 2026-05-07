@@ -1,9 +1,12 @@
+import csv
 import os
 import time
-import csv
-import polars as pl
+from pathlib import Path
 from typing import Any
-from .logger import Logger, LogReader, TIME_STEP_COL, TIMESTAMP_COL
+
+import polars as pl
+
+from .logger import TIME_STEP_COL, TIMESTAMP_COL, Logger, LogReader
 
 QVALUES = "qvalues.csv"
 TRAIN = "train.csv"
@@ -66,13 +69,13 @@ class CSVLogWriter:
 
 
 class CSVLogReader(LogReader):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         super().__init__(logdir)
-        self.test_filename = os.path.join(logdir, TEST)
-        self.train_filename = os.path.join(logdir, TRAIN)
-        self.training_data_filename = os.path.join(logdir, TRAINING_DATA)
+        self.test_filename = logdir / TEST
+        self.train_filename = logdir / TRAIN
+        self.training_data_filename = logdir / TRAINING_DATA
 
-    def _read(self, filename: str) -> pl.LazyFrame:
+    def _read(self, filename: Path) -> pl.LazyFrame:
         if not os.path.exists(filename):
             return pl.LazyFrame()
         try:
@@ -96,7 +99,7 @@ class CSVLogReader(LogReader):
 
 
 class CSVLogger(Logger):
-    def __init__(self, logdir: str, flush_interval_sec: float = 30):
+    def __init__(self, logdir: Path, flush_interval_sec: float = 30):
         super().__init__(logdir)
         self.test = CSVLogWriter(os.path.join(logdir, TEST), flush_interval_sec)
         self.train = CSVLogWriter(os.path.join(logdir, TRAIN), flush_interval_sec)

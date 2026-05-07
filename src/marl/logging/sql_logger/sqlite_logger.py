@@ -1,14 +1,17 @@
-import sqlite3
-import os
 import datetime
+import os
+import sqlite3
+from pathlib import Path
 from typing import Any
+
 import orjson
 from marlenv import Episode
+
 from ..logger import Logger
 
 
 class SQLiteLogger(Logger):
-    def __init__(self, logdir: str, run_id: int, log_test_actions: bool, save_weights: bool):
+    def __init__(self, logdir: Path, run_id: int, log_test_actions: bool, save_weights: bool):
         super().__init__(logdir)
         self.run_id = run_id
         self.log_test_actions = log_test_actions
@@ -36,7 +39,7 @@ class SQLiteLogger(Logger):
     def log_test(self, data: dict[str, Any], time_step: int):
         raise NotImplementedError("Not implemented for now. Use log_test_episodes instead")
 
-    def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions:bool=True):
+    def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions: bool = True):
         timestamp = datetime.datetime.now().isoformat()
         test_entries = list[tuple[int, str, int, int]]()
         # First, build all test entries

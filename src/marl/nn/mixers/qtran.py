@@ -1,5 +1,8 @@
+from dataclasses import KW_ONLY, dataclass
+
 import torch
-from marl.models.nn import Mixer
+
+from marl.models.nn import StateMixer
 
 
 class QTRANBaseNet(torch.nn.Module):
@@ -26,17 +29,21 @@ class QTRANBaseNet(torch.nn.Module):
         return self.joint_action_head(x), self.state_value_head(x)
 
 
-class QTRAN(Mixer):
-    def __init__(self, n_agents: int, state_size: int):
-        super(QTRAN, self).__init__(n_agents)
-        self.central_value_network = QTRANBaseNet(
-            state_size,
-            n_agents,
-            64,
-        )
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
-        self.clip_norm = 10.0
+@dataclass(unsafe_hash=True)
+class QTRAN(StateMixer):
+    _: KW_ONLY
+    n_hidden_units: int = 64
+    clip_norm: int = 10
+    lr: float = 0.001
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.central_value_network = QTRANBaseNet(
+            self.state_size,
+            self.n_agents,
+            self.n_hidden_units,
+        )
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         raise NotImplementedError("QTRAN is not implemented yet")
 
     def optimizer_update(

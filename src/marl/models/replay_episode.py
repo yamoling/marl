@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass
-from typing import Any, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
 from marlenv import Episode, Space
 
 from .action import Action
@@ -11,12 +13,12 @@ if TYPE_CHECKING:
 
 @dataclass
 class LightEpisodeSummary:
-    rundir: str
+    rundir: Path
     metrics: dict[str, float]
     test_num: int
     time_step: int
 
-    def __init__(self, rundir: str, metrics: dict[str, float], time_step: int, test_num: int):
+    def __init__(self, rundir: Path, metrics: dict[str, float], time_step: int, test_num: int):
         self.rundir = rundir
         self.time_step = time_step
         self.metrics = metrics
@@ -36,7 +38,7 @@ class ReplayEpisode(LightEpisodeSummary):
 
     def __init__(
         self,
-        rundir: str,
+        rundir: Path,
         time_step: int,
         test_num: int,
         episode: Episode,

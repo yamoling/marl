@@ -1,14 +1,13 @@
 import os
-import shutil
 from abc import ABC, abstractmethod
-from dataclasses import asdict
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 import cv2
 import numpy as np
 import orjson
 import polars as pl
-from marlenv import Episode, MARLEnv
+from marlenv import Episode
 
 from marl.models.replay_episode import LightEpisodeSummary
 
@@ -22,30 +21,30 @@ TIMESTAMP_COL = "timestamp_sec"
 class LogHelper:
     """Helper class for loggers and log readers that provide common methods to get log directories and file paths."""
 
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         self.logdir = logdir
 
-    def get_logdir(self, time_step: int) -> str:
-        return os.path.join(self.logdir, str(time_step))
+    def get_logdir(self, time_step: int):
+        return self.logdir / str(time_step)
 
     def test_dir(self, time_step: int):
-        test_dir = os.path.join(self.logdir, "test", f"{time_step}")
+        test_dir = self.logdir / "test" / f"{time_step}"
         return test_dir
 
     def get_weight_directory(self, time_step: int):
         """Return the file path where the weights of the model are saved for the given time step."""
-        return os.path.join(self.logdir, "weights", str(time_step))
+        return self.test_dir(time_step) / "weights"
 
     def get_saved_algo_dir(self, time_step: int):
         return self.test_dir(time_step)
 
     def get_test_actions_file(self, time_step: int):
         test_dir = self.test_dir(time_step)
-        return os.path.join(test_dir, "actions.json")
+        return test_dir / "actions.json"
 
 
 class LogReader(ABC, LogHelper):
-    def __init__(self, logdir: str):
+    def __init__(self, logdir: Path):
         self.logdir = logdir
 
     @property
@@ -83,16 +82,8 @@ class LogReader(ABC, LogHelper):
 class Logger(ABC, LogHelper):
     """Logger base class."""
 
-    logdir: str
-
-    def __init__(self, logdir: str):
-        super().__init__(logdir)
-        if not logdir.startswith("logs/"):
-            logdir = os.path.join("logs", logdir)
+    def __init__(self, logdir: Path):
         LogHelper.__init__(self, logdir)
-        if os.path.exists(logdir):
-            if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
-                shutil.rmtree(logdir)
 
     def log_train(self, data: dict[str, Any], time_step: int):
         if len(data) == 0:
@@ -108,12 +99,6 @@ class Logger(ABC, LogHelper):
         if len(data) == 0:
             return
         self.log(data, time_step, prefix="test/")
-
-    def log_params(self, trainer: "Trainer", agent: "Agent", env: MARLEnv, test_env: MARLEnv):
-        self.log(asdict(trainer), prefix="params/trainer/", time_step=0)
-        self.log(asdict(agent), prefix="params/agent/", time_step=0)
-        self.log(asdict(env), prefix="params/env/", time_step=0)
-        self.log(asdict(test_env), prefix="params/test_env/", time_step=0)
 
     @abstractmethod
     def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
@@ -161,6 +146,6 @@ class Logger(ABC, LogHelper):
 
     def save_agent(self, agent: "Agent", time_step: int):
         directory = self.get_saved_algo_dir(time_step)
-        if not os.path.exists(directory):
+        if not directory.exists():
             os.makedirs(directory)
         agent.save(directory)

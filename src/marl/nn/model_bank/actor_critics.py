@@ -1,15 +1,49 @@
 import math
 from dataclasses import dataclass
+from typing import Sequence, overload
 
 import torch
-from marlenv import MARLEnv, MultiDiscreteSpace
+from marlenv import ContinuousMARLEnv, DiscreteMARLEnv, MARLEnv
 from torch import Tensor
-from torch.distributions.distribution import Distribution
 
-from marl.models.nn import Actor, ActorCritic, Critic, DiscreteActorCritic, RecurrentNN
+from marl.env import EnvConfig
+from marl.models.nn import (
+    ActivationType,
+    Actor,
+    ActorCritic,
+    ContinuousActorCritic,
+    Critic,
+    DiscreteActorCritic,
+    RecurrentNN,
+    get_activation,
+)
 
 from ..utils import make_cnn
-from .generic import CNN, MLP, SimpleRNN
+from .generic import CNN, MLP, RNN
+
+
+@overload
+def from_env(
+    env: ContinuousMARLEnv | EnvConfig[ContinuousMARLEnv], mlp_sizes: Sequence[int] = (256, 128), activation: ActivationType = "relu"
+) -> ContinuousActorCritic: ...
+@overload
+def from_env(
+    env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], mlp_sizes: Sequence[int] = (256, 128), activation: ActivationType = "relu"
+) -> DiscreteActorCritic: ...
+
+
+def from_env(env: MARLEnv | EnvConfig, mlp_sizes: Sequence[int] = (256, 128), activation: ActivationType = "relu") -> ActorCritic:
+    input_shape = env.observation_shape
+    match (input_shape, env.action_space.is_discrete):
+        case ((input_size,), True):
+            return SimpleActorCritic(input_size, env.extras_size, env.n_actions, mlp_sizes, activation)
+        case ((input_size,), False):
+            return MLPContinuousActorCritic(input_size, env.extras_size, env.n_actions, mlp_sizes, activation)
+        case ((c, h, w), True):
+            return CNN_ActorCritic((c, h, w), env.extras_size, env.n_actions, activation, mlp_sizes)
+        case ((c, h, w), False):
+            return CNNContinuousActorCritic((c, h, w), env.extras_size, env.n_actions, mlp_sizes, activation)
+    raise NotImplementedError(f"No default model configured for input shape {env.observation_shape} and action space {env.action_space}")
 
 
 @dataclass(unsafe_hash=True)
@@ -17,49 +51,46 @@ class CNN_ActorCritic(DiscreteActorCritic):
     def __init__(
         self,
         input_shape: tuple[int, int, int],
-        extras_shape: tuple[int],
-        output_shape: tuple[int],
+        extras_size: int,
+        n_actions: int,
+        activation: ActivationType = "relu",
+        mlp_sizes: Sequence[int] = (256, 128),
     ):
-        super().__init__()
+        super().__init__((n_actions,))
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.extras_shape = extras_shape
+        self.extras_size = extras_size
 
-        self.cnn_actor, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        self.cnn_critic, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        common_input_size = n_features + extras_shape[0]
-        self.actor_nn = torch.nn.Sequential(
-            torch.nn.Linear(common_input_size, 128),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(128, 128),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(128, *output_shape),
-        )
-        self.critic = torch.nn.Sequential(
-            torch.nn.Linear(common_input_size, 128),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(128, 128),
-            torch.nn.LeakyReLU(0.1),
-            torch.nn.Linear(128, 1),
-        )
+        self.cnn_actor, n_features = make_cnn(input_shape, filters, kernel_sizes, strides, "relu")
+        self.cnn_critic, n_features = make_cnn(input_shape, filters, kernel_sizes, strides, "relu")
+        layer_sizes = [n_features + extras_size, *mlp_sizes]
+        self.actor_nn = torch.nn.Sequential()
+        self.critic = torch.nn.Sequential()
+        for size, next_size in zip(layer_sizes[:-1], layer_sizes[1:]):
+            self.actor_nn.append(torch.nn.Linear(size, next_size))
+            self.critic.append(torch.nn.Linear(size, next_size))
+            self.actor_nn.append(get_activation(activation))
+            self.critic.append(get_activation(activation))
+        self.actor_nn.append(torch.nn.Linear(layer_sizes[-1], n_actions))
+        self.critic.append(torch.nn.Linear(layer_sizes[-1], 1))
 
     def _common_forward(self, data: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         *dims, channels, height, width = data.shape
         leading_dims_size = math.prod(dims)
         data = data.view(leading_dims_size, channels, height, width)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
+        extras = extras.view(leading_dims_size, self.extras_size)
         features = self.cnn_actor.forward(data)
         features = torch.cat((features, extras), dim=-1)
         return features.view(*dims, -1)
 
-    def logits(self, data: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.Tensor:
-        *dims, channels, height, width = data.shape
+    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
+        *dims, channels, height, width = obs.shape
         leading_dims_size = math.prod(dims)
-        data = data.view(leading_dims_size, channels, height, width)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
-        features = self.cnn_actor.forward(data)
+        obs = obs.view(leading_dims_size, channels, height, width)
+        extras = extras.view(leading_dims_size, self.extras_size)
+        features = self.cnn_actor.forward(obs)
         features = torch.cat((features, extras), dim=-1)
         features = features.view(*dims, -1)
         logits = self.actor_nn(features)
@@ -69,14 +100,14 @@ class CNN_ActorCritic(DiscreteActorCritic):
         *dims, channels, height, width = obs.shape
         leading_dims_size = math.prod(dims)
         obs = obs.view(leading_dims_size, channels, height, width)
-        extras = extras.view(leading_dims_size, *self.extras_shape)
+        extras = extras.view(leading_dims_size, self.extras_size)
         features = self.cnn_critic.forward(obs)
         features = torch.cat((features, extras), dim=-1)
         features = features.view(*dims, -1)
         v = self.critic(features)
         return torch.squeeze(v, dim=-1)
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         logits = self.logits(obs, extras, available_actions)
         return torch.distributions.Categorical(logits=logits)
 
@@ -88,38 +119,30 @@ class CNN_ActorCritic(DiscreteActorCritic):
     def policy_parameters(self) -> list[torch.nn.Parameter]:
         return list(self.actor_nn.parameters()) + list(self.cnn_actor.parameters())
 
-    @staticmethod
-    def from_env(env: MARLEnv[MultiDiscreteSpace]):
-        assert len(env.observation_shape) == 3
-        assert len(env.extras_shape) == 1
-        c, h, w = env.observation_shape
-        return CNN_ActorCritic(
-            (c, h, w),
-            (env.extras_shape[0],),
-            (env.n_actions,),
-        )
-
 
 @dataclass(unsafe_hash=True)
-class SimpleActorCritic(ActorCritic):
-    def __init__(self, input_size: int, extras_size: int, n_actions: int):
-        super().__init__()
-        self.policy_network = torch.nn.Sequential(
-            torch.nn.Linear(input_size + extras_size, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, n_actions),
-        )
-        self.value_network = torch.nn.Sequential(
-            torch.nn.Linear(input_size + extras_size, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 1),
-        )
+class SimpleActorCritic(ActorCritic[torch.distributions.Categorical]):
+    def __init__(
+        self,
+        input_size: int,
+        extras_size: int,
+        n_actions: int,
+        mlp_sizes: Sequence[int],
+        activation: ActivationType,
+    ):
+        super().__init__((n_actions,))
+        layer_sizes = [input_size + extras_size, *mlp_sizes]
+        self.policy_network = torch.nn.Sequential()
+        self.value_network = torch.nn.Sequential()
+        for prev_size, next_size in zip(layer_sizes[:-1], layer_sizes[1:]):
+            self.policy_network.append(torch.nn.Linear(prev_size, next_size))
+            self.policy_network.append(get_activation(activation))
+            self.value_network.append(torch.nn.Linear(prev_size, next_size))
+            self.value_network.append(get_activation(activation))
+        self.policy_network.append(torch.nn.Linear(mlp_sizes[-1], n_actions))
+        self.value_network.append(torch.nn.Linear(mlp_sizes[-1], 1))
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         x = torch.cat((obs, extras), dim=-1)
         logits = self.policy_network(x)
         logits = self.mask(logits, available_actions, replacement=-torch.inf)
@@ -140,22 +163,15 @@ class SimpleActorCritic(ActorCritic):
     def policy_parameters(self):
         return list(self.policy_network.parameters())
 
-    @classmethod
-    def from_env(cls, env: MARLEnv):
-        assert len(env.observation_shape) == 1
-        assert len(env.extras_shape) == 1
-        return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)
 
+class SimpleRecurrentActorCritic(ActorCritic[torch.distributions.Categorical], RecurrentNN):
+    def __init__(self, n_actions: int, obs_size: int, extras_size: int, mlp_sizes: Sequence[int], activation: ActivationType):
+        ActorCritic.__init__(self, (n_actions,))
+        RecurrentNN.__init__(self, (n_actions,))
+        self.policy_network = RNN(self.output_shape, obs_size, extras_size, mlp_sizes, activation)
+        self.value_network = RNN((1,), obs_size, extras_size, mlp_sizes, activation)
 
-@dataclass(unsafe_hash=True)
-class SimpleRecurrentActorCritic(ActorCritic, RecurrentNN):
-    def __init__(self, input_size: int, extras_size: int, n_actions: int):
-        ActorCritic.__init__(self)
-        RecurrentNN.__init__(self)
-        self.policy_network = SimpleRNN(input_size + extras_size, n_actions)
-        self.value_network = SimpleRNN(input_size + extras_size, 1)
-
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> Distribution:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         logits = self.policy_network.forward(obs, extras)
         logits = self.mask(logits, available_actions, replacement=-torch.inf)
         return torch.distributions.Categorical(logits=logits)
@@ -175,24 +191,18 @@ class SimpleRecurrentActorCritic(ActorCritic, RecurrentNN):
     def policy_parameters(self):
         return list(self.policy_network.parameters())
 
-    @classmethod
-    def from_env(cls, env: MARLEnv):
-        assert len(env.observation_shape) == 1
-        assert len(env.extras_shape) == 1
-        return SimpleActorCritic(env.observation_shape[0], env.extras_shape[0], env.n_actions)
-
 
 @dataclass(unsafe_hash=True)
 class CNNCritic(Critic):
-    def __init__(self, input_shape: tuple[int, int, int], n_extras: int):
+    def __init__(self, input_shape: tuple[int, int, int], n_extras: int, activation: ActivationType, hidden_sizes: Sequence[int]):
         assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__()
+        super().__init__((1,))
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides)
-        self.mlp = MLP(n_features, n_extras, hidden_sizes=[128, 128, 128], output_shape=(1,))
+        self.cnn, n_features = make_cnn(input_shape, filters, kernel_sizes, strides, activation)
+        self.mlp = MLP((1,), n_features, n_extras, hidden_sizes=hidden_sizes, hidden_activation=activation)
         self.n_extras = n_extras
 
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
@@ -214,11 +224,11 @@ class CNNCritic(Critic):
 
 
 @dataclass(unsafe_hash=True)
-class CNNDiscreteAC(ActorCritic):
+class CNNDiscreteAC(ActorCritic[torch.distributions.Categorical]):
     def __init__(self, input_shape: tuple[int, int, int], n_extras: int, n_actions: int):
-        super().__init__()
-        self.actor = CNN(input_shape, n_extras, (n_actions,))
-        self.critic = CNN(input_shape, n_extras, (1,))
+        super().__init__((n_actions,))
+        self.actor = CNN((n_actions,), input_shape, n_extras)
+        self.critic = CNN((1,), input_shape, n_extras)
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor):
         logits = self.actor.forward(obs, extras)
@@ -250,29 +260,26 @@ class CNNDiscreteAC(ActorCritic):
 
 @dataclass(unsafe_hash=True)
 class CNNContinuousActor(Actor):
-    def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__()
+    def __init__(
+        self, input_shape: tuple[int, int, int], extras_size: int, n_actions: int, activation: ActivationType, hidden_sizes: Sequence[int]
+    ):
+        super().__init__((n_actions,))
 
         kernel_sizes = [3, 3, 3]
         strides = [1, 1, 1]
         filters = [32, 64, 64]
-        self.n_actions = math.prod(action_output_shape)
-        n_means = self.n_actions
-        n_stds = self.n_actions
-        self.action_shape = action_output_shape
-
+        self.n_actions = n_actions
         c, h, w = input_shape
-        self.cnn, n_features = make_cnn((c, h, w), filters, kernel_sizes, strides)
-        self.mlp = MLP(n_features, n_extras, [128, 128, 128], (n_means + n_stds,))
+        self.cnn, n_features = make_cnn((c, h, w), filters, kernel_sizes, strides, activation)
+        self.mlp = MLP((2 * n_actions,), n_features, extras_size, hidden_sizes=hidden_sizes, hidden_activation=activation)
 
     def _get_distribution(self, means_stds: torch.Tensor):
         batch_size, n_agents, _ = means_stds.shape
         means = means_stds[:, :, : self.n_actions]
         stds = torch.nn.functional.softplus(means_stds[:, :, self.n_actions :])
         # batch_size = means.shape[0] * means.shape[1]
-        means = means.view(batch_size, n_agents, *self.action_shape)
-        stds = stds.view(batch_size, n_agents, *self.action_shape)
+        means = means.view(batch_size, n_agents, self.n_actions)
+        stds = stds.view(batch_size, n_agents, self.n_actions)
         return torch.distributions.Normal(means, stds)
 
     def forward(
@@ -289,18 +296,24 @@ class CNNContinuousActor(Actor):
         dist = self._get_distribution(means_stds)
         return dist
 
-    def policy(self, obs: torch.Tensor, extras: torch.Tensor):  # type: ignore
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
         return self.forward(obs, extras)
 
 
 @dataclass(unsafe_hash=True)
-class CNNContinuousActorCritic(ActorCritic):
-    def __init__(self, input_shape: tuple[int, int, int], n_extras: int, action_output_shape: tuple[int, ...]):
-        assert len(input_shape) == 3, f"CNN can only handle 3D input shapes ({len(input_shape)} here)"
-        super().__init__()
+class CNNContinuousActorCritic(ActorCritic[torch.distributions.Normal]):
+    def __init__(
+        self,
+        obs_shape: tuple[int, int, int],
+        extras_size: int,
+        n_actions: int,
+        hidden_sizes: Sequence[int],
+        activation: ActivationType,
+    ):
+        super().__init__((n_actions,))
 
-        self.actor_network = CNNContinuousActor(input_shape, n_extras, action_output_shape)
-        self.critic = CNNCritic(input_shape, n_extras)
+        self.actor_network = CNNContinuousActor(obs_shape, extras_size, n_actions, activation, hidden_sizes)
+        self.critic = CNNCritic(obs_shape, extras_size, activation, hidden_sizes)
 
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         return self.critic.value(obs, extras)
@@ -308,7 +321,7 @@ class CNNContinuousActorCritic(ActorCritic):
     def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
         return self.actor_network.forward(obs, extras)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None):
         dist = self.actor_network.forward(obs, extras)
         values = self.critic.forward(obs, extras)
         return dist, values
@@ -324,27 +337,26 @@ class CNNContinuousActorCritic(ActorCritic):
 
 @dataclass(unsafe_hash=True)
 class MLPContinuousActorCritic(ActorCritic):
-    def __init__(self, input_shape: tuple[int, ...], n_extras: int, action_output_shape: tuple[int, ...]):
-        assert len(input_shape) == 1
-        super().__init__()
-        self.action_shape = action_output_shape
-        self.n_actions = math.prod(action_output_shape)
-        n_means = self.n_actions
-        n_stds = self.n_actions
-        self.actor_nn = torch.nn.Sequential(
-            torch.nn.Linear(input_shape[0] + n_extras, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, n_means + n_stds),
-        )
-        self.critic = torch.nn.Sequential(
-            torch.nn.Linear(input_shape[0] + n_extras, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
-            torch.nn.Linear(128, 1),
-        )
+    def __init__(
+        self,
+        obs_size: int,
+        extras_size: int,
+        n_actions: int,
+        hidden_sizes: Sequence[int],
+        hidden_activation: ActivationType,
+    ):
+        super().__init__((n_actions,))
+        self.n_actions = n_actions
+        layer_sizes = [obs_size + extras_size, *hidden_sizes]
+        self.actor_nn = torch.nn.Sequential()
+        self.critic = torch.nn.Sequential()
+        for size, next_size in zip(layer_sizes, layer_sizes[1:]):
+            self.actor_nn.append(torch.nn.Linear(size, next_size))
+            self.critic.append(torch.nn.Linear(size, next_size))
+            self.actor_nn.append(get_activation(hidden_activation))
+            self.critic.append(get_activation(hidden_activation))
+        self.actor_nn.append(torch.nn.Linear(layer_sizes[-1], 2 * n_actions))  # means and stds
+        self.critic.append(torch.nn.Linear(layer_sizes[-1], 1))
 
     def value(self, obs: torch.Tensor, extras: torch.Tensor) -> torch.Tensor:
         obs = torch.concat((obs, extras), dim=-1)
@@ -355,8 +367,8 @@ class MLPContinuousActorCritic(ActorCritic):
         means = means_stds[:, :, : self.n_actions]
         stds = torch.nn.functional.softplus(means_stds[:, :, self.n_actions :])
         *dims, _ = means.shape
-        means = means.view(*dims, *self.action_shape)
-        stds = stds.view(*dims, *self.action_shape)
+        means = means.view(*dims, self.n_actions)
+        stds = stds.view(*dims, self.n_actions)
         return torch.distributions.Normal(means, stds)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, available_actions):
@@ -382,11 +394,11 @@ class MLPContinuousActorCritic(ActorCritic):
 
 @dataclass
 class CNNActor(Actor, CNN):
-    def __init__(self, obs_shape: tuple[int, ...], extras_size: int, action_shape: int | tuple[int, ...]):
+    def __init__(self, obs_shape: tuple[int, ...], extras_size: int, n_actions: int):
         assert len(obs_shape) == 3
         (c, h, w) = obs_shape
-        Actor.__init__(self)
-        CNN.__init__(self, (c, h, w), extras_size, action_shape)
+        Actor.__init__(self, (n_actions,))
+        CNN.__init__(self, (n_actions,), (c, h, w), extras_size)
 
     def policy(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor) -> torch.distributions.Distribution:
         logits = CNN.forward(self, obs, extras)

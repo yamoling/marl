@@ -1,224 +1,176 @@
+import logging
 import os
-import pickle
 import shutil
-import time
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import Any, Literal, Sequence
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from signal import SIGINT
+from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
 
 import numpy as np
-import orjson
+import numpy.typing as npt
 import torch
-from marlenv.models import MARLEnv, Space
+from marlenv import MARLEnv
 
-from marl import exceptions
-from marl.logging import LogSpecs, TickColumn
-from marl.models.replay_episode import LightEpisodeSummary
 from marl.models.trainer import Trainer
-from marl.runners.simple_runner import get_test_seed
-from marl.utils import default_serialization, encode_b64_image, stats
+from marl.utils import Serializable, stats
 from marl.utils.stats import Dataset
 
-from .replay_episode import ReplayEpisode
 from .run import Run
+
+if TYPE_CHECKING:
+    from marl.env import EnvConfig
+    from marl.logging import LoggerType, TickColumn
+    from marl.models import Trainer
+
+
+EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
-class Experiment[A: Space]:
-    logdir: str
-    test_interval: int
-    creation_timestamp: int
-    trainer: Trainer
-    env: MARLEnv[A]
-    n_steps: int
-    test_env: MARLEnv[A]
-    save_weights: bool
-    logger: LogSpecs
-    save_actions: bool
+class Experiment[E: MARLEnv, T: Trainer](Serializable):
+    env: "EnvConfig[E]"
+    trainer: T
+    n_steps: int = 1_000_000
+    logdir: str | Literal["auto"] = "logs/test"
+    test_env: "EnvConfig[E] | None" = None
+    """Environment configuration to test the trained agent against. Defaults to `self.env`."""
+    loggers: "Collection[LoggerType]" = field(default_factory=lambda: ["csv"])
+    creation_timestamp: datetime | None = None
 
-    @staticmethod
-    def create(
-        env: MARLEnv[A],
-        n_steps: int,
-        logdir: str = "logs/tests",
-        trainer: Trainer | None = None,
-        test_interval: int = 5_000,
-        test_env: MARLEnv[A] | None = None,
-        logger: LogSpecs = "csv",
-        save_weights: bool = False,
-        save_actions: bool = True,
-        *,
-        replace_if_exists: bool = False,
-    ):
-        """
-        Create a new experiment in the specified directory.
+    def __post_init__(self):
+        if self.logdir == "auto":
+            self.logdir = Path("logs", f"{self.trainer.name}-{self.env.name}").as_posix()
+        if not self.logdir.startswith("logs"):
+            self.logdir = Path("logs", self.logdir).as_posix()
+        # Only create the timestamp the first time the experiment is created.
+        # The other times, the attribute will already be set by the deserializer.
+        is_new = self.creation_timestamp is None
+        if is_new:
+            if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
+                logging.info(f"Discarding pre-existing experiment {self.logpath}.")
+                self.delete()
+            if self.logpath.exists():
+                raise FileExistsError(f"Experiment directory {self.logpath} already exists.")
+            self.creation_timestamp = datetime.now()
+            self.save()
 
-        - `trainer` defaults to `NoTrain` trainer if not provided
-        - `agent` defaults to `trainer.make_agent()` if not provided
-        - `test_env` defaults to a deep copy of `env` if not provided
-        """
-        if not logdir.startswith("logs/"):
-            logdir = os.path.join("logs", logdir)
-        if os.path.basename(logdir).lower() in ("test", "tests", "debug"):
-            shutil.rmtree(logdir, ignore_errors=True)
-        if test_env is None:
-            test_env = deepcopy(env)
-        if not env.has_same_inouts(test_env):
-            raise ValueError("The test environment must have the same inputs and outputs as the training environment.")
-        if not logdir.startswith("logs"):
-            logdir = os.path.join("logs", logdir)
-        if trainer is None:
-            from marl.training import NoTrain
+    def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):
+        if isinstance(seeds, int):
+            seeds = list(range(seeds))
+        if self.test_env is None:
+            self.test_env = self.env
+        runs = [
+            Run(
+                seed,
+                (self.logpath / f"run-{seed}").as_posix(),
+                self.trainer,
+                self.env,
+                self.test_env,
+                self.n_steps,
+                test_interval,
+                n_tests,
+                self.loggers,
+                save_weights,
+                save_actions,
+            )
+            for seed in seeds
+        ]
+        # Deepcopy to prevent modifying the original configs references
+        return deepcopy(runs)
 
-            trainer = NoTrain(env)
-        experiment = Experiment(
-            logdir,
-            trainer=trainer,
-            env=env,
-            n_steps=n_steps,
-            test_interval=test_interval,
-            creation_timestamp=int(time.time() * 1000),
-            test_env=test_env,
-            logger=logger,
-            save_weights=save_weights,
-            save_actions=save_actions,
-        )
-        try:
-            if replace_if_exists and os.path.exists(logdir):
-                shutil.rmtree(logdir, ignore_errors=True)
-            experiment.save()
-            return experiment
-        except FileExistsError:
-            raise exceptions.ExperimentAlreadyExistsException(logdir)
+    @property
+    def logpath(self):
+        return Path(self.logdir)
 
-    @classmethod
-    def load(cls, logdir: str):
-        """Load an experiment from disk."""
-        with open(os.path.join(logdir, "experiment.pkl"), "rb") as f:
-            experiment: Experiment = pickle.load(f)
-        return experiment
-
-    def save(self):
-        """Save the experiment to disk."""
-        os.makedirs(self.logdir, exist_ok=False)
-        with open(self.json_file(self.logdir), "wb") as f:
-            f.write(orjson.dumps(self, default=default_serialization, option=orjson.OPT_SERIALIZE_NUMPY))
-        with open(os.path.join(self.logdir, "experiment.pkl"), "wb") as f:
-            pickle.dump(self, f)
-
-    def _prepare_runs(self, seeds: Sequence[int]):
-        """Create/load all the runs corresponding to the given seeds, and return them as a list."""
-        runs = list[Run]()
-        for seed in seeds:
-            run = self.get_run_with_seed(seed)
-            if run is None:
-                run = Run.create(self.logdir, seed, self.logger)
-            runs.append(run)
-        return runs
+    @property
+    def experiment_file(self):
+        return self.logpath / EXPERIMENT_FILENAME
 
     def run(
         self,
-        seeds: int | Sequence[int] = 1,
-        fill_strategy: Literal["scatter", "group"] = "group",
+        seeds: int | Collection[int] = 1,
+        gpu_strategy: Literal["scatter", "group"] = "group",
+        save_weights: bool = True,
+        save_actions: bool = True,
+        n_tests: int = 1,
+        test_interval: int = 5000,
+        *,
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
-        n_tests: int = 1,
         render_tests: bool = False,
-        n_parallel: int = torch.cuda.device_count(),
+        n_jobs: int = torch.cuda.device_count(),
         disabled_gpus: Sequence[int] = (),
     ):
         """Train the Agent on the environment according to the experiment parameters."""
+        from marl.runners import parallel_run, sequential_run
+
         if isinstance(seeds, int):
             seeds = list(range(seeds))
-        runs = self._prepare_runs(seeds)
-        if n_parallel <= 1 or len(runs) <= 1:
-            from marl.runners import SequentialRunner
+        runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
+        if n_jobs <= 1 or len(runs) <= 1:
+            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
+        return parallel_run(runs, n_jobs, device, gpu_strategy, render_tests, disabled_gpus, quiet)
 
-            runner = SequentialRunner(self)
-            return runner.start(runs, device, fill_strategy, quiet, n_tests, render_tests, disabled_gpus)
-
-        from marl.runners import ParallelRunner
-
-        runner = ParallelRunner(self.logdir)
-        return runner.start(
-            runs,
-            n_jobs=n_parallel,
-            device=device,
-            auto_device_strategy=fill_strategy,
-            n_tests=n_tests,
-            render_tests=render_tests,
-            disabled_gpus=disabled_gpus,
-            quiet=quiet,
-        )
-
-    def _make_replay_agent(self, run: Run, time_step: int, test_num: int, only_saved_actions: bool):
-        from marl.agents import ReplayAgent
-
-        if only_saved_actions:
-            # This should fail if the actions file is not found
-            actions = run.get_test_actions(time_step, test_num)
-            return ReplayAgent.from_actions_only(actions)
-        try:
-            # This should **not** fail if the actions file is not found
-            actions = run.get_test_actions(time_step, test_num)
-            checkpoint_path = run.get_saved_algo_dir(time_step)
-            return ReplayAgent.from_agent_and_actions(self.trainer.make_agent(), actions, checkpoint_path)
-        except FileNotFoundError:
-            pass
-        try:
-            return ReplayAgent.from_agent_only(self.trainer.make_agent(), run.get_saved_algo_dir(time_step))
-        except FileNotFoundError:
-            pass
-        try:
-            return ReplayAgent.from_actions_only(run.get_test_actions(time_step, test_num))
-        except FileNotFoundError:
-            raise FileNotFoundError(
-                f"Could not find any data to replay the episode for time step {time_step} and test number {test_num} in run with seed {run.seed}."
-            )
-
-    def replay_episode(self, run_num: int, time_step: int, test_num: int, *, only_saved_actions: bool = False) -> ReplayEpisode:
+    def replay_episode(self, run_seed: int, time_step: int, test_num: int, *, only_saved_actions: bool = False):
         """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
-        from marl.runners import seeded_rollout
+        run = self.get_run(run_seed)
+        assert run is not None
+        return run.replay_episode(time_step, test_num, only_saved_actions)
 
-        run = self.get_run(run_num)
-        seed = get_test_seed(time_step, test_num)
-        agent = self._make_replay_agent(run, time_step, test_num, only_saved_actions)
-        episode, frames, detailed_actions = seeded_rollout(self.test_env, agent, seed, compute_frames=True)
-        frames = [encode_b64_image(f) for f in frames]
-        return ReplayEpisode(run.rundir, time_step, test_num, episode, frames, detailed_actions, self.test_env.action_space, agent)
-
-    def move(self, new_logdir: str):
+    def move(self, new_logdir: Path):
         """Move an experiment to a new directory."""
+        # Load the runs before moving the files, because we will not be able to load them after the move.
+        runs = list(self.runs)
+        # 1) move all files (with weights, logs, etc)
         shutil.move(self.logdir, new_logdir)
-        self.logdir = new_logdir
+        # 2) update the experiment.json file with the new logdir
+        self.logdir = new_logdir.as_posix()
         self.save()
+        # 3) each rundir has to be overwritten with the new logdir
+        for run in runs:
+            run.rundir = (new_logdir / run.runpath.parts[-1]).as_posix()
+            run.save()
 
     @staticmethod
-    def json_file(logdir: str):
-        return os.path.join(logdir, "experiment.json")
+    def json_file(logdir: str | Path):
+        logdir = Path(logdir)
+        return logdir / EXPERIMENT_FILENAME
 
-    def get_run(self, run_num: int):
-        rundir = self.rundirs[run_num]
-        return Run.load(rundir, self.logger)
+    @overload
+    def get_run(self, run_seed: int, /): ...
+    @overload
+    def get_run(self, rundir: str, /): ...
+
+    def get_run(self, seed_or_rundir: str | int):
+        seed = None
+        rundir = None
+        match seed_or_rundir:
+            case int(seed):
+                pass
+            case str(rundir):
+                pass
+            case other:
+                raise ValueError(f"Invalid seed or rundir: {other}")
+        for run in self.runs:
+            if run.seed == seed or run.rundir == rundir:
+                return run
 
     @property
     def runs(self):
         """All the runs related to the experiment."""
-        for rundir in self.rundirs:
-            yield Run.load(rundir, self.logger)
-
-    @property
-    def rundirs(self):
-        ls = sorted([f for f in os.listdir(self.logdir) if f.startswith("run_")])
-        return [os.path.join(self.logdir, run) for run in ls]
+        for f in os.listdir(self.logdir):
+            rundir = self.logpath / f
+            if not rundir.is_dir():
+                continue
+            yield Run[E, npt.ArrayLike].load(rundir)
 
     @staticmethod
-    def is_experiment_directory(logdir: str) -> bool:
+    def is_experiment_directory(logdir: str | Path) -> bool:
         """Check if a directory is an experiment directory."""
-        try:
-            return os.path.exists(os.path.join(logdir, "experiment.json"))
-        except FileNotFoundError:
-            return False
+        logdir = Path(logdir)
+        return Experiment.json_file(logdir).exists()
 
     @classmethod
     def find_experiment_directory(cls, subdir: str) -> str | None:
@@ -233,37 +185,52 @@ class Experiment[A: Space]:
     @property
     def is_running(self):
         """Check if an experiment is running."""
-        for run in self.runs:
-            if run.is_running:
-                return True
-        return False
+        return any(r.is_running for r in self.runs)
 
     def kill_runs(self):
         """Kill all runs of an experiment."""
+        ppids = set[int]()
+        n_killed = 0
         for run in self.runs:
-            run.kill()
+            ppid = run.ppid
+            if ppid is not None:
+                ppids.add(ppid)
+            if run.kill():
+                n_killed += 1
+        # If there was one single parent, we assume it was a parallel_runner and kill it as well
+        if n_killed > 1 and len(ppids) == 1:
+            ppid = ppids.pop()
+            try:
+                os.kill(ppid, SIGINT)
+            except ProcessLookupError:
+                pass
+
+    @classmethod
+    def load(cls, logdir: Path | str):
+        json_file = cls.json_file(logdir)
+        return cls.from_file(json_file)
+
+    def save(self):
+        self.to_file(self.experiment_file)
 
     def delete(self):
-        shutil.rmtree(self.logdir)
+        print(f"Removing  experiment at {self.logpath}")
+        shutil.rmtree(self.logpath, ignore_errors=True)
 
     def get_tests_at(self, time_step: int):
-        summary = list[LightEpisodeSummary]()
-        for run in self.runs:
-            summary += run.get_test_episodes(time_step)
-        return summary
-
-    @property
-    def qvalue_infos(self):
-        return (self.env.reward_space.labels, self.env.n_agents)
+        summaries = [run.get_test_episodes(time_step) for run in self.runs]
+        return [summary for run_summaries in summaries for summary in run_summaries]
 
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_experiment_datasets(self, granularity: int | None = None, aggregate_by: TickColumn = "time_step"):
-        results = self.get_experiment_results(granularity, aggregate_by)
+    def get_results_datasets(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+        results = self.get_results(granularity, aggregate_by)
         datasets = list[Dataset]()
         for category, stats_df in results.items():
             stats_df = stats_df.collect()
+            if stats_df.is_empty():
+                continue
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]
             ticks = stats_df["ticks"].to_list()
             datasets += [
@@ -282,14 +249,12 @@ class Experiment[A: Space]:
             ]
         return datasets
 
-    def get_experiment_results(self, granularity: int | None = None, aggregate_by: TickColumn = "time_step"):
+    def get_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
         """
         Return the category-wise metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
 
         E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
-        if granularity is None:
-            granularity = self.test_interval
         runs = list(self.runs)
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
@@ -311,20 +276,17 @@ class Experiment[A: Space]:
             ),
         }
 
-    def copy(self, new_logdir: str, copy_runs: bool = True):
+    def copy(self, new_logdir: Path, copy_runs: bool = True):
         new_exp = deepcopy(self)
-        new_exp.logdir = new_logdir
+        new_exp.logdir = new_logdir.as_posix()
         new_exp.save()
-        if copy_runs:
-            for run in self.runs:
-                new_rundir = run.rundir.replace(self.logdir, new_logdir)
-                shutil.copytree(run.rundir, new_rundir)
+        if not copy_runs:
+            return new_exp
+        for run in self.runs:
+            new_rundir = new_logdir / run.runpath.parts[-1]
+            run.runpath.replace(new_rundir)
+            # shutil.copytree(run.rundir, new_rundir)
         return new_exp
-
-    @staticmethod
-    def get_parameters(logdir: str) -> dict[str, Any]:
-        with open(Experiment.json_file(logdir), "rb") as f:
-            return orjson.loads(f.read())
 
     def get_run_with_seed(self, seed: int):
         for run in self.runs:

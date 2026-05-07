@@ -16,19 +16,17 @@ def list_runs(logdir: str):
     for run in exp.runs:
         if run.is_running:
             status = "RUNNING"
-        elif run.is_completed(exp.n_steps):
+        elif run.is_complete:
             status = "COMPLETED"
+        elif run.progress == 0:
+            status = "CREATED"
         else:
-            progress = run.get_progress(exp.n_steps)
-            if progress == 0:
-                status = "CREATED"
-            else:
-                status = "CANCELLED"
+            status = "CANCELLED"
         runs.append(
             {
                 "rundir": run.rundir,
                 "seed": run.seed,
-                "progress": run.get_progress(exp.n_steps),
+                "progress": run.progress,
                 "pid": run.pid,
                 "status": status,
                 "n_tests": run.n_tests,

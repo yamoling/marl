@@ -1,12 +1,13 @@
-import numpy as np
 from collections import OrderedDict
-from lle import LLE
-from marlenv import Builder, RLEnvWrapper, MultiDiscreteSpace
 from dataclasses import dataclass
+
+import numpy as np
+from lle import LLE
+from marlenv import Builder, RLEnvWrapper
 
 
 @dataclass
-class ShapedLabyrinth(RLEnvWrapper[MultiDiscreteSpace]):
+class ShapedLabyrinth(RLEnvWrapper):
     def __init__(self, delay: int):
         self.delay = delay
         self._key_pos = [(7, 1), (0, 3), (7, 5), (0, 7), (7, 9)]

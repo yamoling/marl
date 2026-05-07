@@ -1,37 +1,35 @@
+import logging
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
-import logging
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from marlenv import Episode, Observation, State, Transition
 
+from marl import policy
 from marl.agents import DQNAgent
-from marl.models import Batch, IRModule, Mixer, Policy, QNetwork, ReplayMemory, Trainer
+from marl.models import Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
 from marl.optimism import VBE
 
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass
-class DQN[M: ReplayMemory](Trainer[np.int64]):
+class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     qnetwork: QNetwork
     train_policy: Policy
-    memory: M
+    memory: ReplayMemory
+    mixer: M
     _: KW_ONLY
-    optimiser_type: Literal["adam", "rmsprop"] = "adam"
-    gamma: float = 0.99
-    batch_size: int = 64
     lr: float = 1e-4
-    train_interval: tuple[int, Literal["step", "episode", "both"]] = (5, "step")
-    target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
+    batch_size: int = 64
     double_qlearning: bool = True
-    mixer: Mixer | None = None
-    ir_module: IRModule | None = None
-    grad_norm_clipping: float | None = None
+    test_policy: Policy = field(default_factory=policy.ArgMax)
+    target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
+    optimiser_type: Literal["adam", "rmsprop"] = "adam"
     vbe: VBE | None = None
-    test_policy: Policy | None = None
 
     def __post_init__(self):
         match self.train_interval:
@@ -41,15 +39,10 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
             case (n, "episode"):
                 self.step_update_interval = 0
                 self.episode_update_interval = n
-            case (n, "both"):
-                self.step_update_interval = n
-                self.episode_update_interval = n
             case other:
                 raise ValueError(f"Unknown train_interval: {other}. Expected (int, 'step' | 'episode').")
         self.qtarget = deepcopy(self.qnetwork)
         self.policy = self.train_policy
-        if self.test_policy is None:
-            self.test_policy = self.train_policy
         self.target_mixer = deepcopy(self.mixer)
         self.update_on_steps = self.train_interval[1] == "step"
         self.update_on_episodes = self.train_interval[1] == "episode"
@@ -68,6 +61,8 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
         if self.mixer is not None:
             self.name = self.mixer.name
+        else:
+            self.name = "DQN"
         if self.ir_module is not None:
             self.name = f"{self.name}-{self.ir_module.name}"
 
@@ -121,7 +116,7 @@ class DQN[M: ReplayMemory](Trainer[np.int64]):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
-    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False):
+    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False) -> dict[str, torch.Tensor]:
         return {}
 
     def _compute_qvalues(self, batch: Batch):

@@ -1,4 +1,4 @@
-import { ActionSpace } from "./Env";
+import { ActionSpace, ActionSpaceSchema } from "./Env";
 import { Track, TrackGroup } from "./Timeline";
 import { z } from "zod";
 
@@ -17,6 +17,36 @@ export type ReplayEpisodeSummary = z.infer<typeof ReplayEpisodeSummarySchema>;
  *  - 2D agent-wise and <extra dimension>-wise (e.g. q-values, action probabilities, ...).
  */
 export type AgentDetails = Record<string, number | number[] | number[][]>;
+
+const ActionValueSchema = z.union([z.number(), z.array(z.number())]);
+const AvailableActionSchema = z
+  .union([z.boolean(), z.number()])
+  .transform((value) => (typeof value === "number" ? value !== 0 : value));
+
+export const EpisodeSchema = z.object({
+  all_available_actions: z.array(z.array(z.array(AvailableActionSchema))),
+  all_extras: z.array(z.array(z.array(z.number()))),
+  all_observations: z.array(z.array(z.any())),
+  actions: z.array(z.array(ActionValueSchema)),
+  episode_len: z.number(),
+  is_finished: z.boolean(),
+  rewards: z.array(z.number()),
+  states: z.array(z.array(z.array(z.number()))),
+});
+
+export const ReplayEpisodePayloadSchema = z.object({
+  name: z.string(),
+  directory: z.string().optional(),
+  rundir: z.string().optional(),
+  episode: EpisodeSchema,
+  metrics: z.record(z.string(), z.number()),
+  frames: z.array(z.string()),
+  agent_details: z.array(z.record(z.string(), z.union([z.number(), z.array(z.number()), z.array(z.array(z.number()))]))),
+  action_space: ActionSpaceSchema,
+  replay_mismatch: z.boolean().default(false),
+  mismatch_details: z.array(z.string()).default([]),
+  replay_kind: z.enum(["CombinedReplayAgent", "ReplayActionsOnlyAgent", "SimpleReplayAgent"]),
+});
 
 export class ReplayEpisode {
   readonly name: string;
@@ -60,10 +90,10 @@ export class ReplayEpisode {
     this.tracks = this.computeTracks();
   }
 
-  public static fromJSON(json: any): ReplayEpisode {
+  public static fromJSON(json: z.infer<typeof ReplayEpisodePayloadSchema>): ReplayEpisode {
     return new ReplayEpisode(
       json.name,
-      json.directory,
+      json.directory ?? json.rundir ?? "",
       json.episode,
       json.metrics,
       json.frames,

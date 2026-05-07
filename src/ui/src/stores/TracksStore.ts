@@ -46,11 +46,12 @@ export const useTracksStore = defineStore("TracksStore", () => {
         result[logdir] = trackResult.data;
       }
       return result;
-    } catch {
+    } catch (e) {
       errorStore.push(
         "Track selection reset",
         "Your saved track selections could not be read and have been reset to defaults.",
       );
+      console.error(e);
       return {};
     }
   }

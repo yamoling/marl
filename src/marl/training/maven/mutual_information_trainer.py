@@ -3,19 +3,16 @@ from typing import Literal
 
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence
-
-from marl.models import Batch, EpisodeMemory
+from marl.env import EnvConfig
+from marl.models import Batch
+from marl.nn.mixers import QMixMAVEN
 
 from ..dqn import DQN
 
 
 @dataclass
-class MITrainer(DQN[EpisodeMemory]):
-    noise_size: int
-    n_actions: int
-    n_agents: int
-    state_size: int
-    state_extras_size: int
+class MITrainer(DQN[QMixMAVEN]):
+    env: EnvConfig
     _: KW_ONLY
     train_interval: tuple[int, Literal["episode"]] = (1, "episode")  # type: ignore
     mi_loss_coef: float = 1.0
@@ -24,8 +21,10 @@ class MITrainer(DQN[EpisodeMemory]):
         super().__post_init__()
         assert self.train_interval[1] == "episode", "MAVEN must be trained on full episodes to compute the MI loss on whole trajectories."
         self._mi_loss = torch.nn.CrossEntropyLoss(reduction="mean")
-        self.trajectory_aggregator = TrajectoryAggregator(self.n_agents, self.n_actions, self.state_size, self.state_extras_size)
-        self.discriminator = Discriminator(self.trajectory_aggregator.output_size, self.noise_size)
+        self.trajectory_aggregator = TrajectoryAggregator(
+            self.env.n_agents, self.env.n_actions, self.env.state_size, self.env.state_extras_size
+        )
+        self.discriminator = Discriminator(self.trajectory_aggregator.output_size, self.env.noise_size)
         settings = self.optimiser.param_groups[0].copy()
         settings.pop("params")
         self.optimiser.add_param_group({"params": list(self.trajectory_aggregator.parameters()), **settings})

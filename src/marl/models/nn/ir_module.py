@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
 import torch
 from marlenv import Episode, Transition
 
@@ -29,11 +30,3 @@ class IRModule(NN):
     def update(self, batch: "Batch", time_step: int) -> dict[str, float]:
         """Update the Intrinsic Reward Module."""
         return {}
-
-    def save(self, to_directory: str):
-        """Save the IR Module to the given path."""
-        raise NotImplementedError()
-
-    def load(self, from_directory: str):
-        """Load the IR Module from the given path."""
-        raise NotImplementedError()

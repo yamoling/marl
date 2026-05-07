@@ -24,6 +24,7 @@ export interface VisualizationSettings {
 
 export interface UserSettings {
   version: typeof SETTINGS_SCHEMA_VERSION;
+  granularity: number;
   replay: ReplaySettings;
   visualization: VisualizationSettings;
 }
@@ -155,6 +156,8 @@ const TrackSettingsSchema = z.object({
   defaultKinds: z.record(z.string(), TrackKindSchema),
 });
 
+const GranularitySchema = z.number().int().positive().default(5000);
+
 const VisualizationSettingsSchema = z.object({
   colours: z.record(z.string(), z.string()),
   tracks: TrackSettingsSchema,
@@ -163,6 +166,7 @@ const VisualizationSettingsSchema = z.object({
 
 const UserSettingsSchema = z.object({
   version: z.literal(SETTINGS_SCHEMA_VERSION),
+  granularity: GranularitySchema,
   replay: ReplaySettingsSchema,
   visualization: VisualizationSettingsSchema,
 });
@@ -170,6 +174,7 @@ const UserSettingsSchema = z.object({
 export function createDefaultSettings(): UserSettings {
   return {
     version: SETTINGS_SCHEMA_VERSION,
+    granularity: 5000,
     replay: {
       globalOnlySavedActions: false,
       trainerRules: {},
@@ -191,6 +196,13 @@ export function createDefaultSettings(): UserSettings {
 export function parseSettings(raw: unknown): UserSettings | null {
   const parsed = UserSettingsSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
+}
+
+export function normalizeGranularity(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 5000;
+  }
+  return Math.max(1, Math.trunc(value));
 }
 
 export function resolveTrackRule(
