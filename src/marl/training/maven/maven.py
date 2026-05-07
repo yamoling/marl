@@ -37,7 +37,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
     double_qlearning: bool = True
     test_policy: Policy = field(default_factory=policy.ArgMax)
-    memory_size: int = 5_000
+    memory: EpisodeMemory = field(default_factory=lambda: EpisodeMemory(5000))
     batch_size: int = 16
     optimiser_type: Literal["adam", "rms"] = "adam"
     lr: float = 1e-5
@@ -80,7 +80,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
         self.worker_trainer = MITrainer(
             self.qnetwork,
             self.train_policy,
-            EpisodeMemory(self.memory_size),
+            self.memory,
             QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size),
             self.env,
             train_interval=(self.train_interval[0], "episode"),

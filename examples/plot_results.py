@@ -1,6 +1,7 @@
-import marl
 import matplotlib.pyplot as plt
 import polars as pl
+
+import marl
 
 plt.rcParams.update(
     {
@@ -20,13 +21,13 @@ def plot_manually():
     # 3) Get the mean and confidence interval of the performance across runs
     df = pl.concat(run_dfs)
     columns = [col for col in df.columns if col not in ("time_step", "timestamp_sec")]
-    print(df)
     df = (
         df.group_by("time_step")
         .agg(
             [pl.mean(col).alias(f"mean-{col}") for col in columns] + [pl.std(col).alias(f"std-{col}") for col in columns],
         )
         .sort("time_step")
+        .collect()
     )
     # 4) Plot the results with 95% confidence intervals across runs
     n_runs = len(list(exp.runs))
@@ -46,7 +47,7 @@ def plot_manually():
 
 def plot_with_datasets():
     exp = marl.Experiment.load("logs/LLE-four_rooms_small-1.toml-OC")
-    datasets = exp.get_experiment_results()
+    datasets = exp.get_results_datasets(5000)
     metrics = set(dataset.label for dataset in datasets)
     for metric in metrics:
         for dataset in datasets:

@@ -143,12 +143,10 @@ class LLEConfig(EnvConfig[lle.LLE]):
     """If <= 0, set to width * height // 2."""
 
     def __post_init__(self):
-        super().__post_init__()
-        if self.time_limit is None:
-            return
-        if self.time_limit <= -1:
+        if self.time_limit is not None and self.time_limit <= -1:
             env = self.make_base_env()
             self.time_limit = env.width * env.height // 2
+        super().__post_init__()
 
     def make_base_env(self):
         match self.level_or_path:
