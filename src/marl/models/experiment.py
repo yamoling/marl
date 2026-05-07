@@ -211,7 +211,6 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         self.to_file(self.experiment_file)
 
     def delete(self):
-        print(f"Removing  experiment at {self.logpath}")
         shutil.rmtree(self.logpath, ignore_errors=True)
 
     def get_tests_at(self, time_step: int):

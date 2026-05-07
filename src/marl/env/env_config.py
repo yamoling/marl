@@ -177,7 +177,7 @@ class PickleEnvConfig(EnvConfig[MARLEnv]):
     pickle_path: str
     _: KW_ONLY
 
-    def make(self):
+    def make_base_env(self):
         with open(self.pickle_path, "rb") as f:
             return pickle.load(f)
 
