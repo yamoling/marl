@@ -1,3 +1,8 @@
+import logging
+import os
+
+import dotenv
+
 from marl import Experiment, training
 from marl.env import EnvConfig, LLEConfig
 from marl.models import EpisodeMemory
@@ -41,6 +46,13 @@ def qmix(env: EnvConfig):
 
 
 if __name__ == "__main__":
+    dotenv.load_dotenv()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        handlers=[logging.FileHandler("test.log", mode="a"), logging.StreamHandler()],
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
     # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
     for algo in (vdn, maven, qmix):
         if algo is maven:

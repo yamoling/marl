@@ -1,7 +1,8 @@
-from typing import Literal, Optional
 import logging
 import os
 import sys
+from typing import Literal, Optional
+
 import dotenv
 import typed_argparse as tap
 
@@ -70,12 +71,12 @@ def main(args: Arguments):
     experiment = marl.Experiment.load(args.logdir)
     experiment.run(
         args.seeds,
-        fill_strategy=args.gpu_strategy,
+        gpu_strategy=args.gpu_strategy,
         quiet=True,
         device=args.device,
         n_tests=args.n_tests,
         render_tests=args.render,
-        n_parallel=args.n_jobs,
+        n_jobs=args.n_jobs,
         disabled_gpus=args.disabled_devices,
     )
 
