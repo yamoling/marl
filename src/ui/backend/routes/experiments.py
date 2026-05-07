@@ -37,7 +37,7 @@ def list_running_experiments(logdir: str):
 
 @router.get("/experiment/{logdir:path}")
 def get_experiment(logdir: str):
-    return Response(marl.Experiment.from_file(logdir).to_json(), media_type="application/json")
+    return Response(marl.Experiment.load(logdir).to_json(), media_type="application/json")
 
 
 @router.post("/experiment/load/{logdir:path}")

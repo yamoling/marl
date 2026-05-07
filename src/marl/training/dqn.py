@@ -16,7 +16,7 @@ from marl.optimism import VBE
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     qnetwork: QNetwork
     train_policy: Policy
@@ -27,7 +27,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     batch_size: int = 64
     double_qlearning: bool = True
     test_policy: Policy = field(default_factory=policy.ArgMax)
-    target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
+    target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2), hash=False)
     optimiser_type: Literal["adam", "rmsprop"] = "adam"
     vbe: VBE | None = None
 

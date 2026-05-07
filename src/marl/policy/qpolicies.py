@@ -6,6 +6,7 @@ import numpy.typing as npt
 from marlenv.utils import schedule
 
 from marl.models import Policy
+from marl.utils.serialization import DISCRIMINATOR_KEY
 
 
 @dataclass
@@ -72,6 +73,23 @@ class EpsilonGreedy(Policy):
     def update(self, time_step: int):
         self.epsilon.update(time_step)
         return {"epsilon": self.epsilon.value}
+
+    @classmethod
+    def from_dict(cls, d: dict):
+        d = d["epsilon"]
+        name = d.pop("name")
+        match name:
+            case "LinearSchedule":
+                epsilon = schedule.LinearSchedule(d["start_value"], d["end_value"], d["n_steps"])
+                return cls(epsilon=epsilon)
+            case "ExpSchedule":
+                epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
+                return cls(epsilon=epsilon)
+            case "ConstantSchedule":
+                epsilon = schedule.ConstantSchedule(d["value"])
+                return cls(epsilon=epsilon)
+            case other:
+                raise ValueError(f"Unknown policy type: {other}")
 
 
 @dataclass

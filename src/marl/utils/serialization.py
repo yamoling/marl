@@ -1,7 +1,7 @@
-from dataclasses import Field, dataclass, fields
+from dataclasses import MISSING, Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Self, Type, Union, get_args, get_origin
+from typing import Any, Self, Type, TypeVar, Union, get_args, get_origin, get_type_hints
 
 import orjson
 
@@ -48,36 +48,6 @@ def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
     return None
 
 
-def deserialize_field(f: Field, value: Any):
-    """
-    Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
-        - datetimes are deserialized from ISO format
-        - non-dict values are left unchanged
-        - fields that inherit from `Serializable` return their deserialied value
-
-    **Notes:**
-        - These rules assume that there is no complex types such as `list[SomeComplexClass]` and currently
-    fail at deserialising such values.
-        - Union types other than `T | None` are not yet supported.
-    """
-    if f.type is datetime:
-        return datetime.fromisoformat(value)
-    if not isinstance(value, dict):
-        return value
-    actual_type = f.type
-    # For union types like `X | None`, get the `X` type
-    if get_origin(actual_type) is Union:
-        # Filter out NoneType to find the actual class
-        union_types = [a for a in get_args(actual_type) if a is not type(None)]
-        if len(union_types) > 1:
-            raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
-        actual_type = union_types[0]
-    # If the resulting type is a Serializable subclass, then deserialize it
-    if isinstance(actual_type, type) and issubclass(actual_type, Serializable):
-        return actual_type.from_dict(value)
-    return value
-
-
 @dataclass
 class Serializable:
     def __post_init__(self):
@@ -112,9 +82,20 @@ class Serializable:
             return subtype.from_dict(d)
 
         # Iterate on all fields to identify complex ones that require deserialization
+        init_dict = {}
         for f in fields(cls):
-            d[f.name] = deserialize_field(f, d[f.name])
-        return cls(**d)
+            if not f.init:
+                continue
+            if f.name not in d:
+                if f.default is not MISSING:
+                    init_dict[f.name] = f.default
+                else:
+                    raise KeyError(f"Missing required field {f.name} for class {cls.__name__}")
+            else:
+                field_value = cls.deserialize_field(f, d[f.name])
+                init_dict[f.name] = field_value
+        print(cls, init_dict)
+        return cls(**init_dict)
 
     @classmethod
     def from_json(cls, data: bytes) -> Self:
@@ -139,3 +120,39 @@ class Serializable:
         path.parent.mkdir(exist_ok=True)
         with open(path, "wb") as f:
             f.write(self.to_json(beautify=beautify))
+
+    @classmethod
+    def deserialize_field(cls, f: Field, value: Any):
+        """
+        Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
+            - datetimes are deserialized from ISO format
+            - non-dict values are left unchanged
+            - fields that inherit from `Serializable` return their deserialied value
+
+        **Notes:**
+            - These rules assume that there is no complex types such as `list[SomeComplexClass]` and currently
+        fail at deserialising such values.
+            - Union types other than `T | None` are not yet supported.
+        """
+        actual_type = f.type
+        if isinstance(actual_type, TypeVar):
+            actual_type = actual_type.__bound__
+        if not isinstance(actual_type, type):
+            actual_type = get_origin(f.type)
+        #     resolved_hints = get_type_hints(cls)
+        #     actual_type = resolved_hints.get(f.name, f.type)
+        if actual_type is datetime:
+            return datetime.fromisoformat(value)
+        if not isinstance(value, dict):
+            return value
+        assert isinstance(actual_type, type), f"Unsupported type {f.type} for field {f.name} of class {cls.__name__}"
+        # For union types like `X | None`, get the `X` type
+        if actual_type is Union:
+            # Filter out NoneType to find the actual class
+            union_types = [a for a in get_args(f.type) if a is not type(None)]
+            if len(union_types) > 1:
+                raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
+            actual_type = union_types[0]
+        if issubclass(actual_type, Serializable):
+            return actual_type.from_dict(value)
+        return value

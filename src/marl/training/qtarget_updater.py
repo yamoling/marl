@@ -14,8 +14,6 @@ class TargetParametersUpdater(Serializable):
         self._target_params = list[torch.nn.Parameter]()
 
     def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
-        parameters = list(parameters)
-        target_params = list(target_params)
         for param, target in zip(parameters, target_params):
             assert param.shape == target.shape, "Parameter and target parameter shapes must match"
         self._parameters.extend(parameters)
@@ -32,6 +30,9 @@ class TargetParametersUpdater(Serializable):
     @property
     def target_parameters(self):
         return self._target_params
+
+    def __hash__(self):
+        return hash(id(self))
 
 
 @dataclass
@@ -50,6 +51,9 @@ class HardUpdate(TargetParametersUpdater):
                 target.data.copy_(param.data, non_blocking=True)
         return {}
 
+    def __hash__(self):
+        return hash(id(self))
+
 
 @dataclass
 class SoftUpdate(TargetParametersUpdater):
@@ -64,3 +68,6 @@ class SoftUpdate(TargetParametersUpdater):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
         return {}
+
+    def __hash__(self):
+        return hash(id(self))

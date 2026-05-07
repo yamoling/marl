@@ -6,37 +6,33 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
+from typing import Collection, Literal, Sequence, overload
 
 import numpy as np
 import numpy.typing as npt
 import torch
 from marlenv import MARLEnv
 
+from marl.env import EnvConfig
+from marl.logging import LoggerType, TickColumn
 from marl.models.trainer import Trainer
 from marl.utils import Serializable, stats
 from marl.utils.stats import Dataset
 
 from .run import Run
 
-if TYPE_CHECKING:
-    from marl.env import EnvConfig
-    from marl.logging import LoggerType, TickColumn
-    from marl.models import Trainer
-
-
 EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
 class Experiment[E: MARLEnv, T: Trainer](Serializable):
-    env: "EnvConfig[E]"
+    env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
     logdir: str | Literal["auto"] = "logs/test"
-    test_env: "EnvConfig[E] | None" = None
+    test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
-    loggers: "Collection[LoggerType]" = field(default_factory=lambda: ["csv"])
+    loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
     creation_timestamp: datetime | None = None
 
     def __post_init__(self):
@@ -207,6 +203,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
     @classmethod
     def load(cls, logdir: Path | str):
+        """Load an experiment from a log directory."""
         json_file = cls.json_file(logdir)
         return cls.from_file(json_file)
 

@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Deque, Iterable, Literal
 
@@ -74,19 +74,12 @@ class ReplayMemory[T](Serializable):
         """Update the memory with the given information. NO-OP for most memory types."""
         return {}
 
-    @property
-    def updates_on(self):
-        if self.update_on_transitions:
-            return "transition"
-        return "episode"
-
 
 @dataclass
 class TransitionMemory(ReplayMemory[Transition]):
     """Replay Memory that stores Transitions"""
 
-    def __init__(self, max_size: int):
-        super().__init__(max_size, "transition")
+    update_on: Literal["transition", "episode"] = field(init=False, default="transition")
 
     def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
         return TransitionBatch(list(items))
@@ -96,8 +89,7 @@ class TransitionMemory(ReplayMemory[Transition]):
 class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
-    def __init__(self, max_size: int):
-        super().__init__(max_size, "episode")
+    update_on: Literal["transition", "episode"] = field(init=False, default="episode")
 
     def make_batch(self, items: Iterable[Episode]) -> EpisodeBatch:
         return EpisodeBatch(list(items))

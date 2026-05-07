@@ -26,6 +26,9 @@ For instance, to check your tensorboard logs, run
 $ tensorboard --logdir logs
 ```
 
+### EnvConfig
+Describes an environment to instanciate. A generic Pickling implementation exists, but it is sensitive to version changes etc, and if you have a project under development, you should prefer to implement your own EnvConfig subclass that can seamlessly be serialised and deserialised.
+
 #### Web UI
 **With the Brave browser:** you have to deactivate the Brave shield.
 
