@@ -1,9 +1,8 @@
-from collections import defaultdict
 from dataclasses import MISSING, Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
 from types import NoneType, UnionType
-from typing import Any, Callable, Self, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Self, Type, TypeVar, Union, get_args, get_origin
 
 import orjson
 

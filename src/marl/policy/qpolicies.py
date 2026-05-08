@@ -6,7 +6,6 @@ import numpy.typing as npt
 from marlenv.utils import schedule
 
 from marl.models import Policy
-from marl.utils.serialization import DISCRIMINATOR_KEY
 
 
 @dataclass

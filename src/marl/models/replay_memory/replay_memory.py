@@ -10,6 +10,7 @@ from typing_extensions import TypeVar
 
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 from marl.utils import Serializable
+from marl.utils.tuning import tuning
 
 T = TypeVar("T")
 
@@ -18,7 +19,7 @@ T = TypeVar("T")
 class ReplayMemory[T](Serializable):
     """Parent class of any ReplayMemory"""
 
-    max_size: int
+    max_size: int = field(metadata=tuning(1_000, 200_000))
     update_on: Literal["transition", "episode"]
 
     def __post_init__(self):

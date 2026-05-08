@@ -1,6 +1,7 @@
 from .gpu import GPU, get_device, list_gpus, scatter_plan
 from .others import alpha_num_order, defaults_to, encode_b64_image, hash_ndarray, obs_to_hashes, seed
 from .serialization import Serializable, default_serialization
+from .tuning import suggest, tuning
 
 __all__ = [
     "defaults_to",
@@ -15,4 +16,6 @@ __all__ = [
     "obs_to_hashes",
     "scatter_plan",
     "Serializable",
+    "suggest",
+    "tuning",
 ]

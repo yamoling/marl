@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 import torch
 
 from marl.utils import Serializable
+from marl.utils.tuning import tuning
 
 
 @dataclass
@@ -37,7 +38,7 @@ class TargetParametersUpdater(Serializable):
 
 @dataclass
 class HardUpdate(TargetParametersUpdater):
-    update_period: int = 200
+    update_period: int = field(default=200, metadata=tuning(50, 2000))
 
     def __post_init__(self):
         super().__post_init__()
@@ -57,7 +58,7 @@ class HardUpdate(TargetParametersUpdater):
 
 @dataclass
 class SoftUpdate(TargetParametersUpdater):
-    tau: float = 0.01
+    tau: float = field(default=0.01, metadata=tuning(1e-3, 0.05, log=True))
 
     def __post_init__(self):
         super().__post_init__()

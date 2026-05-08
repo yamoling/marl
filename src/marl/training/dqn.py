@@ -12,6 +12,7 @@ from marl import policy
 from marl.agents import DQNAgent
 from marl.models import Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
 from marl.optimism import VBE
+from marl.utils.tuning import tuning
 
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
@@ -23,8 +24,8 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     memory: ReplayMemory
     mixer: M
     _: KW_ONLY
-    lr: float = 1e-4
-    batch_size: int = 64
+    lr: float = field(default=1e-4, metadata=tuning(1e-5, 1e-2, log=True))
+    batch_size: int = field(default=64, metadata=tuning(16, 256))
     double_qlearning: bool = True
     test_policy: Policy = field(default_factory=policy.ArgMax)
     target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2), hash=False)
