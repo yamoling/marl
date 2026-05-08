@@ -31,11 +31,11 @@ Typical usage::
 
 from __future__ import annotations
 
-import inspect
 import logging
 from dataclasses import MISSING, dataclass, fields
-from types import NoneType, UnionType
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, get_args, get_origin, get_type_hints
+
+from marl.utils.reflection import get_concrete_subclasses, is_abstract, unwrap_optional
 
 if TYPE_CHECKING:
     from optuna import Trial
@@ -123,55 +123,6 @@ def tuning(
             f"Got: low={low!r}, high={high!r}, choices={choices!r}."
         )
     return {TUNE_KEY: _TuneSpec(low=low, high=high, log=log, step=step, choices=choices)}
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _is_abstract(cls: type) -> bool:
-    """
-    Return True if *cls* has any unimplemented abstract methods.
-
-    Covers two cases:
-    * Classes that inherit from ``abc.ABC`` / use ``ABCMeta`` (the standard
-      path checked by ``inspect.isabstract``).
-    * Classes that use ``@abstractmethod`` *without* ``ABCMeta`` — common in
-      this codebase.  In that case ``__abstractmethods__`` is never populated
-      by the metaclass, but the decorator still sets
-      ``method.__isabstractmethod__ = True`` on the function object, which we
-      can detect via ``dir``.
-    """
-    if inspect.isabstract(cls):
-        return True
-    return any(getattr(getattr(cls, name, None), "__isabstractmethod__", False) for name in dir(cls))
-
-
-def _get_concrete_subclasses(cls: type) -> list[type]:
-    """Recursively collect every non-abstract subclass of *cls*."""
-    result: list[type] = []
-    for sub in cls.__subclasses__():
-        if not _is_abstract(sub):
-            result.append(sub)
-        result.extend(_get_concrete_subclasses(sub))
-    return result
-
-
-def _unwrap_optional(hint: Any) -> Any:
-    """Unwrap ``X | None`` → ``X``.  Returns *hint* unchanged otherwise."""
-    origin = get_origin(hint)
-    # typing.Union[X, None] / typing.Optional[X]
-    if origin is not None and origin is not Literal:
-        args = [a for a in get_args(hint) if a is not NoneType]
-        if len(args) == 1:
-            return args[0]
-    # X | None  (types.UnionType, Python 3.10+)
-    if isinstance(hint, UnionType):
-        args = [a for a in get_args(hint) if a is not NoneType]
-        if len(args) == 1:
-            return args[0]
-    return hint
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +248,7 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
             continue
 
         # Unwrap Optional[X] / X | None for all subsequent checks
-        resolved = _unwrap_optional(hint) if hint is not None else None
+        resolved = unwrap_optional(hint) if hint is not None else None
 
         # ------------------------------------------------------------------
         # Rules 2 & 3 — tuning(choices=[...])
@@ -352,13 +303,13 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
             and issubclass(resolved, Serializable)
             and not issubclass(resolved, torch.nn.Module)
         ):
-            if not _is_abstract(resolved):
+            if not is_abstract(resolved):
                 # Rule 8: concrete Serializable → recurse directly
                 init_kwargs[name] = suggest(resolved, trial, prefix=full_name)
                 continue
             else:
                 # Rule 9: abstract Serializable → auto-collect concrete subclasses
-                candidates = _get_concrete_subclasses(resolved)
+                candidates = get_concrete_subclasses(resolved)
                 if candidates:
                     type_name = trial.suggest_categorical(
                         f"{full_name}.__type__",

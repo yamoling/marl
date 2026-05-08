@@ -85,7 +85,7 @@ class EpsilonGreedy(Policy):
                 epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
                 return cls(epsilon=epsilon)
             case "ConstantSchedule":
-                epsilon = schedule.ConstantSchedule(d["value"])
+                epsilon = schedule.ConstantSchedule(d["start_value"])
                 return cls(epsilon=epsilon)
             case other:
                 raise ValueError(f"Unknown policy type: {other}")

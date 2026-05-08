@@ -10,6 +10,7 @@ from typing import Collection, Literal, Sequence, overload
 
 import numpy as np
 import numpy.typing as npt
+import polars as pl
 import torch
 from marlenv import MARLEnv
 
@@ -224,7 +225,11 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         results = self.get_results(granularity, aggregate_by)
         datasets = list[Dataset]()
         for category, stats_df in results.items():
-            stats_df = stats_df.collect()
+            try:
+                stats_df = stats_df.collect()
+            except pl.exceptions.ColumnNotFoundError:
+                # The dataframe is empty
+                continue
             if stats_df.is_empty():
                 continue
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]

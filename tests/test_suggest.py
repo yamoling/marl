@@ -808,8 +808,8 @@ class TestRealClasses:
         assert call["method"] == "float"
         assert call["log"] is True
         assert call["low"] == pytest.approx(1e-3)
-        assert call["high"] == pytest.approx(0.5)
-        assert 1e-3 <= result.tau <= 0.5
+        assert call["high"] == pytest.approx(0.05)
+        assert 1e-3 <= result.tau <= 0.05
 
     def test_suggest_hard_update(self):
         from marl.training.qtarget_updater import HardUpdate
@@ -848,7 +848,7 @@ class TestRealClasses:
             trial = study.ask()
             result = suggest(SoftUpdate, trial)
             study.tell(trial, result.tau)
-            assert 1e-3 <= result.tau <= 0.5
+            assert 1e-3 <= result.tau <= 0.05
 
     def test_hard_update_period_bounds_with_real_optuna(self):
         import optuna

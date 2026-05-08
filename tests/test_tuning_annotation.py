@@ -1,22 +1,23 @@
 """
-Tests for the tuning() annotation helper and its supporting utilities.
+Tests for the tuning() annotation helper.
 
 Covers:
-  - tuning()         public API — spec creation, validation
-  - _TuneSpec        internal dataclass — field values
-  - _is_abstract()   helper — detects @abstractmethod with and without ABC
-  - _get_concrete_subclasses()  helper — recursive subclass discovery
+  - tuning()   public API — spec creation, validation
+  - _TuneSpec  internal dataclass — field values
+
+Note: is_abstract and get_concrete_subclasses were previously private helpers
+in this module. They are now in marl.utils.reflection and tested in
+test_reflection.py.
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import pytest
 
 from marl.utils.serialization import Serializable
-from marl.utils.tuning import TUNE_KEY, _get_concrete_subclasses, _is_abstract, _TuneSpec, tuning
+from marl.utils.tuning import TUNE_KEY, _TuneSpec, tuning
 
 # ===========================================================================
 # tuning()
@@ -145,157 +146,3 @@ class TestTuningAsFieldMetadata:
         spec = f.metadata[TUNE_KEY]
         assert A in spec.choices
         assert B in spec.choices
-
-
-# ===========================================================================
-# _is_abstract()
-# ===========================================================================
-
-
-class TestIsAbstract:
-    # -- Without ABC (the common pattern in this codebase) --
-
-    def test_class_with_abstractmethod_no_abc_is_abstract(self):
-        class Base:
-            @abstractmethod
-            def do(self): ...
-
-        assert _is_abstract(Base)
-
-    def test_subclass_that_overrides_all_methods_is_not_abstract(self):
-        class Base:
-            @abstractmethod
-            def do(self) -> int: ...
-
-        class Concrete(Base):
-            def do(self):
-                return 42
-
-        assert not _is_abstract(Concrete)
-
-    def test_subclass_that_leaves_method_abstract_is_still_abstract(self):
-        class Base:
-            @abstractmethod
-            def do(self): ...
-
-        class StillAbstract(Base):
-            pass  # doesn't override do()
-
-        assert _is_abstract(StillAbstract)
-
-    # -- With ABC --
-
-    def test_abc_class_is_abstract(self):
-        class Base(ABC):
-            @abstractmethod
-            def method(self): ...
-
-        assert _is_abstract(Base)
-
-    def test_abc_concrete_subclass_is_not_abstract(self):
-        class Base(ABC):
-            @abstractmethod
-            def method(self) -> int: ...
-
-        class Concrete(Base):
-            def method(self):
-                return 1
-
-        assert not _is_abstract(Concrete)
-
-    # -- Real codebase classes --
-
-    def test_target_parameters_updater_is_abstract(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
-
-        assert _is_abstract(TargetParametersUpdater)
-
-    def test_soft_update_is_not_abstract(self):
-        from marl.training.qtarget_updater import SoftUpdate
-
-        assert not _is_abstract(SoftUpdate)
-
-    def test_hard_update_is_not_abstract(self):
-        from marl.training.qtarget_updater import HardUpdate
-
-        assert not _is_abstract(HardUpdate)
-
-    def test_replay_memory_is_abstract(self):
-        from marl.models.replay_memory import ReplayMemory
-
-        assert _is_abstract(ReplayMemory)
-
-    def test_transition_memory_is_not_abstract(self):
-        from marl.models.replay_memory import TransitionMemory
-
-        assert not _is_abstract(TransitionMemory)
-
-    def test_policy_is_abstract(self):
-        from marl.models import Policy
-
-        assert _is_abstract(Policy)
-
-    def test_arg_max_is_not_abstract(self):
-        from marl.policy import ArgMax
-
-        assert not _is_abstract(ArgMax)
-
-
-# ===========================================================================
-# _get_concrete_subclasses()
-# ===========================================================================
-
-
-class TestGetConcreteSubclasses:
-    def test_finds_both_updater_subclasses(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
-
-        subs = _get_concrete_subclasses(TargetParametersUpdater)
-        names = {c.__name__ for c in subs}
-        assert "SoftUpdate" in names
-        assert "HardUpdate" in names
-
-    def test_does_not_include_abstract_base(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
-
-        subs = _get_concrete_subclasses(TargetParametersUpdater)
-        assert TargetParametersUpdater not in subs
-
-    def test_all_returned_classes_are_not_abstract(self):
-        from marl.models.replay_memory import ReplayMemory
-
-        subs = _get_concrete_subclasses(ReplayMemory)
-        assert len(subs) > 0
-        for cls in subs:
-            assert not _is_abstract(cls), f"{cls.__name__} should be concrete"
-
-    def test_recurses_into_intermediate_abstract_classes(self):
-        """Concrete subclasses of abstract intermediate classes are found."""
-
-        @dataclass
-        class Grandparent(Serializable):
-            @abstractmethod
-            def act(self) -> int: ...
-
-        @dataclass
-        class Parent(Grandparent):
-            @abstractmethod
-            def act(self) -> int: ...
-
-        @dataclass
-        class Child(Parent):
-            def act(self):
-                return 1
-
-        subs = _get_concrete_subclasses(Grandparent)
-        assert Child in subs
-        assert Grandparent not in subs
-        assert Parent not in subs
-
-    def test_returns_empty_list_for_leaf_class(self):
-        @dataclass
-        class Leaf(Serializable):
-            x: int = 0
-
-        subs = _get_concrete_subclasses(Leaf)
-        assert subs == []
