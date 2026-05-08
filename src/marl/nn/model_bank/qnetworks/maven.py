@@ -90,10 +90,13 @@ class MAVENHyperMult(MAVENTail):
         )
 
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
+        *dims, n_agents, noise_size = noise.shape
+        batch_size = math.prod(dims)
+        agent_ids = torch.eye(self.n_agents, device=noise.device).unsqueeze(0).repeat(batch_size, 1, 1)
+        noise = noise.reshape(batch_size, n_agents, noise_size)
         qs = self.linear.forward(agent_output)
-        agent_ids = torch.eye(self.n_agents, device=noise.device)
-        weights_inputs = torch.cat([noise, agent_ids])
-        weights = self.mult_weights_nn.forward(weights_inputs)
+        inputs = torch.cat([noise, agent_ids], dim=-1)
+        weights = self.mult_weights_nn.forward(inputs)
         return qs * weights
 
     def __hash__(self):
