@@ -13,7 +13,7 @@ from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
 from ..no_train import NoTrain
-from ..qtarget_updater import SoftUpdate, TargetParametersUpdater
+from ..qtarget_updater import HardUpdate, TargetParametersUpdater
 from .expected_return_trainer import ExpectedReturnTrainer
 from .mutual_information_trainer import MITrainer
 
@@ -34,13 +34,13 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     _: KW_ONLY
     tail_type: Literal["bmm", "mul"] = "bmm"
     z_policy_type: Literal["uniform", "max-entropy", "return"] = "return"
-    target_updater: TargetParametersUpdater = field(default_factory=lambda: SoftUpdate(1e-2))
+    target_updater: TargetParametersUpdater = field(default_factory=lambda: HardUpdate(200))
     double_qlearning: bool = True
     test_policy: Policy = field(default_factory=policy.ArgMax)
     memory: EpisodeMemory = field(default_factory=lambda: EpisodeMemory(5000))
     batch_size: int = 16
-    optimiser_type: Literal["adam", "rms"] = "adam"
-    lr: float = 1e-5
+    optimiser_type: Literal["adam", "rms"] = "rms"
+    lr: float = 5e-4
     bandit_undiscounted: bool = True
     bandit_memory_size: int = 512
     bandit_batch_size: int = 64
