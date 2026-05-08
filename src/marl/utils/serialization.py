@@ -1,7 +1,9 @@
+from collections import defaultdict
 from dataclasses import MISSING, Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Self, Type, TypeVar, Union, get_args, get_origin, get_type_hints
+from types import NoneType, UnionType
+from typing import Any, Callable, Self, Type, TypeVar, Union, get_args, get_origin
 
 import orjson
 
@@ -83,7 +85,6 @@ class Serializable:
 
         # Iterate on all fields to identify complex ones that require deserialization
         init_dict = {}
-        type_hints = get_type_hints(cls)
         for f in fields(cls):
             if not f.init:
                 continue
@@ -91,9 +92,9 @@ class Serializable:
                 if f.default is not MISSING:
                     init_dict[f.name] = f.default
                 else:
-                    raise KeyError(f"Missing required field {f.name} for class {cls.__name__}")
+                    raise KeyError(f"Missing value for required field {f.name} of class {cls.__name__}")
             else:
-                field_value = cls.deserialize_field(f, type_hints[f.name], d[f.name])
+                field_value = cls.deserialize_field(f, d[f.name])
                 init_dict[f.name] = field_value
         return cls(**init_dict)
 
@@ -122,7 +123,7 @@ class Serializable:
             f.write(self.to_json(beautify=beautify))
 
     @classmethod
-    def deserialize_field(cls, f: Field, field_type: Any, value: Any):
+    def deserialize_field(cls, f: Field, value: Any):
         """
         Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
             - datetimes are deserialized from ISO format
@@ -134,30 +135,63 @@ class Serializable:
         fail at deserialising such values.
             - Union types other than `T | None` are not yet supported.
         """
-        # Early returns for simple types
-        if field_type is datetime:
+        if f.type is datetime:
             return datetime.fromisoformat(value)
         if not isinstance(value, dict):
             return value
-        # Resolve field of the shape `x: T` where `T: SomeClass` to `SomeClass`
-        if isinstance(field_type, TypeVar):
-            field_type = field_type.__bound__
-        # Resolve fields of the shape `x: SomeGenericType[T]` to `SomeGenericType`
-        origin = get_origin(field_type)
-        if origin is not None:
-            field_type = origin
-        # Resolve optional type of the shape `x: X | None` to `X` (since the value is a dict, hence not None)
-        if field_type is Union:
-            field_type = resolve_optional_type(field_type)
+        field_type = resolve_type(f.type)
         assert issubclass(field_type, Serializable), (
             f"Attribute {f.name} of class {cls} is of type {field_type}, which is not Serializable !"
         )
         return field_type.from_dict(value)
 
 
+def resolve_type(field_type):
+    """
+    Resolve a field type annotation to its corresponding class object according to the following rules:
+        1. Plain types (e.g. `x: SomeClass`) are resolved to the corresponding class object (e.g. `SomeClass`).
+        2. Constrained type variables (e.g. `x: T` where `T: SomeClass`) are resolved to their bound (e.g. `SomeClass`).
+        3. Optional types (e.g. `x: SomeClass | None`) are resolved to the non-optional type (e.g. `SomeClass`).
+        4. Generic types (e.g. `x: SomeGenericType[T]`) are resolved to their origin (e.g. `SomeGenericType`).
+    """
+    if isinstance(field_type, type):
+        return field_type
+    # Resolve optional types to their non-optional type (e.g. `SomeClass | None` to `SomeClass`)
+    if is_optional(field_type):
+        field_type = resolve_optional_type(field_type)
+        return resolve_type(field_type)
+    # Resolve field of the shape `x: T` where `T: SomeClass` to `SomeClass`
+    if isinstance(field_type, TypeVar):
+        if field_type.__bound__ is None:
+            raise TypeError(f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized.")
+        return resolve_type(field_type.__bound__)
+    # Resolve fields of the shape `x: SomeGenericType[T]` to `SomeGenericType`.
+    origin = get_origin(field_type)
+    if origin is not None:
+        return resolve_type(origin)
+    raise TypeError(f"Unsupported field type {field_type} for deserialization.")
+    # non_optional = resolve_optional_type(field_type)
+    # return resolve_type(non_optional)
+
+
 def resolve_optional_type(field_type):
+    """Resolve optional types of the shape `x: X | None` to `X` (since the value is a dict, hence not None)"""
+    union_types = get_args(field_type)
+    if len(union_types) == 0:
+        # Not a union type, return as is
+        return field_type
     # Filter out NoneType to find the actual class
-    union_types = [a for a in get_args(field_type) if a is not type(None)]
+    union_types = [t for t in union_types if t is not type(None)]
     if len(union_types) > 1:
-        raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {field_type}.")
+        raise NotImplementedError(f"Union types other than `T | None` or `Optional[T]` are not yet supported. Got `{field_type}`.")
     return union_types[0]
+
+
+def is_optional(field_type):
+    args = get_args(field_type)
+    if len(args) != 2:
+        return False
+    if NoneType not in args:
+        return False
+    origin = get_origin(field_type)
+    return origin is Union or origin is UnionType

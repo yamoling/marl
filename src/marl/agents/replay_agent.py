@@ -33,6 +33,7 @@ class CombinedReplayAgent(ReplayAgent):
         super().__init__()
         self.actions_agent = ReplayActionsOnlyAgent(actions)
         self.saved_agent = wrapped
+        self.current_step = -1
 
     def choose_action(self, observation, *, with_details=False):
         self.current_step += 1

@@ -283,9 +283,3 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             run.runpath.replace(new_rundir)
             # shutil.copytree(run.rundir, new_rundir)
         return new_exp
-
-    def get_run_with_seed(self, seed: int):
-        for run in self.runs:
-            if run.seed == seed:
-                return run
-        return None

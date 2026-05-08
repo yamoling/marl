@@ -12,6 +12,7 @@ import psutil
 from cachetools.func import ttl_cache
 from marlenv import MARLEnv
 
+from marl.agents.replay_agent import ReplayAgent
 from marl.env import EnvConfig
 from marl.logging import TIME_STEP_COL, Logger, LoggerType
 from marl.models.trainer import Trainer
@@ -24,7 +25,7 @@ RUN_FILE = "run.json"
 class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
     seed: int
     rundir: str
-    trainer: "Trainer[T]"
+    trainer: Trainer[T]
     env: EnvConfig[E]
     test_env: EnvConfig[E]
     n_steps: int
@@ -197,8 +198,6 @@ class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
         self._cleanup_pid_file()
 
     def make_replay_agent(self, time_step: int, test_num: int, only_saved_actions: bool):
-        from marl.models.replay_episode import ReplayAgent
-
         if only_saved_actions:
             # This should fail if the actions file is not found
             actions = self.get_test_actions(time_step, test_num)
