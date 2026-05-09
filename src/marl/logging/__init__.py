@@ -13,6 +13,7 @@ LogSpecs: TypeAlias = LoggerType | Sequence[LoggerType]
 # Dataframe columns
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
+TICK_COL = "ticks"
 TickColumn = Literal["time_step", "timestamp_sec"]
 
 

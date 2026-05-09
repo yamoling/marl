@@ -1,33 +1,12 @@
-from dataclasses import dataclass
 from typing import Sequence
 
 import numpy as np
-import numpy.typing as npt
 import polars as pl
 import polars.exceptions as pl_errors
 import polars.selectors as cs
 
-from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
-
-
-@dataclass
-class Dataset:
-    logdir: str
-    ticks: list[float]
-    label: str
-    category: str
-    mean: npt.NDArray[np.float32]
-    min: npt.NDArray[np.float32]
-    max: npt.NDArray[np.float32]
-    std: npt.NDArray[np.float32]
-    ci95: npt.NDArray[np.float32]
-
-
-@dataclass
-class ExperimentResults:
-    logdir: str
-    datasets: list[Dataset]
-    qvalue_ds: list[Dataset]
+from marl.logging import TICK_COL, TIME_STEP_COL, TIMESTAMP_COL
+from marl.models.dataset import Dataset
 
 
 def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
@@ -58,13 +37,13 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
                 )
             )
             # Round ticks to granularity
-            .with_columns(ticks=((pl.col("ticks") / granularity).round(0) * granularity).cast(pl.Int64))
+            .with_columns(ticks=((pl.col(TICK_COL) / granularity).round(0) * granularity).cast(pl.Int64))
             # First compute the mean within each run
-            .group_by("ticks", "run_id")
+            .group_by(TICK_COL, "run_id")
             .agg(pl.all().exclude([TIME_STEP_COL, TIMESTAMP_COL, "run_id"]).mean())
             .drop("run_id")
             # Then compute the metrics' stats across runs
-            .group_by("ticks")
+            .group_by(TICK_COL)
             .agg(
                 # Fill null std with 0.0, which happens when a group has one single value.
                 # Filling with zeros prevents NaNs that are not JSON serializable.
@@ -74,7 +53,7 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
                 cs.numeric().max().name.prefix("max-"),
                 (cs.numeric().std().fill_null(0.0) * 1.96 / pl.len().sqrt()).name.prefix("ci95-"),
             )
-            .sort("ticks")
+            .sort(TICK_COL)
         )
     except pl_errors.NoDataError:
         return pl.LazyFrame()

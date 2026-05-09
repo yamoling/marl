@@ -1,9 +1,11 @@
 import shutil
 from pathlib import Path
+from typing import Collection
 
 import matplotlib.pyplot as plt
 
 import marl
+from marl.models import Dataset
 
 plt.rcParams.update(
     {
@@ -12,16 +14,14 @@ plt.rcParams.update(
         "font.family": "serif",
     }
 )
-LOGDIR = Path("logs/VDN-LLE-lvl6")
 
 
-def plot_manually():
-    exp = marl.Experiment.load(LOGDIR)
+def plot_manually(logdir: Path):
+    exp = marl.Experiment.load(logdir)
     df = exp.get_test_results(granularity=1000).collect()
-    print(df)
     columns = [col[5:] for col in df.columns if col != "ticks" and col.startswith("mean-")]
     x = df["ticks"]
-    destination = Path(exp.logdir, "plots")
+    destination = logdir / "plots"
     destination.mkdir(exist_ok=True)
     for col in columns:
         y = df[f"mean-{col}"]
@@ -35,21 +35,41 @@ def plot_manually():
         plt.clf()
 
 
-def plot_with_datasets():
-    exp = marl.Experiment.load(LOGDIR)
+def plot_with_datasets(logdir: Path):
+    exp = marl.Experiment.load(logdir)
     datasets = exp.get_results_datasets(1000, metrics=["exit_rate", "loss"])
     for dataset in datasets:
-        plt.plot(dataset.ticks, dataset.mean, label=f"{dataset.label} ({dataset.category})")
-        plt.fill_between(dataset.ticks, dataset.mean - dataset.ci95, dataset.mean + dataset.ci95, alpha=0.2)
-        plt.xlabel("Time step")
-        plt.ylabel(dataset.label.capitalize())
+        plot(dataset, show=True)
+
+
+def plot(dataset: Dataset, prefix: str = "", show=False):
+    label = f"{prefix}{dataset.nice_label} ({dataset.category})"
+    plt.plot(dataset.ticks, dataset.mean, label=label)
+    plt.fill_between(dataset.ticks, dataset.mean - dataset.ci95, dataset.mean + dataset.ci95, alpha=0.2)
+    plt.xlabel("Time step")
+    plt.ylabel(dataset.nice_label)
+    if show:
+        plt.legend()
+        plt.show()
+
+
+def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[str] | str):
+    experiments = [marl.Experiment.load(logdir) for logdir in logdirs]
+    datasets_dict = {exp.logdir: exp.get_results_datasets(1000, metrics=metrics) for exp in experiments}
+    all_labels = set([ds.label for datasets in datasets_dict.values() for ds in datasets])
+    for label in all_labels:
+        for logdir, datasets in datasets_dict.items():
+            [plot(ds, f"{logdir[5:]}-") for ds in datasets if ds.label == label]
         plt.legend()
         plt.show()
 
 
 def main():
     # plot_manually()
-    plot_with_datasets()
+    logdir1 = Path("logs/VDN-LLE-lvl6")
+    logdir2 = Path("logs/QMix-LLE-lvl6")
+    # plot_with_datasets(logdir1)
+    compare_multiple_experiments([logdir1, logdir2], "loss")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import os
 import dotenv
 
 from marl import Experiment, training
-from marl.env import EnvConfig, LLEConfig
+from marl.env import LLEConfig
 from marl.models import EpisodeMemory, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
@@ -18,7 +18,7 @@ if __name__ == "__main__":
         level=log_level,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    for algo in ("vdn", "maven", "vdn", "qmix"):
+    for algo in ("qmix", "maven", "vdn", "qmix"):
         policy = EpsilonGreedy.linear(1, 0.05, 100_000)
         memory = TransitionMemory(50_000)
         train_interval = (5, "step")

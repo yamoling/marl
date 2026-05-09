@@ -1,6 +1,7 @@
 from .action import Action
 from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
+from .dataset import Dataset, ExperimentResults
 from .experiment import Experiment
 from .nn import NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
 from .policy import Policy
@@ -45,4 +46,6 @@ __all__ = [
     "Critic",
     "ActorCritic",
     "HierarchicalAgent",
+    "Dataset",
+    "ExperimentResults",
 ]
