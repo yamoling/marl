@@ -49,6 +49,7 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
     try:
         return (
             pl.concat(dfs, how="diagonal_relaxed")
+            .drop_nulls()
             .with_columns(
                 ticks=(
                     (pl.col(TIMESTAMP_COL) - pl.col(TIMESTAMP_COL).min().over(pl.len()))

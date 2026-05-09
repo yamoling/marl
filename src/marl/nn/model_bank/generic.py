@@ -9,7 +9,7 @@ from marl.models.nn import NN, ActivationType, RecurrentNN, get_activation
 from ..utils import make_cnn
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class MLP(NN):
     """
     Multi layer perceptron
@@ -51,8 +51,11 @@ class MLP(NN):
         x = self.nn.forward(obs)
         return x.view(*dims, *self.output_shape)
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class CNN(NN):
     """
     CNN with three convolutional layers. The CNN output (output_cnn) is flattened and the extras are
@@ -84,6 +87,9 @@ class CNN(NN):
             output_activation=self.output_activation,
         )
 
+    def __hash__(self):
+        return id(self)
+
     @override
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         # For transitions, the shape is (batch_size, n_agents, channels, height, width)
@@ -97,7 +103,7 @@ class CNN(NN):
         return res.view(*dims, *self.output_shape)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class RNN(RecurrentNN):
     obs_size: int
     extras_size: int
@@ -120,6 +126,9 @@ class RNN(RecurrentNN):
             self.fc2.append(torch.nn.Linear(dim, next_dim))
             self.fc2.append(get_activation(self.hidden_activation))
         self.fc2.append(torch.nn.Linear(self.mlp_sizes[-1], self.output_size))
+
+    def __hash__(self):
+        return id(self)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
@@ -145,7 +154,7 @@ class RNN(RecurrentNN):
         return x
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class CRNN(RecurrentNN):
     """Convolutional Recurrent Neural Network."""
 
@@ -169,3 +178,6 @@ class CRNN(RecurrentNN):
             self.mlp_sizes,
             self.hidden_activation,
         )
+
+    def __hash__(self):
+        return id(self)

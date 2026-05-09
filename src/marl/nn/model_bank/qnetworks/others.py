@@ -9,7 +9,7 @@ from marl.nn.layers import NoisyLinear
 from marl.nn.utils import make_cnn
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class IndependentCNN(QNetwork):
     """
     CNN whose flattened output is concatenated with the extras to be fed to the linear layers.
@@ -92,3 +92,6 @@ class IndependentCNN(QNetwork):
             res = value + adv - mean_adv
         res = res.transpose(0, 1)
         return res.view(batch_size, n_agents, *self.output_shape)
+
+    def __hash__(self):
+        return id(self)

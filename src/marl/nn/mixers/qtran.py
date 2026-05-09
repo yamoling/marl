@@ -29,7 +29,7 @@ class QTRANBaseNet(torch.nn.Module):
         return self.joint_action_head(x), self.state_value_head(x)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class QTRAN(StateMixer):
     _: KW_ONLY
     n_hidden_units: int = 64
@@ -115,3 +115,6 @@ class QTRAN(StateMixer):
 
     def global_value_of(self, Q_values, states):
         return self.global_value(Q_values, states)[0]
+
+    def __hash__(self):
+        return id(self)

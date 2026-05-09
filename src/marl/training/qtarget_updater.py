@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 import torch
 
 from marl.utils import Serializable
+from marl.utils.tuning import tuning
 
 
 @dataclass
@@ -14,12 +15,10 @@ class TargetParametersUpdater(Serializable):
         self._target_params = list[torch.nn.Parameter]()
 
     def add_parameters(self, parameters: Iterable[torch.nn.Parameter], target_params: Iterable[torch.nn.Parameter]):
-        parameters = list(parameters)
-        target_params = list(target_params)
         for param, target in zip(parameters, target_params):
             assert param.shape == target.shape, "Parameter and target parameter shapes must match"
-        self._parameters.extend(parameters)
-        self._target_params.extend(target_params)
+            self._parameters.append(param)
+            self._target_params.append(target)
 
     @abstractmethod
     def update(self, time_step: int) -> dict[str, float]:
@@ -33,10 +32,13 @@ class TargetParametersUpdater(Serializable):
     def target_parameters(self):
         return self._target_params
 
+    def __hash__(self):
+        return hash(id(self))
+
 
 @dataclass
 class HardUpdate(TargetParametersUpdater):
-    update_period: int = 200
+    update_period: int = field(default=200, metadata=tuning(50, 2000))
 
     def __post_init__(self):
         super().__post_init__()
@@ -50,10 +52,13 @@ class HardUpdate(TargetParametersUpdater):
                 target.data.copy_(param.data, non_blocking=True)
         return {}
 
+    def __hash__(self):
+        return hash(id(self))
+
 
 @dataclass
 class SoftUpdate(TargetParametersUpdater):
-    tau: float = 0.01
+    tau: float = field(default=0.01, metadata=tuning(1e-3, 0.05, log=True))
 
     def __post_init__(self):
         super().__post_init__()
@@ -64,3 +69,6 @@ class SoftUpdate(TargetParametersUpdater):
             new_value = (1 - self.tau) * target.data + self.tau * param.data
             target.data.copy_(new_value, non_blocking=True)
         return {}
+
+    def __hash__(self):
+        return hash(id(self))

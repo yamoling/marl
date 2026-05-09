@@ -72,7 +72,7 @@ class DMAQSIWeight(nn.Module):
         return torch.stack(head_weights, dim=1).sum(dim=1)
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class QPlex(StateMixer):
     """
     QPLEX mixer close to the official implementation in `qplex_official`.
@@ -215,3 +215,6 @@ class QPlex(StateMixer):
             weighted_head=weighted_head,
             is_stop_gradient=is_stop_gradient,
         )
+
+    def __hash__(self):
+        return id(self)

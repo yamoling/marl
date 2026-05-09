@@ -6,37 +6,35 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import TYPE_CHECKING, Collection, Literal, Sequence, overload
+from typing import Collection, Literal, Sequence, overload
 
 import numpy as np
 import numpy.typing as npt
+import polars as pl
 import torch
 from marlenv import MARLEnv
+from polars import selectors as cs
 
+from marl.env import EnvConfig
+from marl.logging import LoggerType, TickColumn
 from marl.models.trainer import Trainer
 from marl.utils import Serializable, stats
 from marl.utils.stats import Dataset
 
 from .run import Run
 
-if TYPE_CHECKING:
-    from marl.env import EnvConfig
-    from marl.logging import LoggerType, TickColumn
-    from marl.models import Trainer
-
-
 EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
 class Experiment[E: MARLEnv, T: Trainer](Serializable):
-    env: "EnvConfig[E]"
+    env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
     logdir: str | Literal["auto"] = "logs/test"
-    test_env: "EnvConfig[E] | None" = None
+    test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
-    loggers: "Collection[LoggerType]" = field(default_factory=lambda: ["csv"])
+    loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
     creation_timestamp: datetime | None = None
 
     def __post_init__(self):
@@ -52,6 +50,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
                 logging.info(f"Discarding pre-existing experiment {self.logpath}.")
                 self.delete()
             if self.logpath.exists():
+                # Do not allow to overwrite an existing experiment
                 raise FileExistsError(f"Experiment directory {self.logpath} already exists.")
             self.creation_timestamp = datetime.now()
             self.save()
@@ -139,7 +138,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return logdir / EXPERIMENT_FILENAME
 
     @overload
-    def get_run(self, run_seed: int, /): ...
+    def get_run(self, seed: int, /): ...
     @overload
     def get_run(self, rundir: str, /): ...
 
@@ -164,7 +163,11 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             rundir = self.logpath / f
             if not rundir.is_dir():
                 continue
-            yield Run[E, npt.ArrayLike].load(rundir)
+            try:
+                yield Run[E, npt.ArrayLike].load(rundir)
+            except FileNotFoundError:
+                # Not a run directory
+                pass
 
     @staticmethod
     def is_experiment_directory(logdir: str | Path) -> bool:
@@ -207,6 +210,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
     @classmethod
     def load(cls, logdir: Path | str):
+        """Load an experiment from a log directory."""
         json_file = cls.json_file(logdir)
         return cls.from_file(json_file)
 
@@ -214,7 +218,6 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         self.to_file(self.experiment_file)
 
     def delete(self):
-        print(f"Removing  experiment at {self.logpath}")
         shutil.rmtree(self.logpath, ignore_errors=True)
 
     def get_tests_at(self, time_step: int):
@@ -224,11 +227,26 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     def n_active_runs(self):
         return len([run for run in self.runs if run.is_running])
 
-    def get_results_datasets(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+    def get_results_datasets(
+        self, granularity: int, aggregate_by: "TickColumn" = "time_step", metrics: str | Collection[str] | None = None
+    ):
+        """
+        Retrieve the datasets relative to the experiment.
+
+        If provided, only computes the metrics provided in the `metrics` argument.
+        """
         results = self.get_results(granularity, aggregate_by)
         datasets = list[Dataset]()
         for category, stats_df in results.items():
-            stats_df = stats_df.collect()
+            try:
+                if metrics is not None:
+                    if isinstance(metrics, str):
+                        metrics = [metrics]
+                    stats_df = stats_df.select(["ticks", *[cs.contains(m) for m in metrics]])
+                stats_df = stats_df.collect()
+            except pl.exceptions.ColumnNotFoundError:
+                # The dataframe is empty
+                continue
             if stats_df.is_empty():
                 continue
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]
@@ -253,28 +271,25 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         """
         Return the category-wise metrics aggregated by rounded step buckets, or elapsed-time buckets when wall-time mode is enabled.
 
-        E.g.: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
+        Example: if the time steps are [1, 2, 3, 4, 5] and the granularity is 2, the time steps will be rounded to [0, 2, 2, 4, 4], and the metrics will be averaged for each time step, resulting in a dataframe with time steps [0, 2, 4].
         """
         runs = list(self.runs)
         # if self.env.is_multi_objective:
         #     qvalues = stats.compute_qvalues([run.qvalues_data(self.test_interval) for run in runs], self.logdir, replace_inf, self.qvalue_infos)
         return {
-            "Test": stats.compute_experiment_results(
-                [run.test_metrics for run in runs],
-                aggregate_by,
-                granularity,
-            ),
-            "Train": stats.compute_experiment_results(
-                [run.train_metrics for run in runs],
-                aggregate_by,
-                granularity,
-            ),
-            "Training data": stats.compute_experiment_results(
-                [run.training_data for run in runs],
-                aggregate_by,
-                granularity,
-            ),
+            "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
+            "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
+            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
         }
+
+    def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+        return stats.compute_experiment_results([run.test_metrics for run in self.runs], aggregate_by, granularity)
+
+    def get_train_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+        return stats.compute_experiment_results([run.train_metrics for run in self.runs], aggregate_by, granularity)
+
+    def get_training_data(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+        return stats.compute_experiment_results([run.training_data for run in self.runs], aggregate_by, granularity)
 
     def copy(self, new_logdir: Path, copy_runs: bool = True):
         new_exp = deepcopy(self)
@@ -287,9 +302,3 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             run.runpath.replace(new_rundir)
             # shutil.copytree(run.rundir, new_rundir)
         return new_exp
-
-    def get_run_with_seed(self, seed: int):
-        for run in self.runs:
-            if run.seed == seed:
-                return run
-        return None

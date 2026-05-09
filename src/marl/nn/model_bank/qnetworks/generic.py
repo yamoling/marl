@@ -8,7 +8,7 @@ from marl.nn.layers import NoisyLinear
 from marl.nn.model_bank.generic import CNN, CRNN, MLP, RNN
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class QCNN(QNetwork):
     _: KW_ONLY
     mlp_sizes: Sequence[int] = (256, 128)
@@ -41,8 +41,11 @@ class QCNN(QNetwork):
             return self.noisy_layer.forward(x)
         return x
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class QMLP(QNetwork):
     _: KW_ONLY
     hidden_sizes: Sequence[int] = (256, 128)
@@ -74,8 +77,11 @@ class QMLP(QNetwork):
             return self.noisy_layer.forward(x)
         return x
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class QRNN(RecurrentQNetwork):
     _: KW_ONLY
     hidden_sizes: Sequence[int] = (256, 128)
@@ -91,8 +97,11 @@ class QRNN(RecurrentQNetwork):
     def reset_hidden_states(self):
         return self.rnn.reset_hidden_states()
 
+    def __hash__(self):
+        return id(self)
 
-@dataclass(unsafe_hash=True)
+
+@dataclass
 class QCRNN(RecurrentQNetwork):
     _: KW_ONLY
     mlp_sizes: Sequence[int] = (256, 128)
@@ -117,3 +126,6 @@ class QCRNN(RecurrentQNetwork):
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         return self.nn.forward(obs, extras, **kwargs)
+
+    def __hash__(self):
+        return id(self)

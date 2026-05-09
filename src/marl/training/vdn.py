@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 
 from marl.nn import mixers
 
 from .dqn import DQN
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class VDN(DQN[mixers.VDN]):
+    _: KW_ONLY
     mixer: mixers.VDN = field(default_factory=mixers.VDN)

@@ -15,7 +15,7 @@ from marl.models.nn.options import OptionCriticNetwork
 from marl.nn.model_bank.generic import CNN
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class CNNOptionCritic(OptionCriticNetwork):
     policies: torch.nn.ModuleList
     q_options: QNetwork
@@ -65,6 +65,9 @@ class CNNOptionCritic(OptionCriticNetwork):
         logits[~available_actions] = -torch.inf
         dist = torch.distributions.Categorical(logits=logits)
         return dist
+
+    def __hash__(self):
+        return id(self)
 
 
 @dataclass
@@ -139,12 +142,12 @@ class SimpleOptionCritic(Actor):
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
         return self.policy(obs, extras, *args, **kwargs)
 
-    def __hash__(self):
-        return hash(self.name)
-
     def randomize(self, method: Literal["xavier", "orthogonal"] | Callable[[torch.Tensor], Any] = "xavier"):
         self.current_options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
         return super().randomize(method)
+
+    def __hash__(self):
+        return id(self)
 
 
 @dataclass
@@ -160,3 +163,6 @@ class OptionTermination(NN):
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
         output = self.cnn.forward(obs, extras)
         return torch.nn.functional.sigmoid(output)
+
+    def __hash__(self):
+        return id(self)

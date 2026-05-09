@@ -1,9 +1,11 @@
-from dataclasses import Field, dataclass, fields
+from dataclasses import MISSING, Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Self, Type, Union, get_args, get_origin
+from typing import Any, Self, TypeVar, get_origin
 
 import orjson
+
+from marl.utils.reflection import get_subclass_from_name, unwrap_optional
 
 # Use a hyphen (-) in the discriminator such that no attribute ever
 # deserializes to that key.
@@ -18,64 +20,6 @@ def default_serialization(obj):
         case Path():
             return obj.as_posix()
     raise TypeError(f"Type {type(obj)} is not serializable")
-
-
-def get_subclass_map(base_class: Type):
-    """
-    Recursively finds all subclasses and maps their names to the class object.
-    """
-    mapping = {base_class.__name__: base_class}
-    for subclass in base_class.__subclasses__():
-        mapping[subclass.__name__] = subclass
-        # Recurse in case there are subclasses of subclasses
-        mapping.update(get_subclass_map(subclass))
-    return mapping
-
-
-def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
-    """
-    Retrieve the subclass whose name is `class_name`, if if exist.
-
-    **Note:** the class provided as argument is not considered to be a subclass of itself.
-    """
-    for subclass in base_class.__subclasses__():
-        if subclass.__name__ == class_name:
-            return subclass
-        # Recurse in case there are subclasses of subclasses
-        result = get_subclass_from_name(subclass, class_name)
-        if result is not None:
-            return result
-    return None
-
-
-def deserialize_field(f: Field, value: Any):
-    """
-    Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
-        - datetimes are deserialized from ISO format
-        - non-dict values are left unchanged
-        - fields that inherit from `Serializable` return their deserialied value
-
-    **Notes:**
-        - These rules assume that there is no complex types such as `list[SomeComplexClass]` and currently
-    fail at deserialising such values.
-        - Union types other than `T | None` are not yet supported.
-    """
-    if f.type is datetime:
-        return datetime.fromisoformat(value)
-    if not isinstance(value, dict):
-        return value
-    actual_type = f.type
-    # For union types like `X | None`, get the `X` type
-    if get_origin(actual_type) is Union:
-        # Filter out NoneType to find the actual class
-        union_types = [a for a in get_args(actual_type) if a is not type(None)]
-        if len(union_types) > 1:
-            raise NotImplementedError(f"Union types other than `T | None` are not yet supported. Got type: {actual_type}.")
-        actual_type = union_types[0]
-    # If the resulting type is a Serializable subclass, then deserialize it
-    if isinstance(actual_type, type) and issubclass(actual_type, Serializable):
-        return actual_type.from_dict(value)
-    return value
 
 
 @dataclass
@@ -112,9 +56,19 @@ class Serializable:
             return subtype.from_dict(d)
 
         # Iterate on all fields to identify complex ones that require deserialization
+        init_dict = {}
         for f in fields(cls):
-            d[f.name] = deserialize_field(f, d[f.name])
-        return cls(**d)
+            if not f.init:
+                continue
+            if f.name not in d:
+                if f.default is not MISSING:
+                    init_dict[f.name] = f.default
+                else:
+                    raise KeyError(f"Missing value for required field {f.name} of class {cls.__name__}")
+            else:
+                field_value = cls.deserialize_field(f, d[f.name])
+                init_dict[f.name] = field_value
+        return cls(**init_dict)
 
     @classmethod
     def from_json(cls, data: bytes) -> Self:
@@ -139,3 +93,57 @@ class Serializable:
         path.parent.mkdir(exist_ok=True)
         with open(path, "wb") as f:
             f.write(self.to_json(beautify=beautify))
+
+    @classmethod
+    def deserialize_field(cls, f: Field, value: Any):
+        """
+        Deserialize a field json-deserialized value to its actual value according to the following ordered rules:
+            - datetimes are deserialized from ISO format
+            - non-dict values are left unchanged
+            - fields that inherit from `Serializable` return their deserialied value
+
+        **Notes:**
+            - These rules assume that there is no complex types such as `list[SomeComplexClass]` and currently
+        fail at deserialising such values.
+            - Union types other than `T | None` are not yet supported.
+        """
+        if f.type is datetime:
+            return datetime.fromisoformat(value)
+        if not isinstance(value, dict):
+            return value
+        field_type = resolve_type(f.type)
+        assert issubclass(field_type, Serializable), (
+            f"Attribute {f.name} of class {cls} is of type {field_type}, which is not Serializable !"
+        )
+        return field_type.from_dict(value)
+
+
+def resolve_type(field_type):
+    """
+    Resolve a field type annotation to its corresponding class object.
+
+    Rules (applied in order):
+
+    1. Plain types (e.g. ``x: SomeClass``) → the class itself.
+    2. Optional types (e.g. ``x: SomeClass | None``) → the non-``None`` type,
+       via :func:`~marl.utils.reflection.unwrap_optional`.
+    3. Constrained TypeVars (e.g. ``x: T`` where ``T: SomeClass``) → their
+       bound.
+    4. Generic types (e.g. ``x: SomeGenericType[T]``) → their origin class.
+    """
+    if isinstance(field_type, type):
+        return field_type
+    # Resolve optional types (e.g. `SomeClass | None` → `SomeClass`)
+    unwrapped = unwrap_optional(field_type)
+    if unwrapped is not field_type:
+        return resolve_type(unwrapped)
+    # Resolve `x: T` where `T: SomeClass` → `SomeClass`
+    if isinstance(field_type, TypeVar):
+        if field_type.__bound__ is None:
+            raise TypeError(f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized.")
+        return resolve_type(field_type.__bound__)
+    # Resolve `x: SomeGenericType[T]` → `SomeGenericType`
+    origin = get_origin(field_type)
+    if origin is not None:
+        return resolve_type(origin)
+    raise TypeError(f"Unsupported field type {field_type} for deserialization.")
