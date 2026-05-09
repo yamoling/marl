@@ -119,13 +119,15 @@ class Experiment[A: Space]:
         device: Literal["cpu", "auto"] | int = "auto",
         n_tests: int = 1,
         render_tests: bool = False,
-        n_parallel: int = torch.cuda.device_count(),
+        n_parallel: int |  None= None,
         disabled_gpus: Sequence[int] = (),
     ):
         """Train the Agent on the environment according to the experiment parameters."""
         if isinstance(seeds, int):
             seeds = list(range(seeds))
         runs = self._prepare_runs(seeds)
+        if n_parallel is None:
+            n_parallel = min(torch.cuda.device_count() - len(disabled_gpus), len(runs))
         if n_parallel <= 1 or len(runs) <= 1:
             from marl.runners import SequentialRunner
 

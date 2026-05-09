@@ -1,5 +1,4 @@
 import os
-import shutil
 
 import matplotlib.pyplot as plt
 import polars as pl
@@ -8,7 +7,7 @@ import marl
 
 plt.rcParams.update(
     {
-        "text.usetex": shutil.which("latex") is not None,  # Use latex if available
+        "text.usetex": False,  # Set to True for more better rendering if you have LaTeX installed
         "text.latex.preamble": r"\usepackage{amsmath}",
         "font.family": "serif",
     }
@@ -34,14 +33,14 @@ def plot_manually():
     )
     # 4) Plot the results with 95% confidence intervals across runs
     n_runs = len(list(exp.runs))
-    os.makedirs("plots", exist_ok=True)
+    os.makedirs(f"{exp.logdir}/plots", exist_ok=True)
     for col in columns:
         plt.plot(df["time_step"], df[f"mean-{col}"], label=col)
         ci95 = 1.96 * df[f"std-{col}"] / (n_runs**0.5)
         plt.fill_between(df["time_step"], df[f"mean-{col}"] - ci95, df[f"mean-{col}"] + ci95, alpha=0.2)
         plt.xlabel("Time step")
         plt.ylabel(col)
-        plt.savefig(f"plots/{exp.logdir}-{col}.pdf")
+        plt.savefig(f"{exp.logdir}/plots/{col}.png")
         plt.clf()
         # plt.show()
 

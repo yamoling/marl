@@ -5,12 +5,15 @@ import dotenv
 import lle
 
 import marl
-from marl.nn.model_bank import actor_critics
-from marl.training import PPO
+from marl.models import TransitionMemory
+from marl.nn import mixers
+from marl.nn.model_bank import actor_critics, qnetworks
+from marl.policy import EpsilonGreedy
+from marl.training import DQN, PPO
 
 
 def main():
-    env = lle.level(6).obs_type("layered").state_type("state").pbrs().builder().agent_id().time_limit(78).build()
+    env = lle.level(6).obs_type("layered").state_type("state").builder().agent_id().time_limit(78).build()
 
     # oc = options_nn.CNNOptionCritic.from_env(env, 4)
     # trainer = PPOC(
@@ -21,16 +24,17 @@ def main():
     #     train_interval=32,
     #     early_stopping_kl=0.01,
     # )
-    trainer = PPO(
-        actor_critics.CNNDiscreteAC.from_env(env),
-        mixer=None,  # mixers.VDN.from_env(env),
+    trainer = DQN(
+        qnetworks.QCNN(env.observation_shape, env.extras_size, env.n_actions),
+        EpsilonGreedy.linear(1.0, 0.05, 250_000),
+        TransitionMemory(50_000),
+        mixers.VDN.from_env(env),
         grad_norm_clipping=10.0,
-        early_stopping_kl=0.01,
-        n_epochs=15,
-        lr_actor=5e-4,
-        lr_critic=5e-4,
+        batch_size=64,
+        lr=5e-4,
+        gamma=0.95,
     )
-    logdir = f"logs/{env.name}-{trainer.name}"
+    logdir = f"logs/{env.name}-{trainer.name}-old"
     exp = marl.Experiment.create(
         env,
         1_000_000,
@@ -40,7 +44,7 @@ def main():
         save_weights=False,
         replace_if_exists=True,
     )
-    # exp.run(seeds=30, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
+    exp.run(seeds=12, n_tests=10, disabled_gpus=[0, 1], fill_strategy="scatter", quiet=True)
 
 
 if __name__ == "__main__":
