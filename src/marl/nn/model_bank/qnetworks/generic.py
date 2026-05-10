@@ -21,16 +21,18 @@ class QCNN(QNetwork):
         if self.noisy:
             self.noisy_layer = NoisyLinear(self.mlp_sizes[-1], self.output_size)
             cnn_output_shape = (self.mlp_sizes[-1],)
+            mlp_sizes = self.mlp_sizes[:-1]
             cnn_output_activation = self.hidden_activation
         else:
             self.noisy_layer = None
             cnn_output_shape = self.output_shape
             cnn_output_activation = None
+            mlp_sizes = self.mlp_sizes
         self.cnn = CNN(
             cnn_output_shape,
             self.obs_shape,
             self.extras_size,
-            mlp_sizes=self.mlp_sizes,
+            mlp_sizes=mlp_sizes,
             hidden_activation=self.hidden_activation,
             output_activation=cnn_output_activation,
         )
