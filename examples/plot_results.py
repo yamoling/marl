@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Collection
 
 import matplotlib.pyplot as plt
+import typed_argparse as tap
 
 import marl
 from marl.models import Dataset
@@ -14,6 +15,15 @@ plt.rcParams.update(
         "font.family": "serif",
     }
 )
+
+
+class SingleLogdir(tap.TypedArgs):
+    pass
+
+
+class CompareLogdirs(tap.TypedArgs):
+    logdirs: list[Path]
+    metrics: Collection[str] | str
 
 
 def plot_manually(logdir: Path):
@@ -35,19 +45,29 @@ def plot_manually(logdir: Path):
         plt.clf()
 
 
-def plot_with_datasets(logdir: Path):
+def plot_with_datasets(logdir: Path, save: bool = True):
     exp = marl.Experiment.load(logdir)
     datasets = exp.get_results_datasets(1000, metrics=["exit_rate", "loss"])
     for dataset in datasets:
-        plot(dataset, show=True)
+        save_to = None
+        if save:
+            save_to = Path("plots") / f"{dataset.label}.pdf"
+        plot(dataset, show=True, save_to=save_to)
+        plt.clf()
 
 
-def plot(dataset: Dataset, prefix: str = "", show=False):
+def plot(dataset: Dataset, prefix: str = "", show=False, save_to: str | Path | None = None):
     label = f"{prefix}{dataset.nice_label} ({dataset.category})"
     plt.plot(dataset.ticks, dataset.mean, label=label)
     plt.fill_between(dataset.ticks, dataset.mean - dataset.ci95, dataset.mean + dataset.ci95, alpha=0.2)
-    plt.xlabel("Time step")
-    plt.ylabel(dataset.nice_label)
+    if show or save_to is not None:
+        plt.xlabel("Time step")
+        plt.ylabel(dataset.nice_label)
+        plt.legend()
+    if save_to is not None:
+        destination = Path(save_to)
+        destination.parent.mkdir(exist_ok=True)
+        plt.savefig(destination)
     if show:
         plt.legend()
         plt.show()
@@ -61,15 +81,19 @@ def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[
         for logdir, datasets in datasets_dict.items():
             [plot(ds, f"{logdir[5:]}-") for ds in datasets if ds.label == label]
         plt.legend()
+        destination = Path("plots") / f"{label}.pdf"
+        destination.parent.mkdir(exist_ok=True)
+        plt.savefig(destination)
         plt.show()
+        plt.clf()
 
 
 def main():
     # plot_manually()
-    logdir1 = Path("logs/VDN-LLE-lvl6")
-    logdir2 = Path("logs/QMix-LLE-lvl6")
-    # plot_with_datasets(logdir1)
-    compare_multiple_experiments([logdir1, logdir2], "loss")
+    logdir1 = Path("logs/vdn-False-LLE-lvl6")
+    logdir2 = Path("logs/LLE-lvl6-VDN-old")
+    plot_with_datasets(logdir1)
+    # compare_multiple_experiments([logdir1, logdir2], "loss")
 
 
 if __name__ == "__main__":
