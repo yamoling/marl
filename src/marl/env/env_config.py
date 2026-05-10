@@ -136,9 +136,10 @@ class EnvConfig[E: MARLEnv](Serializable):
 class LLEConfig(EnvConfig[lle.LLE]):
     level_or_path: Literal[1, 2, 3, 4, 5, 6] | str
     """A level or a file path"""
+    _: KW_ONLY
     obs_type: LLEObsType = "layered"
     state_type: LLEObsType = "state"
-    _: KW_ONLY
+    pbrs: bool = False
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
 
@@ -156,7 +157,13 @@ class LLEConfig(EnvConfig[lle.LLE]):
                 lle_builder = lle.from_file(path)
             case other:
                 raise NotImplementedError(f"Invalid LLE map: {other}")
-        return lle_builder.obs_type(self.obs_type).state_type(self.state_type).build()
+        builder = lle_builder.obs_type(self.obs_type).state_type(self.state_type)
+        if self.pbrs:
+            lasers_to_reward = None
+            if self.level_or_path == 6:
+                lasers_to_reward = [(4, 0), (6, 12)]
+            builder = builder.pbrs(reward_value=1.0, gamma=1.0, lasers_to_reward=lasers_to_reward)
+        return builder.build()
 
 
 @dataclass
