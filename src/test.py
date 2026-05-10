@@ -10,14 +10,8 @@ from marl.nn import mixers
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 from marl.policy import EpsilonGreedy
 
-if __name__ == "__main__":
-    dotenv.load_dotenv()
-    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        handlers=[logging.FileHandler("test.log", mode="a"), logging.StreamHandler()],
-        level=log_level,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
+
+def main_old():
     for algo in ("qmix", "maven", "vdn", "qmix"):
         policy = EpsilonGreedy.linear(1, 0.05, 100_000)
         memory = TransitionMemory(50_000)
@@ -37,6 +31,7 @@ if __name__ == "__main__":
                     gamma=gamma,
                     train_interval=train_interval,
                     lr=lr,
+                    batch_size=batch_size,
                 )
             case "qmix":
                 env = LLEConfig(6)
@@ -50,6 +45,7 @@ if __name__ == "__main__":
                     lr=lr,
                     grad_norm_clipping=grad_norm_clipping,
                     optimiser_type=optimiser_type,
+                    batch_size=batch_size,
                 )
             case "maven":
                 env = LLEConfig(6, maven_noise_size=16)
@@ -67,3 +63,34 @@ if __name__ == "__main__":
                 )
         experiment = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
         experiment.run(seeds=8, test_interval=1000, gpu_strategy="scatter", n_tests=5, n_jobs=1, disabled_gpus=range(4))
+
+
+def main():
+    train_interval = (5, "step")
+    batch_size = 64
+    lr = 5e-4
+    env = LLEConfig(6)
+    trainer = training.VDN(
+        qnetworks.from_env(LLEConfig(6)),
+        TransitionMemory(50_000),
+        train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
+        gamma=0.95,
+        train_interval=train_interval,
+        lr=lr,
+        batch_size=batch_size,
+        optimiser_type="adam",
+        grad_norm_clipping=10,
+    )
+    exp = Experiment(env, trainer)
+    exp.run()
+
+
+if __name__ == "__main__":
+    dotenv.load_dotenv()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        handlers=[logging.FileHandler("test.log", mode="a"), logging.StreamHandler()],
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    main()

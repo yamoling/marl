@@ -23,15 +23,12 @@ class MLP(NN):
     output_activation: None | ActivationType = None
 
     def __post_init__(self):
-        NN.__post_init__(self)
+        super().__post_init__()
         self.nn = torch.nn.Sequential()
-        # [torch.nn.Linear(self.input_size, self.hidden_sizes[0]), torch.nn.ReLU()]
         for i in range(len(self.layer_sizes) - 1):
             self.nn.append(torch.nn.Linear(self.layer_sizes[i], self.layer_sizes[i + 1]))
-            self.nn.append(get_activation(self.hidden_activation))
-        self.nn.append(torch.nn.Linear(self.layer_sizes[-1], self.output_size))
-        if self.output_activation is not None:
-            self.nn.append((get_activation(self.output_activation)))
+            if i < len(self.layer_sizes) - 2 or self.output_activation is not None:
+                self.nn.append(get_activation(self.hidden_activation))
 
     @property
     def output_size(self):
