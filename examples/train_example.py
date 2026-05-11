@@ -1,20 +1,35 @@
-from marl import Experiment
+from marl import Experiment, training
 from marl.env import LLEConfig
+from marl.models import TransitionMemory
+from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 from marl.policy import EpsilonGreedy
-from marl.training import MAVEN
 
 
-
-def main():
-    env = LLEConfig(6, maven_noise_size=16)
-    experiment = Experiment(
-        env,
-        MAVEN(
-            qnetworks.from_env(env),
-            EpsilonGreedy.linear(50_000, 0.01, 1),
-            env,
-        ),
-        2_000,
+def mulitple_parallel_runs():
+    env = LLEConfig(6, obs_type="layered")
+    trainer = training.VDN(
+        qnetworks.from_env(env, independent=True),
+        TransitionMemory(50_000),
+        train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
+        gamma=0.95,
+        train_interval=(5, "step"),
+        lr=5e-4,
+        batch_size=64,
+        optimiser_type="adam",
+        grad_norm_clipping=10,
     )
-    experiment.run(test_interval=500)
+    exp = Experiment(env, trainer, logdir="auto")
+    exp.run(seeds=8, test_interval=5000, gpu_strategy="scatter", n_jobs=8, disabled_gpus=range(6), quiet=True)
+
+
+def short_run():
+    env = LLEConfig(6, obs_type="flattened")
+    trainer = training.QMix(qnetworks.from_env(env), TransitionMemory(50_000), mixer=mixers.QMix.from_env(env))
+    exp = Experiment(env, trainer, logdir="auto", n_steps=5_000)
+    exp.run(test_interval=500)
+
+
+if __name__ == "__main__":
+    short_run()
+    mulitple_parallel_runs()

@@ -69,6 +69,7 @@ def plot(dataset: Dataset, prefix: str = "", show=False, save_to: str | Path | N
         destination.parent.mkdir(exist_ok=True)
         plt.savefig(destination)
     if show:
+        plt.margins(x=0.01, y=0.01)
         plt.legend()
         plt.show()
 
@@ -81,6 +82,7 @@ def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[
         for logdir, datasets in datasets_dict.items():
             [plot(ds, f"{logdir[5:]}-") for ds in datasets if ds.label == label]
         plt.legend()
+        plt.margins(x=0.01, y=0.01)
         destination = Path("plots") / f"{label}.pdf"
         destination.parent.mkdir(exist_ok=True)
         plt.savefig(destination)
@@ -91,9 +93,10 @@ def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[
 def main():
     # plot_manually()
     logdir1 = Path("logs/vdn-False-LLE-lvl6")
-    logdir2 = Path("logs/LLE-lvl6-VDN-old")
-    plot_with_datasets(logdir1)
-    compare_multiple_experiments([logdir1, logdir2], "loss")
+    logdir2 = Path("logs/VDN-LLE-lvl6")
+    logdir3 = Path("logs/VDN-double-duelling-LLE-lvl6")
+    # plot_with_datasets(logdir1)
+    compare_multiple_experiments([logdir1, logdir2, logdir3], ["loss", "exit"])
 
 
 if __name__ == "__main__":
