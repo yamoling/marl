@@ -121,6 +121,9 @@ class Trainer[T](Serializable):
             nn.to(device)
         return self
 
+    def to_dict(self):
+        return super().to_dict() | {"name": self.name}
+
 
 @dataclass
 class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):

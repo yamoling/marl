@@ -3,6 +3,7 @@ import { GpuInfo, SystemInfo } from "../models/SystemInfo";
 export const STRESS_WARNING_THRESHOLD = 85;
 export const STRESS_SMOOTHING_WINDOW_MS = 10_000; // 3 second buffer for smoothing
 
+
 /**
  * Temporal stress filter that smooths out rapid oscillations by maintaining a sliding window
  * of recent readings and returning a weighted average. This prevents the stress indicator
@@ -21,36 +22,21 @@ export class TemporalStressFilter {
    */
   addReading(value: number): number {
     const now = Date.now();
+    // Remove readings outside the window
+    this.readings = this.readings.filter(r => now - r.timestamp <= this.windowMs);
     this.readings.push({ value, timestamp: now });
 
-    // Remove readings outside the window
-    this.readings = this.readings.filter(
-      (r) => now - r.timestamp <= this.windowMs,
-    );
-
     // Return weighted average: recent readings have higher weight
-    if (this.readings.length === 0) {
-      return value;
-    }
-    if (this.readings.length === 1) {
-      return this.readings[0].value;
-    }
-
-    const oldest = this.readings[0].timestamp;
-    const newest = this.readings[this.readings.length - 1].timestamp;
-    const range = Math.max(newest - oldest, 1); // Avoid division by zero
-
-    let totalWeight = 0;
-    let weightedSum = 0;
-
-    for (const reading of this.readings) {
-      // Weight increases linearly over time (newer = heavier)
-      const age = reading.timestamp - oldest;
-      const weight = 1 + age / range;
-      weightedSum += reading.value * weight;
+    // Weight = 1 at t=now, 0 at t=now - windowMs, linear in between
+    let totalWeight = 1;
+    let weightedSum = 1 * value;
+    for (let i = 0; i < this.readings.length - 1; i++) {
+      const age = now - this.readings[i].timestamp;
+      const weight = 1 - age / this.windowMs;
+      weightedSum += this.readings[i].value * weight;
       totalWeight += weight;
     }
-
+    console.log(`Added reading: ${value.toFixed(2)}, weighted average: ${(weightedSum / totalWeight).toFixed(2)}`);
     return weightedSum / totalWeight;
   }
 

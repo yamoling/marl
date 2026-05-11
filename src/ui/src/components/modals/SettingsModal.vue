@@ -357,7 +357,7 @@ function matchTooltip(ruleKey: string): string {
 }
 
 const allTrainerNames = computed(() => {
-    const uniqueNames = new Set(experimentStore.trainerNames.map((name) => name.trim()).filter((name) => name.length > 0));
+    const uniqueNames = new Set(experimentStore.experiments.map(e => e.trainer.name.trim()).filter((name) => name.length > 0));
     return Array.from(uniqueNames).sort((left, right) => left.localeCompare(right));
 });
 

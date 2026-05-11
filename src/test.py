@@ -103,7 +103,7 @@ def main(args: Args):
     # env = LLEConfig(6, obs_type="layered", maven_noise_size=16)
     env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
     trainer = maven(env)
-    exp = Experiment(env, trainer, logdir="auto", n_steps=200_000)
+    exp = Experiment(env, trainer, logdir="MAVEN-bmm-return-MStepsMatrix-500k", n_steps=500_000)
     exp.run(
         seeds=8,
         n_tests=5,

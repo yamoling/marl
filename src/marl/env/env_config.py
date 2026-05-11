@@ -51,6 +51,9 @@ class EnvConfig[E: MARLEnv](Serializable):
             **kwargs,
         )
 
+    def to_dict(self):
+        return super().to_dict() | {"name": self.name}
+
     @abstractmethod
     def make_base_env(self) -> E: ...
 

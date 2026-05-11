@@ -10,20 +10,13 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   const loading = ref(false);
   const experiments = ref([] as Experiment[]);
   const runStore = useRunStore();
-  const isRunning = computed(() => {
-    const res = {} as { [logdir: string]: boolean };
-    runStore.runs.forEach((runs, logdir) => {
-      res[logdir] = runs.some((run) => run.pid != null);
-    });
-    return res;
-  });
-  const trainerNames = computed(() => experiments.value.map(exp => exp.trainer.name));
 
   async function loadExperiments(): Promise<Experiment[]> {
     try {
       loading.value = true;
       const resp = await apiFetch(`${HTTP_URL}/experiment/list`, "Failed to load experiments");
       const json = await resp.json();
+      console.log(json)
       const experiments = parseOrThrow(ExperimentSchema.array(), json);
       for (const exp of experiments) {
         runStore.refresh(exp.logdir);
@@ -108,8 +101,6 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   return {
     loading,
     experiments,
-    isRunning,
-    trainerNames,
     refresh,
     getExperiment,
     loadExperiment,
