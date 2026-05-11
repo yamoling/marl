@@ -61,12 +61,17 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
-        if self.mixer is not None:
-            self.name = self.mixer.name
-        else:
-            self.name = "DQN"
-        if self.ir_module is not None:
-            self.name = f"{self.name}-{self.ir_module.name}"
+
+    @property
+    def name(self):
+        name = "DQN" if self.mixer is None else self.mixer.name
+        if self.double_qlearning:
+            name += "-double"
+        if self.qnetwork.duelling:
+            name += "-duelling"
+        if self.qnetwork.noisy:
+            name += "-noisy"
+        return name
 
     def _update(self, time_step: int) -> dict[str, float]:
         if not self.memory.can_sample(self.batch_size):

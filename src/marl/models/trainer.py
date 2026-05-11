@@ -1,4 +1,5 @@
 import os
+from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Self, Sequence, overload
@@ -21,7 +22,6 @@ class Trainer[T](Serializable):
     ir_module: IRModule | None = None
     grad_norm_clipping: float | None = None
     train_interval: tuple[int, Literal["step", "episode"]] = (5, "step")
-    name: str = ""
 
     def __post_init__(self):
         super().__post_init__()
@@ -29,8 +29,13 @@ class Trainer[T](Serializable):
         self._update_on_steps = self.train_interval[1] == "step"
         self._update_on_episodes = self.train_interval[1] == "episode"
         self._train_every_n = self.train_interval[0]
-        if len(self.name) == 0:
-            self.name = self.__class__.__name__
+
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """
+        Human-readable name of the trainer. This name should aim at being unique as it is used in the default logdir name.
+        """
 
     def make_agent(self) -> Agent[T]:
         raise NotImplementedError("Trainer must implement make_agent method")

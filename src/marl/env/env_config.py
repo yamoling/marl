@@ -18,7 +18,6 @@ type LLEObsType = Literal["layered", "flattened", "partial3x3", "partial5x5", "p
 @dataclass
 class EnvConfig[E: MARLEnv](Serializable):
     _: KW_ONLY
-    name: str = ""
     agent_id: bool = True
     time_limit: int | None = None
     last_action: bool = False
@@ -28,8 +27,10 @@ class EnvConfig[E: MARLEnv](Serializable):
     def __post_init__(self):
         super().__post_init__()
         self.env = self.make()
-        if len(self.name) == 0:
-            self.name = self.env.name
+
+    @property
+    def name(self):
+        return self.env.name
 
     @staticmethod
     def from_any[A](
@@ -171,7 +172,6 @@ class SMACConfig(EnvConfig[SMAC]):
     map_name: str
     _: KW_ONLY
     debug: bool = False
-    name: str = "SMAC"
 
     def make_base_env(self):
         return SMAC(self.map_name, debug=self.debug)

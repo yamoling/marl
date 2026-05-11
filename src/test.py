@@ -78,8 +78,8 @@ def main():
         optimiser_type="adam",
         grad_norm_clipping=10,
     )
-    exp = Experiment(env, trainer)
-    exp.run()
+    exp = Experiment(env, trainer, logdir="auto")
+    exp.run(seeds=8, test_interval=5000, gpu_strategy="scatter", n_tests=1, n_jobs=8, disabled_gpus=range(6), quiet=True)
 
 
 if __name__ == "__main__":
