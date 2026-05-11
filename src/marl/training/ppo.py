@@ -135,7 +135,7 @@ class PPO(Trainer[npt.NDArray[np.int64]]):
             surrogate1 = mini_advantages * ratio
             surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
             surr_min = torch.min(surrogate1, surrogate2)
-            actor_loss = -torch.sum(surr_min) / minibatch.masks_sum  # Minus sign to maximize the objective
+            actor_loss = -torch.sum(surr_min) / minibatch.n_items  # Minus sign to maximize the objective
 
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
@@ -146,10 +146,10 @@ class PPO(Trainer[npt.NDArray[np.int64]]):
             if self.value_loss == "huber":
                 # Same parameters as the MAPPO paper
                 huber_loss = torch.nn.functional.huber_loss(mini_values, mini_returns, delta=10.0, reduction="none")
-                critic_loss = torch.sum(huber_loss * minibatch.masks) / minibatch.masks_sum
+                critic_loss = torch.sum(huber_loss * minibatch.masks) / minibatch.n_items
             else:
                 td_error = mini_values - mini_returns
-                critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
+                critic_loss = torch.sum(td_error**2) / minibatch.n_items
 
             # S[\pi_0](s_t) in the paper (equation (9))
             entropy = mini_policy.entropy()
@@ -157,7 +157,7 @@ class PPO(Trainer[npt.NDArray[np.int64]]):
                 # Sum the agent dimension for the masking on the next line
                 entropy = entropy.sum(-1)
             entropy = entropy * minibatch.masks
-            entropy_loss = -torch.sum(entropy) / minibatch.masks_sum  # Minus sign to maximize the entropy
+            entropy_loss = -torch.sum(entropy) / minibatch.n_items  # Minus sign to maximize the entropy
 
             self._optimizer.zero_grad()
             # Equation (9) in the paper

@@ -66,18 +66,15 @@ def main_old():
 
 
 def main():
-    train_interval = (5, "step")
-    batch_size = 64
-    lr = 5e-4
-    env = LLEConfig(6)
+    env = LLEConfig(6, obs_type="layered")
     trainer = training.VDN(
-        qnetworks.from_env(LLEConfig(6)),
+        qnetworks.from_env(env, independent=True),
         TransitionMemory(50_000),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
         gamma=0.95,
-        train_interval=train_interval,
-        lr=lr,
-        batch_size=batch_size,
+        train_interval=(5, "step"),
+        lr=5e-4,
+        batch_size=64,
         optimiser_type="adam",
         grad_norm_clipping=10,
     )

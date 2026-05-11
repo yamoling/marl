@@ -93,7 +93,7 @@ def main():
     logdir1 = Path("logs/vdn-False-LLE-lvl6")
     logdir2 = Path("logs/LLE-lvl6-VDN-old")
     plot_with_datasets(logdir1)
-    # compare_multiple_experiments([logdir1, logdir2], "loss")
+    compare_multiple_experiments([logdir1, logdir2], "loss")
 
 
 if __name__ == "__main__":

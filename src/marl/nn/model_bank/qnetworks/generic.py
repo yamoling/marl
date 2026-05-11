@@ -2,7 +2,9 @@ from dataclasses import KW_ONLY, dataclass
 from typing import Sequence
 
 import torch
+from marlenv import DiscreteMARLEnv
 
+from marl.env import EnvConfig
 from marl.models.nn import ActivationType, QNetwork, RecurrentQNetwork
 from marl.nn.layers import NoisyLinear
 from marl.nn.model_bank.generic import CNN, CRNN, MLP, RNN
@@ -13,7 +15,7 @@ class QCNN(QNetwork):
     _: KW_ONLY
     mlp_sizes: Sequence[int] = (256, 128)
     hidden_activation: ActivationType = "relu"
-    noisy: bool = False
+    independent_mlp: bool = True
 
     def __post_init__(self):
         super().__post_init__()
@@ -81,6 +83,18 @@ class QMLP(QNetwork):
 
     def __hash__(self):
         return id(self)
+
+    @classmethod
+    def from_env(
+        cls,
+        env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv,
+        hidden_sizes: Sequence[int] = (256, 128),
+        activation: ActivationType = "relu",
+        noisy: bool = False,
+        duelling: bool = False,
+        **kwargs,
+    ):
+        return super().from_env(env, activation=activation, hidden_size=hidden_sizes, noisy=noisy, **kwargs)
 
 
 @dataclass
