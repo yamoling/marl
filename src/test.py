@@ -2,7 +2,7 @@ import logging
 import os
 
 import dotenv
-from marlenv import DiscreteMARLEnv
+from marlenv import DiscreteMARLEnv, catalog
 
 from marl import Experiment, training
 from marl.env import EnvConfig, LLEConfig
@@ -73,7 +73,7 @@ def maven[E: DiscreteMARLEnv](env: EnvConfig[E]):
         env,
         gamma=0.95,
         lr=5e-4,
-        batch_size=64,
+        batch_size=16,
         optimiser_type="adam",
         grad_norm_clipping=10,
     )
@@ -95,9 +95,10 @@ def vdn[E: DiscreteMARLEnv](env: EnvConfig[E]):
 
 def main():
     env = LLEConfig(6, obs_type="layered", maven_noise_size=16)
+    # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
     trainer = maven(env)
-    exp = Experiment(env, trainer, logdir="test")
-    exp.run()
+    exp = Experiment(env, trainer, logdir="test", n_steps=2_000_000)
+    exp.run(seeds=8, n_tests=5, gpu_strategy="scatter", disabled_gpus=range(4))
 
 
 if __name__ == "__main__":
