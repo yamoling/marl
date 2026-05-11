@@ -19,8 +19,8 @@ from marl.env import EnvConfig
 from marl.logging import LoggerType, TickColumn
 from marl.models.trainer import Trainer
 from marl.utils import Serializable, stats
-from marl.utils.stats import Dataset
 
+from .dataset import Dataset
 from .run import Run
 
 EXPERIMENT_FILENAME = "experiment.json"
@@ -235,18 +235,16 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
         If provided, only computes the metrics provided in the `metrics` argument.
         """
+        if isinstance(metrics, str):
+            metrics = [metrics]
+        cols = ["ticks", *[cs.contains(m) for m in metrics]] if metrics is not None else pl.col("*")
         results = self.get_results(granularity, aggregate_by)
         datasets = list[Dataset]()
         for category, stats_df in results.items():
             try:
-                if metrics is not None:
-                    if isinstance(metrics, str):
-                        metrics = [metrics]
-                    stats_df = stats_df.select(["ticks", *[cs.contains(m) for m in metrics]])
-                stats_df = stats_df.collect()
+                stats_df = stats_df.select(cols).collect()
             except pl.exceptions.ColumnNotFoundError:
-                # The dataframe is empty
-                continue
+                continue  # The dataframe is empty
             if stats_df.is_empty():
                 continue
             columns = [col[5:] for col in stats_df.columns if col.startswith("mean-")]

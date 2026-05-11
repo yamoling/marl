@@ -38,6 +38,8 @@ class Serializable:
             else:
                 res[field.name] = value
         res[DISCRIMINATOR_KEY] = self.__class__.__name__
+        if "name" not in res:
+            res["name"] = self.name if hasattr(self, "name") else self.__class__.__name__
         return res
 
     @classmethod

@@ -22,17 +22,47 @@ class QNetwork(NN):
     _: KW_ONLY
     output_shape: tuple[int, ...] = field(init=False)
     n_objectives: int = 1
+    noisy: bool = False
+    duelling: bool = True
+    """
+    When enabled, the network outputs a 1 value and `self.n_actions` advantages.
+
+    Paper: https://proceedings.mlr.press/v48/wangf16.pdf
+    """
+    independent: bool = False
+    """Whether each agent has its own independent weights or not."""
 
     def __post_init__(self):
+        n_action_outputs = self.n_actions
+        if self.duelling:
+            n_action_outputs += 1
         if self.n_objectives == 1:
-            self.output_shape = (self.n_actions,)
+            self.output_shape = (n_action_outputs,)
         else:
-            self.output_shape = (self.n_actions, self.n_objectives)
+            self.output_shape = (n_action_outputs, self.n_objectives)
+        # ⚠️ self.output_shape must be set BEFORE calling super().__post_init__() !
         super().__post_init__()
         if self.n_objectives == 1:
             self.action_dim = -1
         else:
             self.action_dim = -2
+        if self.duelling and self.n_objectives != 1:
+            raise NotImplementedError("Multi-objective is currently not supported with duelling DQN.")
+
+    def _get_qvalues(self, outputs: torch.Tensor):
+        if not self.duelling:
+            return outputs
+        if outputs.ndim == 3:
+            value = outputs[:, :, -1].unsqueeze(-1)  # Unsqueeze to keep 3 dimensions (batch_size, n_agents, 1)
+            adv = outputs[:, :, :-1]
+        elif outputs.ndim == 4:
+            value = outputs[:, :, :, -1].unsqueeze(-1)
+            adv = outputs[:, :, :, :-1]
+        else:
+            raise NotImplementedError()
+        mean_adv = torch.mean(adv, dim=-1, keepdim=True)
+        res = value + adv - mean_adv
+        return res
 
     @property
     def is_multi_objective(self):
@@ -51,7 +81,8 @@ class QNetwork(NN):
         Compute the Q-values (one per agent, per action and per objective).
         """
         obs_tensor, extra_tensor = obs.as_tensors(self.device)
-        qvalues = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
+        outputs = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
+        qvalues = self._get_qvalues(outputs)
         return qvalues.squeeze(0)
 
     @abstractmethod
@@ -64,7 +95,8 @@ class QNetwork(NN):
 
     def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """Compute the Q-values for a batch of observations during training"""
-        return self.forward(obs, extras, **kwargs)
+        outputs = self.forward(obs, extras, **kwargs)
+        return self._get_qvalues(outputs)
 
     def to_softmax_actor(self):
         from .actor_critic import DiscreteActor
@@ -86,8 +118,8 @@ class QNetwork(NN):
         return ActorFromQNet(self)
 
     @classmethod
-    def from_env(cls, env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv, **kwargs):
-        return cls(env.n_actions, env.observation_shape, env.extras_shape, **kwargs)
+    def from_env(cls, env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv, *, noisy: bool = False, duelling: bool = False, **kwargs):
+        return cls(env.n_actions, env.observation_shape, env.extras_shape, noisy=noisy, duelling=duelling, **kwargs)
 
 
 @dataclass

@@ -315,7 +315,7 @@ class Batch(ABC):
         return torch.cat([head_masks, self.masks])
 
     @cached_property
-    def masks_sum(self):
+    def n_items(self):
         return self.masks.sum()
 
     @cached_property

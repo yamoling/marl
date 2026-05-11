@@ -209,3 +209,4 @@ papers/
 *.log
 .playwright-mcp
 envs/*
+plots/

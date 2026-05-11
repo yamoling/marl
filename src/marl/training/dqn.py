@@ -61,17 +61,22 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
                 self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
-        if self.mixer is not None:
-            self.name = self.mixer.name
-        else:
-            self.name = "DQN"
-        if self.ir_module is not None:
-            self.name = f"{self.name}-{self.ir_module.name}"
+
+    @property
+    def name(self):
+        name = "DQN" if self.mixer is None else self.mixer.name
+        if self.double_qlearning:
+            name += "-double"
+        if self.qnetwork.duelling:
+            name += "-duelling"
+        if self.qnetwork.noisy:
+            name += "-noisy"
+        return name
 
     def _update(self, time_step: int) -> dict[str, float]:
         if not self.memory.can_sample(self.batch_size):
             return {}
-        batch = self.memory.sample(self.batch_size).to(self.qnetwork.device)
+        batch = self.memory.sample(self.batch_size).to(self.device)
         batch, logs = self._prepare_batch(batch)
         logs = logs | self.train(time_step, batch)
         if self.ir_module is not None:
@@ -139,7 +144,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
         if batch.importance_sampling_weights is not None:
             assert squared_error.shape == batch.importance_sampling_weights.shape
             squared_error = squared_error * batch.importance_sampling_weights
-        loss = squared_error.sum() / batch.masks_sum
+        loss = squared_error.sum() / batch.n_items
         return loss, td_error
 
     def train(self, time_step: int, batch: Batch):
@@ -151,8 +156,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
         self.optimiser.zero_grad()
         td_loss.backward()
         if self.grad_norm_clipping is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping)
-            logs["grad_norm"] = grad_norm.item()
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
         return logs
