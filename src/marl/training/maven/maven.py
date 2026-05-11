@@ -40,7 +40,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     test_policy: Policy = field(default_factory=policy.ArgMax)
     memory: EpisodeMemory = field(default_factory=lambda: EpisodeMemory(5000))
     batch_size: int = 16
-    optimiser_type: Literal["adam", "rms"] = "rms"
+    optimiser_type: Literal["adam", "rmsprop"] = "rmsprop"
     lr: float = 5e-4
     bandit_undiscounted: bool = True
     bandit_memory_size: int = 512
@@ -97,6 +97,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             ir_module=self.ir_module,
             grad_norm_clipping=self.grad_norm_clipping,
             test_policy=self.test_policy,
+            optimiser_type=self.optimiser_type,
         )
 
     @property
