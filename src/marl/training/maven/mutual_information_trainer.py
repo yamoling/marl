@@ -3,15 +3,15 @@ from typing import Literal
 
 import torch
 from torch.nn.utils.rnn import pack_padded_sequence
+
 from marl.env import EnvConfig
-from marl.models import Batch
-from marl.nn.mixers import QMixMAVEN
+from marl.models import Batch, Mixer
 
 from ..dqn import DQN
 
 
 @dataclass
-class MITrainer(DQN[QMixMAVEN]):
+class MITrainer(DQN[Mixer]):
     env: EnvConfig
     _: KW_ONLY
     train_interval: tuple[int, Literal["episode"]] = (1, "episode")  # type: ignore
@@ -29,9 +29,13 @@ class MITrainer(DQN[QMixMAVEN]):
         settings.pop("params")
         self.optimiser.add_param_group({"params": list(self.trajectory_aggregator.parameters()), **settings})
         self.optimiser.add_param_group({"params": self.discriminator.parameters(), **settings})
-        self.name = self.__class__.__name__
+
+    @property
+    def name(self):
+        name = self.__class__.__name__
         if self.mixer is not None:
-            self.name += f"-{self.mixer.name}"
+            name += f"-{self.mixer.name}"
+        return name
 
     def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = True):
         return {"maven_noise": batch["maven-noise"]}
@@ -50,8 +54,6 @@ class MITrainer(DQN[QMixMAVEN]):
             logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
-        if self.vbe is not None:
-            logs = logs | self.vbe.update(batch)
         return logs
 
     def _compute_maven_loss(self, batch: Batch, qvalues: torch.Tensor):

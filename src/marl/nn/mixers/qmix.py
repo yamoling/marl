@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from marlenv import DiscreteMARLEnv
 
 from marl.env import EnvConfig
+from marl.logging import warn_once
 from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
@@ -66,6 +67,8 @@ class QMix(StateMixer):
         /,
         **kwargs,
     ) -> torch.Tensor:
+        if len(kwargs) > 0:
+            warn_once(f"QMIX received {len(kwargs)} unused keyword arguments: {list(kwargs.keys())}")
         q_totals = []
         batch_dims = states.shape[:-1]
         bs = math.prod(batch_dims)

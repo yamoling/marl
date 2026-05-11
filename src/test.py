@@ -2,9 +2,10 @@ import logging
 import os
 
 import dotenv
+from marlenv import DiscreteMARLEnv
 
 from marl import Experiment, training
-from marl.env import LLEConfig
+from marl.env import EnvConfig, LLEConfig
 from marl.models import EpisodeMemory, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
@@ -65,9 +66,21 @@ def main_old():
         experiment.run(seeds=8, test_interval=1000, gpu_strategy="scatter", n_tests=5, n_jobs=1, disabled_gpus=range(4))
 
 
-def main():
-    env = LLEConfig(6, obs_type="layered")
-    trainer = training.VDN(
+def maven[E: DiscreteMARLEnv](env: EnvConfig[E]):
+    return training.MAVEN(
+        qnetworks.MAVENQnetwork.from_env(env),
+        EpsilonGreedy.linear(1, 0.05, 100_000),
+        env,
+        gamma=0.95,
+        lr=5e-4,
+        batch_size=64,
+        optimiser_type="adam",
+        grad_norm_clipping=10,
+    )
+
+
+def vdn[E: DiscreteMARLEnv](env: EnvConfig[E]):
+    return training.VDN(
         qnetworks.from_env(env, independent=True),
         TransitionMemory(50_000),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
@@ -78,8 +91,13 @@ def main():
         optimiser_type="adam",
         grad_norm_clipping=10,
     )
-    exp = Experiment(env, trainer, logdir="auto")
-    exp.run(seeds=8, test_interval=5000, gpu_strategy="scatter", n_tests=1, n_jobs=8, disabled_gpus=range(6), quiet=True)
+
+
+def main():
+    env = LLEConfig(6, obs_type="layered", maven_noise_size=16)
+    trainer = maven(env)
+    exp = Experiment(env, trainer, logdir="test")
+    exp.run()
 
 
 if __name__ == "__main__":

@@ -89,14 +89,14 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
 
     def _compute_qtargets(self, batch: Batch):
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues = self.qtarget.batch_forward(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+        next_qvalues = self.qtarget.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
         if self.double_qlearning:
             # It is necessary to switch to eval mode for some layers such as NoisyLayers.
             # Not switching to eval mode will cause the predicted Q-values to be off and
             # will cause torch to crash with a RuntimeError because of version mismatch.
             self.qnetwork.eval()
-            qvalues_for_index = self.qnetwork.batch_forward(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+            qvalues_for_index = self.qnetwork.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
             self.qnetwork.train()
         else:
             qvalues_for_index = next_qvalues
@@ -129,7 +129,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
         return {}
 
     def _compute_qvalues(self, batch: Batch):
-        all_qvalues = self.qnetwork.batch_forward(batch.obs, batch.extras, masks=batch.masks)
+        all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
         qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues))
