@@ -1,6 +1,6 @@
 __version__ = "0.1.0"
 
-from . import agents, env, exceptions, logging, models, nn, optimism, policy, training, utils
+from . import agents, algos, env, exceptions, logging, models, nn, policy, utils
 from .env import EnvConfig
 from .models import Agent, Batch, Experiment, Policy, ReplayMemory, Run, Trainer
 from .utils import seed
@@ -12,7 +12,7 @@ __all__ = [
     "logging",
     "nn",
     "policy",
-    "training",
+    "algos",
     "seed",
     "Experiment",
     "Batch",
@@ -23,6 +23,5 @@ __all__ = [
     "Trainer",
     "exceptions",
     "agents",
-    "optimism",
     "EnvConfig",
 ]

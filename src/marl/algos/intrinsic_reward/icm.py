@@ -2,10 +2,10 @@ from dataclasses import KW_ONLY, dataclass, field
 
 import torch
 from marlenv import MARLEnv
-from marlenv.utils import Schedule
 
 from marl.models import NN, Batch, IRModule
 from marl.nn import model_bank
+from marl.utils import Schedule
 
 
 @dataclass

@@ -21,36 +21,22 @@ export class TemporalStressFilter {
    */
   addReading(value: number): number {
     const now = Date.now();
-    this.readings.push({ value, timestamp: now });
-
     // Remove readings outside the window
     this.readings = this.readings.filter(
       (r) => now - r.timestamp <= this.windowMs,
     );
+    this.readings.push({ value, timestamp: now });
 
     // Return weighted average: recent readings have higher weight
-    if (this.readings.length === 0) {
-      return value;
-    }
-    if (this.readings.length === 1) {
-      return this.readings[0].value;
-    }
-
-    const oldest = this.readings[0].timestamp;
-    const newest = this.readings[this.readings.length - 1].timestamp;
-    const range = Math.max(newest - oldest, 1); // Avoid division by zero
-
-    let totalWeight = 0;
-    let weightedSum = 0;
-
-    for (const reading of this.readings) {
-      // Weight increases linearly over time (newer = heavier)
-      const age = reading.timestamp - oldest;
-      const weight = 1 + age / range;
-      weightedSum += reading.value * weight;
+    // Weight = 1 at t=now, 0 at t=now - windowMs, linear in between
+    let totalWeight = 1;
+    let weightedSum = 1 * value;
+    for (let i = 0; i < this.readings.length - 1; i++) {
+      const age = now - this.readings[i].timestamp;
+      const weight = 1 - age / this.windowMs;
+      weightedSum += this.readings[i].value * weight;
       totalWeight += weight;
     }
-
     return weightedSum / totalWeight;
   }
 

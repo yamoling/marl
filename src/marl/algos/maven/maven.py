@@ -3,12 +3,12 @@ from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
-from marlenv import Episode
+from marlenv import DiscreteMARLEnv, Episode
 
 from marl import policy
 from marl.agents.hierarchical import MAVENAgent
 from marl.env import EnvConfig
-from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Policy, Trainer
+from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Mixer, Policy, Trainer
 from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
@@ -30,8 +30,9 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
 
     qnetwork: MAVENQnetwork
     train_policy: Policy
-    env: EnvConfig
+    env: EnvConfig[DiscreteMARLEnv]
     _: KW_ONLY
+    mixer_override: Mixer | None = None
     tail_type: Literal["bmm", "mul"] = "bmm"
     z_policy_type: Literal["uniform", "max-entropy", "return"] = "return"
     target_updater: TargetParametersUpdater = field(default_factory=lambda: HardUpdate(200))
@@ -39,7 +40,7 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
     test_policy: Policy = field(default_factory=policy.ArgMax)
     memory: EpisodeMemory = field(default_factory=lambda: EpisodeMemory(5000))
     batch_size: int = 16
-    optimiser_type: Literal["adam", "rms"] = "rms"
+    optimiser_type: Literal["adam", "rmsprop"] = "rmsprop"
     lr: float = 5e-4
     bandit_undiscounted: bool = True
     bandit_memory_size: int = 512
@@ -77,12 +78,16 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
                 raise NotImplementedError("Max-entropy z policy is not implemented yet.")
         self.meta_trainer = cast(Trainer[npt.NDArray[np.int64]], self.meta_trainer)
         assert self.train_interval[1] == "episode", "MAVEN only supports training at the end of episodes."
+        if self.mixer_override is not None:
+            mixer = self.mixer_override
+        else:
+            mixer = QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size)
         self.worker_trainer = MITrainer(
             self.qnetwork,
-            self.train_policy,
             self.memory,
-            QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size),
             self.env,
+            mixer=mixer,
+            train_policy=self.train_policy,
             train_interval=(self.train_interval[0], "episode"),
             mi_loss_coef=self.mi_loss_coef,
             batch_size=self.batch_size,
@@ -92,8 +97,12 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             ir_module=self.ir_module,
             grad_norm_clipping=self.grad_norm_clipping,
             test_policy=self.test_policy,
+            optimiser_type=self.optimiser_type,
         )
-        self.name = f"MAVEN-{self.z_policy_type}_bandit"
+
+    @property
+    def name(self):
+        return f"MAVEN-{self.tail_type}-{self.z_policy_type}"
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)

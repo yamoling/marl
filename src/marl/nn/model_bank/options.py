@@ -5,7 +5,6 @@ from typing import Any, Callable, Literal, Sequence
 
 import torch
 from marlenv import MARLEnv
-from marlenv.utils import Schedule
 from torch import Tensor
 from torch.distributions import Categorical
 from torch.nn import ModuleList
@@ -13,6 +12,7 @@ from torch.nn import ModuleList
 from marl.models.nn import NN, Actor, DiscreteActor, QNetwork
 from marl.models.nn.options import OptionCriticNetwork
 from marl.nn.model_bank.generic import CNN
+from marl.utils import Schedule
 
 
 @dataclass

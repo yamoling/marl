@@ -1,3 +1,5 @@
+import logging
+from functools import lru_cache
 from typing import Literal, Sequence, TypeAlias
 
 from .csv_logger import CSVLogger
@@ -17,6 +19,11 @@ TICK_COL = "ticks"
 TickColumn = Literal["time_step", "timestamp_sec"]
 
 
+@lru_cache
+def warn_once(msg: str):
+    logging.warning(msg)
+
+
 __all__ = [
     "Logger",
     "CSVLogger",
@@ -31,4 +38,5 @@ __all__ = [
     "LoggerType",
     "LogSpecs",
     "TickColumn",
+    "warn_once",
 ]

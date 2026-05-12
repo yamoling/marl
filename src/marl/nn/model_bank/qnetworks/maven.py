@@ -26,9 +26,20 @@ class MAVENTail(torch.nn.Module):
     n_agents: int
     agent_output_size: int
     n_actions: int
+    duelling: bool = False
 
     def __post_init__(self):
         super().__init__()
+
+    @property
+    def n_outputs(self):
+        if not self.duelling:
+            return self.n_actions
+        return self.n_actions + 1
+
+    @property
+    def hyper_n_weights(self):
+        return self.n_outputs * self.agent_output_size
 
     @abstractmethod
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor: ...
@@ -45,10 +56,7 @@ class MAVENHyperBMM(MAVENTail):
 
     def __post_init__(self):
         super().__post_init__()
-        self.hyper_network = torch.nn.Linear(
-            self.noise_size + self.n_agents,
-            self.agent_output_size * self.n_actions,
-        )
+        self.hyper_network = torch.nn.Linear(self.noise_size + self.n_agents, self.hyper_n_weights)
 
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
         """
@@ -66,11 +74,11 @@ class MAVENHyperBMM(MAVENTail):
         # Reshape to match the batch matrix multiplication requirements
         # Agent_output: (batch_size, n_agents, agent_output) -> (batch_size * n_agents, 1, agent_output)
         # Weights     : (batch_size, n_agents, agent_output * n_actions) -> (batch_size * n_agents, agent_output, n_actions)
-        weights = weights.view(batch_size * self.n_agents, self.agent_output_size, self.n_actions)
+        weights = weights.view(batch_size * self.n_agents, self.agent_output_size, self.n_outputs)
         agent_output = agent_output.view(batch_size * self.n_agents, 1, self.agent_output_size)
         res = torch.bmm(agent_output, weights)
         # Return in the original shape
-        return res.view(*dims, self.n_agents, self.n_actions)
+        return res.view(*dims, self.n_agents, self.n_outputs)
 
     def __hash__(self):
         return id(self)
@@ -80,13 +88,16 @@ class MAVENHyperBMM(MAVENTail):
 class MAVENHyperMult(MAVENTail):
     def __post_init__(self):
         super().__post_init__()
+        output_size = self.n_actions
+        if self.duelling:
+            output_size += 1
         self.linear = torch.nn.Linear(self.agent_output_size, self.n_actions)
         self.mult_weights_nn = torch.nn.Sequential(
             torch.nn.Linear(self.noise_size + self.n_agents, 64),
             torch.nn.Tanh(),
             torch.nn.Linear(64, 64),
             torch.nn.Tanh(),
-            torch.nn.Linear(64, self.n_actions),
+            torch.nn.Linear(64, output_size),
         )
 
     def forward(self, noise: Tensor, agent_output: Tensor) -> Tensor:
@@ -129,9 +140,9 @@ class MAVENQnetwork(QNetwork):
                 raise NotImplementedError(f"Observation shape {self.obs_shape} not supported for MAVEN.")
         match self.tail_type:
             case "bmm":
-                self.tail = MAVENHyperBMM(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions)
+                self.tail = MAVENHyperBMM(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions, duelling=self.duelling)
             case "mul":
-                self.tail = MAVENHyperMult(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions)
+                self.tail = MAVENHyperMult(self.noise_size, self.n_agents, self.agent_output_size, self.n_actions, duelling=self.duelling)
             case other:
                 raise ValueError(f"Unknown hyper network type {other}")
 

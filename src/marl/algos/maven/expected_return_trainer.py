@@ -7,7 +7,6 @@ import numpy.typing as npt
 import torch
 from marlenv import Episode
 
-from marl.agents import DiscreteOneHotAgent
 from marl.models import QNetwork, Trainer
 
 
@@ -17,7 +16,7 @@ class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
     noise_size: int
     _: KW_ONLY
     undiscounted: bool = True
-    optimiser_type: Literal["adam", "rms"] = "adam"
+    optimiser_type: Literal["adam", "rmsprop"] = "adam"
     lr: float = 1e-5
     memory_size: int = 512
     batch_size: int = 64
@@ -28,10 +27,10 @@ class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
         match self.optimiser_type:
             case "adam":
                 self._optimiser = torch.optim.Adam(self.nn.parameters(), lr=self.lr)
-            case "rms":
+            case "rmsprop":
                 self._optimiser = torch.optim.RMSprop(self.nn.parameters(), lr=self.lr)
             case other:
-                raise ValueError(f"optimiser_type should either be 'adam' or 'rms' but got {other}")
+                raise ValueError(f"optimiser_type should either be 'adam' or 'rmsprop' but got {other}")
         self._memory = deque[tuple[np.ndarray, np.ndarray, int, float]](maxlen=self.memory_size)
         self._loss = torch.nn.MSELoss()
 
@@ -70,4 +69,6 @@ class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
         }
 
     def make_agent(self):
+        from marl.agents import DiscreteOneHotAgent
+
         return DiscreteOneHotAgent(self.nn.to_softmax_actor().to_one_hot())

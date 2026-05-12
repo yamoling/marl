@@ -81,7 +81,7 @@ def _test_and_log[A](test_env: MARLEnv[A], agent: "Agent[A]", time_step: int, re
     agent.set_testing()
     episodes = list[Episode]()
     for test_num in tqdm(range(run.n_tests), desc="Testing", unit="Episode", leave=True, disable=quiet):
-        seed = get_test_seed(time_step, test_num)
+        seed = compute_test_seed(time_step, test_num)
         episodes.append(seeded_rollout(test_env, agent, seed, render, compute_frames=False)[0])
     if not quiet:
         metrics = episodes[0].metrics.keys()
@@ -125,5 +125,5 @@ def seeded_rollout[A](env: MARLEnv[A], agent: "Agent[A]", seed: int, render=Fals
     return episode, frames, action_details
 
 
-def get_test_seed(time_step: int, test_num: int):
+def compute_test_seed(time_step: int, test_num: int):
     return time_step * 31 + test_num

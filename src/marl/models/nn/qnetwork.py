@@ -66,7 +66,7 @@ class QNetwork(NN):
 
     @property
     def is_multi_objective(self):
-        return len(self.output_shape) > 1
+        return self.n_objectives > 1
 
     @property
     def obs_size(self):
@@ -88,13 +88,12 @@ class QNetwork(NN):
     @abstractmethod
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
-        Compute the Q-values.
-
-        This function should output qvalues of shape (batch_size, n_actions, n_objectives).
+        Forward the observation and extras through the network. The output is either
+        directly the Q-values if self.duelling is False or the value and advantages otherwise.
         """
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-        """Compute the Q-values for a batch of observations during training"""
+    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+        """Compute the Q-values for a batch of observations, typically used in batched training loops."""
         outputs = self.forward(obs, extras, **kwargs)
         return self._get_qvalues(outputs)
 
@@ -110,7 +109,7 @@ class QNetwork(NN):
                 return hash(self.name)
 
             def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
-                logits = self.qnet.forward(obs, extras)
+                logits = self.qnet.batch_qvalues(obs, extras)
                 if available_actions is not None:
                     logits = logits.masked_fill(~available_actions, -torch.inf)
                 return logits
@@ -128,7 +127,7 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
 
-    def batch_forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
@@ -136,6 +135,6 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         """
         saved_hidden_states = self.hidden_states
         self.reset_hidden_states()
-        qvalues = self.forward(obs, extras, **kwargs)
+        qvalues = super().batch_qvalues(obs, extras, **kwargs)
         self.hidden_states = saved_hidden_states
         return qvalues

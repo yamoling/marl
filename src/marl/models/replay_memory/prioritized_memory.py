@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 import torch
-from marlenv.utils import Schedule
 from sumtree import SumTree
+
+from marl.utils import Schedule
 
 from .replay_memory import ReplayMemory
 

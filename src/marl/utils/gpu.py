@@ -80,7 +80,7 @@ def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Collection
                 if min_gpu is None or gpu.free_memory > gpus[min_gpu].free_memory:
                     min_gpu = i
         if min_gpu is None:
-            raise RuntimeError("No GPU can fit the required memory")
+            raise RuntimeError(f"Not enough GPUs to fit {n_runs} runs with {required_memory_mb} MB each.")
         devices.append(gpus[min_gpu].index)
         gpus[min_gpu].free_memory -= required_memory_mb
     return devices

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import Collection, Literal, Sequence, overload
+from typing import Collection, Literal, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -31,7 +31,8 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
-    logdir: str | Literal["auto"] = "logs/test"
+    logdir: str | Literal["auto", "test", "debug"] = "logs/test"
+    """If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `debug`, any pre-existing experiment with the same name is overwritten."""
     test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
     loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
@@ -99,12 +100,21 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         quiet: bool = False,
         device: Literal["cpu", "auto"] | int = "auto",
         render_tests: bool = False,
-        n_jobs: int = torch.cuda.device_count(),
-        disabled_gpus: Sequence[int] = (),
+        n_jobs: int | Literal["auto"] = "auto",
+        disabled_gpus: Collection[int] = (),
     ):
-        """Train the Agent on the environment according to the experiment parameters."""
+        """
+        Train the Agent on the environment according to the experiment parameters.
+
+        Parameters:
+        ---------
+        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
+        - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
+        """
         from marl.runners import parallel_run, sequential_run
 
+        if n_jobs == "auto":
+            n_jobs = torch.cuda.device_count() - len(disabled_gpus)
         if isinstance(seeds, int):
             seeds = list(range(seeds))
         runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)

@@ -117,10 +117,11 @@ class ServerState:
                 longest_match = logdir
                 matching_experiment = experiment
         if matching_experiment is None:
-            raise ValueError(
-                f"Experiment not loaded — call POST /experiment/load/{rundir} first, "
-                f"or navigate to the experiment page before replaying an episode."
-            )
+            # Try to find the correpsonding logdir and load the experiment
+            logdir = Experiment.find_experiment_directory(rundir)
+            if logdir is None:
+                raise ValueError(f"Rundir {rundir} does not seem to belong to an experiment.")
+            matching_experiment = Experiment.load(logdir)
         run = matching_experiment.get_run(rundir)
         assert run is not None
         return run.replay_episode(time_step, test_num, only_saved_actions=only_saved_actions)

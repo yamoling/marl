@@ -1,55 +1,46 @@
 import random
 from copy import deepcopy
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import KW_ONLY, dataclass
 
 import numpy as np
 import numpy.typing as npt
 import torch
 from marlenv import Observation
 
-if TYPE_CHECKING:
-    from marl.models import Batch, QNetwork
+from marl.models import Batch, QNetwork
+from marl.utils import Serializable
 
 
 @dataclass
-class VBE:
+class VBE(Serializable):
     """
     Value Bonuses using Ensemble (VBE) of value functions.
     """
 
-    gamma: float
+    rqf: QNetwork
+    """Random Q-Function"""
     n: int
-    lr: float
+    """Number of RQF to create"""
+    _: KW_ONLY
+    gamma: float = 0.99
+    lr: float = 1e-4
 
-    def __init__(self, gamma: float, rqf: "QNetwork", n: int, lr: float = 1e-4):
-        """
-        Parameters
-        ----------
-        - gamma: The discount factor.
-        - rqf: The random Q-function
-        - n: The number of replicas of RQF to produce
-        - lr: The learning rate for the optimizers
-        """
-        assert 0 < gamma < 1, "Gamma must ensure 0 < gamma < 1"
-        self.gamma = gamma
+    def __post_init__(self):
         self._target_rqfs = list()
         self._rqfs = list()
         self._optimizers = list[torch.optim.Optimizer]()
         self._bonus_history = []
-        self._device = rqf.device
-        self.n = n
-        self.lr = lr
-        rqf.eval()
-        for _ in range(n):
+        self._device = self.rqf.device
+        self.rqf.eval()
+        for _ in range(self.n):
             # Create the target RQF
-            rqf.randomize()
-            self._target_rqfs.append(deepcopy(rqf))
+            self.rqf.randomize()
+            self._target_rqfs.append(deepcopy(self.rqf))
             # Create the trainable RQF and its optimizer
-            rqf.randomize()
-            new_rqf = deepcopy(rqf)
+            self.rqf.randomize()
+            new_rqf = deepcopy(self.rqf)
             self._rqfs.append(new_rqf)
-            self._optimizers.append(torch.optim.Adam(new_rqf.parameters(), lr=lr))
+            self._optimizers.append(torch.optim.Adam(new_rqf.parameters(), lr=self.lr))
 
     def compute_bonus(self, obs: Observation) -> npt.NDArray[np.float32]:
         """

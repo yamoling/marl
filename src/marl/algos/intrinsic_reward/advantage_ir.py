@@ -7,7 +7,8 @@ from marlenv import Transition
 from marl.models import TransitionMemory
 from marl.models.batch import Batch
 from marl.models.nn import Critic, IRModule
-from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+
+from ..qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass

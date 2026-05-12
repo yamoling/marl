@@ -6,8 +6,8 @@ import numpy.typing as npt
 import torch
 from marlenv import Observation
 
-from marl.models import Action, Agent, Policy, QNetwork, RecurrentQNetwork
-from marl.optimism import VBE
+from marl.algos.optimism import VBE
+from marl.models import Action, Agent, Policy, QNetwork
 
 
 @dataclass
@@ -72,14 +72,6 @@ class DQNAgent[Q: QNetwork](Agent[npt.NDArray[np.int64]]):
         self.train_policy = Policy.from_file(from_directory / "train_policy.json")
         self.test_policy = Policy.from_file(from_directory / "test_policy.json")
         self.policy = self.train_policy
-
-
-class RDQNAgent(DQNAgent[RecurrentQNetwork]):
-    """
-    Recurrent DQN agent.
-
-    Essentially the same as DQN, but we have to tell the q-network to reset hidden states at each new episode.
-    """
 
     def new_episode(self):
         self.qnetwork.reset_hidden_states()

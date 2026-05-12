@@ -10,19 +10,14 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   const loading = ref(false);
   const experiments = ref([] as Experiment[]);
   const runStore = useRunStore();
-  const isRunning = computed(() => {
-    const res = {} as { [logdir: string]: boolean };
-    runStore.runs.forEach((runs, logdir) => {
-      res[logdir] = runs.some((run) => run.pid != null);
-    });
-    return res;
-  });
-  const trainerNames = computed(() => experiments.value.map(exp => exp.trainer.name));
 
   async function loadExperiments(): Promise<Experiment[]> {
     try {
       loading.value = true;
-      const resp = await apiFetch(`${HTTP_URL}/experiment/list`, "Failed to load experiments");
+      const resp = await apiFetch(
+        `${HTTP_URL}/experiment/list`,
+        "Failed to load experiments",
+      );
       const json = await resp.json();
       const experiments = parseOrThrow(ExperimentSchema.array(), json);
       for (const exp of experiments) {
@@ -37,7 +32,10 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   }
 
   async function getExperiment(logdir: string) {
-    const resp = await apiFetch(`${HTTP_URL}/experiment/${logdir}`, "Failed to load experiment");
+    const resp = await apiFetch(
+      `${HTTP_URL}/experiment/${logdir}`,
+      "Failed to load experiment",
+    );
     return parseOrThrow(ExperimentSchema, await resp.json());
   }
 
@@ -47,7 +45,11 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
    * @param logdir
    */
   async function loadExperiment(logdir: string) {
-    await apiFetch(`${HTTP_URL}/experiment/load/${logdir}`, "Failed to pre-load experiment", { method: "POST" });
+    await apiFetch(
+      `${HTTP_URL}/experiment/load/${logdir}`,
+      "Failed to pre-load experiment",
+      { method: "POST" },
+    );
   }
 
   async function unloadExperiment(logdir: string) {
@@ -56,13 +58,20 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   }
 
   async function getTestEpisodes(logdir: string, time_step: number) {
-    const resp = await apiFetch(`${HTTP_URL}/results/test/${time_step}/${logdir}`, "Failed to fetch test episodes");
+    const resp = await apiFetch(
+      `${HTTP_URL}/results/test/${time_step}/${logdir}`,
+      "Failed to fetch test episodes",
+    );
     const json = await resp.json();
     return parseOrThrow(ReplayEpisodeSummarySchema.array(), json);
   }
 
   async function rename(logdir: string, newLogdir: string) {
-    await apiFetch(`${HTTP_URL}/experiment/rename`, "Failed to rename experiment", jsonBody({ logdir, newLogdir }));
+    await apiFetch(
+      `${HTTP_URL}/experiment/rename`,
+      "Failed to rename experiment",
+      jsonBody({ logdir, newLogdir }),
+    );
     const exp = experiments.value.find((exp) => exp.logdir === logdir);
     if (exp) {
       exp.logdir = newLogdir;
@@ -70,7 +79,11 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   }
 
   async function remove(logdir: string) {
-    await apiFetch(`${HTTP_URL}/experiment/delete/${logdir}`, "Failed to delete experiment", { method: "DELETE" });
+    await apiFetch(
+      `${HTTP_URL}/experiment/delete/${logdir}`,
+      "Failed to delete experiment",
+      { method: "DELETE" },
+    );
     experiments.value = experiments.value.filter(
       (exp) => exp.logdir !== logdir,
     );
@@ -78,12 +91,19 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
   }
 
   async function stopRuns(logdir: string) {
-    await apiFetch(`${HTTP_URL}/experiment/stop-runs/${logdir}`, "Failed to stop runs", { method: "POST" });
+    await apiFetch(
+      `${HTTP_URL}/experiment/stop-runs/${logdir}`,
+      "Failed to stop runs",
+      { method: "POST" },
+    );
     await runStore.refresh(logdir);
   }
 
   async function getEnvImage(logdir: string, seed: number): Promise<string> {
-    const resp = await apiFetch(`${HTTP_URL}/experiment/image/${seed}/${logdir}`, "Failed to load environment image");
+    const resp = await apiFetch(
+      `${HTTP_URL}/experiment/image/${seed}/${logdir}`,
+      "Failed to load environment image",
+    );
     return await resp.text();
   }
 
@@ -96,7 +116,11 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     gpuStrategy: "scatter" | "group" = "scatter",
     disabledDevices: number[] = [],
   ) {
-    await apiFetch(`${HTTP_URL}/runner/new/${logdir}`, "Failed to start new run", jsonBody({ seed, nTests, nRuns, nJobs, gpuStrategy, disabledDevices }));
+    await apiFetch(
+      `${HTTP_URL}/runner/new/${logdir}`,
+      "Failed to start new run",
+      jsonBody({ seed, nTests, nRuns, nJobs, gpuStrategy, disabledDevices }),
+    );
     await runStore.refresh(logdir);
   }
 
@@ -104,12 +128,9 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     experiments.value = await loadExperiments();
   }
 
-
   return {
     loading,
     experiments,
-    isRunning,
-    trainerNames,
     refresh,
     getExperiment,
     loadExperiment,

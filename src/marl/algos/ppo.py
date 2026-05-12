@@ -6,11 +6,11 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from marlenv import Episode, Transition
-from marlenv.utils import Schedule
 
 from marl.models import Batch, EpisodeMemory, Mixer, Trainer, TransitionMemory
 from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic
+from marl.utils import Schedule
 
 
 @dataclass
@@ -53,10 +53,11 @@ class PPO(Trainer[npt.NDArray[np.int64]]):
         param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
         self._optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
 
+    @property
+    def name(self):
         if self.mixer is None:
-            self.name = "IPPO"
-        else:
-            self.name = f"MAPPO-{self.mixer.name}"
+            return "IPPO"
+        return f"MAPPO-{self.mixer.name}"
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
