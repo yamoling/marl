@@ -108,8 +108,8 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
 
         Parameters:
         ---------
-        - gpu_strategy: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
-        - n_jobs: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
+        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
+        - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
         """
         from marl.runners import parallel_run, sequential_run
 

@@ -5,87 +5,107 @@ import { z } from "zod";
  * @param json - The raw JSON string
  * @param schema - The Zod schema to validate against
  */
-export function fromJsonString<T>(json: string | null | undefined, schema: z.ZodType<T>, fallback: T) {
-    return z.string().transform((str, ctx) => {
-        try {
-            return JSON.parse(str);
-        } catch (e) {
-            ctx.addIssue({ code: 'custom', message: 'Invalid JSON' });
-            return z.NEVER;
-        }
-    }).pipe(schema).catch(fallback).parse(json);
+export function fromJsonString<T>(
+  json: string | null | undefined,
+  schema: z.ZodType<T>,
+  fallback: T,
+) {
+  return z
+    .string()
+    .transform((str, ctx) => {
+      try {
+        return JSON.parse(str);
+      } catch (e) {
+        ctx.addIssue({ code: "custom", message: "Invalid JSON" });
+        return z.NEVER;
+      }
+    })
+    .pipe(schema)
+    .catch(fallback)
+    .parse(json);
 }
 
 /**
  * Compute the shape of a multi-dimensional array.
  */
 export function computeShape(array: any[]): number[] {
-    const result = [];
-    let a = array;
-    while (Array.isArray(a)) {
-        result.push(a.length);
-        a = a[0];
-    }
-    return result;
+  const result = [];
+  let a = array;
+  while (Array.isArray(a)) {
+    result.push(a.length);
+    a = a[0];
+  }
+  return result;
+}
+
+export function is1D<T>(data: T[] | any[]): data is T[] {
+  return data.length == 0 || !Array.isArray(data[0]);
+}
+
+export function is2D<T>(data: T[][] | any[]): data is T[][] {
+  return is1D(data[0]);
+}
+
+export function is3D<T>(data: T[][][] | any[]): data is T[][][] {
+  return is2D(data[0]);
 }
 
 /**
  * Exponential moving average
- * @param data 
+ * @param data
  * @param weight bewteen 0 and 1
  */
 export function EMA(data: number[], weight: number) {
-    let prevEMA = data[0];
-    const result = new Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-        const newValue = (prevEMA * weight + data[i] * (1 - weight));
-        prevEMA = newValue;
-        result[i] = newValue;
-    }
-    return result;
+  let prevEMA = data[0];
+  const result = new Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    const newValue = prevEMA * weight + data[i] * (1 - weight);
+    prevEMA = newValue;
+    result[i] = newValue;
+  }
+  return result;
 }
 
 /**
  * Checks whether the search string matches the target string.
  * There is a match if all the letters from the search string appear in the target string in the same order.
- * @param search 
- * @param matchWith 
+ * @param search
+ * @param matchWith
  */
 export function searchMatch(search: string, matchWith: string): boolean {
-    if (search.length === 0) return true;
-    search = search.replaceAll(" ", "");
-    let searchIndex = 0;
-    for (let i = 0; i < matchWith.length; i++) {
-        // if (/\s/g.test(search[searchIndex])) {
-        //     searchIndex++;
-        // }
-        if (matchWith[i] === search[searchIndex]) {
-            searchIndex++;
-            if (searchIndex === search.length) return true;
-        }
+  if (search.length === 0) return true;
+  search = search.replaceAll(" ", "");
+  let searchIndex = 0;
+  for (let i = 0; i < matchWith.length; i++) {
+    // if (/\s/g.test(search[searchIndex])) {
+    //     searchIndex++;
+    // }
+    if (matchWith[i] === search[searchIndex]) {
+      searchIndex++;
+      if (searchIndex === search.length) return true;
     }
-    return false;
+  }
+  return false;
 }
 
 function hashString(s: string) {
-    let hash = 31;
-    for (let i = 0; i < s.length; i++) {
-        const chr = s.charCodeAt(i);
-        hash = ((hash << 5) - hash) + chr;
-        hash |= 0; // Convert to 32bit integer
-    }
-    return hash;
-};
-
+  let hash = 31;
+  for (let i = 0; i < s.length; i++) {
+    const chr = s.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+}
 
 export function stringToRGB(s: string) {
-    const hash = hashString(s);
-    let colour = '#';
-    for (let i = 0; i < 3; i++) {
-        let value = (hash >> (i * 8)) & 0xFF;
-        colour += value.toString(16).padStart(2, '0');
-    }
-    return colour;
+  const hash = hashString(s);
+  let colour = "#";
+  for (let i = 0; i < 3; i++) {
+    let value = (hash >> (i * 8)) & 0xff;
+    colour += value.toString(16).padStart(2, "0");
+  }
+  return colour;
 }
 
 const COL_OFFSET = 90;
@@ -96,96 +116,114 @@ const labelIndexMap = new Map<string, number>();
 let nextLabelIndex = 0;
 
 function getLabelIndex(label: string): number {
-    if (!labelIndexMap.has(label)) {
-        labelIndexMap.set(label, nextLabelIndex++);
-    }
-    return labelIndexMap.get(label)!;
+  if (!labelIndexMap.has(label)) {
+    labelIndexMap.set(label, nextLabelIndex++);
+  }
+  return labelIndexMap.get(label)!;
 }
 
 // agentNum assumed to be zero-based integer (0,1,2...)
 export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
-    // Fixed hue mapping for 4 agents
-    const hueMap: Record<number, number> = {
-        0: 240, // Blue
-        1: 120, // Green
-        2: 0,   // Red
-        3: 60,   // Yellow
-        4: 300,  // Pink
-    };
-    let hue_idx;
-    if (qv_or_ag) hue_idx = getLabelIndex(label);
-    else hue_idx = parseInt(label);
-    const hue = hueMap[hue_idx] !== undefined ? hueMap[hue_idx] : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
+  // Fixed hue mapping for 4 agents
+  const hueMap: Record<number, number> = {
+    0: 240, // Blue
+    1: 120, // Green
+    2: 0, // Red
+    3: 60, // Yellow
+    4: 300, // Pink
+  };
+  let hue_idx;
+  if (qv_or_ag) hue_idx = getLabelIndex(label);
+  else hue_idx = parseInt(label);
+  const hue =
+    hueMap[hue_idx] !== undefined
+      ? hueMap[hue_idx]
+      : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
 
-    const saturation = 50; // qvalue dependent: 80 - (index%2)*40;
-    const luminance = 50; // qvalue dependent: 45 + (Math.floor(index/2)%2)*15;
-    return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
+  const saturation = 50; // qvalue dependent: 80 - (index%2)*40;
+  const luminance = 50; // qvalue dependent: 45 + (Math.floor(index/2)%2)*15;
+  return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
-export function updateHSL(hsl: string, sat_factor: number = 0, lum_factor: number = 0,): string {
-    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
-    if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
-    const s = parseInt(match[2], 10) + sat_factor;
-    const l = parseInt(match[3], 10) + lum_factor;
-    return `hsl(${match[2]}, ${s}%, ${l}%)`;
+export function updateHSL(
+  hsl: string,
+  sat_factor: number = 0,
+  lum_factor: number = 0,
+): string {
+  const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+  if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
+  const s = parseInt(match[2], 10) + sat_factor;
+  const l = parseInt(match[3], 10) + lum_factor;
+  return `hsl(${match[2]}, ${s}%, ${l}%)`;
 }
 
 export function alphaToHSL(hsl: string, alpha: number = 0): string {
-    const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
-    if (!match) throw new Error(`Invalid HSL format to add alpha: ${hsl}`);
-    return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;
+  const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
+  if (!match) throw new Error(`Invalid HSL format to add alpha: ${hsl}`);
+  return `hsla(${match[2]}, ${match[2]}%, ${match[3]}%, ${alpha}%)`;
 }
 
 export function downloadStringAsFile(textToSave: string, fileName: string) {
-    const hiddenElement = document.createElement('a');
-    hiddenElement.href = 'data:attachment/text,' + encodeURI(textToSave);
-    hiddenElement.target = '_blank';
-    hiddenElement.download = fileName;
-    hiddenElement.click();
+  const hiddenElement = document.createElement("a");
+  hiddenElement.href = "data:attachment/text," + encodeURI(textToSave);
+  hiddenElement.target = "_blank";
+  hiddenElement.download = fileName;
+  hiddenElement.click();
 }
 
-export async function fetchWithJSON(url: string, data: Object, method: string = "POST") {
-    return await fetch(url, {
-        method,
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    });
+export async function fetchWithJSON(
+  url: string,
+  data: Object,
+  method: string = "POST",
+) {
+  return await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
 }
 
-export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
-    const sqrtN = Math.sqrt(nSamples);
-    const lower = Array<number>(std.length);
-    const upper = Array<number>(std.length);
-    for (let i = 0; i < std.length; i++) {
-        upper[i] = mean[i] + confidence * std[i] / sqrtN;
-        lower[i] = mean[i] - confidence * std[i] / sqrtN;
+export function confidenceInterval(
+  mean: number[],
+  std: number[],
+  nSamples: number,
+  confidence: number,
+) {
+  const sqrtN = Math.sqrt(nSamples);
+  const lower = Array<number>(std.length);
+  const upper = Array<number>(std.length);
+  for (let i = 0; i < std.length; i++) {
+    upper[i] = mean[i] + (confidence * std[i]) / sqrtN;
+    lower[i] = mean[i] - (confidence * std[i]) / sqrtN;
+  }
+  return { lower, upper };
+}
+
+export function clip(
+  values: (number | null)[],
+  min: (number | null)[],
+  max: (number | null)[],
+) {
+  const result = new Array<number | null>(values.length);
+  for (let i = 0; i < values.length; i++) {
+    //result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
+    if (values[i] == null || min[i] == null || max[i] == null) {
+      result[i] = null;
+    } else {
+      result[i] = Math.min(Math.max(values[i]!, min[i]!), max[i]!);
     }
-    return { lower, upper };
+  }
+  return result;
 }
-
-export function clip(values: (number | null)[], min: (number | null)[], max: (number | null)[]) {
-    const result = new Array<number | null>(values.length);
-    for (let i = 0; i < values.length; i++) {
-        //result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
-        if (values[i] == null || min[i] == null || max[i] == null) {
-            result[i] = null;
-        } else {
-            result[i] = Math.min(Math.max(values[i]!, min[i]!), max[i]!);
-        }
-    }
-    return result;
-}
-
 
 export function unionXTicks(allXTicks: number[][]) {
-    const resTicks = new Set<number>();
-    for (const ticks of allXTicks) {
-        for (const tick of ticks) {
-            resTicks.add(tick);
-        }
+  const resTicks = new Set<number>();
+  for (const ticks of allXTicks) {
+    for (const tick of ticks) {
+      resTicks.add(tick);
     }
-    return Array.from(resTicks).sort((a, b) => a - b);
+  }
+  return Array.from(resTicks).sort((a, b) => a - b);
 }
-

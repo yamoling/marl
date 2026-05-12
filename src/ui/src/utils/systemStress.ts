@@ -3,7 +3,6 @@ import { GpuInfo, SystemInfo } from "../models/SystemInfo";
 export const STRESS_WARNING_THRESHOLD = 85;
 export const STRESS_SMOOTHING_WINDOW_MS = 10_000; // 3 second buffer for smoothing
 
-
 /**
  * Temporal stress filter that smooths out rapid oscillations by maintaining a sliding window
  * of recent readings and returning a weighted average. This prevents the stress indicator
@@ -23,7 +22,9 @@ export class TemporalStressFilter {
   addReading(value: number): number {
     const now = Date.now();
     // Remove readings outside the window
-    this.readings = this.readings.filter(r => now - r.timestamp <= this.windowMs);
+    this.readings = this.readings.filter(
+      (r) => now - r.timestamp <= this.windowMs,
+    );
     this.readings.push({ value, timestamp: now });
 
     // Return weighted average: recent readings have higher weight
@@ -36,7 +37,6 @@ export class TemporalStressFilter {
       weightedSum += this.readings[i].value * weight;
       totalWeight += weight;
     }
-    console.log(`Added reading: ${value.toFixed(2)}, weighted average: ${(weightedSum / totalWeight).toFixed(2)}`);
     return weightedSum / totalWeight;
   }
 

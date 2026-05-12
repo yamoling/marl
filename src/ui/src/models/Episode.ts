@@ -1,3 +1,4 @@
+import { is2D } from "../utils";
 import { ActionSpace, ActionSpaceSchema } from "./Env";
 import { Track, TrackGroup } from "./Timeline";
 import { z } from "zod";
@@ -18,34 +19,73 @@ export type ReplayEpisodeSummary = z.infer<typeof ReplayEpisodeSummarySchema>;
  */
 export type AgentDetails = Record<string, number | number[] | number[][]>;
 
-const ActionValueSchema = z.union([z.number(), z.array(z.number())]);
 const AvailableActionSchema = z
   .union([z.boolean(), z.number()])
   .transform((value) => (typeof value === "number" ? value !== 0 : value));
 
 export const EpisodeSchema = z.object({
+  actions: z.union([
+    // Discrete actions have shape (time, n_agents)
+    z.array(z.array(z.number())),
+    // Continuous actions have shape (time, n_agents, action_space_size)
+    z.array(z.array(z.array(z.number()))),
+  ]),
   all_available_actions: z.array(z.array(z.array(AvailableActionSchema))),
   all_extras: z.array(z.array(z.array(z.number()))),
   all_observations: z.array(z.array(z.any())),
-  actions: z.array(z.array(ActionValueSchema)),
+  all_states: z.union([
+    // Array of 1D states
+    z.array(z.array(z.number())),
+    // Array of 3D states
+    z.array(z.array(z.array(z.array(z.number())))),
+  ]),
+  all_states_extras: z.number().array().array(),
   episode_len: z.number(),
-  is_finished: z.boolean(),
-  rewards: z.array(z.number()),
-  states: z.array(z.array(z.array(z.number()))),
+  is_done: z.boolean(),
+  is_truncated: z.boolean(),
+  metrics: z.record(z.string(), z.number()),
+  rewards: z.union([z.array(z.number()), z.array(z.number().array())]),
 });
 
-export const ReplayEpisodePayloadSchema = z.object({
+export type Episode = z.infer<typeof EpisodeSchema>;
+
+export const ReplayEpisodeSchema = z.object({
   name: z.string(),
   directory: z.string().optional(),
   rundir: z.string().optional(),
   episode: EpisodeSchema,
   metrics: z.record(z.string(), z.number()),
   frames: z.array(z.string()),
-  agent_details: z.array(z.record(z.string(), z.union([z.number(), z.array(z.number()), z.array(z.array(z.number()))]))),
+  agent_details: z.array(
+    z.record(
+      z.string(),
+      z.union([
+        z.number(),
+        z.array(
+          z
+            .number()
+            .nullable()
+            .transform((x) => (x == null ? Infinity : x)),
+        ),
+        z.array(
+          z.array(
+            z
+              .number()
+              .nullable()
+              .transform((x) => (x == null ? Infinity : x)),
+          ),
+        ),
+      ]),
+    ),
+  ),
   action_space: ActionSpaceSchema,
   replay_mismatch: z.boolean().default(false),
   mismatch_details: z.array(z.string()).default([]),
-  replay_kind: z.enum(["CombinedReplayAgent", "ReplayActionsOnlyAgent", "SimpleReplayAgent"]),
+  replay_kind: z.enum([
+    "CombinedReplayAgent",
+    "ReplayActionsOnlyAgent",
+    "SimpleReplayAgent",
+  ]),
 });
 
 export class ReplayEpisode {
@@ -61,7 +101,10 @@ export class ReplayEpisode {
   readonly tracks: (Track | TrackGroup)[];
   readonly replay_mismatch: boolean;
   readonly mismatch_details: string[];
-  readonly replay_kind: "CombinedReplayAgent" | "ReplayActionsOnlyAgent" | "SimpleReplayAgent";
+  readonly replay_kind:
+    | "CombinedReplayAgent"
+    | "ReplayActionsOnlyAgent"
+    | "SimpleReplayAgent";
 
   public constructor(
     name: string,
@@ -75,7 +118,10 @@ export class ReplayEpisode {
     action_space: ActionSpace,
     replay_mismatch: boolean,
     mismatch_details: string[],
-    replay_kind: "CombinedReplayAgent" | "ReplayActionsOnlyAgent" | "SimpleReplayAgent",
+    replay_kind:
+      | "CombinedReplayAgent"
+      | "ReplayActionsOnlyAgent"
+      | "SimpleReplayAgent",
   ) {
     this.name = name;
     this.directory = directory;
@@ -90,7 +136,9 @@ export class ReplayEpisode {
     this.tracks = this.computeTracks();
   }
 
-  public static fromJSON(json: z.infer<typeof ReplayEpisodePayloadSchema>): ReplayEpisode {
+  public static fromJSON(
+    json: z.infer<typeof ReplayEpisodeSchema>,
+  ): ReplayEpisode {
     return new ReplayEpisode(
       json.name,
       json.directory ?? json.rundir ?? "",
@@ -106,10 +154,18 @@ export class ReplayEpisode {
   }
 
   private computeTracks() {
-    const tracks = [new Track("Rewards", "numeric", this.episode.rewards)] as (
-      | Track
-      | TrackGroup
-    )[];
+    let tracks = [] as (Track | TrackGroup)[];
+    if (is2D(this.episode.rewards)) {
+      const nComponents = this.episode.rewards[0].length;
+      for (let i = 0; i < nComponents; i++) {
+        const rewards = this.episode.rewards.map((r) => r[i]);
+        tracks.push(new Track("Rewards", "numeric", rewards));
+      }
+      this.episode.rewards;
+    } else {
+      tracks.push(new Track("Rewards", "numeric", this.episode.rewards));
+    }
+    //const tracks = [new Track("Rewards", "numeric", this.episode.rewards)]
     const keys = Object.keys(this.agent_details[0]);
     for (const key of keys) {
       // Gather the logs by key across all time steps
@@ -173,17 +229,6 @@ export class ReplayEpisode {
   public frameAt(step: number) {
     return this.frames[step] || "";
   }
-}
-
-export interface Episode {
-  all_available_actions: boolean[][][];
-  all_extras: number[][][];
-  all_observations: number[][][] | number[][][][][];
-  actions: ActionValue[][];
-  episode_len: number;
-  is_finished: boolean;
-  rewards: number[];
-  states: number[][][];
 }
 
 export type ActionValue = number | number[];
