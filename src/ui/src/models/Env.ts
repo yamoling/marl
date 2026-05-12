@@ -1,25 +1,25 @@
 import { z } from "zod";
 
-
 export const SpaceSchema = z.object({
-    shape: z.array(z.number()),
-    size: z.number(),
-    labels: z.array(z.string())
+  shape: z.array(z.number()),
+  size: z.number(),
+  labels: z.array(z.string()),
 });
 
 export const MultiDiscreteSpaceSchema = SpaceSchema.extend({
-    spaces: z.array(SpaceSchema),
-    n_dims: z.number(),
+  spaces: z.array(SpaceSchema),
+  n_dims: z.number(),
 });
 
 export const ContinuousSpaceSchema = SpaceSchema.extend({
-    low: z.array(z.number()),
-    high: z.array(z.number()),
+  low: z.array(z.number()),
+  high: z.array(z.number()),
 });
 
 export const ActionSpaceSchema = z.union([MultiDiscreteSpaceSchema, ContinuousSpaceSchema]);
 
-export const EnvSchema = z.object({
+export const EnvSchema = z
+  .object({
     action_space: ActionSpaceSchema,
     observation_shape: z.array(z.number()),
     extras_shape: z.array(z.number()),
@@ -27,30 +27,36 @@ export const EnvSchema = z.object({
     state_shape: z.array(z.number()),
     extras_meanings: z.array(z.string()),
     reward_space: z.union([SpaceSchema, ContinuousSpaceSchema]),
-}).loose();
+  })
+  .loose();
 
-export const EnvConfigSchema = z.object({
+export const EnvConfigSchema = z
+  .object({
     name: z.string(),
     agent_id: z.boolean(),
     time_limit: z.number().nullable(),
     last_action: z.boolean(),
     maven_noise_size: z.number().nullable(),
     env: EnvSchema.optional(),
-}).loose();
-
-
-
+  })
+  .loose();
 
 export const LLEConfigSchema = EnvConfigSchema.extend({
-    level_or_path: z.union([z.number(), z.string()]),
-    obs_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
-    state_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
+  level_or_path: z.union([z.number(), z.string()]),
+  obs_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
+  state_type: z.enum(["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]),
 });
 
 export const SMACConfigSchema = EnvConfigSchema.extend({
-    map_name: z.string(),
-    debug: z.boolean().default(false),
+  map_name: z.string(),
+  debug: z.boolean().default(false),
 });
 
-export type ActionSpace = z.infer<typeof MultiDiscreteSpaceSchema> | z.infer<typeof ContinuousSpaceSchema>;
+export type DiscreteSpace = z.infer<typeof MultiDiscreteSpaceSchema>;
+export type ContinuousSpace = z.infer<typeof ContinuousSpaceSchema>;
+export type ActionSpace = z.infer<typeof ActionSpaceSchema>;
 export type EnvConfig = z.infer<typeof EnvConfigSchema>;
+
+export function isDiscrete(space: ActionSpace): space is DiscreteSpace {
+  return Object.hasOwn(space, "spaces");
+}

@@ -38,16 +38,16 @@ export function computeShape(array: any[]): number[] {
   return result;
 }
 
-export function is1D<T>(data: T[] | any[]): data is T[] {
+export function is1D(data: (number | null)[] | any): data is (number | null)[] {
   return data.length == 0 || !Array.isArray(data[0]);
 }
 
-export function is2D<T>(data: T[][] | any[]): data is T[][] {
-  return is1D(data[0]);
+export function is2D(data: (number | null)[][] | any): data is (number | null)[][] {
+  return is1D(data[0]) && !Array.isArray(data[0][0]);
 }
 
-export function is3D<T>(data: T[][][] | any[]): data is T[][][] {
-  return is2D(data[0]);
+export function is3D(data: (number | null)[][][] | any): data is (number | null)[][][] {
+  return is2D(data[0]) && !Array.isArray(data[0][0][0]);
 }
 
 /**

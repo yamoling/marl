@@ -1,9 +1,5 @@
 import { defineStore } from "pinia";
-import {
-  EpisodeSchema,
-  ReplayEpisode,
-  ReplayEpisodeSchema,
-} from "../models/Episode";
+import { AgentDetailsSchema, ReplayEpisode, ReplayEpisodeSchema } from "../models/Episode";
 import { HTTP_URL } from "../constants";
 import { apiFetch, parseOrThrow } from "../api";
 import { ref } from "vue";
@@ -24,9 +20,9 @@ export const useReplayStore = defineStore("ReplayStore", () => {
         "Failed to load replay episode",
       );
       const json = await resp.json();
-      console.log(json.agent_details);
-      const episode = EpisodeSchema.parse(json.episode);
-      console.log(episode);
+      console.log(json.agent_details[0]);
+      const d = AgentDetailsSchema.parse(json.agent_details[0])
+      console.log(d)
       const payload = parseOrThrow(ReplayEpisodeSchema, json);
       return ReplayEpisode.fromJSON(payload);
     } finally {

@@ -1,4 +1,4 @@
-import { is2D } from "../utils";
+import { is1D, is2D, is3D } from "../utils";
 import { ActionSpace, ActionSpaceSchema } from "./Env";
 import { Track, TrackGroup } from "./Timeline";
 import { z } from "zod";
@@ -17,7 +17,17 @@ export type ReplayEpisodeSummary = z.infer<typeof ReplayEpisodeSummarySchema>;
  *  - 1D agent-wise scalar (agent-wise state-value estimation, agent-wise option selected, ...);
  *  - 2D agent-wise and <extra dimension>-wise (e.g. q-values, action probabilities, ...).
  */
-export type AgentDetails = Record<string, number | number[] | number[][]>;
+export const AgentDetailsSchema = z.record(
+  z.string(),
+  //z.array(z.array(z.number().nullable()))
+  z.union([
+    z.number(),
+    z.array(z.number().nullable()),
+    z.array(z.array(z.number().nullable())),
+  ]),
+);
+export type AgentDetails = z.infer<typeof AgentDetailsSchema>;
+// export type AgentDetails = Record<string, number | number[] | number[][]>;
 
 const AvailableActionSchema = z
   .union([z.boolean(), z.number()])
@@ -56,28 +66,7 @@ export const ReplayEpisodeSchema = z.object({
   episode: EpisodeSchema,
   metrics: z.record(z.string(), z.number()),
   frames: z.array(z.string()),
-  agent_details: z.array(
-    z.record(
-      z.string(),
-      z.union([
-        z.number(),
-        z.array(
-          z
-            .number()
-            .nullable()
-            .transform((x) => (x == null ? Infinity : x)),
-        ),
-        z.array(
-          z.array(
-            z
-              .number()
-              .nullable()
-              .transform((x) => (x == null ? Infinity : x)),
-          ),
-        ),
-      ]),
-    ),
-  ),
+  agent_details: z.array(AgentDetailsSchema),
   action_space: ActionSpaceSchema,
   replay_mismatch: z.boolean().default(false),
   mismatch_details: z.array(z.string()).default([]),
@@ -169,37 +158,32 @@ export class ReplayEpisode {
     const keys = Object.keys(this.agent_details[0]);
     for (const key of keys) {
       // Gather the logs by key across all time steps
-      const values = this.agent_details.map((details) => details[key]);
-      if (typeof values[0] === "number") {
-        tracks.push(new Track(key, "numeric", values as number[]));
-      } else if (Array.isArray(values[0]) && typeof values[0][0] === "number") {
-        const values2D = values as number[][];
+      const values = this.agent_details.map((d) => d[key]);
+      if (is3D(values)) {
         const group = new TrackGroup(key, []);
         for (let i = 0; i < this.nAgents(); i++) {
-          group.subTracks.push(
-            new Track(
-              `${key} Agent ${i}`,
-              "numeric",
-              values2D.map((v) => v[i]),
-            ),
-          );
-        }
-        tracks.push(group);
-      } else {
-        const values3D = values as number[][][];
-        const group = new TrackGroup(key, []);
-        for (let i = 0; i < this.nAgents(); i++) {
-          for (let j = 0; j < values3D[0][i].length; j++) {
+          for (let j = 0; j < values[0][i].length; j++) {
             group.subTracks.push(
               new Track(
                 `${key} Agent ${i}/${j}`,
                 "numeric",
-                values3D.map((v) => v[i][j]),
+                values.map((v) => v[i][j]),
               ),
             );
           }
         }
         tracks.push(group);
+      } else if (is2D(values)) {
+        const group = new TrackGroup(key, []);
+        for (let i = 0; i < this.nAgents(); i++) {
+          group.subTracks.push(
+            new Track(`${key} Agent ${i}`, "numeric", values.map((v) => v[i])),
+          );
+        }
+        tracks.push(group);
+      }
+      else if (is1D(values)) {
+        tracks.push(new Track(key, "numeric", values));
       }
     }
     return tracks;
@@ -228,6 +212,22 @@ export class ReplayEpisode {
 
   public frameAt(step: number) {
     return this.frames[step] || "";
+  }
+
+  public actionsAt(step: number) {
+    return this.episode.actions[step];
+  }
+
+  public detailsAt(step: number, key: string) {
+    return this.agent_details[step][key];
+  }
+
+  public isTakenAt(action: number | number[], agent: number, step: number) {
+    return this.episode.actions[step][agent] === action;
+  }
+
+  public isAvailableAt(action: number, agent: number, step: number) {
+    return this.episode.all_available_actions[step][agent][action];
   }
 }
 
