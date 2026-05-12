@@ -53,10 +53,11 @@ class PPO(Trainer[npt.NDArray[np.int64]]):
         param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
         self._optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
 
+    @property
+    def name(self):
         if self.mixer is None:
-            self.name = "IPPO"
-        else:
-            self.name = f"MAPPO-{self.mixer.name}"
+            return "IPPO"
+        return f"MAPPO-{self.mixer.name}"
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [

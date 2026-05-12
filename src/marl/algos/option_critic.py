@@ -10,7 +10,8 @@ from marl.models.batch import TransitionBatch
 from marl.models.nn import Mixer
 from marl.models.nn.options import OptionCriticNetwork
 from marl.policy import ArgMax, EpsilonGreedy
-from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
+
+from .qtarget_updater import HardUpdate, TargetParametersUpdater
 
 
 @dataclass
@@ -42,7 +43,12 @@ class OptionCritic(Trainer):
         self.target_updater.add_parameters(self.oc.parameters(), self.target_oc.parameters())
         if self.mixer is not None and self.target_mixer is not None:
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
-            self.name = f"OptionCritic-{self.mixer.name}"
+
+    @property
+    def name(self):
+        if self.mixer is None:
+            return self.__class__.__name__
+        return f"{self.__class__.__name__}-{self.mixer.name}"
 
     @property
     def n_options(self):

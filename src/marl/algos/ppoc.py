@@ -12,7 +12,8 @@ from marl.models.batch import EpisodeBatch
 from marl.models.nn.options import OptionCriticNetwork
 from marl.models.replay_memory import EpisodeMemory, TransitionMemory
 from marl.policy import ArgMax, EpsilonGreedy
-from marl.training.qtarget_updater import HardUpdate, TargetParametersUpdater
+
+from .qtarget_updater import HardUpdate, TargetParametersUpdater
 
 
 @dataclass
@@ -62,11 +63,8 @@ class PPOC(Trainer):
         if self.mixer is not None:
             self.mixer = self.mixer.to(self.device)
             self.target_mixer = deepcopy(self.mixer)
-            self.name = f"PPOC-{self.mixer.name}"
         else:
             self.target_mixer = None
-            self.name = "PPOC"
-
         self._ratio_min = 1 - self.eps_clip
         self._ratio_max = 1 + self.eps_clip
         self._parameters = list(self.oc.parameters())
@@ -91,6 +89,12 @@ class PPOC(Trainer):
         self.target_updater.add_parameters(self.oc.parameters(), self.target_oc.parameters())
         if self.mixer is not None and self.target_mixer is not None:
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
+
+    @property
+    def name(self):
+        if self.mixer is not None:
+            return f"PPOC-{self.mixer.name}"
+        return "PPOC"
 
     @property
     def n_options(self):
@@ -199,7 +203,7 @@ class PPOC(Trainer):
         if self.target_mixer is not None:
             mini_values = self.target_mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
         td_error = (mini_values - mini_returns) * minibatch.masks
-        critic_loss = torch.sum(td_error**2) / minibatch.masks_sum
+        critic_loss = torch.sum(td_error**2) / minibatch.n_items
         return critic_loss
 
     def _compute_actor_loss(
@@ -217,8 +221,8 @@ class PPOC(Trainer):
         surrogate1 = ratio * mini_advantages
         surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
         l_clip = torch.min(surrogate1, surrogate2)
-        actor_loss = -torch.sum(l_clip) / minibatch.masks_sum
-        entropy_loss = -mini_dist.entropy().sum() / minibatch.masks_sum
+        actor_loss = -torch.sum(l_clip) / minibatch.n_items
+        entropy_loss = -mini_dist.entropy().sum() / minibatch.n_items
         return actor_loss, entropy_loss, log_ratio, ratio
 
     def _compute_termination_loss(self, minibatch: Batch, mini_options: torch.Tensor):

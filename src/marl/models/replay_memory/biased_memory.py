@@ -17,7 +17,7 @@ class BiasedMemory[T](ReplayMemory[T]):
         bias = list(bias)
         assert len(bias) > 0, "There sould be at least one element to bias towards"
         assert factor > 0, "factor must be greater than 0"
-        super().__init__(memory.max_size + len(bias), memory.updates_on)
+        super().__init__(memory.max_size + len(bias), memory.update_on)
         self._memory.extend(bias)
         self.n_bias = len(bias)
         self.wrapped = memory
