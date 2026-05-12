@@ -1,4 +1,4 @@
-from marl import Experiment, training
+from marl import Experiment, algos
 from marl.env import LLEConfig
 from marl.models import TransitionMemory
 from marl.nn import mixers
@@ -8,7 +8,7 @@ from marl.policy import EpsilonGreedy
 
 def mulitple_parallel_runs():
     env = LLEConfig(6, obs_type="layered")
-    trainer = training.VDN(
+    trainer = algos.VDN(
         qnetworks.from_env(env, independent=True),
         TransitionMemory(50_000),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
@@ -25,7 +25,7 @@ def mulitple_parallel_runs():
 
 def short_run():
     env = LLEConfig(6, obs_type="flattened")
-    trainer = training.QMix(qnetworks.from_env(env), TransitionMemory(50_000), mixer=mixers.QMix.from_env(env))
+    trainer = algos.QMix(qnetworks.from_env(env), TransitionMemory(50_000), mixer=mixers.QMix.from_env(env))
     exp = Experiment(env, trainer, logdir="auto", n_steps=5_000)
     exp.run(test_interval=500)
 
