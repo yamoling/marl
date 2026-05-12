@@ -20,8 +20,8 @@ from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
     qnetwork: QNetwork
     memory: ReplayMemory
-    mixer: M = None  # type: ignore
     _: KW_ONLY
+    mixer: M = None  # type: ignore
     train_policy: Policy = field(default_factory=lambda: policy.EpsilonGreedy.constant(0.1))
     lr: float = field(default=1e-4, metadata=tuning(1e-5, 1e-2, log=True))
     batch_size: int = field(default=64, metadata=tuning(16, 256))

@@ -5,13 +5,13 @@ from dataclasses import KW_ONLY, InitVar, dataclass, field
 import numpy as np
 import torch
 from marlenv import Episode, Transition
-from marlenv.utils import Schedule
 
 from marl.models import Batch, Mixer, Policy, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.models.nn.options import OptionCriticNetwork
 from marl.models.replay_memory import EpisodeMemory, TransitionMemory
 from marl.policy import ArgMax, EpsilonGreedy
+from marl.utils import Schedule
 
 from .qtarget_updater import HardUpdate, TargetParametersUpdater
 

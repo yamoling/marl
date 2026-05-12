@@ -85,8 +85,8 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
         self.worker_trainer = MITrainer(
             self.qnetwork,
             self.memory,
-            mixer,
             self.env,
+            mixer=mixer,
             train_policy=self.train_policy,
             train_interval=(self.train_interval[0], "episode"),
             mi_loss_coef=self.mi_loss_coef,

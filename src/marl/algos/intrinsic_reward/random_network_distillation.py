@@ -4,12 +4,12 @@ from typing import Any, Literal
 
 import torch
 from marlenv import MARLEnv
-from marlenv.utils import Schedule
 
 from marl.env import EnvConfig
 from marl.models.batch import Batch, EpisodeBatch
 from marl.models.nn import IRModule
 from marl.nn import model_bank
+from marl.utils import Schedule
 from marl.utils.stats import RunningMeanStd
 
 

@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
-from marlenv.utils import schedule
 
 from marl.models import Policy
+from marl.utils import schedule
 
 
 @dataclass

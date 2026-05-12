@@ -6,11 +6,11 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from marlenv import Episode, Transition
-from marlenv.utils import Schedule
 
 from marl.models import Batch, EpisodeMemory, Mixer, Trainer, TransitionMemory
 from marl.models.batch import EpisodeBatch
 from marl.models.nn import ActorCritic
+from marl.utils import Schedule
 
 
 @dataclass
