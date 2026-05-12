@@ -31,7 +31,8 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
-    logdir: str | Literal["auto"] = "logs/test"
+    logdir: str | Literal["auto", "test", "debug"] = "logs/test"
+    """If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `debug`, any pre-existing experiment with the same name is overwritten."""
     test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
     loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])

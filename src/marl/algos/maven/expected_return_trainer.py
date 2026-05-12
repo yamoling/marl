@@ -7,7 +7,6 @@ import numpy.typing as npt
 import torch
 from marlenv import Episode
 
-from marl.agents import DiscreteOneHotAgent
 from marl.models import QNetwork, Trainer
 
 
@@ -70,4 +69,6 @@ class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
         }
 
     def make_agent(self):
+        from marl.agents import DiscreteOneHotAgent
+
         return DiscreteOneHotAgent(self.nn.to_softmax_actor().to_one_hot())

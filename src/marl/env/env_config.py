@@ -87,8 +87,16 @@ class EnvConfig[E: MARLEnv](Serializable):
         return self.env.observation_size
 
     @property
+    def state_shape(self):
+        return self.env.state_shape
+
+    @property
     def state_size(self):
         return self.env.state_size
+
+    @property
+    def state_extra_shape(self):
+        return self.env.state_extra_shape
 
     @property
     def state_extras_size(self):

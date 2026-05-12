@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from typing import Type
 
 import dotenv
 import typed_argparse as tap
@@ -31,10 +32,11 @@ def maven[E: DiscreteMARLEnv](env: EnvConfig[E]):
     )
 
 
-def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Mixer):
-    return algos.VDN(
+def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Type[Mixer], rnd: algos.RND | None = None):
+    return algos.DQN(
         qnetworks.from_env(env, independent=True),
         TransitionMemory(50_000),
+        mixer=mixer.from_env(env),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
         gamma=0.95,
         train_interval=(5, "step"),
@@ -42,19 +44,22 @@ def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Mixer):
         batch_size=64,
         optimiser_type="adam",
         grad_norm_clipping=10,
+        ir_module=rnd,
     )
 
 
 def main(args: Args):
-    # env = LLEConfig(6, obs_type="layered", maven_noise_size=16)
-    env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
-    trainer = maven(env)
-    exp = Experiment(env, trainer, logdir="MAVEN-bmm-return-MStepsMatrix-200k", n_steps=200_000)
+    env = LLEConfig(6, obs_type="layered", state_type="layered")
+    # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
+    rnd = algos.RND.from_env(env)
+    # trainer = maven(env)
+    trainer = dqn(env, mixers.VDN, rnd)
+    exp = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
     exp.run(
         seeds=4,
         n_tests=5,
         gpu_strategy="scatter",
-        test_interval=2000,
+        test_interval=5000,
         quiet=args.quiet,
         n_jobs=2,
     )

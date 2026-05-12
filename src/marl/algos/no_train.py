@@ -5,7 +5,6 @@ import numpy as np
 import numpy.typing as npt
 from marlenv import ContinuousSpace, DiscreteSpace, MARLEnv, MultiDiscreteSpace
 
-from marl.agents import RandomAgent
 from marl.models.agent import Agent
 from marl.models.trainer import Trainer
 
@@ -25,6 +24,8 @@ class NoTrain[T](Trainer[T]):
         return NoTrain(env)
 
     def make_agent(self):
+        from marl.agents import RandomAgent
+
         if self.env is None:
             raise NotImplementedError("Cannot create a random agent without an environment.")
         return cast(Agent[T], RandomAgent(self.env))

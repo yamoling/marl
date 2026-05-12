@@ -9,11 +9,10 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.agents import DQNAgent
 from marl.models import Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
-from marl.optimism import VBE
 from marl.utils.tuning import tuning
 
+from .optimism import VBE
 from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
@@ -71,6 +70,10 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
             name += "-duelling"
         if self.qnetwork.noisy:
             name += "-noisy"
+        if self.ir_module is not None:
+            name += f"-{self.ir_module.name}"
+        if self.vbe is not None:
+            name += f"-{self.vbe.name}"
         return name
 
     def _update(self, time_step: int) -> dict[str, float]:
@@ -176,6 +179,8 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
         return dict[str, float]()
 
     def make_agent(self):
+        from marl.agents import DQNAgent
+
         return DQNAgent(
             qnetwork=self.qnetwork,
             train_policy=self.policy,

@@ -27,6 +27,10 @@ class Serializable:
     def __post_init__(self):
         return
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
     def to_dict(self):
         res = {}
         for field in fields(self):
@@ -38,6 +42,7 @@ class Serializable:
             else:
                 res[field.name] = value
         res[DISCRIMINATOR_KEY] = self.__class__.__name__
+        res["name"] = self.name
         return res
 
     @classmethod

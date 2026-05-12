@@ -85,6 +85,9 @@ class NN(torch.nn.Module, Serializable):
     def __hash__(self):
         return id(self)
 
+    def reset_hidden_states(self):
+        """Reset the hidden states, if any."""
+
 
 class RecurrentNN(NN):
     def __init__(self, output_shape: tuple[int, ...]):
