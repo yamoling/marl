@@ -16,7 +16,7 @@ from marl.agents.replay_agent import ReplayAgent
 from marl.env import EnvConfig
 from marl.logging import TIME_STEP_COL, Logger, LoggerType
 from marl.models.trainer import Trainer
-from marl.utils import Serializable, encode_b64_image
+from marl.utils import Serializable
 
 RUN_FILE = "run.json"
 
@@ -222,12 +222,12 @@ class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
 
     def replay_episode(self, time_step: int, test_num: int, only_saved_actions: bool):
         from marl.models.replay_episode import ReplayEpisode
-        from marl.runners import seeded_rollout
+        from marl.runners import compute_test_seed, seeded_rollout
 
         test_env = self.test_env.make()
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
-        episode, frames, detailed_actions = seeded_rollout(test_env, agent, self.seed, compute_frames=True)
-        frames = [encode_b64_image(f) for f in frames]
+        seed = compute_test_seed(time_step, test_num)
+        episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
         return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
 
     @classmethod

@@ -47,6 +47,11 @@ class CombinedReplayAgent(ReplayAgent):
             agent_action.action = saved_action.action
         return agent_action
 
+    def set_testing(self):
+        self.actions_agent.set_testing()
+        self.saved_agent.set_testing()
+        return super().set_testing()
+
 
 class ReplayActionsOnlyAgent(ReplayAgent):
     def __init__(self, actions: np.ndarray):

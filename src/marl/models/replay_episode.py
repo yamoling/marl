@@ -3,7 +3,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+import numpy.typing as npt
 from marlenv import Episode, Space
+
+from marl.utils import encode_b64_image
 
 from .action import Action
 
@@ -42,14 +46,14 @@ class ReplayEpisode(LightEpisodeSummary):
         time_step: int,
         test_num: int,
         episode: Episode,
-        frames: list[str],
+        frames: list[npt.NDArray[np.uint8]],
         detailed_actions: list[Action],
         action_space: Space,
         replay_agent: "ReplayAgent",
     ):
         super().__init__(rundir, episode.metrics, time_step, test_num)
         self.episode = episode
-        self.frames = frames
+        self.frames = [encode_b64_image(f) for f in frames]
         self.agent_details = [a.details for a in detailed_actions]
         self.action_space = action_space
         self.replay_mismatch = replay_agent.mismatch
