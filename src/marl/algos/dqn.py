@@ -7,7 +7,7 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.models import Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
+from marl.models import Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
 from marl.utils.tuning import tuning
 
 from .optimism import VBE
@@ -17,8 +17,8 @@ from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 @dataclass(unsafe_hash=True)
 class DQN[M: (Mixer | None)](Trainer):
     qnetwork: QNetwork
-    memory: ReplayMemory
     _: KW_ONLY
+    memory_size: int | Literal["auto"] = "auto"
     mixer: M = None  # type: ignore
     train_policy: Policy = field(default_factory=lambda: policy.EpsilonGreedy.constant(0.1))
     lr: float = field(default=1e-4, metadata=tuning(1e-5, 1e-2, log=True))
@@ -31,6 +31,14 @@ class DQN[M: (Mixer | None)](Trainer):
 
     def __post_init__(self):
         super().__post_init__()
+        if self.qnetwork.is_recurrent:
+            if self.memory_size == "auto":
+                self.memory_size = 5000
+            self.memory = EpisodeMemory(self.memory_size)
+        else:
+            if self.memory_size == "auto":
+                self.memory_size = 50_000
+            self.memory = TransitionMemory(self.memory_size)
         match self.train_interval:
             case (n, "step"):
                 self.step_update_interval = n
@@ -163,15 +171,13 @@ class DQN[M: (Mixer | None)](Trainer):
         return logs
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
-        if self.memory.update_on_transitions:
-            self.memory.add(transition)
+        self.memory.add_transition(transition)
         if self.should_update_at(time_step=time_step):
             return self._update(time_step)
         return dict[str, float]()
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        if self.memory.update_on_episodes:
-            self.memory.add(episode)
+        self.memory.add_episode(episode)
         if self.should_update_at(episode_num=episode_num):
             return self._update(time_step)
         return dict[str, float]()

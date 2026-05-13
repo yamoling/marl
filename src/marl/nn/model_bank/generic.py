@@ -62,7 +62,7 @@ class CNN(NN):
     input_shape: tuple[int, int, int]
     extras_size: int
     _: KW_ONLY
-    mlp_sizes: Sequence[int] = (256, 128)
+    mlp_sizes: Sequence[int] | None = (256, 128)
     hidden_activation: ActivationType = "relu"
     output_activation: None | ActivationType = None
     kernel_sizes: Sequence[int] = (3, 3, 3)
@@ -75,14 +75,18 @@ class CNN(NN):
             "The number of strides, kernel sizes and filters must be the same."
         )
         self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
-        self.linear = MLP(
-            self.output_shape,
-            n_features,
-            self.extras_size,
-            hidden_sizes=self.mlp_sizes,
-            hidden_activation=self.hidden_activation,
-            output_activation=self.output_activation,
-        )
+        self.linear = None
+        if self.mlp_sizes is not None:
+            self.linear = MLP(
+                self.output_shape,
+                n_features,
+                self.extras_size,
+                hidden_sizes=self.mlp_sizes,
+                hidden_activation=self.hidden_activation,
+                output_activation=self.output_activation,
+            )
+        else:
+            self.output_shape = (n_features,)
 
     def __hash__(self):
         return id(self)
@@ -94,60 +98,74 @@ class CNN(NN):
         *dims, channels, height, width = obs.shape
         bs = math.prod(dims)
         obs = obs.reshape(bs, channels, height, width)
-        features = self.cnn.forward(obs)
-        extras = extras.reshape(bs, self.extras_size)
-        res = self.linear.forward(features, extras)
-        return res.view(*dims, *self.output_shape)
+        x = self.cnn.forward(obs)
+        if self.linear is not None:
+            extras = extras.reshape(bs, self.extras_size)
+            x = self.linear.forward(x, extras)
+        return x.view(*dims, *self.output_shape)
 
 
 @dataclass
 class RNN(RecurrentNN):
     obs_size: int
     extras_size: int
-    mlp_sizes: Sequence[int]
-    hidden_activation: ActivationType
+    _: KW_ONLY
+    mlp_head_sizes: Sequence[int] = (256,)
+    mlp_tail_sizes: Sequence[int] = (128,)
+    n_grus: int = 1
+    hidden_activation: ActivationType = "relu"
 
     def __post_init__(self):
         super().__post_init__()
-        if len(self.mlp_sizes) < 2:
-            raise ValueError("At least two layers of MLP are required.")
-        before_gru = [self.obs_size + self.extras_size, *self.mlp_sizes[: len(self.mlp_sizes) // 2]]
-        after_gru = self.mlp_sizes[len(self.mlp_sizes) // 2 :]
-        self.fc1 = torch.nn.Sequential()
-        self.fc2 = torch.nn.Sequential()
-        for dim, next_dim in zip(before_gru[:-1], before_gru[1:]):
-            self.fc1.append(torch.nn.Linear(dim, next_dim))
-            self.fc1.append(get_activation(self.hidden_activation))
-        self.gru = torch.nn.GRU(before_gru[-1], before_gru[-1], batch_first=False)
-        for dim, next_dim in zip(after_gru[:-2], after_gru[1:-1]):
-            self.fc2.append(torch.nn.Linear(dim, next_dim))
-            self.fc2.append(get_activation(self.hidden_activation))
-        self.fc2.append(torch.nn.Linear(self.mlp_sizes[-1], self.output_size))
+        self.head = torch.nn.Sequential()
+        self.tail = torch.nn.Sequential()
+        for dim, next_dim in zip(self.head_layer_sizes[:-1], self.head_layer_sizes[1:]):
+            self.head.append(torch.nn.Linear(dim, next_dim))
+            self.head.append(get_activation(self.hidden_activation))
+        self.gru = torch.nn.GRU(self.mlp_head_sizes[-1], self.mlp_tail_sizes[0], batch_first=False)
+        for dim, next_dim in zip(self.tail_layer_sizes[:-1], self.tail_layer_sizes[1:]):
+            self.tail.append(torch.nn.Linear(dim, next_dim))
+            self.tail.append(get_activation(self.hidden_activation))
+        # Remove the last layer activation
+        self.tail.pop(-1)
+
+    @property
+    def input_size(self):
+        return self.obs_size + self.extras_size
+
+    @property
+    def head_layer_sizes(self):
+        return [self.input_size, *self.mlp_head_sizes]
+
+    @property
+    def tail_layer_sizes(self):
+        return [*self.mlp_tail_sizes, self.output_size]
 
     def __hash__(self):
         return id(self)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()
-        assert len(obs.shape) >= 3, "The observation should have at most shape (ep_length, batch_size, obs_size)"
+        assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
         # This shape is not supported by the GRU layer, so we merge the batch_size and n_agents dimensions
         # while keeping the episode_length dimension.
-        episode_length, *batch_agents, obs_size = obs.shape
+        episode_length, *batch_size, n_agents, obs_size = obs.shape
         obs = obs.reshape(episode_length, -1, obs_size)
-        extras = torch.reshape(extras, (*obs.shape[:-1], -1))
+        extras = torch.reshape(extras, (*obs.shape[:-1], self.extras_size))
         x = torch.concat((obs, extras), dim=-1)
-        x = self.fc1.forward(x)
+        x = self.head.forward(x)
         if masks is not None:
-            episodes_lengths = masks.sum(0).cpu()
-            x = torch.nn.utils.rnn.pack_padded_sequence(x, episodes_lengths, enforce_sorted=False)
-            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
-            x, _ = torch.nn.utils.rnn.pad_packed_sequence(x)
+            episodes_lengths = masks.long().sum(0).cpu()
+            episodes_lengths = episodes_lengths.repeat_interleave(n_agents)
+            packed = torch.nn.utils.rnn.pack_padded_sequence(x, episodes_lengths, enforce_sorted=False)
+            packed, self._hidden_states = self.gru.forward(packed, self._hidden_states)
+            x, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
         else:
-            x, self.hidden_states = self.gru.forward(x, self.hidden_states)
-        x = self.fc2.forward(x)
+            x, self._hidden_states = self.gru.forward(x, self._hidden_states)
+        x = self.tail.forward(x)
         # Restore the original shape of the batch
-        x = x.view(episode_length, *batch_agents, self.output_size)
+        x = x.view(episode_length, *batch_size, n_agents, self.output_size)
         return x
 
 
@@ -157,9 +175,10 @@ class CRNN(RecurrentNN):
 
     input_shape: tuple[int, int, int]
     extras_size: int
-    mlp_sizes: Sequence[int]
     hidden_activation: ActivationType
     _: KW_ONLY
+    mlp_head_sizes: Sequence[int] = (256,)
+    mlp_tail_sizes: Sequence[int] = (128,)
     output_activation: None | ActivationType = None
     kernel_sizes: Sequence[int] = (3, 3, 3)
     strides: Sequence[int] = (1, 1, 1)
@@ -167,14 +186,23 @@ class CRNN(RecurrentNN):
 
     def __post_init__(self):
         super().__post_init__()
-        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
+        self.cnn = CNN((0,), self.input_shape, 0, mlp_sizes=None)
+        # self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
         self.rnn = RNN(
             self.output_shape,
-            n_features,
+            self.cnn.output_size,
             self.extras_size,
-            self.mlp_sizes,
-            self.hidden_activation,
+            mlp_head_sizes=self.mlp_head_sizes,
+            mlp_tail_sizes=self.mlp_tail_sizes,
+            hidden_activation=self.hidden_activation,
         )
 
     def __hash__(self):
         return id(self)
+
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
+        features = self.cnn.forward(obs, extras)
+        return self.rnn.forward(features, extras, masks=masks, **kwargs)
+
+    def reset_hidden_states(self):
+        return self.rnn.reset_hidden_states()
