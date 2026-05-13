@@ -91,8 +91,6 @@ class RNNQMix(RecurrentQNetwork):
         self.gru = torch.nn.GRU(input_size=64, hidden_size=64, batch_first=False)
         self.fc2 = torch.nn.Linear(64, self.output_size)
     
-    def __hash__(self):
-        return hash(self.name)
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs):
         self.gru.flatten_parameters()

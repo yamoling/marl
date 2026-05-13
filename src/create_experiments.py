@@ -230,7 +230,7 @@ def make_dqn(
 ):
     mixer = make_mixer(env, mixing)
     if len(env.observation_shape) == 1:
-        qnetwork = marl.nn.model_bank.QMLP.qnetwork(env, hidden_sizes=(128, 128))
+        qnetwork = marl.nn.model_bank.QMLP.from_env(env, mlp_sizes=(128, 128))
     elif len(env.observation_shape) == 3:
         qnetwork = marl.nn.model_bank.IndependentCNN.from_env(env, mlp_sizes=(128, 64))
     else:
@@ -277,7 +277,7 @@ def make_recurrent_dqn(
     gamma: float = 0.95,
     noisy: bool = False,
     use_vbe: bool = False,
-    memory: Optional[ReplayMemory[Any, Any]] = None,):
+    memory: Optional[ReplayMemory[Any]] = None,):
     mixer = make_mixer(env, mixing)
     if len(env.observation_shape) == 1:
         qnetwork = marl.nn.model_bank.RCNN.from_env(env)
@@ -299,7 +299,7 @@ def make_recurrent_dqn(
         qnetwork=qnetwork,
         train_policy=policy,
         memory=memory,
-        optimiser="adam",
+        optimiser_type="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
