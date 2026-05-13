@@ -37,6 +37,12 @@ class ReplayMemory[T](Serializable):
         """Add an item (transition, episode, ...) to the memory"""
         self._memory.append(item)
 
+    def add_episode(self, episode: Episode):
+        pass
+
+    def add_transition(self, transition: Transition):
+        pass
+
     def sample(self, batch_size: int) -> Batch:
         """Sample the memory to retrieve a `Batch`"""
         indices = np.random.choice(range(len(self)), batch_size, replace=False)
@@ -82,6 +88,9 @@ class TransitionMemory(ReplayMemory[Transition]):
 
     update_on: Literal["transition", "episode"] = field(init=False, default="transition")
 
+    def add_transition(self, transition: Transition):
+        return self._memory.append(transition)
+
     def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
         return TransitionBatch(list(items))
 
@@ -91,6 +100,9 @@ class EpisodeMemory(ReplayMemory[Episode]):
     """Replay Memory that stores and samples full Episodes"""
 
     update_on: Literal["transition", "episode"] = field(init=False, default="episode")
+
+    def add_episode(self, episode: Episode):
+        self._memory.append(episode)
 
     def make_batch(self, items: Iterable[Episode]) -> EpisodeBatch:
         return EpisodeBatch(list(items))

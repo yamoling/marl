@@ -127,14 +127,14 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
 
-    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None, **kwargs) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
         In this case, the RNN considers hidden states=None.
         """
-        saved_hidden_states = self.hidden_states
+        saved_hidden_states = self._hidden_states
         self.reset_hidden_states()
-        qvalues = super().batch_qvalues(obs, extras, **kwargs)
-        self.hidden_states = saved_hidden_states
+        qvalues = super().batch_qvalues(obs, extras, masks=masks, **kwargs)
+        self._hidden_states = saved_hidden_states
         return qvalues
