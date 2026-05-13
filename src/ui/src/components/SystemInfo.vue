@@ -4,21 +4,18 @@
             :aria-expanded="isExpanded ? 'true' : 'false'">
             <span class="chip-title">System load</span>
             <span class="chip-bars">
-                <span class="mini-bar" :title="`CPU: ${cpuUsage.toFixed(2)}%`">
+                <span class="mini-bar" :title="`CPU: ${systemStore.cpu.toFixed(2)}%`">
                     <span class="mini-fill"
-                        :style="{ width: `${cpuUsage}%`, backgroundColor: getStressColor(cpuUsage) }"></span>
+                        :style="{ width: `${systemStore.cpu}%`, backgroundColor: systemStore.stressColorFor(systemStore.cpu) }"></span>
                 </span>
-                <span class="mini-bar" :title="`RAM: ${ramUsage.toFixed(2)}%`">
+                <span class="mini-bar" :title="`RAM: ${systemStore.ram.toFixed(2)}%`">
                     <span class="mini-fill"
-                        :style="{ width: `${ramUsage}%`, backgroundColor: getStressColor(ramUsage) }"></span>
+                        :style="{ width: `${systemStore.ram}%`, backgroundColor: systemStore.stressColorFor(systemStore.ram) }"></span>
                 </span>
-                <span class="mini-bar" :title="`GPU: ${gpuAggregateUsage.toFixed(2)}%`">
+                <span class="mini-bar" :title="`GPU: ${systemStore.globalGpuUsage.toFixed(2)}%`">
                     <span class="mini-fill"
-                        :style="{ width: `${gpuAggregateUsage}%`, backgroundColor: getStressColor(gpuAggregateUsage) }"></span>
+                        :style="{ width: `${systemStore.globalGpuUsage}%`, backgroundColor: systemStore.stressColorFor(systemStore.globalGpuUsage) }"></span>
                 </span>
-            </span>
-            <span class="chip-status" :style="{ color: getStressColor(overallStress) }">
-                {{ stressLabel }}
             </span>
             <font-awesome-icon :icon="['fas', isExpanded ? 'chevron-up' : 'chevron-down']" class="chip-chevron" />
         </button>
@@ -28,11 +25,12 @@
                 <div class="card-header">
                     <font-awesome-icon icon="microchip" class="metric-icon" />
                     <span class="metric-label">CPU</span>
-                    <span class="metric-value">{{ cpuUsage.toFixed(1) }}%</span>
+                    <span class="metric-value">{{ systemStore.cpu.toFixed(1) }}%</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill"
-                        :style="{ width: cpuUsage + '%', backgroundColor: getStressColor(cpuUsage) }"></div>
+                        :style="{ width: systemStore.cpu + '%', backgroundColor: systemStore.stressColorFor(systemStore.cpu) }">
+                    </div>
                 </div>
             </div>
 
@@ -40,15 +38,16 @@
                 <div class="card-header">
                     <font-awesome-icon icon="memory" class="metric-icon" />
                     <span class="metric-label">RAM</span>
-                    <span class="metric-value">{{ ramUsage.toFixed(1) }}%</span>
+                    <span class="metric-value">{{ systemStore.ram.toFixed(1) }}%</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill"
-                        :style="{ width: ramUsage + '%', backgroundColor: getStressColor(ramUsage) }"></div>
+                        :style="{ width: systemStore.ram + '%', backgroundColor: systemStore.stressColorFor(systemStore.ram) }">
+                    </div>
                 </div>
             </div>
 
-            <div v-for="gpu in gpus" :key="gpu.index" class="metric-card gpu-card">
+            <div v-for="gpu in systemStore.gpus" :key="gpu.index" class="metric-card gpu-card">
                 <div class="card-header">
                     <font-awesome-icon icon="cube" class="metric-icon" />
                     <span class="metric-label">GPU {{ gpu.index }}</span>
@@ -56,22 +55,22 @@
                 <div class="gpu-bar-group">
                     <div class="bar-row">
                         <span class="bar-label">Util</span>
-                        <span class="bar-value">{{ (smoothedGPUUsages[gpu.index]).toFixed(0) }}%</span>
+                        <span class="bar-value">{{ gpu.utilization.toFixed(0) }}%</span>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill"
-                            :style="{ width: smoothedGPUUsages[gpu.index] + '%', backgroundColor: getStressColor(smoothedGPUUsages[gpu.index]) }">
+                            :style="{ width: gpu.utilization + '%', backgroundColor: systemStore.stressColorFor(gpu.utilization) }">
                         </div>
                     </div>
                 </div>
                 <div class="gpu-bar-group">
                     <div class="bar-row">
                         <span class="bar-label">VRAM</span>
-                        <span class="bar-value">{{ (smoothedVRAMS[gpu.index]).toFixed(0) }}%</span>
+                        <span class="bar-value">{{ gpu.memory.toFixed(0) }}%</span>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill"
-                            :style="{ width: smoothedVRAMS[gpu.index] + '%', backgroundColor: getStressColor(smoothedVRAMS[gpu.index] * 100) }">
+                            :style="{ width: gpu.memory + '%', backgroundColor: systemStore.stressColorFor(gpu.memory) }">
                         </div>
                     </div>
                 </div>
@@ -81,96 +80,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useSystemStore } from "../stores/SystemStore";
-import {
-    getCpuUsage,
-    getGpuAggregateStress,
-    getOverallStress,
-    getRecommendedDevice,
-    getStressColor,
-    getStressLabel,
-    TemporalStressFilter as TemporalFilter,
-} from "../utils/systemStress";
 
 const systemStore = useSystemStore();
 const isExpanded = ref(false);
 const rootRef = ref<HTMLElement | null>(null);
-
-// Temporal filters for smoothing stress readings
-const cpuFilter = new TemporalFilter();
-const ramFilter = new TemporalFilter();
-const gpuFilter = new TemporalFilter();
-const overallFilter = new TemporalFilter();
-let VRAMS = [] as TemporalFilter[];
-let GPUUsages = [] as TemporalFilter[];
-const smoothedVRAMS = ref([] as number[]);
-const smoothedGPUUsages = ref([] as number[]);
-
-const smoothedCpuUsage = ref(0);
-const smoothedRamUsage = ref(0);
-const smoothedGpuAggregateUsage = ref(0);
-const smoothedOverallStress = ref(0);
-
-const hasSystemInfo = computed(() => systemStore.systemInfo != null);
-
-const cpuUsage = computed(() => smoothedCpuUsage.value);
-const ramUsage = computed(() => smoothedRamUsage.value);
-const gpuAggregateUsage = computed(() => smoothedGpuAggregateUsage.value);
-
-const overallStress = computed(() => smoothedOverallStress.value);
-
-const stressLabel = computed(() => {
-    if (systemStore.systemInfo == null) return "Offline";
-    return getStressLabel(overallStress.value);
-});
-
-
-const gpus = computed(() => {
-    if (systemStore.systemInfo == null) return [];
-    return systemStore.systemInfo.gpus;
-});
-
-// Update smoothed values whenever system info changes
-watch(
-    () => systemStore.systemInfo,
-    (newInfo) => {
-        if (newInfo == null) {
-            cpuFilter.reset();
-            ramFilter.reset();
-            gpuFilter.reset();
-            overallFilter.reset();
-            smoothedCpuUsage.value = 0;
-            smoothedRamUsage.value = 0;
-            smoothedGpuAggregateUsage.value = 0;
-            smoothedOverallStress.value = 0;
-        } else {
-            const rawCpu = getCpuUsage(newInfo);
-            const rawRam = newInfo.ram;
-            const rawGpuAgg = getGpuAggregateStress(newInfo);
-            const rawOverall = getOverallStress(newInfo);
-
-            smoothedCpuUsage.value = cpuFilter.addReading(rawCpu);
-            smoothedRamUsage.value = ramFilter.addReading(rawRam);
-            smoothedGpuAggregateUsage.value = gpuFilter.addReading(rawGpuAgg);
-            smoothedOverallStress.value = overallFilter.addReading(rawOverall);
-            if (VRAMS.length == 0) {
-                VRAMS = newInfo.gpus.map(_ => new TemporalFilter())
-                GPUUsages = newInfo.gpus.map(_ => new TemporalFilter())
-            }
-            newInfo.gpus.forEach((gpu, index) => {
-                smoothedVRAMS.value[index] = VRAMS[index].addReading(gpu.memory_usage * 100);
-                smoothedGPUUsages.value[index] = GPUUsages[index].addReading(gpu.utilization * 100);
-            });
-        }
-    },
-    { immediate: true },
-);
+const hasSystemInfo = computed(() => systemStore.systemUsage != null);
 
 function toggleExpanded() {
-    if (!hasSystemInfo.value) {
-        return;
-    }
     isExpanded.value = !isExpanded.value;
 }
 

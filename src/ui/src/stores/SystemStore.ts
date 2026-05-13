@@ -1,13 +1,30 @@
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import { defineStore } from "pinia";
-import { SystemInfo, SystemInfoSchema } from "../models/SystemInfo";
+import { SystemInfo, SystemReadingSchema, SystemUsage } from "../models/SystemInfo";
 import { HTTP_URL } from "../constants";
 
+const STRESS_LEVELS = [
+    { value: 0, label: "Low", color: "rgb(34, 197, 94)" },
+    { value: 40, label: "Moderate", color: "rgb(234, 179, 8)" },
+    { value: 70, label: "High", color: "rgb(249, 115, 22)" },
+    { value: 85, label: "Critical", color: "rgb(239, 68, 68)" },
+]
+
+
 export const useSystemStore = defineStore("SystemStore", () => {
-    const systemInfo = ref(null as SystemInfo | null);
+    const systemSmoother = new SystemInfo();
     let ws: WebSocket | null = null;
     let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let addressIndex = 0;
+    const systemUsage = ref<SystemUsage | null>(null);
+    const cpu = computed(() => systemUsage.value?.cpu ?? 0);
+    const ram = computed(() => systemUsage.value?.ram ?? 0);
+    const gpus = computed(() => systemUsage.value?.gpus ?? []);
+    const globalGpuUsage = computed(() => {
+        const meanUtilization = systemUsage.value?.gpus.reduce((sum, gpu) => sum + gpu.utilization, 0) ?? 0;
+        const meanMemory = systemUsage.value?.gpus.reduce((sum, gpu) => sum + gpu.memory, 0) ?? 0;
+        return Math.max(meanUtilization, meanMemory);
+    });
 
     function getAddresses() {
         const protocol = location.protocol === "https:" ? "wss" : "ws";
@@ -22,11 +39,11 @@ export const useSystemStore = defineStore("SystemStore", () => {
         }
         reconnectTimeout = setTimeout(() => {
             reconnectTimeout = null;
-            updateSystemInfo();
+            updateSystemInfoLoop();
         }, delayMs);
     }
 
-    function updateSystemInfo() {
+    function updateSystemInfoLoop() {
         if (ws != null && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
             return;
         }
@@ -39,14 +56,15 @@ export const useSystemStore = defineStore("SystemStore", () => {
 
         nextWs.onopen = () => {
             addressIndex = 0;
-            console.info("Connected to system info websocket")
         }
 
         nextWs.onmessage = async (event) => {
             const blob = event.data as Blob;
             const text = await blob.text();
             const data = JSON.parse(text);
-            systemInfo.value = SystemInfoSchema.parse(data);
+            const reading = SystemReadingSchema.parse(data);
+            const res = systemSmoother.addReading(reading)
+            systemUsage.value = res;
         }
 
         nextWs.onerror = () => {
@@ -74,12 +92,31 @@ export const useSystemStore = defineStore("SystemStore", () => {
     async function getSystemSpecs() {
         const resp = await fetch(`${HTTP_URL}/system-specs`);
         const data = await resp.json();
-        systemInfo.value = SystemInfoSchema.parse(data);
+        const reading = SystemReadingSchema.parse(data);
+        systemUsage.value = systemSmoother.addReading(reading);
     }
     // Fetch with http the first time because it is faster than establishing the websocket connection.
     getSystemSpecs();
     // Then update with websocket data and keep it updated.
-    setTimeout(updateSystemInfo, 1000);
+    updateSystemInfoLoop()
 
-    return { systemInfo };
+
+    function stressLabelFor(usage: number): string {
+        for (let i = STRESS_LEVELS.length - 1; i >= 0; i--) {
+            if (usage >= STRESS_LEVELS[i].value) {
+                return STRESS_LEVELS[i].label;
+            }
+        }
+        return STRESS_LEVELS[0].label;
+    }
+
+    function stressColorFor(usage: number): string {
+        for (let i = STRESS_LEVELS.length - 1; i >= 0; i--) {
+            if (usage >= STRESS_LEVELS[i].value) {
+                return STRESS_LEVELS[i].color;
+            }
+        }
+        return STRESS_LEVELS[0].color;
+    }
+    return { systemUsage, cpu, ram, gpus, globalGpuUsage, stressLabelFor, stressColorFor };
 });
