@@ -9,7 +9,6 @@ from signal import SIGINT
 from typing import Collection, Literal, overload
 
 import numpy as np
-import numpy.typing as npt
 import polars as pl
 import torch
 from marlenv import MARLEnv
@@ -31,7 +30,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
-    logdir: str | Literal["auto", "test", "debug"] = "logs/test"
+    logdir: str | Literal["auto", "test", "debug"] = "test"
     """If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `debug`, any pre-existing experiment with the same name is overwritten."""
     test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""

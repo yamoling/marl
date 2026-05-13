@@ -89,9 +89,10 @@ class NN(torch.nn.Module, Serializable):
         """Reset the hidden states, if any."""
 
 
+@dataclass
 class RecurrentNN(NN):
-    def __init__(self, output_shape: tuple[int, ...]):
-        super().__init__(output_shape)
+    def __post_init__(self):
+        super().__post_init__()
         self._hidden_states: Tensor | None = None
         self._saved_hidden_states: Tensor | None = None
 
@@ -110,6 +111,14 @@ class RecurrentNN(NN):
                 # if not already in train mode, restore hidden states
                 self._hidden_states = self._saved_hidden_states
         return super().train(mode)
+
+    def forward(self, *args, masks: torch.Tensor | None = None, **kwargs) -> Any:
+        """
+        Forward the RNN in a (time, batch, *data) shape.
+
+        If time-step masks are provided, then inputs can be transrofmed into a PackedSequence for efficient
+        GRU or LSTM forwarding.
+        """
 
     @property
     def is_recurrent(self):

@@ -100,12 +100,20 @@ class QMLP(QNetwork):
 @dataclass
 class QRNN(RecurrentQNetwork):
     _: KW_ONLY
-    hidden_sizes: Sequence[int] = (256, 128)
+    mlp_head_sizes: Sequence[int] = (256,)
+    mlp_tail_sizes: Sequence[int] = (128,)
     activation: ActivationType = "relu"
 
     def __post_init__(self):
         super().__post_init__()
-        self.rnn = RNN(self.output_shape, self.obs_size, self.extras_size, self.hidden_sizes, self.activation)
+        self.rnn = RNN(
+            self.output_shape,
+            self.obs_size,
+            self.extras_size,
+            mlp_head_sizes=self.mlp_head_sizes,
+            mlp_tail_sizes=self.mlp_tail_sizes,
+            hidden_activation=self.activation,
+        )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         return self.rnn.forward(obs, extras, **kwargs)
@@ -120,7 +128,8 @@ class QRNN(RecurrentQNetwork):
 @dataclass
 class QCRNN(RecurrentQNetwork):
     _: KW_ONLY
-    mlp_sizes: Sequence[int] = (256, 128)
+    mlp_head_sizes: Sequence[int] = (256,)
+    mlp_tail_sizes: Sequence[int] = (128,)
     hidden_activation: ActivationType = "relu"
     kernel_sizes: Sequence[int] = (3, 3, 3)
     strides: Sequence[int] = (1, 1, 1)
@@ -133,8 +142,9 @@ class QCRNN(RecurrentQNetwork):
             self.output_shape,
             self.obs_shape,
             self.extras_size,
-            self.mlp_sizes,
-            self.hidden_activation,
+            mlp_head_sizes=self.mlp_head_sizes,
+            mlp_tail_sizes=self.mlp_tail_sizes,
+            hidden_activation=self.hidden_activation,
             kernel_sizes=self.kernel_sizes,
             strides=self.strides,
             filters=self.filters,
@@ -145,3 +155,6 @@ class QCRNN(RecurrentQNetwork):
 
     def __hash__(self):
         return id(self)
+
+    def reset_hidden_states(self):
+        return self.nn.reset_hidden_states()
