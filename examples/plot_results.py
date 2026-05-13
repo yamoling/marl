@@ -1,8 +1,10 @@
+import os
 import shutil
 from pathlib import Path
 from typing import Collection
 
 import matplotlib.pyplot as plt
+import numpy as np
 import typed_argparse as tap
 
 import marl
@@ -59,18 +61,19 @@ def plot_with_datasets(logdir: Path, save: bool = True):
 def plot(dataset: Dataset, prefix: str = "", show=False, save_to: str | Path | None = None):
     label = f"{prefix}{dataset.nice_label} ({dataset.category})"
     plt.plot(dataset.ticks, dataset.mean, label=label)
-    plt.fill_between(dataset.ticks, dataset.mean - dataset.ci95, dataset.mean + dataset.ci95, alpha=0.2)
+    low_bound = np.maximum(dataset.mean - dataset.ci95, dataset.min)
+    high_bound = np.minimum(dataset.mean + dataset.ci95, dataset.max)
+    plt.fill_between(dataset.ticks, low_bound, high_bound, alpha=0.2)
     if show or save_to is not None:
         plt.xlabel("Time step")
         plt.ylabel(dataset.nice_label)
-        plt.legend()
+        # plt.legend()
     if save_to is not None:
         destination = Path(save_to)
         destination.parent.mkdir(exist_ok=True)
         plt.savefig(destination)
     if show:
         plt.margins(x=0.01, y=0.01)
-        plt.legend()
         plt.show()
 
 
@@ -81,7 +84,10 @@ def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[
     for label in all_labels:
         for logdir, datasets in datasets_dict.items():
             [plot(ds, f"{logdir[5:]}-") for ds in datasets if ds.label == label]
-        plt.legend()
+        # Very small legend above the plot
+        plt.legend(loc="upper left", fontsize="small", bbox_to_anchor=(0, 1.02))
+        plt.xlabel("Time step")
+        plt.ylabel(label)
         plt.margins(x=0.01, y=0.01)
         destination = Path("plots") / f"{label}.pdf"
         destination.parent.mkdir(exist_ok=True)
@@ -92,11 +98,12 @@ def compare_multiple_experiments(logdirs: Collection[Path], metrics: Collection[
 
 def main():
     # plot_manually()
-    logdir1 = Path("logs/vdn-False-LLE-lvl6")
-    logdir2 = Path("logs/VDN-LLE-lvl6")
-    logdir3 = Path("logs/VDN-double-duelling-LLE-lvl6")
+    logdirs = [Path("logs") / d for d in os.listdir("logs")]
+    # logdir1 = Path("logs/vdn-False-LLE-lvl6")
+    # logdir2 = Path("logs/VDN-LLE-lvl6")
+    # logdir3 = Path("logs/VDN-double-duelling-LLE-lvl6")
     # plot_with_datasets(logdir1)
-    compare_multiple_experiments([logdir1, logdir2, logdir3], ["loss", "exit"])
+    compare_multiple_experiments(logdirs, ["exit"])
 
 
 if __name__ == "__main__":
