@@ -63,11 +63,11 @@ def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Type[Mixer], rnd: algos.RN
 def main(args: Args):
     env = LLEConfig(6, obs_type="layered", state_type="flattened", maven_noise_size=16)
     # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
-    # rnd = algos.RND.from_env(env)
-    trainer = maven(env)
+    rnd = algos.RND.from_env(env)
+    trainer = maven(env, rnd)
     # trainer = dqn(env, mixers.VDN, rnd, independent=True)
-    exp = Experiment(env, trainer, logdir="test", n_steps=1_000_000)
-    exp.run(seeds=8, n_tests=5, gpu_strategy="scatter", test_interval=5000, quiet=args.quiet, disabled_gpus=range(4))
+    exp = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
+    exp.run(seeds=8, n_tests=5, gpu_strategy="scatter", test_interval=5000, quiet=args.quiet, disabled_gpus=[0, 1, 4, 5, 6, 7])
 
 
 if __name__ == "__main__":

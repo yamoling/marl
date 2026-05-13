@@ -67,6 +67,10 @@ class ExpectedReturnTrainer(Trainer):
             "maven-action": action,
         }
 
+    @property
+    def name(self):
+        return "ExpectedReturn"
+
     def make_agent(self):
         from marl.agents import DiscreteOneHotAgent
 
