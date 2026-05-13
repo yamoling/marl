@@ -3,8 +3,6 @@ from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
 
-import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv import Episode, Observation, State, Transition
 
@@ -17,7 +15,7 @@ from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 
 
 @dataclass(unsafe_hash=True)
-class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
+class DQN[M: (Mixer | None)](Trainer):
     qnetwork: QNetwork
     memory: ReplayMemory
     _: KW_ONLY
@@ -63,7 +61,7 @@ class DQN[M: (Mixer | None)](Trainer[npt.NDArray[np.int64]]):
 
     @property
     def name(self):
-        name = "DQN" if self.mixer is None else self.mixer.name
+        name = "DQN" if self.mixer is None else self.mixer.name + f"-{self.qnetwork.name}"
         if self.double_qlearning:
             name += "-double"
         if self.qnetwork.duelling:

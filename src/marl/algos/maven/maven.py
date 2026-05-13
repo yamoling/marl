@@ -1,14 +1,12 @@
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal, cast
+from typing import Literal
 
-import numpy as np
-import numpy.typing as npt
 from marlenv import DiscreteMARLEnv, Episode
 
 from marl import policy
 from marl.agents.hierarchical import MAVENAgent
 from marl.env import EnvConfig
-from marl.models import Agent, EpisodeMemory, HierarchicalTrainer, Mixer, Policy, Trainer
+from marl.models import EpisodeMemory, HierarchicalTrainer, Mixer, Policy
 from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
@@ -19,7 +17,7 @@ from .mutual_information_trainer import MITrainer
 
 
 @dataclass
-class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.int64]], MITrainer]):
+class MAVEN(HierarchicalTrainer):
     """
     Multi-Agent Variational ExploratioN algorithm. This algorithm is implemented as a hierarchical trainer:
         - the meta-agent is the Z-policy
@@ -76,7 +74,6 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
                 )
             case "max-entropy":
                 raise NotImplementedError("Max-entropy z policy is not implemented yet.")
-        self.meta_trainer = cast(Trainer[npt.NDArray[np.int64]], self.meta_trainer)
         assert self.train_interval[1] == "episode", "MAVEN only supports training at the end of episodes."
         if self.mixer_override is not None:
             mixer = self.mixer_override
@@ -100,14 +97,10 @@ class MAVEN(HierarchicalTrainer[npt.NDArray[np.int64], Trainer[npt.NDArray[np.in
             optimiser_type=self.optimiser_type,
         )
 
-    @property
-    def name(self):
-        return f"MAVEN-{self.tail_type}-{self.z_policy_type}"
-
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         return super().update_episode(episode, episode_num, time_step)
 
-    def make_agent(self) -> Agent[npt.NDArray[np.int64]]:
+    def make_agent(self):
         workers = self.worker_trainer.make_agent()
         match self.z_policy_type:
             case "uniform":

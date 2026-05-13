@@ -32,10 +32,7 @@ class MITrainer(DQN[Mixer]):
 
     @property
     def name(self):
-        name = self.__class__.__name__
-        if self.mixer is not None:
-            name += f"-{self.mixer.name}"
-        return name
+        return super().name.replace(self.__class__.__name__, "")
 
     def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = True):
         return {"maven_noise": batch["maven-noise"]}

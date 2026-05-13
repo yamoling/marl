@@ -6,32 +6,48 @@
         </div>
 
         <div class="agent-selector" v-if="nAgents > 1">
-            <button v-for="agent in availableAgents" :key="agent" type="button" class="agent-chip"
-                :class="{ selected: selectedAgentsSet.has(agent) }" @click="toggleAgent(agent)">
+            <button
+                v-for="agent in availableAgents"
+                :key="agent"
+                type="button"
+                class="agent-chip"
+                :class="{ selected: selectedAgentsSet.has(agent) }"
+                @click="toggleAgent(agent)"
+            >
                 A{{ agent + 1 }}
             </button>
         </div>
 
-        <DiscreteActionMatrix v-if="resolvedKind === 'discrete'" :episode="episode" :current-step="safeStep"
-            :selected-agents="selectedAgents" :action-space="props.actionSpace" />
+        <DiscreteActionMatrix
+            v-if="isDiscrete(props.actionSpace)"
+            :episode="episode"
+            :current-step="safeStep"
+            :selected-agents="selectedAgents"
+            :action-space="props.actionSpace"
+        />
 
-        <ContinuousActionRadar v-else :episode="episode" :current-step="safeStep" :selected-agents="selectedAgents"
-            :action-space="props.actionSpace" />
+        <ContinuousActionRadar
+            v-else
+            :episode="episode"
+            :current-step="safeStep"
+            :selected-agents="selectedAgents"
+            :action-space="props.actionSpace"
+        />
     </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { ActionSpace } from '../../../models/Env';
-import { ReplayEpisode } from '../../../models/Episode';
-import DiscreteActionMatrix from './DiscreteActionMatrix.vue';
-import ContinuousActionRadar from './ContinuousActionRadar.vue';
+import { computed, ref, watch } from "vue";
+import { DiscreteSpace, ContinuousSpace, isDiscrete } from "../../../models/Env";
+import { ReplayEpisode } from "../../../models/Episode";
+import DiscreteActionMatrix from "./DiscreteActionMatrix.vue";
+import ContinuousActionRadar from "./ContinuousActionRadar.vue";
 
 const props = defineProps<{
-    episode: ReplayEpisode
-    currentStep: number
-    actionSpace: ActionSpace
-    nAgents: number
+    episode: ReplayEpisode;
+    currentStep: number;
+    actionSpace: DiscreteSpace | ContinuousSpace;
+    nAgents: number;
 }>();
 
 const selectedAgents = ref<number[]>([]);
@@ -40,18 +56,17 @@ const safeStep = computed(() => Math.max(0, Math.min(maxStep.value, props.curren
 const availableAgents = computed(() => Array.from({ length: props.nAgents }, (_, index) => index));
 const selectedAgentsSet = computed(() => new Set(selectedAgents.value));
 
-const resolvedKind = computed<'discrete' | 'continuous'>(() => {
-    if (props.actionSpace.space_type === 'continuous') return 'continuous';
-    return 'discrete';
+const resolvedKind = computed(() => {
+    if (isDiscrete(props.actionSpace)) return "discrete";
+    return "continuous";
 });
-
 
 watch(
     () => props.nAgents,
     () => {
         selectedAgents.value = Array.from({ length: props.nAgents }, (_, index) => index);
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 function toggleAgent(agent: number) {

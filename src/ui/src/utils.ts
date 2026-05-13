@@ -38,16 +38,16 @@ export function computeShape(array: any[]): number[] {
   return result;
 }
 
-export function is1D<T>(data: T[] | any[]): data is T[] {
+export function is1D(data: (number | null)[] | any): data is (number | null)[] {
   return data.length == 0 || !Array.isArray(data[0]);
 }
 
-export function is2D<T>(data: T[][] | any[]): data is T[][] {
-  return is1D(data[0]);
+export function is2D(data: (number | null)[][] | any): data is (number | null)[][] {
+  return is1D(data[0]) && !Array.isArray(data[0][0]);
 }
 
-export function is3D<T>(data: T[][][] | any[]): data is T[][][] {
-  return is2D(data[0]);
+export function is3D(data: (number | null)[][][] | any): data is (number | null)[][][] {
+  return is2D(data[0]) && !Array.isArray(data[0][0][0]);
 }
 
 /**
@@ -226,4 +226,54 @@ export function unionXTicks(allXTicks: number[][]) {
     }
   }
   return Array.from(resTicks).sort((a, b) => a - b);
+}
+
+/**
+ * Temporal filter that computes a weighted average of recent readings up to the specified timeout. 
+ * The more recent the reading, the higher the weight. A reading at the current time has weight 1, a reading at the edge of the window has weight 0.
+ */
+export class TemporalFilter {
+  private readings: Array<{ value: number; timestamp: number }>;
+  private timeout: number;
+  public value: number
+
+  constructor(timeout: number = 10_000) {
+    this.timeout = timeout;
+    this.value = 0;
+    this.readings = [];
+  }
+
+  /**
+   * Add a new stress reading and return the smoothed stress value.
+   */
+  push(value: number): number {
+    const now = Date.now();
+    // Remove readings outside the window
+    this.readings = this.readings.filter(
+      (r) => now - r.timestamp <= this.timeout,
+    );
+    this.readings.push({ value, timestamp: now });
+
+    // Return weighted average: recent readings have higher weight
+    // Weight = 1 at t=now, 0 at t=now - windowMs, linear in between
+    let totalWeight = 1;
+    let weightedSum = 1 * value;
+    // Up to length-1 because the last reading is the current one with weight 1
+    for (let i = 0; i < this.readings.length - 1; i++) {
+      const age = now - this.readings[i].timestamp;
+      const weight = 1 - age / this.timeout;
+      weightedSum += this.readings[i].value * weight;
+      totalWeight += weight;
+    }
+    this.value = weightedSum / totalWeight;
+    return this.value;
+  }
+
+  /**
+   * Reset the filter (clear all readings).
+   */
+  reset(): void {
+    this.readings = [];
+    this.value = 0;
+  }
 }

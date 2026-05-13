@@ -1,18 +1,13 @@
 <template>
     <div class="device-picker">
-        <div v-for="option in deviceOptions" :key="option.value" class="device-option" :class="{ 'is-selected': isSelected(option.value) }">
-            <input
-                :type="multiple ? 'checkbox' : 'radio'"
-                :id="`device-${option.value}`"
-                :value="option.value"
-                :checked="isSelected(option.value)"
-                class="form-check-input"
-                @change="toggleDevice(option.value)"
-            />
+        <div v-for="option in deviceOptions" :key="option.value" class="device-option"
+            :class="{ 'is-selected': isSelected(option.value) }">
+            <input :type="multiple ? 'checkbox' : 'radio'" :id="`device-${option.value}`" :value="option.value"
+                :checked="isSelected(option.value)" class="form-check-input" @change="toggleDevice(option.value)" />
             <label :for="`device-${option.value}`" class="device-label">
                 <span class="device-name">{{ option.label }}</span>
-                <span class="device-stress" :style="{ color: getStressColor(option.stress) }">
-                    {{ getStressLabel(option.stress) }}
+                <span class="device-stress" :style="{ color: systemStore.stressColorFor(option.stress) }">
+                    {{ systemStore.stressLabelFor(option.stress) }}
                 </span>
                 <span class="device-percentage">{{ option.stress.toFixed(0) }}%</span>
             </label>
@@ -28,7 +23,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useSystemStore } from "../../stores/SystemStore";
-import { buildDeviceOptions, buildGpuDeviceOptions, getRecommendedDevice, getStressColor, getStressLabel } from "../../utils/systemStress";
+import { buildDeviceOptions, buildGpuDeviceOptions, getRecommendedDevice } from "../../utils/systemStress";
 
 const props = withDefaults(
     defineProps<{
@@ -48,9 +43,9 @@ const device = defineModel<string | string[]>({ required: true });
 const systemStore = useSystemStore();
 
 const deviceOptions = computed(() => {
-    return props.includeSystemDevices ? buildDeviceOptions(systemStore.systemInfo) : buildGpuDeviceOptions(systemStore.systemInfo);
+    return props.includeSystemDevices ? buildDeviceOptions(systemStore.systemUsage) : buildGpuDeviceOptions(systemStore.systemUsage);
 });
-const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
+const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemUsage));
 
 function isSelected(value: string): boolean {
     if (props.multiple) {

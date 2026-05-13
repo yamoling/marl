@@ -5,8 +5,8 @@ from marlenv import MARLEnv, Observation
 from marl.models import Action, Agent
 
 
-class RandomAgent[T: npt.NDArray](Agent[T]):
-    def __init__(self, env: MARLEnv[T]):
+class RandomAgent(Agent):
+    def __init__(self, env: MARLEnv):
         super().__init__()
         self.env = env
 
@@ -35,7 +35,7 @@ class RandomAgent[T: npt.NDArray](Agent[T]):
         return
 
 
-class RandomOneHot(Agent[npt.NDArray[np.int64]]):
+class RandomOneHot(Agent):
     def __init__(self, n_actions: int, n_agents: int):
         self.n_actions = n_actions
         self.n_agents = n_agents

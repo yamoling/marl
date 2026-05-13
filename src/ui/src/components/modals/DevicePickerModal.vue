@@ -35,8 +35,8 @@ let modalInstance: Modal | null = null;
 const device = ref("auto");
 let confirmCallback: ((device: string) => void) | null = null;
 
-const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
-const selectedDeviceStress = computed(() => getDeviceStress(systemStore.systemInfo, device.value));
+const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemUsage));
+const selectedDeviceStress = computed(() => getDeviceStress(systemStore.systemUsage, device.value));
 const deviceWarning = computed(() => {
     if (selectedDeviceStress.value == null || selectedDeviceStress.value < STRESS_WARNING_THRESHOLD) {
         return null;
@@ -48,7 +48,7 @@ const deviceWarning = computed(() => {
 });
 
 function findDeviceLabel(value: string): string {
-    const option = buildDeviceOptions(systemStore.systemInfo).find((opt) => opt.value === value);
+    const option = buildDeviceOptions(systemStore.systemUsage).find((opt) => opt.value === value);
     return option?.label ?? value;
 }
 

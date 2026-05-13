@@ -6,13 +6,19 @@
             <svg class="radar-svg" viewBox="0 0 240 240" role="img" aria-label="Continuous action radar chart">
                 <g>
                     <polygon v-for="ring in rings" :key="ring" :points="ringPoints(ring)" class="grid-ring" />
-                    <line v-for="axis in axes" :key="`axis-${axis.index}`" :x1="center" :y1="center" :x2="axis.x"
-                        :y2="axis.y" class="axis-line" />
+                    <line
+                        v-for="axis in axes"
+                        :key="`axis-${axis.index}`"
+                        :x1="center"
+                        :y1="center"
+                        :x2="axis.x"
+                        :y2="axis.y"
+                        class="axis-line"
+                    />
 
                     <polygon :points="currentPolygonPoints" class="current-polygon" />
 
-                    <text v-for="axis in axes" :key="`label-${axis.index}`" :x="axis.labelX" :y="axis.labelY"
-                        class="axis-label">
+                    <text v-for="axis in axes" :key="`label-${axis.index}`" :x="axis.labelX" :y="axis.labelY" class="axis-label">
                         A{{ axis.index + 1 }}
                     </text>
                 </g>
@@ -29,15 +35,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { ActionSpace } from '../../../models/Env';
-import { ActionValue, ReplayEpisode } from '../../../models/Episode';
+import { computed } from "vue";
+import { ContinuousSpace } from "../../../models/Env";
+import { ActionValue, ReplayEpisode } from "../../../models/Episode";
 
 const props = defineProps<{
-    episode: ReplayEpisode
-    currentStep: number
-    selectedAgents: number[]
-    actionSpace: ActionSpace
+    episode: ReplayEpisode;
+    currentStep: number;
+    selectedAgents: number[];
+    actionSpace: ContinuousSpace;
 }>();
 
 const center = 120;
@@ -95,9 +101,9 @@ function aggregateVectorAt(step: number): number[] {
 
 function toVector(value: ActionValue | undefined): number[] {
     if (Array.isArray(value)) {
-        return value.filter((item): item is number => typeof item === 'number' && Number.isFinite(item));
+        return value.filter((item): item is number => typeof item === "number" && Number.isFinite(item));
     }
-    if (typeof value === 'number' && Number.isFinite(value)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
         return [value];
     }
     return [];
@@ -122,7 +128,7 @@ function normalize(value: number, index: number): number {
 }
 
 function polygonPoints(vector: number[]): string {
-    if (dimensionCount.value === 0) return '';
+    if (dimensionCount.value === 0) return "";
 
     const points = Array.from({ length: dimensionCount.value }, (_, index) => {
         const angle = angleForDimension(index, dimensionCount.value);
@@ -133,24 +139,23 @@ function polygonPoints(vector: number[]): string {
         return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
 
-    return points.join(' ');
+    return points.join(" ");
 }
 
 function ringPoints(ringRatio: number): string {
-    if (dimensionCount.value === 0) return '';
+    if (dimensionCount.value === 0) return "";
     const points = Array.from({ length: dimensionCount.value }, (_, index) => {
         const angle = angleForDimension(index, dimensionCount.value);
         const x = center + radius * ringRatio * Math.cos(angle);
         const y = center + radius * ringRatio * Math.sin(angle);
         return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
-    return points.join(' ');
+    return points.join(" ");
 }
 
 function formatValue(value: number): string {
-    return Number.isFinite(value) ? value.toFixed(3) : '-';
+    return Number.isFinite(value) ? value.toFixed(3) : "-";
 }
-
 </script>
 
 <style scoped>

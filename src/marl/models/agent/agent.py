@@ -12,9 +12,8 @@ from ..action import Action
 from ..nn import NN, RecurrentNN
 
 
-class Agent[T](ABC):
+class Agent(ABC):
     def __init__(self):
-        self.name = self.__class__.__name__
         self._device = torch.device("cpu")
         self._training = True
 

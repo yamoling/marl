@@ -1,5 +1,4 @@
 import os
-from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Self, Sequence, overload
@@ -14,7 +13,7 @@ from .nn import NN, IRModule, randomize
 
 
 @dataclass
-class Trainer[T](Serializable):
+class Trainer(Serializable):
     """Algorithm trainer class."""
 
     _: KW_ONLY
@@ -31,13 +30,13 @@ class Trainer[T](Serializable):
         self._train_every_n = self.train_interval[0]
 
     @property
-    @abstractmethod
     def name(self) -> str:
         """
         Human-readable name of the trainer. This name should aim at being unique as it is used in the default logdir name.
         """
+        return self.__class__.__name__
 
-    def make_agent(self) -> Agent[T]:
+    def make_agent(self) -> Agent:
         raise NotImplementedError("Trainer must implement make_agent method")
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
@@ -126,9 +125,13 @@ class Trainer[T](Serializable):
 
 
 @dataclass
-class HierarchicalTrainer[T, T1: Trainer, T2: Trainer](Trainer[T]):
-    meta_trainer: T1 = field(init=False)
-    worker_trainer: T2 = field(init=False)
+class HierarchicalTrainer(Trainer):
+    meta_trainer: Trainer = field(init=False)
+    worker_trainer: Trainer = field(init=False)
+
+    @property
+    def name(self):
+        return f"{self.__class__.__name__}-{self.meta_trainer.name}-{self.worker_trainer.name}"
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         meta_logs = self.meta_trainer.update_step(transition, time_step)

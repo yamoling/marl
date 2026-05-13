@@ -1,52 +1,6 @@
-import { GpuInfo, SystemInfo } from "../models/SystemInfo";
+import { GpuUsage, SystemUsage } from "../models/SystemInfo";
 
 export const STRESS_WARNING_THRESHOLD = 85;
-export const STRESS_SMOOTHING_WINDOW_MS = 10_000; // 3 second buffer for smoothing
-
-/**
- * Temporal stress filter that smooths out rapid oscillations by maintaining a sliding window
- * of recent readings and returning a weighted average. This prevents the stress indicator
- * from flickering when values oscillate near threshold boundaries.
- */
-export class TemporalStressFilter {
-  private readings: Array<{ value: number; timestamp: number }> = [];
-  private windowMs: number;
-
-  constructor(windowMs: number = STRESS_SMOOTHING_WINDOW_MS) {
-    this.windowMs = windowMs;
-  }
-
-  /**
-   * Add a new stress reading and return the smoothed stress value.
-   */
-  addReading(value: number): number {
-    const now = Date.now();
-    // Remove readings outside the window
-    this.readings = this.readings.filter(
-      (r) => now - r.timestamp <= this.windowMs,
-    );
-    this.readings.push({ value, timestamp: now });
-
-    // Return weighted average: recent readings have higher weight
-    // Weight = 1 at t=now, 0 at t=now - windowMs, linear in between
-    let totalWeight = 1;
-    let weightedSum = 1 * value;
-    for (let i = 0; i < this.readings.length - 1; i++) {
-      const age = now - this.readings[i].timestamp;
-      const weight = 1 - age / this.windowMs;
-      weightedSum += this.readings[i].value * weight;
-      totalWeight += weight;
-    }
-    return weightedSum / totalWeight;
-  }
-
-  /**
-   * Reset the filter (clear all readings).
-   */
-  reset(): void {
-    this.readings = [];
-  }
-}
 
 export interface DeviceOption {
   value: string;
@@ -54,30 +8,26 @@ export interface DeviceOption {
   stress: number;
 }
 
-export function getCpuUsage(systemInfo: SystemInfo): number {
-  if (systemInfo.cpus.length === 0) {
+export function getCpuUsage(systemUsage: SystemUsage | null): number {
+  return systemUsage?.cpu ?? 0;
+}
+
+export function getGpuStress(gpu: GpuUsage): number {
+  return Math.max(gpu.utilization, gpu.memory);
+}
+
+export function getGpuAggregateStress(systemUsage: SystemUsage | null): number {
+  if (systemUsage == null || systemUsage.gpus.length === 0) {
     return 0;
   }
-  const total = systemInfo.cpus.reduce((acc, usage) => acc + usage, 0);
-  return total / systemInfo.cpus.length;
+  return Math.max(...systemUsage.gpus.map(getGpuStress));
 }
 
-export function getGpuStress(gpu: GpuInfo): number {
-  return Math.max(gpu.utilization, gpu.memory_usage) * 100;
-}
-
-export function getGpuAggregateStress(systemInfo: SystemInfo): number {
-  if (systemInfo.gpus.length === 0) {
-    return 0;
-  }
-  return Math.max(...systemInfo.gpus.map(getGpuStress));
-}
-
-export function getOverallStress(systemInfo: SystemInfo): number {
+export function getOverallStress(systemUsage: SystemUsage | null): number {
   return Math.max(
-    getCpuUsage(systemInfo),
-    systemInfo.ram,
-    getGpuAggregateStress(systemInfo),
+    getCpuUsage(systemUsage),
+    systemUsage?.ram ?? 0,
+    getGpuAggregateStress(systemUsage),
   );
 }
 
@@ -96,22 +46,22 @@ export function getStressColor(usage: number): string {
 }
 
 export function buildDeviceOptions(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
 ): DeviceOption[] {
-  if (systemInfo == null) {
+  if (systemUsage == null) {
     return [{ value: "auto", label: "Auto", stress: 0 }];
   }
 
   const options: DeviceOption[] = [
-    { value: "auto", label: "Auto", stress: getOverallStress(systemInfo) },
+    { value: "auto", label: "Auto", stress: getOverallStress(systemUsage) },
     {
       value: "cpu",
       label: "CPU",
-      stress: Math.max(getCpuUsage(systemInfo), systemInfo.ram),
+      stress: Math.max(getCpuUsage(systemUsage), systemUsage.ram),
     },
   ];
 
-  for (const gpu of systemInfo.gpus) {
+  for (const gpu of systemUsage.gpus) {
     options.push({
       value: `cuda:${gpu.index}`,
       label: `GPU ${gpu.index}`,
@@ -123,21 +73,21 @@ export function buildDeviceOptions(
 }
 
 export function buildGpuDeviceOptions(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
 ): DeviceOption[] {
-  return buildDeviceOptions(systemInfo).filter((option) =>
+  return buildDeviceOptions(systemUsage).filter((option) =>
     option.value.startsWith("cuda:"),
   );
 }
 
 export function getDefaultSelectedGpuDevices(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
 ): string[] {
-  if (systemInfo == null) {
+  if (systemUsage == null) {
     return [];
   }
 
-  return systemInfo.gpus
+  return systemUsage.gpus
     .filter(
       (gpu) =>
         getStressLabel(getGpuStress(gpu)) !== "High" &&
@@ -147,32 +97,32 @@ export function getDefaultSelectedGpuDevices(
 }
 
 export function getDisabledDevicesFromSelected(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
   selectedDevices: string[],
 ): number[] {
-  if (systemInfo == null) {
+  if (systemUsage == null) {
     return [];
   }
 
   const selected = new Set(selectedDevices);
-  return systemInfo.gpus
+  return systemUsage.gpus
     .filter((gpu) => !selected.has(`cuda:${gpu.index}`))
     .map((gpu) => gpu.index);
 }
 
 export function getDeviceStress(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
   device: string,
 ): number | null {
-  if (systemInfo == null) {
+  if (systemUsage == null) {
     return null;
   }
 
   if (device === "auto") {
-    return getOverallStress(systemInfo);
+    return getOverallStress(systemUsage);
   }
   if (device === "cpu") {
-    return Math.max(getCpuUsage(systemInfo), systemInfo.ram);
+    return Math.max(getCpuUsage(systemUsage), systemUsage.ram);
   }
 
   const index = Number.parseInt(device.replace("cuda:", ""), 10);
@@ -180,7 +130,7 @@ export function getDeviceStress(
     return null;
   }
 
-  const gpu = systemInfo.gpus.find((item) => item.index === index);
+  const gpu = systemUsage.gpus.find((item) => item.index === index);
   if (gpu == null) {
     return null;
   }
@@ -189,9 +139,9 @@ export function getDeviceStress(
 }
 
 export function getRecommendedDevice(
-  systemInfo: SystemInfo | null,
+  systemUsage: SystemUsage | null,
 ): DeviceOption {
-  const options = buildDeviceOptions(systemInfo).filter(
+  const options = buildDeviceOptions(systemUsage).filter(
     (option) => option.value !== "auto",
   );
   if (options.length === 0) {

@@ -6,7 +6,6 @@ from signal import SIGINT, Signals
 from typing import Collection
 
 import numpy as np
-import numpy.typing as npt
 import polars as pl
 import psutil
 from cachetools.func import ttl_cache
@@ -22,10 +21,10 @@ RUN_FILE = "run.json"
 
 
 @dataclass(unsafe_hash=True)
-class Run[E: MARLEnv, T: npt.ArrayLike](Serializable):
+class Run[E: MARLEnv](Serializable):
     seed: int
     rundir: str
-    trainer: Trainer[T]
+    trainer: Trainer
     env: EnvConfig[E]
     test_env: EnvConfig[E]
     n_steps: int

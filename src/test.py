@@ -1,5 +1,6 @@
 import logging
 import os
+import signal
 import sys
 from typing import Type
 
@@ -16,15 +17,26 @@ from marl.policy import EpsilonGreedy
 
 
 class Args(tap.TypedArgs):
-    quiet: bool = tap.arg(default=False)
+    _quiet: bool | None = tap.arg("--quiet", default=False)
+
+    @property
+    def quiet(self):
+        """If the user has explicitly set quiet mode, then use it. Otherwise, if the program is started with nohup, then enable quiet mode."""
+        if self._quiet is not None:
+            return self._quiet
+        # If nohup, then the default SIGHUP signal is not hte default
+        if signal.getsignal(signal.SIGHUP) == signal.SIG_DFL:
+            return False  # Normal mode
+        return True  # Nohup mode
 
 
-def maven[E: DiscreteMARLEnv](env: EnvConfig[E]):
+def maven[E: DiscreteMARLEnv](env: EnvConfig[E], rnd: algos.RND | None = None):
     return algos.MAVEN(
         qnetworks.MAVENQnetwork.from_env(env),
         EpsilonGreedy.linear(1, 0.01, 100),
         env,
-        gamma=0.99,
+        ir_module=rnd,
+        gamma=0.95,
         lr=5e-4,
         batch_size=16,
         optimiser_type="rmsprop",
@@ -32,9 +44,9 @@ def maven[E: DiscreteMARLEnv](env: EnvConfig[E]):
     )
 
 
-def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Type[Mixer], rnd: algos.RND | None = None):
+def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Type[Mixer], rnd: algos.RND | None = None, independent: bool = True):
     return algos.DQN(
-        qnetworks.from_env(env, independent=True),
+        qnetworks.from_env(env, independent=independent),
         TransitionMemory(50_000),
         mixer=mixer.from_env(env),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
@@ -49,20 +61,13 @@ def dqn[E: DiscreteMARLEnv](env: EnvConfig[E], mixer: Type[Mixer], rnd: algos.RN
 
 
 def main(args: Args):
-    env = LLEConfig(6, obs_type="layered", state_type="layered")
+    env = LLEConfig(6, obs_type="layered", state_type="flattened", maven_noise_size=16)
     # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
     rnd = algos.RND.from_env(env)
-    # trainer = maven(env)
-    trainer = dqn(env, mixers.VDN, rnd)
+    trainer = maven(env, rnd)
+    # trainer = dqn(env, mixers.VDN, rnd, independent=True)
     exp = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
-    exp.run(
-        seeds=4,
-        n_tests=5,
-        gpu_strategy="scatter",
-        test_interval=5000,
-        quiet=args.quiet,
-        n_jobs=2,
-    )
+    exp.run(seeds=8, n_tests=5, gpu_strategy="scatter", test_interval=5000, quiet=args.quiet, disabled_gpus=[0, 1, 4, 5, 6, 7])
 
 
 if __name__ == "__main__":

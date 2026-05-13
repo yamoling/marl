@@ -38,9 +38,9 @@ def list_gpus(disabled_devices: Collection[int] | None = None) -> list[GPU]:
         csv = subprocess.check_output(cmd, shell=True).decode().strip()
     except subprocess.CalledProcessError:
         return []
-    res = []
     if len(csv) == 0:
-        return res
+        return []
+    res = []
     for line in csv.split("\n"):
         index, total_memory, used_memory, free_memory, utilization = map(int, line.split(","))
         if index in disabled_devices:

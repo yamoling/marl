@@ -1,14 +1,13 @@
 import numpy as np
-import numpy.typing as npt
 from marlenv import Observation
 
 from marl.models import Agent, HierarchicalAgent
 
 
-class MAVENAgent(HierarchicalAgent[npt.NDArray[np.int64], npt.NDArray[np.int64]]):
+class MAVENAgent(HierarchicalAgent):
     noise_size: int
 
-    def __init__(self, noise_size: int, workers: Agent[npt.NDArray[np.int64]], meta_agent: Agent[npt.NDArray[np.int64]]):
+    def __init__(self, noise_size: int, workers: Agent, meta_agent: Agent):
         super().__init__(workers, meta_agent)
         self._episode_noise = None
         self._saved_episode_noise = None

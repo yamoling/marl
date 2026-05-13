@@ -11,26 +11,45 @@
                 <ExperimentTable />
             </section>
 
-            <MetricsPanel v-if="resultsStore.results.size > 0" :metrics="metrics" :metricsByCategory="metricsByCategory"
-                @change-selected-metrics="(m) => selectedMetrics = m" />
+            <MetricsPanel
+                v-if="resultsStore.results.size > 0"
+                :metrics="metrics"
+                :metricsByCategory="metricsByCategory"
+                @change-selected-metrics="(m) => (selectedMetrics = m)"
+            />
         </aside>
 
-        <div class="home-divider" :class="{ 'home-divider--dragging': isDraggingDivider }" role="separator"
-            aria-orientation="vertical" aria-label="Resize workspace panels" tabindex="0"
-            @pointerdown="startDividerDrag" @keydown.left.prevent="nudgeWorkspace(-1)"
-            @keydown.right.prevent="nudgeWorkspace(1)">
+        <div
+            class="home-divider"
+            :class="{ 'home-divider--dragging': isDraggingDivider }"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize workspace panels"
+            tabindex="0"
+            @pointerdown="startDividerDrag"
+            @keydown.left.prevent="nudgeWorkspace(-1)"
+            @keydown.right.prevent="nudgeWorkspace(1)"
+        >
             <span class="home-divider-handle"></span>
         </div>
 
         <main class="home-main">
             <section v-if="resultsStore.results.size > 0" class="chart-grid">
-                <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
+                <article
+                    class="panel-surface chart-card"
+                    v-for="[metricId, ds] in datasetPerLabel"
                     :key="metricPlotId(metricId)"
-                    :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
-                    <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
-                        :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
-                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)"
-                        @datapoint-clicked="onTestEpisodeClicked" />
+                    :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }"
+                >
+                    <Plotter
+                        :datasets="ds"
+                        :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
+                        :showLegend="true"
+                        :expanded="expandedPlotIds.has(metricPlotId(metricId))"
+                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))"
+                        @close="closeMetric(metricId)"
+                        @datapoint-clicked="onTestEpisodeClicked"
+                    />
                 </article>
             </section>
         </main>
@@ -38,15 +57,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import { Dataset } from '../../models/Experiment';
-import { MetricSelection } from '../../models/Metrics';
-import Plotter from '../Plotter.vue';
-import MetricsPanel from './MetricsPanel.vue';
-import ExperimentTable from './ExperimentTable.vue';
-import { useResultsStore } from '../../stores/ResultsStore';
-import { useMetricsStore } from '../../stores/MetricsStore';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import { Dataset } from "../../models/Results";
+import { MetricSelection } from "../../models/Metrics";
+import Plotter from "../Plotter.vue";
+import MetricsPanel from "./MetricsPanel.vue";
+import ExperimentTable from "./ExperimentTable.vue";
+import { useResultsStore } from "../../stores/ResultsStore";
+import { useMetricsStore } from "../../stores/MetricsStore";
 const resultsStore = useResultsStore();
 const metricsStore = useMetricsStore();
 const router = useRouter();
@@ -58,29 +77,26 @@ const workspaceRef = ref<HTMLElement | null>(null);
 const isDraggingDivider = ref(false);
 const workspaceHeightPx = ref(initWorkspaceHeightPx());
 const workspaceStyle = computed(() => ({
-    '--home-sidebar-width': `${workspaceSidebarPercent.value}%`,
-    '--home-workspace-height': `${workspaceHeightPx.value}px`,
+    "--home-sidebar-width": `${workspaceSidebarPercent.value}%`,
+    "--home-workspace-height": `${workspaceHeightPx.value}px`,
 }));
 
 const metrics = computed(() => {
     const res = new Set<string>();
-    resultsStore.results.forEach((r) => r.metricLabels().forEach(label => res.add(label)));
+    resultsStore.results.forEach((r) => r.metricLabels().forEach((label) => res.add(label)));
     return res;
 });
 
 const metricsByCategory = computed(() => {
     const res = new Map<string, Set<string>>();
     resultsStore.results.forEach((r) => {
-        r.datasets.forEach(ds => {
+        r.datasets.forEach((ds) => {
             if (!res.has(ds.category)) res.set(ds.category, new Set());
             res.get(ds.category)!.add(ds.label);
         });
     });
     return res;
 });
-
-
-
 
 const datasetPerLabel = computed(() => {
     const res = new Map<string, Dataset[]>();
@@ -89,7 +105,7 @@ const datasetPerLabel = computed(() => {
         resultsStore.results.forEach((r) => {
             const datasets = r.getMetricDatasets(selection.label);
             // Filter by the specific category
-            grouped.push(...datasets.filter(ds => ds.category === selection.category));
+            grouped.push(...datasets.filter((ds) => ds.category === selection.category));
         });
         if (grouped.length > 0) {
             const key = `${selection.label}:${selection.category}`;
@@ -105,7 +121,7 @@ function onTestEpisodeClicked(logdir: string, timeStep: number) {
             path: `/inspect/${logdir}`,
             query: { step: String(timeStep) },
         });
-        window.open(target.href, '_blank', 'noopener');
+        window.open(target.href, "_blank", "noopener");
     }
 }
 
@@ -114,10 +130,9 @@ function metricPlotId(metricId: string) {
 }
 
 function extractMetricLabel(metricId: string): string {
-    const [label] = metricId.split(':');
+    const [label] = metricId.split(":");
     return label;
 }
-
 
 function toggleFocusedPlot(plotId: string) {
     const newSet = new Set(expandedPlotIds.value);
@@ -130,19 +145,15 @@ function toggleFocusedPlot(plotId: string) {
 }
 
 function closeMetric(metricId: string) {
-    const [label, category] = metricId.split(':');
+    const [label, category] = metricId.split(":");
     metricsStore.removeSelectedMetric(label, category);
-    selectedMetrics.value = selectedMetrics.value.filter(
-        m => !(m.label === label && m.category === category)
-    );
+    selectedMetrics.value = selectedMetrics.value.filter((m) => !(m.label === label && m.category === category));
     const plotId = metricPlotId(metricId);
-    expandedPlotIds.value = new Set(
-        Array.from(expandedPlotIds.value).filter(id => id !== plotId)
-    );
+    expandedPlotIds.value = new Set(Array.from(expandedPlotIds.value).filter((id) => id !== plotId));
 }
 
 function initWorkspaceSidebarPercent() {
-    const saved = localStorage.getItem('home-workspace-sidebar-percent');
+    const saved = localStorage.getItem("home-workspace-sidebar-percent");
     if (saved != null) {
         const parsed = Number(saved);
         if (!Number.isNaN(parsed)) {
@@ -153,7 +164,7 @@ function initWorkspaceSidebarPercent() {
 }
 
 watch(workspaceSidebarPercent, (value) => {
-    localStorage.setItem('home-workspace-sidebar-percent', String(value));
+    localStorage.setItem("home-workspace-sidebar-percent", String(value));
 });
 
 function startDividerDrag(event: PointerEvent) {
@@ -174,14 +185,14 @@ function startDividerDrag(event: PointerEvent) {
     };
     const stopDragging = () => {
         isDraggingDivider.value = false;
-        window.removeEventListener('pointermove', updateFromPointer);
-        window.removeEventListener('pointerup', stopDragging);
-        window.removeEventListener('pointercancel', stopDragging);
+        window.removeEventListener("pointermove", updateFromPointer);
+        window.removeEventListener("pointerup", stopDragging);
+        window.removeEventListener("pointercancel", stopDragging);
     };
     updateFromPointer(event);
-    window.addEventListener('pointermove', updateFromPointer);
-    window.addEventListener('pointerup', stopDragging, { once: true });
-    window.addEventListener('pointercancel', stopDragging, { once: true });
+    window.addEventListener("pointermove", updateFromPointer);
+    window.addEventListener("pointerup", stopDragging, { once: true });
+    window.addEventListener("pointercancel", stopDragging, { once: true });
     event.preventDefault();
     (event.currentTarget as HTMLElement | null)?.setPointerCapture(pointerId);
 }
@@ -204,7 +215,7 @@ function updateWorkspaceHeight() {
         return;
     }
     const top = workspace.getBoundingClientRect().top;
-    const footer = document.querySelector('footer') as HTMLElement | null;
+    const footer = document.querySelector("footer") as HTMLElement | null;
     const footerHeight = footer?.offsetHeight ?? 0;
     const nextHeight = Math.floor(window.innerHeight - top - footerHeight - 12);
     workspaceHeightPx.value = Math.max(420, nextHeight);
@@ -212,14 +223,13 @@ function updateWorkspaceHeight() {
 
 onMounted(() => {
     updateWorkspaceHeight();
-    window.addEventListener('resize', updateWorkspaceHeight);
+    window.addEventListener("resize", updateWorkspaceHeight);
 });
 
 onBeforeUnmount(() => {
     isDraggingDivider.value = false;
-    window.removeEventListener('resize', updateWorkspaceHeight);
+    window.removeEventListener("resize", updateWorkspaceHeight);
 });
-
 </script>
 
 <style scoped>
@@ -263,7 +273,7 @@ onBeforeUnmount(() => {
 }
 
 .home-divider::before {
-    content: '';
+    content: "";
     width: 2px;
     background: var(--bs-border-color);
     border-radius: 999px;
@@ -293,7 +303,6 @@ onBeforeUnmount(() => {
 .home-divider:focus-visible .home-divider-handle {
     border-color: rgba(13, 110, 253, 0.55);
 }
-
 
 .home-panel {
     overflow: auto;

@@ -4,9 +4,8 @@
 
         <div v-else class="matrix-scroll">
             <div class="matrix-toolbar mb-2">
-                <button class="btn btn-sm btn-outline-secondary" type="button" @click="toggleTranspose">
-                    Transpose
-                </button>
+                <button class="btn btn-sm btn-outline-secondary" type="button"
+                    @click="() => { isTransposed = !isTransposed }">Transpose</button>
             </div>
 
             <table v-if="!isTransposed" class="table table-sm align-middle mb-0 matrix-table">
@@ -19,13 +18,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="row in rows" :key="row.actionIndex">
+                    <tr v-for="(row, i) in rows" :key="i">
                         <th scope="row" class="action-name">
-                            {{ row.label }}
+                            {{ props.episode.action_space.labels[i] }}
                         </th>
-                        <td v-for="cell in row.cells" :key="`${row.actionIndex}-${cell.agent}`" class="matrix-cell"
-                            :class="{ taken: cell.isTaken, unavailable: !cell.isAvailable }">
-                            <div class="score-bar" :style="scoreBarStyle(cell.currentScore)"></div>
+                        <td v-for="(cell, j) in row" :key="j" class="matrix-cell" :class="{
+                            taken: cell.isTaken,
+                            unavailable: !cell.isAvailable,
+                        }">
+                            <!-- <div class="score-bar" :style="scoreBarStyle(cell.value)"></div> -->
                             <div class="cell-indicators">
                                 <span v-if="cell.isTaken" class="status-dot selected-dot" title="Selected action"
                                     aria-label="Selected action" />
@@ -33,7 +34,8 @@
                                     title="Action unavailable" aria-label="Action unavailable" />
                             </div>
                             <div class="score-value-row">
-                                <span class="score-value">{{ formatScore(cell.currentScore) }}</span>
+                                <span class="score-value">{{ (cell.value == null) ? "-" : cell.value.toFixed(3)
+                                    }}</span>
                             </div>
                         </td>
                     </tr>
@@ -44,19 +46,20 @@
                 <thead>
                     <tr>
                         <th scope="col">Agent</th>
-                        <th v-for="actionIndex in actionIndices" :key="actionIndex" scope="col" class="text-center">
-                            {{ actionLabel(actionIndex) }}
+                        <th v-for="label in props.actionSpace.labels" :key="label" scope="col" class="text-center">
+                            {{ label }}
                         </th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="row in transposedRows" :key="row.agent">
+                    <tr v-for="(row, i) in transposedRows" :key="i">
                         <th scope="row" class="action-name">
-                            {{ agentLabel(row.agent) }}
+                            {{ agentLabel(i) }}
                         </th>
-                        <td v-for="(cell, cellIndex) in row.cells" :key="`${row.agent}-${cellIndex}`"
-                            class="matrix-cell" :class="{ taken: cell.isTaken, unavailable: !cell.isAvailable }">
-                            <div class="score-bar" :style="scoreBarStyle(cell.currentScore)"></div>
+                        <td v-for="(cell, j) in row" :key="j" class="matrix-cell" :class="{
+                            taken: cell.isTaken,
+                            unavailable: !cell.isAvailable,
+                        }">
                             <div class="cell-indicators">
                                 <span v-if="cell.isTaken" class="status-dot selected-dot" title="Selected action"
                                     aria-label="Selected action" />
@@ -64,7 +67,8 @@
                                     title="Action unavailable" aria-label="Action unavailable" />
                             </div>
                             <div class="score-value-row">
-                                <span class="score-value">{{ formatScore(cell.currentScore) }}</span>
+                                <span class="score-value">{{ (cell.value == null) ? "-" : cell.value.toFixed(3)
+                                    }}</span>
                             </div>
                         </td>
                     </tr>
@@ -72,192 +76,77 @@
             </table>
         </div>
 
-        <p class="legend mb-0">
-            Source: {{ scoreSource }}
-        </p>
+        <p class="legend mb-0">Source: {{ detailsKey }}</p>
     </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { DiscreteActionSpace } from '../../../models/Env';
-import { AgentDetails, ReplayEpisode } from '../../../models/Episode';
+import { computed, ref } from "vue";
+import { DiscreteSpace } from "../../../models/Env";
+import { ReplayEpisode } from "../../../models/Episode";
+import { is2D } from "../../../utils";
 
 const props = defineProps<{
-    episode: ReplayEpisode
-    currentStep: number
-    selectedAgents: number[]
-    actionSpace: DiscreteActionSpace
+    episode: ReplayEpisode;
+    currentStep: number;
+    selectedAgents: number[];
+    actionSpace: DiscreteSpace;
 }>();
 
 type MatrixCell = {
-    agent: number
-    currentScore: number | null
-    isTaken: boolean
-    isAvailable: boolean
+    value: number | null;
+    isTaken: boolean;
+    isAvailable: boolean;
 };
 
-type MatrixRow = {
-    actionIndex: number
-    label: string
-    cells: MatrixCell[]
-};
+type MatrixRow = MatrixCell[]
 
 const safeStep = computed(() => clampStep(props.currentStep));
 const isTransposed = ref(false);
-
-const scoreSource = computed(() => {
+const detailsKey = computed(() => {
     const detail = props.episode.agent_details[safeStep.value];
-    if (detail?.q_values != null) return 'q_values';
-    if (detail?.action_probabilities != null) return 'action_probabilities';
+    if (detail?.q_values != null) return "q_values";
+    if (detail?.action_probabilities != null) return "action_probabilities";
     return 'action signal unavailable. Is the "replay only with stored actions" setting enabled ?';
 });
-
-const allScores = computed(() => {
-    const values: number[] = [];
-    for (const actionIndex of actionIndices.value) {
-        for (const agent of props.selectedAgents) {
-            const score = getScoreAt(safeStep.value, agent, actionIndex);
-            if (score != null && Number.isFinite(score)) values.push(score);
-        }
+const nAgents = props.selectedAgents.length;
+const nActions = props.actionSpace.spaces[0].size;
+const details = computed(() => {
+    const details = props.episode.detailsAt(safeStep.value, detailsKey.value);
+    if (is2D(details)) {
+        return details;
     }
-    return values;
+    return null
 });
 
-const scoreRange = computed(() => {
-    if (allScores.value.length === 0) return { min: -1, max: 1 };
-    const min = Math.min(...allScores.value);
-    const max = Math.max(...allScores.value);
-    return { min, max: Math.max(max, min + 1e-6) };
-});
 
-const actionIndices = computed(() => {
-    const fromLabels = props.actionSpace.labels?.length ?? 0;
-    const fromAvailability = maxAvailableActionCountAt(safeStep.value);
-    const count = Math.max(fromLabels, fromAvailability);
-    return Array.from({ length: count }, (_, index) => index);
-});
-
-const rows = computed<MatrixRow[]>(() => {
-    return actionIndices.value.map((actionIndex) => {
-        const cells = props.selectedAgents.map((agent): MatrixCell => {
-            const currentScore = getScoreAt(safeStep.value, agent, actionIndex);
-
+const rows = computed(() => {
+    if (details.value == null) return [];
+    const rows = [] as MatrixRow[];
+    for (let action = 0; action < nActions; action++) {
+        const row = props.selectedAgents.map(agent => {
             return {
-                agent,
-                currentScore,
-                isTaken: takenActionAt(safeStep.value, agent) === actionIndex,
-                isAvailable: availableAt(safeStep.value, agent, actionIndex),
-            };
-        });
-
-        return {
-            actionIndex,
-            label: actionLabel(actionIndex),
-            cells,
-        };
-    });
+                value: details.value![agent][action],
+                isTaken: props.episode.isTakenAt(action, agent, safeStep.value),
+                isAvailable: props.episode.isAvailableAt(action, agent, safeStep.value),
+            }
+        })
+        rows.push(row);
+    }
+    return rows
 });
 
-const transposedRows = computed(() => {
-    return props.selectedAgents.map((agent) => {
-        const cells = actionIndices.value.map((actionIndex): MatrixCell => {
-            const currentScore = getScoreAt(safeStep.value, agent, actionIndex);
-            return {
-                agent,
-                currentScore,
-                isTaken: takenActionAt(safeStep.value, agent) === actionIndex,
-                isAvailable: availableAt(safeStep.value, agent, actionIndex),
-            };
-        });
-        return {
-            agent,
-            cells,
-        };
-    });
-});
+const transposedRows = computed(() => props.selectedAgents.map(agent => rows.value.map(v => v[agent])));
+
 
 function clampStep(step: number): number {
     const max = Math.max(0, props.episode.episode.actions.length - 1);
     return Math.max(0, Math.min(max, step));
 }
 
-function actionLabel(actionIndex: number): string {
-    return props.actionSpace.labels?.[actionIndex] ?? `#${actionIndex}`;
-}
-
-function takenActionAt(step: number, agent: number): number | null {
-    const value = props.episode.episode.actions[step]?.[agent];
-    return typeof value === 'number' ? value : null;
-}
 
 function agentLabel(agent: number): string {
-    return `A${agent + 1}`;
-}
-
-function availableAt(step: number, agent: number, actionIndex: number): boolean {
-    const mask = props.episode.episode.all_available_actions[step]?.[agent];
-    if (!Array.isArray(mask) || actionIndex >= mask.length) return true;
-    return mask[actionIndex];
-}
-
-
-function maxAvailableActionCountAt(step: number): number {
-    const allAgents = props.episode.episode.all_available_actions[step] ?? [];
-    return allAgents.reduce((max, mask) => Math.max(max, Array.isArray(mask) ? mask.length : 0), 0);
-}
-
-function getScoreAt(step: number, agent: number, actionIndex: number): number | null {
-    const detail = props.episode.agent_details[step];
-    if (detail == null) return null;
-
-    const fromQ = decisionVector(detail, 'q_values', agent)?.[actionIndex];
-    if (fromQ != null) return fromQ;
-
-    const fromProb = decisionVector(detail, 'action_probabilities', agent)?.[actionIndex];
-    if (fromProb != null) return fromProb;
-
-    return null;
-}
-
-function decisionVector(detail: AgentDetails, key: 'q_values' | 'action_probabilities', agent: number): number[] | null {
-    const raw = detail[key];
-    if (!Array.isArray(raw)) return null;
-    const valuesForAgent = raw[agent];
-
-    if (isNumberArray(valuesForAgent)) return valuesForAgent;
-    if (isNumberMatrix(valuesForAgent)) {
-        return valuesForAgent.map((objectiveValues) => objectiveValues.reduce((sum, value) => sum + value, 0));
-    }
-
-    return null;
-}
-
-function isNumberArray(value: unknown): value is number[] {
-    return Array.isArray(value) && value.every((item) => typeof item === 'number' && Number.isFinite(item));
-}
-
-function isNumberMatrix(value: unknown): value is number[][] {
-    return Array.isArray(value) && value.every((row) => isNumberArray(row));
-}
-
-function scoreBarStyle(value: number | null): Record<string, string> {
-    if (value == null) {
-        return { width: '0%' };
-    }
-
-    const ratio = (value - scoreRange.value.min) / (scoreRange.value.max - scoreRange.value.min);
-    const clipped = Math.max(0, Math.min(1, ratio));
-    return { width: `${(clipped * 100).toFixed(1)}%` };
-}
-
-function formatScore(value: number | null): string {
-    if (value == null) return '-';
-    return value.toFixed(3);
-}
-
-function toggleTranspose() {
-    isTransposed.value = !isTransposed.value;
+    return `Agent ${agent}`;
 }
 
 </script>
@@ -315,17 +204,6 @@ function toggleTranspose() {
         color-mix(in srgb, var(--bs-body-bg) 88%, transparent);
 }
 
-.score-bar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    background: linear-gradient(90deg,
-            color-mix(in srgb, var(--bs-info) 25%, transparent),
-            color-mix(in srgb, var(--bs-primary) 26%, transparent));
-    border-radius: 0.35rem;
-    pointer-events: none;
-}
 
 .score-value-row {
     position: relative;

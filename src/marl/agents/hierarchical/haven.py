@@ -17,8 +17,8 @@ class Haven(Agent):
     The subgoals are concatenated to the worker's observations as "extras".
     """
 
-    meta: Agent[np.ndarray]
-    workers: Agent[np.ndarray]
+    meta: Agent
+    workers: Agent
     n_subgoals: int
     k: int
     """The number of steps that meta-actions lasts."""

@@ -13,9 +13,9 @@ export type TrackConfig = z.infer<typeof TrackConfigSchema>;
 export class Track implements TrackConfig {
     readonly label: string;
     kind: TimelineTrackKind;
-    readonly values: number[];
+    readonly values: (number | null)[];
 
-    public constructor(label: string, kind: TimelineTrackKind, values: number[]) {
+    public constructor(label: string, kind: TimelineTrackKind, values: (number | null)[]) {
         this.label = label;
         this.kind = kind;
         this.values = values;

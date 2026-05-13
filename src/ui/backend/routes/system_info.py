@@ -11,7 +11,7 @@ router = APIRouter()
 
 def get_system_info():
     return {
-        "cpus": psutil.cpu_percent(percpu=True),
+        "cpu": psutil.cpu_percent(),
         "ram": psutil.virtual_memory().percent,
         "gpus": list_gpus(),
     }
@@ -19,6 +19,7 @@ def get_system_info():
 
 @router.get("/system-specs")
 def get_specs():
+    _ = psutil.cpu_percent()
     info = get_system_info()
     return Response(content=orjson.dumps(info), media_type="application/json")
 

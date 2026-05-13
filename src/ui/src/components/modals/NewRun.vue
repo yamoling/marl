@@ -102,10 +102,10 @@ const seed = ref(0);
 const gpuStrategy = ref<"scatter" | "group">("group");
 const selectedDevices = ref<string[]>([]);
 
-const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemInfo));
-const gpuOptions = computed(() => buildGpuDeviceOptions(systemStore.systemInfo));
+const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemUsage));
+const gpuOptions = computed(() => buildGpuDeviceOptions(systemStore.systemUsage));
 const selectedDeviceStress = computed(() => {
-    if (systemStore.systemInfo == null || selectedDevices.value.length === 0) {
+    if (systemStore.systemUsage == null || selectedDevices.value.length === 0) {
         return null;
     }
 
@@ -150,7 +150,7 @@ async function start() {
             return;
         }
     }
-    const disabledDevices = getDisabledDevicesFromSelected(systemStore.systemInfo, selectedDevices.value);
+    const disabledDevices = getDisabledDevicesFromSelected(systemStore.systemUsage, selectedDevices.value);
     await store.newRun(experiment.value.logdir, nRuns.value, nJobs.value, seed.value, nTests.value, gpuStrategy.value, disabledDevices);
     modalInstance?.hide();
 }
@@ -158,8 +158,8 @@ async function start() {
 function showModal(exp: Experiment) {
     setDefaultSeed(exp.logdir);
     experiment.value = exp;
-    selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemInfo);
-    nJobs.value = Math.max(1, systemStore.systemInfo?.gpus.length ?? 0);
+    selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemUsage);
+    nJobs.value = Math.max(1, systemStore.systemUsage?.gpus.length ?? 0);
     gpuStrategy.value = "group";
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
