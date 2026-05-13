@@ -3,7 +3,6 @@ from dataclasses import KW_ONLY, dataclass
 from typing import Literal
 
 import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv import Episode
 
@@ -11,7 +10,7 @@ from marl.models import QNetwork, Trainer
 
 
 @dataclass
-class ExpectedReturnTrainer(Trainer[npt.NDArray[np.int64]]):
+class ExpectedReturnTrainer(Trainer):
     nn: QNetwork
     noise_size: int
     _: KW_ONLY

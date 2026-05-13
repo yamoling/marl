@@ -174,7 +174,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             if not rundir.is_dir():
                 continue
             try:
-                yield Run[E, npt.ArrayLike].load(rundir)
+                yield Run[E].load(rundir)
             except FileNotFoundError:
                 # Not a run directory
                 pass

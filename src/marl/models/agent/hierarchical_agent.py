@@ -5,8 +5,8 @@ import torch
 from .agent import Agent
 
 
-class HierarchicalAgent[T, U](Agent[T]):
-    def __init__(self, workers: Agent[T], meta_agent: Agent[U]):
+class HierarchicalAgent(Agent):
+    def __init__(self, workers: Agent, meta_agent: Agent):
         super().__init__()
         self.meta_agent = meta_agent
         self.workers = workers

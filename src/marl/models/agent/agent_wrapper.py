@@ -8,8 +8,8 @@ from .agent import Agent
 
 
 @dataclass
-class AgentWrapper[T](Agent[T]):
-    def __init__(self, agent: Agent[T]):
+class AgentWrapper(Agent):
+    def __init__(self, agent: Agent):
         super().__init__()
         self.agent = agent
 

@@ -7,7 +7,7 @@ import numpy.typing as npt
 from marl.models import Action, Agent
 
 
-class ReplayAgent(Agent[npt.ArrayLike]):
+class ReplayAgent(Agent):
     def __init__(self):
         super().__init__()
         self.mismatch = False
@@ -19,17 +19,17 @@ class ReplayAgent(Agent[npt.ArrayLike]):
         return ReplayActionsOnlyAgent(actions)
 
     @staticmethod
-    def from_agent_only(agent: Agent[npt.ArrayLike], weights_path: Path):
+    def from_agent_only(agent: Agent, weights_path: Path):
         return SimpleReplayAgent(agent, weights_path)
 
     @staticmethod
-    def from_agent_and_actions(agent: Agent[npt.ArrayLike], actions: np.ndarray, weights_path: Path):
+    def from_agent_and_actions(agent: Agent, actions: np.ndarray, weights_path: Path):
         agent.load(weights_path)
         return CombinedReplayAgent(actions, agent)
 
 
 class CombinedReplayAgent(ReplayAgent):
-    def __init__(self, actions: np.ndarray, wrapped: Agent[npt.ArrayLike]):
+    def __init__(self, actions: np.ndarray, wrapped: Agent):
         super().__init__()
         self.actions_agent = ReplayActionsOnlyAgent(actions)
         self.saved_agent = wrapped
@@ -66,7 +66,7 @@ class ReplayActionsOnlyAgent(ReplayAgent):
 
 
 class SimpleReplayAgent(ReplayAgent):
-    def __init__(self, agent: Agent[npt.ArrayLike], weights_path: Path):
+    def __init__(self, agent: Agent, weights_path: Path):
         super().__init__()
         agent.load(weights_path)
         self.agent = agent

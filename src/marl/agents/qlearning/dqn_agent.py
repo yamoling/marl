@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv import Observation
 
@@ -11,18 +9,18 @@ from marl.models import Action, Agent, Policy, QNetwork
 
 
 @dataclass
-class DQNAgent[Q: QNetwork](Agent[npt.NDArray[np.int64]]):
+class DQNAgent(Agent):
     """
     Deep Q-Network Interface with shared QNetwork.
     """
 
-    qnetwork: Q
+    qnetwork: QNetwork
     train_policy: "Policy"
     test_policy: "Policy"
 
     def __init__(
         self,
-        qnetwork: Q,
+        qnetwork: QNetwork,
         train_policy: "Policy",
         test_policy: "Policy|None" = None,
         vbe: VBE | None = None,

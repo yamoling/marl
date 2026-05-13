@@ -3,7 +3,6 @@ from dataclasses import KW_ONLY, dataclass, field
 from typing import Literal
 
 import numpy as np
-import numpy.typing as npt
 import torch
 from marlenv import Episode, Transition
 
@@ -14,7 +13,7 @@ from marl.utils import Schedule
 
 
 @dataclass
-class PPO(Trainer[npt.NDArray[np.int64]]):
+class PPO(Trainer):
     """Proximal Policy Optimization trainer. Either MAPPO (with a mixer) or IPPO (without mixer)."""
 
     actor_critic: ActorCritic
