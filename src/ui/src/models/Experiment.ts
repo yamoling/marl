@@ -18,7 +18,7 @@ export const ExperimentSchema = z.object({
   env: EnvConfigSchema,
   test_env: EnvConfigSchema.nullable(),
   n_steps: z.number(),
-  creation_timestamp: z.coerce.date(),
+  creation_timestamp: z.string().transform((str) => new Date(str)),
   loggers: z.array(z.string()),
 });
 
