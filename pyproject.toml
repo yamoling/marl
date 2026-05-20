@@ -5,15 +5,19 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<4"
 dependencies = [
+  "cachetools>=7.1.1",
   "fastapi>=0.135.2",
   "jupyterlab>=4.3.4",
-  "laser-learning-environment>=2.6",
+  "laser-learning-environment[generator]>=2.9",
   "matplotlib>=3.10.8",
   "mplcursors>=0.6",
   "multi-agent-rlenv>=4.0.0",
   "neptune>=1.14.0",
   "numpy>=2.0",
+  "optuna>=4.8.0",
+  "optuna-dashboard>=0.20.0",
   "orjson>=3.10.12",
+  "overcooked>=0.2.0",
   "polars>=1.5.0",
   "pysc2",
   "python-dotenv>=1.0.1",
@@ -31,10 +35,6 @@ dependencies = [
   "uvicorn>=0.34.3",
   "wandb>=0.21.2",
   "websockets>=12.0",
-  "optuna>=4.8.0",
-  "optuna-dashboard>=0.20.0",
-  "cachetools>=7.1.1",
-  "overcooked>=0.2.0",
 ]
 
 [project.optional-dependencies]

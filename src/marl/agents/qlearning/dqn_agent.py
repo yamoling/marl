@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,14 +17,14 @@ class DQNAgent(Agent):
     """
 
     qnetwork: QNetwork
-    train_policy: "Policy"
-    test_policy: "Policy"
+    train_policy: Policy
+    test_policy: Policy
 
     def __init__(
         self,
         qnetwork: QNetwork,
-        train_policy: "Policy",
-        test_policy: "Policy|None" = None,
+        train_policy: Policy,
+        test_policy: Policy | None = None,
         vbe: VBE | None = None,
     ):
         super().__init__()
