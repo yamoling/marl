@@ -6,13 +6,14 @@ from typing import Literal, cast
 
 import lle
 import marlenv
+import numpy as np
+import numpy.typing as npt
+from lle.generator import LooseCooperationSpec
+from lle.observations import ObservationTypeLiteral
 from marlenv import MARLEnv
 from marlenv.adapters import SMAC
 
 from marl.utils import Serializable
-
-type LLELevel = Literal[1, 2, 3, 4, 5, 6]
-type LLEObsType = Literal["layered", "flattened", "partial3x3", "partial5x5", "partial7x7", "state", "image", "perspective"]
 
 
 @dataclass
@@ -149,8 +150,8 @@ class LLEConfig(EnvConfig[lle.LLE]):
     level_or_path: Literal[1, 2, 3, 4, 5, 6] | str
     """A level or a file path"""
     _: KW_ONLY
-    obs_type: LLEObsType = "layered"
-    state_type: LLEObsType = "state"
+    obs_type: ObservationTypeLiteral = "layered"
+    state_type: ObservationTypeLiteral = "state"
     pbrs: bool = False
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
@@ -176,6 +177,38 @@ class LLEConfig(EnvConfig[lle.LLE]):
                 lasers_to_reward = [(4, 0), (6, 12)]
             builder = builder.pbrs(reward_value=1.0, gamma=1.0, lasers_to_reward=lasers_to_reward)
         return builder.build()
+
+
+@dataclass
+class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
+    pool_size: int
+    _: KW_ONLY
+    width: int = 13
+    height: int = 12
+    n_lasers: int = 3
+    _n_agents: int = 4
+    cooperation: LooseCooperationSpec = ("exactly", "mutual")
+    obs_type: ObservationTypeLiteral = "layered"
+    state_type: ObservationTypeLiteral = "state"
+    time_limit: int | None = -1
+    """If <= 0, set to width * height // 2."""
+
+    def __post_init__(self):
+        if self.time_limit is not None and self.time_limit <= -1:
+            self.time_limit = self.width * self.height // 2
+        super().__post_init__()
+
+    def make_base_env(self):
+        return lle.make_pool(
+            self.pool_size,
+            obs_type=self.obs_type,
+            state_type=self.state_type,
+            cooperation=self.cooperation,
+            width=self.width,
+            height=self.height,
+            n_lasers=self.n_lasers,
+            n_agents=self._n_agents,
+        )
 
 
 @dataclass
