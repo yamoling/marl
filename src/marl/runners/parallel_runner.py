@@ -33,8 +33,8 @@ def ignore_sigint():
         signal.signal(signal.SIGINT, original_handler)
 
 
-def parallel_run[E: MARLEnv, T: npt.ArrayLike](
-    runs: "Collection[Run[E, T]]",
+def parallel_run[E: MARLEnv](
+    runs: "Collection[Run[E]]",
     n_jobs: int | None = None,
     device: int | str | Literal["auto", "cpu"] = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
@@ -45,7 +45,8 @@ def parallel_run[E: MARLEnv, T: npt.ArrayLike](
     if n_jobs is None:
         n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
     runs = list(runs)
-    # use maxtasksperchild=1 such that CUDA memory is freed after each run.
+    # use maxtasksperchild=1 such that CUDA memory is freed after each run, even when the
+    # pool is not terminated. That way, GPUs are more quickly available to other users.
     try:
         with mp.get_context("spawn").Pool(n_jobs, maxtasksperchild=1) as pool:
             # Start first run to measure GPU memory used

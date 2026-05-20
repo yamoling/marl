@@ -51,9 +51,11 @@ def dqn[E: DiscreteMARLEnv](
     rnd: algos.RND | None = None,
     independent: bool = True,
     recurrent: bool = False,
+    duelling: bool = True,
+    noisy: bool = False,
 ):
     return algos.DQN(
-        qnetworks.from_env(env, recurrent=recurrent, independent=independent),
+        qnetworks.from_env(env, recurrent=recurrent, independent=independent, duelling=duelling, noisy=noisy),
         mixer=mixer.from_env(env),
         train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
         gamma=0.95,
@@ -67,14 +69,27 @@ def dqn[E: DiscreteMARLEnv](
 
 
 def main(args: Args):
-    env = LLEConfig(6, obs_type="partial7x7", state_type="flattened", maven_noise_size=16)
+    env = LLEConfig(6, obs_type="layered", state_type="flattened", maven_noise_size=None)
     # env = EnvConfig.from_any(catalog.MStepsMatrix(10), maven_noise_size=16)
     rnd = algos.RND.from_env(env)
-    rnd = None
+    # rnd = None
     # trainer = maven(env, rnd)
-    trainer = dqn(env, mixers.VDN, rnd=rnd, independent=False, recurrent=True)
-    exp = Experiment(env, trainer, logdir="test", n_steps=1_000_000)
-    exp.run(seeds=1, n_tests=5, gpu_strategy="scatter", test_interval=5000, quiet=args.quiet, disabled_gpus=[0, 1, 4, 5, 6, 7])
+    for duelling in [True, False]:
+        for independent in [True, False]:
+            trainer = dqn(env, mixers.VDN, rnd=rnd, independent=independent, recurrent=False, duelling=duelling)
+            try:
+                exp = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
+                exp.run(
+                    seeds=12,
+                    n_tests=5,
+                    gpu_strategy="scatter",
+                    test_interval=5000,
+                    quiet=args.quiet,
+                    disabled_gpus=[0, 1, 3, 5, 6],
+                    n_jobs=12,
+                )
+            except FileExistsError:
+                logging.warning("Experiment with logdir 'test' already exists. Skipping this run to avoid overwriting existing results.")
 
 
 if __name__ == "__main__":
