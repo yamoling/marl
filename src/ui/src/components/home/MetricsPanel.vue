@@ -5,7 +5,7 @@
                 <div>
                     <h2>Metrics</h2>
                     <span class="panel-subtitle">{{ selectedMetrics.length }} selected across {{ loadedResultsCount
-                        }} loaded experiments</span>
+                    }} loaded experiments</span>
                 </div>
                 <label class="metrics-granularity-control" for="metrics-granularity-input">
                     <span class="metrics-granularity-label">Granularity</span>
@@ -216,8 +216,6 @@ onMounted(() => {
 .metrics-pane {
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
 }
 
 .metrics-granularity-control {
@@ -244,8 +242,6 @@ onMounted(() => {
 .selector-panel {
     display: grid;
     gap: 0.65rem;
-    min-height: 0;
-    overflow-y: auto;
 }
 
 .selector-toolbar {
