@@ -78,7 +78,7 @@ def tuning(
     """
     Define the search space for parameter tuning with Optuna. The output of this functions
     is meant to be stored in the `metadata` argument of a dataclass field:
-    ```py
+    ```
     lr: float = field(metadata=tuning(1e-5, 1e-2, log=True))
     batch_size: int = field(default=64, metadata=tuning(16, 256))
     ```

@@ -1,16 +1,15 @@
+from dataclasses import dataclass, field
+
 import numpy as np
-from dataclasses import dataclass
 import torch
 
 from marl.models import Policy
+from marl.utils import tuning
 
 
 @dataclass
 class CategoricalPolicy(Policy):
     """Categorical distribution policy"""
-
-    def __init__(self):
-        super().__init__()
 
     def get_action(self, qvalues, available_actions=None):
         if available_actions is not None:
@@ -28,12 +27,12 @@ class CategoricalPolicy(Policy):
 class NoisyCategoricalPolicy(Policy):
     """Categorical distribution policy"""
 
-    def __init__(self):
-        super().__init__()
+    mu: float = 0.0
+    sigma: float = field(default=1.0, metadata=tuning(low=0.0, high=5.0))
 
     def get_action(self, qvalues, available_actions=None):
         # add noise to logits
-        noise = np.random.normal(0, 1, qvalues.shape)
+        noise = np.random.normal(self.mu, self.sigma, qvalues.shape)
         qvalues = qvalues + noise
         if available_actions is not None:
             qvalues[available_actions == 0] = -np.inf

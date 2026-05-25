@@ -58,7 +58,7 @@ class HardUpdate(TargetParametersUpdater):
 
 @dataclass
 class SoftUpdate(TargetParametersUpdater):
-    tau: float = field(default=0.01, metadata=tuning(1e-3, 0.05, log=True))
+    tau: float = field(default=0.01, metadata=tuning(1e-4, 1e-1, log=True))
 
     def __post_init__(self):
         super().__post_init__()

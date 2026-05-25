@@ -1,23 +1,24 @@
 import random
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
 
 import numpy as np
 import numpy.typing as npt
 
 from marl.models import Policy
-from marl.utils import schedule
+from marl.utils import schedule, tuning
 
 
 @dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
 
-    tau: float
+    n_actions: int
+    _: KW_ONLY
+    tau: float = field(default=1.0, metadata=tuning(0.01, 100.0, log=True))
 
-    def __init__(self, n_actions: int, tau: float = 1.0):
-        super().__init__()
-        self.actions = np.arange(n_actions, dtype=np.int64)
-        self.tau = tau
+    def __post_init__(self):
+        super().__post_init__()
+        self.actions = np.arange(self.n_actions, dtype=np.int64)
 
     def get_action(
         self,
