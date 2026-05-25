@@ -13,7 +13,7 @@ from marl.env import LLEConfig
 from marl.nn.model_bank import qnetworks
 from marl.utils.tuning import suggest
 
-N_STEPS = 1_000
+N_STEPS = 1_000_000
 
 
 def objective(trial: optuna.Trial, algo: Literal["vdn", "qmix", "qplex", "maven", "mappo"]):
@@ -35,16 +35,27 @@ def objective(trial: optuna.Trial, algo: Literal["vdn", "qmix", "qplex", "maven"
             mixer = marl.nn.mixers.QPlex.from_env(env)
         case other:
             raise NotImplementedError(f"Algorithm {other} not implemented yet.")
-    trainer = suggest(marl.algos.DQN, trial, qnetwork=qnetwork, mixer=mixer, vbe=None, test_policy=policy.ArgMax(), gamma=0.95)
+    trainer = suggest(
+        marl.algos.DQN,
+        trial,
+        qnetwork=qnetwork,
+        mixer=mixer,
+        vbe=None,
+        test_policy=policy.ArgMax(),
+        gamma=0.95,
+        catch_all=dict(n_agents=env.n_agents, n_actions=env.n_actions),
+    )
     exp = marl.Experiment(env, n_steps=N_STEPS, trainer=trainer, logdir=os.path.join("logs", f"optuna-{algo}-{trial.number}"))
     exp.run(
         seeds=5,
         save_weights=False,
         save_actions=False,
         test_interval=N_STEPS,
-        disabled_gpus=range(6),
+        disabled_gpus=range(5),
+        n_tests=10,
         n_jobs=5,
         gpu_strategy="scatter",
+        quiet=True,
     )
     result = exp.get_results(5000)
     score = result["Test"].select("mean-exit_rate").last().collect().item()
@@ -67,8 +78,8 @@ if __name__ == "__main__":
                 storage=JournalStorage(JournalFileBackend("optuna_study.journal")),
                 load_if_exists=True,
             )
-            n_trials = 24
-            study.optimize(lambda trial: objective(trial, algo=algo), n_trials=n_trials)  # type: ignore
+            n_trials = 100
+            study.optimize(lambda trial: objective(trial, algo=algo), n_trials=n_trials, n_jobs=3)  # type: ignore
         except KeyboardInterrupt:
             pass
         except Exception as e:

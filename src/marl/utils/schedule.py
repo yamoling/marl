@@ -1,6 +1,8 @@
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 
+from marl.utils.tuning import tuning
+
 from .serialization import Serializable
 
 
@@ -10,11 +12,13 @@ class Schedule(Serializable):
     Schedules the value of a varaible over time.
     """
 
-    start_value: float
-    end_value: float
-    n_steps: int
+    _: KW_ONLY
+    start_value: float = field(metadata=tuning(1e-2, 1.0))
+    end_value: float = field(metadata=tuning(1e-2, 1.0, log=True))
+    n_steps: int = field(metadata=tuning(0, 1_000_000, step=5000))
 
     def __post_init__(self):
+        super().__post_init__()
         self._t = 0
         self._current_value = self.start_value
 
@@ -40,15 +44,15 @@ class Schedule(Serializable):
 
     @staticmethod
     def constant(value: float):
-        return ConstantSchedule(value)
+        return ConstantSchedule(start_value=value)
 
     @staticmethod
     def linear(start_value: float, end_value: float, n_steps: int):
-        return LinearSchedule(start_value, end_value, n_steps)
+        return LinearSchedule(start_value=start_value, end_value=end_value, n_steps=n_steps)
 
     @staticmethod
     def exp(start_value: float, end_value: float, n_steps: int):
-        return ExpSchedule(start_value, end_value, n_steps)
+        return ExpSchedule(start_value=start_value, end_value=end_value, n_steps=n_steps)
 
     def rounded(self, n_digits: int = 0) -> "RoundedSchedule":
         return RoundedSchedule(self, n_digits=n_digits)
@@ -193,10 +197,10 @@ class RoundedSchedule(Schedule):
     n_steps: int = field(init=False)
 
     def __post_init__(self):
-        super().__post_init__()
         self.start_value = round(self.schedule.start_value, self.n_digits)
         self.end_value = round(self.schedule.end_value, self.n_digits)
         self.n_steps = self.schedule.n_steps
+        super().__post_init__()
 
     def update(self, step: int | None = None):
         return self.schedule.update(step)

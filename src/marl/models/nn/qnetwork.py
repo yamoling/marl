@@ -127,7 +127,7 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
 
-    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None, **kwargs) -> torch.Tensor:
+    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 

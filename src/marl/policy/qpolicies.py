@@ -48,15 +48,15 @@ class EpsilonGreedy(Policy):
 
     @classmethod
     def linear(cls, start_eps: float, end_eps: float, n_steps: int):
-        return cls(schedule.LinearSchedule(start_eps, end_eps, n_steps))
+        return cls(schedule.LinearSchedule(start_value=start_eps, end_value=end_eps, n_steps=n_steps))
 
     @classmethod
     def exponential(cls, start_eps: float, end_eps: float, n_steps: int):
-        return cls(schedule.ExpSchedule(start_eps, end_eps, n_steps))
+        return cls(schedule.ExpSchedule(start_value=start_eps, end_value=end_eps, n_steps=n_steps))
 
     @classmethod
     def constant(cls, eps: float):
-        return cls(schedule.ConstantSchedule(eps))
+        return cls(schedule.ConstantSchedule(start_value=eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray | None = None) -> np.ndarray:
         if available_actions is not None:
@@ -74,22 +74,22 @@ class EpsilonGreedy(Policy):
         self.epsilon.update(time_step)
         return {"epsilon": self.epsilon.value}
 
-    @classmethod
-    def from_dict(cls, d: dict):
-        d = d["epsilon"]
-        name = d.pop("name")
-        match name:
-            case "LinearSchedule":
-                epsilon = schedule.LinearSchedule(d["start_value"], d["end_value"], d["n_steps"])
-                return cls(epsilon=epsilon)
-            case "ExpSchedule":
-                epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
-                return cls(epsilon=epsilon)
-            case "ConstantSchedule":
-                epsilon = schedule.ConstantSchedule(d["start_value"])
-                return cls(epsilon=epsilon)
-            case other:
-                raise ValueError(f"Unknown policy type: {other}")
+    # @classmethod
+    # def from_dict(cls, d: dict):
+    #     d = d["epsilon"]
+    #     name = d.pop("name")
+    #     match name:
+    #         case "LinearSchedule":
+    #             epsilon = schedule.LinearSchedule(d["start_value"], d["end_value"], d["n_steps"])
+    #             return cls(epsilon=epsilon)
+    #         case "ExpSchedule":
+    #             epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
+    #             return cls(epsilon=epsilon)
+    #         case "ConstantSchedule":
+    #             epsilon = schedule.ConstantSchedule(d["start_value"])
+    #             return cls(epsilon=epsilon)
+    #         case other:
+    #             raise ValueError(f"Unknown policy type: {other}")
 
 
 @dataclass

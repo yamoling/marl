@@ -177,17 +177,17 @@ class TestIsAbstract:
     # -- Real codebase classes --
 
     def test_target_parameters_updater_is_abstract(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
+        from marl.algos.qtarget_updater import TargetParametersUpdater
 
         assert is_abstract(TargetParametersUpdater)
 
     def test_soft_update_is_not_abstract(self):
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         assert not is_abstract(SoftUpdate)
 
     def test_hard_update_is_not_abstract(self):
-        from marl.training.qtarget_updater import HardUpdate
+        from marl.algos.qtarget_updater import HardUpdate
 
         assert not is_abstract(HardUpdate)
 
@@ -219,7 +219,7 @@ class TestIsAbstract:
 
 class TestGetConcreteSubclasses:
     def test_finds_both_updater_subclasses(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
+        from marl.algos.qtarget_updater import TargetParametersUpdater
 
         subs = get_concrete_subclasses(TargetParametersUpdater)
         names = {c.__name__ for c in subs}
@@ -227,7 +227,7 @@ class TestGetConcreteSubclasses:
         assert "HardUpdate" in names
 
     def test_does_not_include_abstract_base(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
+        from marl.algos.qtarget_updater import TargetParametersUpdater
 
         subs = get_concrete_subclasses(TargetParametersUpdater)
         assert TargetParametersUpdater not in subs
@@ -345,14 +345,14 @@ class TestGetSubclassFromName:
         assert result is Leaf
 
     def test_works_on_real_codebase_classes(self):
-        from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
         result = get_subclass_from_name(TargetParametersUpdater, "SoftUpdate")
         assert result is SoftUpdate
 
     def test_returns_none_for_sibling_class(self):
         """SoftUpdate is not a subclass of HardUpdate."""
-        from marl.training.qtarget_updater import HardUpdate
+        from marl.algos.qtarget_updater import HardUpdate
 
         assert get_subclass_from_name(HardUpdate, "SoftUpdate") is None
 
@@ -407,7 +407,7 @@ class TestGetSubclassMap:
         assert get_subclass_map(self.Shape).get("Shape") is self.Shape
 
     def test_works_on_real_codebase_hierarchy(self):
-        from marl.training.qtarget_updater import TargetParametersUpdater
+        from marl.algos.qtarget_updater import TargetParametersUpdater
 
         m = get_subclass_map(TargetParametersUpdater)
         assert "TargetParametersUpdater" in m

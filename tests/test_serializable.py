@@ -368,10 +368,10 @@ def _make_dqn(*, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser
     from marlenv.catalog import DiscreteMockEnv
 
     from marl import policy
+    from marl.algos.dqn import DQN
+    from marl.algos.qtarget_updater import SoftUpdate
     from marl.models import TransitionMemory
     from marl.nn.model_bank import qnetworks
-    from marl.training.dqn import DQN
-    from marl.training.qtarget_updater import SoftUpdate
 
     env = DiscreteMockEnv()
     return DQN(
@@ -448,7 +448,7 @@ class TestDQNDictRoundTrip:
 
     @pytest.fixture(scope="class")
     def pair(self):
-        from marl.training.dqn import DQN
+        from marl.algos.dqn import DQN
 
         original = _make_dqn()
         restored = DQN.from_dict(original.to_dict())
@@ -498,7 +498,7 @@ class TestDQNDictRoundTrip:
         assert restored.memory.max_size == original.memory.max_size
 
     def test_target_updater_class_is_preserved(self, pair):
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         _, restored = pair
         assert isinstance(restored.target_updater, SoftUpdate)
@@ -526,10 +526,10 @@ class TestDQNDictRoundTrip:
         from marlenv.catalog import DiscreteMockEnv
 
         from marl import policy
+        from marl.algos.dqn import DQN
+        from marl.algos.qtarget_updater import HardUpdate
         from marl.models import TransitionMemory
         from marl.nn.model_bank import qnetworks
-        from marl.training.dqn import DQN
-        from marl.training.qtarget_updater import HardUpdate
 
         env = DiscreteMockEnv()
         dqn = DQN(
@@ -549,7 +549,7 @@ class TestDQNJSONRoundTrip:
 
     @pytest.fixture(scope="class")
     def pair(self):
-        from marl.training.dqn import DQN
+        from marl.algos.dqn import DQN
 
         original = _make_dqn()
         restored = DQN.from_json(original.to_json())
@@ -597,7 +597,7 @@ class TestDQNJSONRoundTrip:
         assert isinstance(restored.memory, TransitionMemory)
 
     def test_target_updater_class_survives_json(self, pair):
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         _, restored = pair
         assert isinstance(restored.target_updater, SoftUpdate)
@@ -623,21 +623,21 @@ class TestDQNFileRoundTrip:
         assert parsed[DISCRIMINATOR_KEY] == "DQN"
 
     def test_from_file_restores_lr(self, saved_path):
-        from marl.training.dqn import DQN
+        from marl.algos.dqn import DQN
 
         restored = DQN.from_file(saved_path)
         assert restored.lr == pytest.approx(3e-4)
 
     def test_from_file_restores_batch_size(self, saved_path):
-        from marl.training.dqn import DQN
+        from marl.algos.dqn import DQN
 
         restored = DQN.from_file(saved_path)
         assert restored.batch_size == 128
 
     def test_from_file_restores_nested_types(self, saved_path):
+        from marl.algos.dqn import DQN
+        from marl.algos.qtarget_updater import SoftUpdate
         from marl.models import TransitionMemory
-        from marl.training.dqn import DQN
-        from marl.training.qtarget_updater import SoftUpdate
 
         restored = DQN.from_file(saved_path)
         assert isinstance(restored.memory, TransitionMemory)

@@ -130,7 +130,14 @@ def tuning(
 # ---------------------------------------------------------------------------
 
 
-def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any) -> T:
+def suggest(
+    cls: type[T],
+    trial: "Trial",
+    *,
+    prefix: str = "",
+    catch_all: dict[str, Any] | None = None,
+    **overrides: Any,
+) -> T:
     """
     Suggest hyperparameters for a dataclass using an Optuna trial.
 
@@ -181,6 +188,9 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
         trial: The current Optuna trial.
         prefix: Dot-separated prefix prepended to every parameter name.
             Used internally during recursion; do not set this manually.
+        catch_all: Optional fallback values keyed by field name. When a field
+            has no explicit override and no tuning rule applies, the field
+            looks up its bare name here before failing.
         **overrides: Field values to use verbatim, bypassing suggestion.
             Required for any field whose construction depends on information
             not available from the dataclass definition alone (e.g. a
@@ -219,6 +229,7 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
         hints = {}
 
     init_kwargs: dict[str, Any] = {}
+    catch_all = catch_all or {}
 
     for f in fields(cls):  # type: ignore[arg-type]
         if not f.init:
@@ -261,7 +272,7 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
                     [c.__name__ for c in spec.choices],
                 )
                 chosen_cls = next(c for c in spec.choices if c.__name__ == type_name)
-                init_kwargs[name] = suggest(chosen_cls, trial, prefix=full_name)
+                init_kwargs[name] = suggest(chosen_cls, trial, prefix=full_name, catch_all=catch_all)
             else:
                 # Rule 3: choices are plain values → direct categorical
                 init_kwargs[name] = trial.suggest_categorical(full_name, spec.choices)
@@ -305,7 +316,7 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
         ):
             if not is_abstract(resolved):
                 # Rule 8: concrete Serializable → recurse directly
-                init_kwargs[name] = suggest(resolved, trial, prefix=full_name)
+                init_kwargs[name] = suggest(resolved, trial, prefix=full_name, catch_all=catch_all)
                 continue
             else:
                 # Rule 9: abstract Serializable → auto-collect concrete subclasses
@@ -316,7 +327,7 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
                         [c.__name__ for c in candidates],
                     )
                     chosen_cls = next(c for c in candidates if c.__name__ == type_name)
-                    init_kwargs[name] = suggest(chosen_cls, trial, prefix=full_name)
+                    init_kwargs[name] = suggest(chosen_cls, trial, prefix=full_name, catch_all=catch_all)
                     continue
                 # No concrete subclasses found — fall through to default / raise
 
@@ -343,13 +354,28 @@ def suggest(cls: type[T], trial: "Trial", *, prefix: str = "", **overrides: Any)
             continue
 
         # ------------------------------------------------------------------
+        # Catch-all fallback — shared externally-provided value
+        # ------------------------------------------------------------------
+        if name in catch_all:
+            logger.warning(
+                "Using catch_all value for required field '%s' (%s) in %s: %r",
+                full_name,
+                hint,
+                cls.__name__,
+                catch_all[name],
+            )
+            init_kwargs[name] = catch_all[name]
+            continue
+
+        # ------------------------------------------------------------------
         # Rule 12 — required field with no default: raise
         # ------------------------------------------------------------------
         raise ValueError(
             f"Cannot suggest a value for required field '{full_name}' "
             f"(type: {hint!r}) in {cls.__name__}. "
             "Either add tuning() metadata to the field, provide a default value, "
-            "or pass it as a keyword-argument override to suggest()."
+            "or pass it as a keyword-argument override to suggest(). "
+            "You can also supply shared fallback values via catch_all=."
         )
 
     return cls(**init_kwargs)

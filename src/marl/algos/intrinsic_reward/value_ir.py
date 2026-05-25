@@ -6,10 +6,10 @@ from typing import Literal
 import torch
 from marlenv import Transition
 
+from marl.algos.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 from marl.models import TransitionMemory
 from marl.models.batch import Batch
 from marl.models.nn import Critic, IRModule
-from marl.training.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 
 
 @dataclass

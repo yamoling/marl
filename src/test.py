@@ -13,7 +13,7 @@ from marl.env import EnvConfig, LLEConfig
 from marl.models import EpisodeMemory, Mixer, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
-from marl.policy import EpsilonGreedy
+from marl.policy import EpsilonGreedy, SoftmaxPolicy
 
 
 class Args(tap.TypedArgs):
@@ -57,7 +57,7 @@ def dqn[E: DiscreteMARLEnv](
     return algos.DQN(
         qnetworks.from_env(env, recurrent=recurrent, independent=independent, duelling=duelling, noisy=noisy),
         mixer=mixer.from_env(env),
-        train_policy=EpsilonGreedy.linear(1, 0.05, 100_000),
+        train_policy=SoftmaxPolicy(5),  # EpsilonGreedy.linear(1, 0.05, 100_000),
         gamma=0.95,
         train_interval=(5, "step"),
         lr=5e-4,
