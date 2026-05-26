@@ -8,7 +8,7 @@ from typing import Any, Literal, Optional
 
 import marlenv
 import typed_argparse as tap
-from lle import LLE
+from lle import LLE, env
 from marlenv import MARLEnv, MultiDiscreteSpace
 from marlenv.utils import Schedule
 
@@ -18,10 +18,9 @@ from marl.exceptions import ExperimentAlreadyExistsException
 from marl.nn import model_bank
 from marl.nn.mixers import VDN
 from marl.nn.model_bank.actor_critics import CNNContinuousActorCritic
-from marl.optimism import VBE
-from marl.training import DQN, SoftUpdate
-from marl.training.haven import HavenTrainer
-from marl.training.intrinsic_reward import AdvantageIntrinsicReward
+from marl.algos.dqn import DQN, SoftUpdate
+
+
 from start_run import Arguments as RunArguments
 from start_run import main as run_experiment
 
@@ -277,12 +276,12 @@ def make_recurrent_dqn(
     gamma: float = 0.95,
     noisy: bool = False,
     use_vbe: bool = False,
-    memory: Optional[ReplayMemory[Any, Any]] = None,):
+    memory: Optional[ReplayMemory[Any]] = None,):
     mixer = make_mixer(env, mixing)
     if len(env.observation_shape) == 1:
-        qnetwork = marl.nn.model_bank.RCNN.from_env(env)
+        qnetwork = marl.nn.model_bank.qnetworks.QCRNN.from_env(env)
     elif len(env.observation_shape) == 3:
-        qnetwork = marl.nn.model_bank.RCNN.from_env(env)
+        qnetwork = marl.nn.model_bank.qnetworks.QCRNN.from_env(env)
     else:
         raise NotImplementedError(f"Observation shape {env.observation_shape} not supported")
     ir = None
@@ -290,16 +289,11 @@ def make_recurrent_dqn(
         policy = marl.policy.ArgMax()
     else:
         policy = marl.policy.EpsilonGreedy.linear(1.0, 0.05, n_steps=200_000)
-    vbe = None
-    if use_vbe:
-        vbe = VBE(gamma, deepcopy(qnetwork), 8, 1e-4)
-    if memory is None:
-        memory = marl.models.EpisodeMemory(5000)
     return DQN(
         qnetwork=qnetwork,
         train_policy=policy,
-        memory=memory,
-        optimiser="adam",
+        memory_size=5000,
+        optimiser_type="adam",
         double_qlearning=True,
         target_updater=SoftUpdate(0.01),
         lr=5e-4,
@@ -309,7 +303,7 @@ def make_recurrent_dqn(
         mixer=mixer,
         grad_norm_clipping=10,
         ir_module=ir,
-        vbe=vbe,
+        vbe=None,
     )  
 
 
@@ -361,7 +355,7 @@ def make_overcooked():
 
 
 def make_partial_obs():
-    env = LLE.level(6).obs_type("partial7x7").state_type("state").build()
+    env = LLE.level(6).obs_type("layered").state_type("state").build()
     env = marlenv.Builder(env).agent_id().time_limit(78).build()
     return env, None
 
@@ -370,14 +364,14 @@ def main(args: Arguments):
     try:
         # env, test_env = make_lle()
         env, test_env = make_partial_obs()
+        env = marl.env.LLEConfig(6, obs_type="layered", state_type="state")
         trainer = make_recurrent_dqn(env, mixing="qmix", gamma=0.95, memory=None)
-        exp = marl.Experiment.create(
+        exp = marl.Experiment(
             logdir=args.logdir,
             trainer=trainer,
             env=env,
-            test_interval=1000,
             n_steps=1_000_000,
-            logger="csv",
+            loggers=["csv"],
         )
         logging.info(f"Experiment created in {exp.logdir}")
         if args.run:
