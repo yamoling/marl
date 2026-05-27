@@ -29,8 +29,6 @@ class QNetwork(NN):
 
     Paper: https://proceedings.mlr.press/v48/wangf16.pdf
     """
-    independent: bool = False
-    """Whether each agent has its own independent weights or not."""
 
     def __post_init__(self):
         n_action_outputs = self.n_actions

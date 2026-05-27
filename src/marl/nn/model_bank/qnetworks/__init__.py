@@ -3,9 +3,9 @@ from marlenv import DiscreteMARLEnv
 from marl.env import EnvConfig
 from marl.models.nn import QNetwork
 
-from .generic import QCNN, QCRNN, QMLP, QRNN
+from .independent import ICRNN, IQCNN, IQMLP, IQRNN
 from .maven import MAVENQnetwork
-from .others import IndependentCNN
+from .shared_parameters import QCNN, QCRNN, QMLP, QRNN
 
 
 def from_env(
@@ -17,10 +17,13 @@ def from_env(
 ) -> QNetwork:
     registry: dict[tuple[int, bool, bool], type[QNetwork]] = {
         (1, False, False): QMLP,
+        (1, False, True): IQMLP,
         (3, False, False): QCNN,
-        (3, False, True): IndependentCNN,
+        (3, False, True): IQCNN,
         (1, True, False): QRNN,
+        (1, True, True): IQRNN,
         (3, True, False): QCRNN,
+        (3, True, True): ICRNN,
     }
     config = (len(env.observation_shape), recurrent, independent)
     network_class = registry.get(config)
@@ -32,6 +35,10 @@ def from_env(
 
 __all__ = [
     "MAVENQnetwork",
+    "IQCNN",
+    "ICRNN",
+    "IQMLP",
+    "IQRNN",
     "QMLP",
     "QCNN",
     "QRNN",

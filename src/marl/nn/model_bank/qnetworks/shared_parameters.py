@@ -15,7 +15,6 @@ class QCNN(QNetwork):
     _: KW_ONLY
     mlp_sizes: Sequence[int] = (256, 128)
     hidden_activation: ActivationType = "relu"
-    independent_mlp: bool = True
 
     def __post_init__(self):
         super().__post_init__()

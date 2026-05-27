@@ -71,7 +71,7 @@ def dqn[E: DiscreteMARLEnv](
 def main(args: Args):
     env = LLEConfig(6, obs_type="layered", state_type="flattened", maven_noise_size=None)
     trainer = dqn(env, mixers.VDN, rnd=None, independent=False, recurrent=False, duelling=True)
-    exp = Experiment(env, trainer, logdir="auto", n_steps=1_000_000)
+    exp = Experiment(env, trainer, logdir="test", n_steps=1_000_000)
     exp.run(
         seeds=10,
         n_tests=5,
@@ -79,9 +79,9 @@ def main(args: Args):
         test_interval=5000,
         quiet=args.quiet,
         device="auto",
-        disabled_gpus=[0, 1, 2, 3, 5, 6, 7],
-        n_jobs=5,
+        n_jobs=1,
     )
+    exit(0)
     exp.run(
         seeds=range(10, 20),
         n_tests=5,

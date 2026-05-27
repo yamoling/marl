@@ -18,14 +18,20 @@ N_STEPS = 1_000_000
 
 def objective(trial: optuna.Trial, algo: Literal["vdn", "qmix", "qplex", "maven", "mappo"]):
     env = LLEConfig(6, obs_type="layered", state_type="state")
+    independent = trial.suggest_categorical("independent", [False, True])
+    cls = qnetworks.IQCNN if independent else qnetworks.QCNN
+    n_layers = trial.suggest_int("n_layers", 2, 10)
+    layer_sizes = [256] + [256] * (n_layers - 2) + [128]
     qnetwork = suggest(
-        qnetworks.QCNN,
+        cls,
         trial,
         n_agents=env.n_agents,
         n_actions=env.n_actions,
         obs_shape=env.observation_shape,
         extras_shape=env.extras_shape,
+        mlp_sizes=layer_sizes,
     )
+    print(qnetwork)
     match algo:
         case "vdn":
             mixer = marl.nn.mixers.VDN.from_env(env)
