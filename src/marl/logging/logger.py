@@ -112,6 +112,9 @@ class Logger(ABC, LogHelper):
             with open(actions_file, "wb") as f:
                 f.write(orjson.dumps([e.actions for e in episodes], option=orjson.OPT_SERIALIZE_NUMPY))
 
+    def close(self):
+        """Close any underlying resources held by the logger."""
+
     def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):
         directory = self.get_logdir(time_step)
         if name is None:

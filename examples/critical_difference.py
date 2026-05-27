@@ -11,7 +11,6 @@ def retrieve_data(logdirs: list[str], time_steps: list[int]):
     data = list[pl.DataFrame]()
     for exp in experiments:
         try:
-            print(exp.logdir)
             run_results = [
                 run.test_metrics.with_columns(seed=pl.lit(run.seed))
                 .filter(pl.col("time_step").is_in(time_steps))
@@ -58,12 +57,8 @@ def main(time_steps: list[int], logdirs: list[str], do_compile: bool = False):
 
 
 if __name__ == "__main__":
-    logdirs = [
-        "logs/VDN-double-duelling-LLE-lvl6",
-        "logs/VDN-double-duelling-RND-LLE-lvl6",
-        "logs/VDN-double-duelling-RND-LLE-lvl6-independent",
-        "logs/VDN-IndependentCNN-double-duelling-RND-LLE-lvl6",
-        "logs/VDN-IndependentCNN-double-RND-LLE-lvl6",
-    ]
+    import os
+
+    logdirs = [f"logs/{d}" for d in os.listdir("logs") if d.startswith("VDN")]
     time_steps = [100_000, 400_000, 700_000, 1_000_000]
     main(time_steps, logdirs, do_compile=True)

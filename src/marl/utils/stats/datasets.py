@@ -24,7 +24,14 @@ def round_col(df: pl.LazyFrame, col_name: str, round_value: int):
 
 
 def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, granularity: int):
-    dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs)]
+    # Filter our empty frames
+    def _is_empty(df: pl.LazyFrame):
+        try:
+            return df.limit(1).collect().is_empty()
+        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
+            return True  # The dataframe is empty
+
+    dfs = [df.with_columns(run_id=pl.lit(i)) for i, df in enumerate(dfs) if not _is_empty(df)]
     try:
         return (
             pl.concat(dfs, how="diagonal_relaxed")

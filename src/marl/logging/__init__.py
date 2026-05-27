@@ -6,11 +6,12 @@ from .csv_logger import CSVLogger
 from .logger import Logger, LogReader
 from .multi_logger import MultiLogger
 from .neptune import NeptuneLogger
+from .progress import ProgressLogger
 from .sql_logger import SQLiteLogger
 from .tensorboard import TBLogger
 from .wandb import WABLogger
 
-LoggerType: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite"]
+LoggerType: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite", "progress"]
 LogSpecs: TypeAlias = LoggerType | Sequence[LoggerType]
 # Dataframe columns
 TIME_STEP_COL = "time_step"
@@ -35,6 +36,7 @@ __all__ = [
     "WABLogger",
     "NeptuneLogger",
     "TBLogger",
+    "ProgressLogger",
     "LoggerType",
     "LogSpecs",
     "TickColumn",
