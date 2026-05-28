@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import multiprocessing as mp
 import signal
@@ -6,9 +8,9 @@ from contextlib import contextmanager
 from multiprocessing.pool import AsyncResult, Pool
 from typing import TYPE_CHECKING, Collection, Literal
 
-import numpy.typing as npt
 import torch
 from marlenv import MARLEnv
+from setproctitle import setproctitle
 
 from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
 
@@ -34,7 +36,7 @@ def ignore_sigint():
 
 
 def parallel_run[E: MARLEnv](
-    runs: "Collection[Run[E]]",
+    runs: Collection[Run[E]],
     n_jobs: int | None = None,
     device: int | str | Literal["auto", "cpu"] = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
@@ -113,7 +115,7 @@ def submit(
 
 
 def _start_run(
-    run: "Run",
+    run: Run,
     device_type: Literal["cpu", "auto", "cuda"] | str | int | None,
     quiet: bool,
     render_tests: bool,
@@ -121,6 +123,7 @@ def _start_run(
     auto_device_strategy: Literal["scatter", "group"],
     disabled_gpus: Collection[int] = (),
 ):
+    setproctitle(f"pool-worker-{run.env.name}-{run.trainer.name}-seed-{run.seed}")
     match device_type:
         case int() | "cpu":
             device = torch.device(device_type)

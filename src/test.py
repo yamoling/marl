@@ -6,11 +6,11 @@ from typing import Type
 
 import dotenv
 import typed_argparse as tap
-from marlenv import DiscreteMARLEnv, catalog
+from marlenv import DiscreteMARLEnv
 
 from marl import Experiment, algos
 from marl.env import EnvConfig, LLEConfig
-from marl.models import EpisodeMemory, Mixer, TransitionMemory
+from marl.models import Mixer
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 from marl.policy import EpsilonGreedy, SoftmaxPolicy

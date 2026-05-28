@@ -2,13 +2,13 @@ import pickle
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal, Sequence, cast
 
 import lle
 import marlenv
 import numpy as np
 import numpy.typing as npt
-from lle.generator import LooseCooperationSpec
+from lle import World
 from lle.observations import ObservationTypeLiteral
 from marlenv import MARLEnv
 from marlenv.adapters import SMAC
@@ -181,15 +181,14 @@ class LLEConfig(EnvConfig[lle.LLE]):
 
 @dataclass
 class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
-    pool_size: int
+    worlds: Sequence[World]
     _: KW_ONLY
     width: int = 13
     height: int = 12
     n_lasers: int = 3
     _n_agents: int = 4
-    cooperation: LooseCooperationSpec = ("exactly", "mutual")
     obs_type: ObservationTypeLiteral = "layered"
-    state_type: ObservationTypeLiteral = "state"
+    state_type: ObservationTypeLiteral = "flattened"
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
 
@@ -199,16 +198,23 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
         super().__post_init__()
 
     def make_base_env(self):
-        return lle.make_pool(
-            self.pool_size,
-            obs_type=self.obs_type,
-            state_type=self.state_type,
-            cooperation=self.cooperation,
-            width=self.width,
-            height=self.height,
-            n_lasers=self.n_lasers,
-            n_agents=self._n_agents,
-        )
+        from lle import ObservationType
+        from lle.env import LLE, SingleObjective
+
+        assert len(self.worlds) > 0
+        envs = [
+            LLE(
+                w,
+                SingleObjective(w.n_agents),
+                ObservationType.from_str(self.obs_type),
+                ObservationType.from_str(self.state_type),
+            )
+            for w in self.worlds
+        ]
+        return marlenv.wrappers.EnvPool(envs)
+
+    def to_dict(self):
+        return super().to_dict()
 
 
 @dataclass
