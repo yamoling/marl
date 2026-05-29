@@ -1,8 +1,9 @@
+import os
 import pickle
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Literal, Sequence, cast
+from typing import Literal, cast
 
 import lle
 import marlenv
@@ -181,7 +182,8 @@ class LLEConfig(EnvConfig[lle.LLE]):
 
 @dataclass
 class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
-    worlds: Sequence[World]
+    directory: str
+    size: int
     _: KW_ONLY
     width: int = 13
     height: int = 12
@@ -196,12 +198,13 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
         if self.time_limit is not None and self.time_limit <= -1:
             self.time_limit = self.width * self.height // 2
         super().__post_init__()
+        self.worlds = [World.from_file(Path(self.directory, f)) for f in os.listdir(self.directory)[: self.size]]
 
     def make_base_env(self):
         from lle import ObservationType
         from lle.env import LLE, SingleObjective
 
-        assert len(self.worlds) > 0
+        assert len(self.worlds) == self.size
         envs = [
             LLE(
                 w,

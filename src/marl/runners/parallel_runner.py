@@ -12,6 +12,7 @@ import torch
 from marlenv import MARLEnv
 from setproctitle import setproctitle
 
+from marl.utils import DeviceLike
 from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
 
 from .simple_runner import simple_run
@@ -38,7 +39,7 @@ def ignore_sigint():
 def parallel_run[E: MARLEnv](
     runs: Collection[Run[E]],
     n_jobs: int | None = None,
-    device: int | str | Literal["auto", "cpu"] = "auto",
+    device: DeviceLike = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
     render_tests: bool = False,
     disabled_gpus: Collection[int] = (),

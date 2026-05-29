@@ -5,6 +5,8 @@ from typing import Collection, Literal
 
 import torch
 
+DeviceLike = Literal["cpu", "auto", "cuda", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cuda:4", "cuda:5", "cuda:6", "cuda:7"] | int | str
+
 
 @dataclass
 class GPU:

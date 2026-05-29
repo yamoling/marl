@@ -12,7 +12,7 @@ class Args(tap.TypedArgs):
 
 
 def main(args: Args):
-    env = LLEPool(args.pool_size, args.cooperation)
+    env = LLEPool("maps/pool/constructive", args.pool_size)
     test_env = LLEPool(args.pool_size, args.cooperation)
     trainer = marl.algos.VDN(qnetworks.from_env(env), gamma=0.95, grad_norm_clipping=10.0)
 

@@ -1,8 +1,6 @@
 from typing import TYPE_CHECKING, Collection, Literal
 
-import torch
-
-from marl.utils.gpu import get_device
+from marl.utils.gpu import DeviceLike, get_device
 
 from .simple_runner import simple_run
 
@@ -12,7 +10,7 @@ if TYPE_CHECKING:
 
 def sequential_run(
     runs: "Collection[Run]",
-    device: int | torch.device | str | Literal["auto", "cpu"] = "auto",
+    device: DeviceLike = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
     quiet: bool = False,
     render_tests: bool = False,

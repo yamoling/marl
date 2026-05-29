@@ -17,7 +17,7 @@ from polars import selectors as cs
 from marl.env import EnvConfig
 from marl.logging import LoggerType, TickColumn
 from marl.models.trainer import Trainer
-from marl.utils import Serializable, stats
+from marl.utils import DeviceLike, Serializable, stats
 
 from .dataset import Dataset
 from .run import Run
@@ -97,7 +97,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         test_interval: int = 5000,
         *,
         quiet: bool = False,
-        device: Literal["cpu", "auto"] | int = "auto",
+        device: DeviceLike = "auto",
         render_tests: bool = False,
         n_jobs: int | Literal["auto"] = "auto",
         disabled_gpus: Collection[int] = (),
