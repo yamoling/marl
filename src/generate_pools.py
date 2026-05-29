@@ -37,7 +37,7 @@ if __name__ == "__main__":
                 cooperation=cooperation,
                 n_agents=n_agents,
                 n_lasers=n_lasers,
-                n_jobs=11,
+                n_jobs=8,
             )
             for i, world in enumerate(worlds):
                 with open(path / f"{n_existing + i}", "w") as f:

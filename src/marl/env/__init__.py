@@ -1,4 +1,4 @@
-from .env_config import EnvConfig, LLEConfig, PickleEnvConfig, SMACConfig
+from .config import EnvConfig, LLEConfig, LLEPool, PickleEnvConfig, SMACConfig
 from .state_counter import StateCounter
 
 __all__ = [
@@ -7,4 +7,5 @@ __all__ = [
     "LLEConfig",
     "SMACConfig",
     "StateCounter",
+    "LLEPool",
 ]

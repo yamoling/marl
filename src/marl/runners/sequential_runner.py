@@ -17,5 +17,5 @@ def sequential_run(
     disabled_gpus: Collection[int] = (),
 ):
     for run in runs:
-        device = get_device(device, gpu_strategy, disabled_devices=disabled_gpus)
-        simple_run(run, quiet, render_tests, device)
+        d = get_device(device, gpu_strategy, disabled_devices=disabled_gpus)
+        simple_run(run, quiet, render_tests, d)

@@ -30,8 +30,8 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     env: EnvConfig[E]
     trainer: T
     n_steps: int = 1_000_000
-    logdir: str | Literal["auto", "test", "debug"] = "test"
-    """If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `debug`, any pre-existing experiment with the same name is overwritten."""
+    logdir: str | Literal["auto", "test", "tmp"] = "tmp"
+    """The unique experiment directory. If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `tmp`, any pre-existing experiment with the same name is overwritten."""
     test_env: EnvConfig[E] | None = None
     """Environment configuration to test the trained agent against. Defaults to `self.env`."""
     loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
@@ -46,7 +46,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         # The other times, the attribute will already be set by the deserializer.
         is_new = self.creation_timestamp is None
         if is_new:
-            if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
+            if self.logpath.parts[-1].lower() in ("test", "tmp"):
                 logging.info(f"Discarding pre-existing experiment {self.logpath}.")
                 self.delete()
             if self.logpath.exists():
