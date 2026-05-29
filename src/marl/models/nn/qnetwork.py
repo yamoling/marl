@@ -17,6 +17,7 @@ class QNetwork(NN):
     """
 
     n_actions: int
+    n_agents: int
     obs_shape: tuple[int, ...]
     extras_shape: tuple[int, ...]
     _: KW_ONLY
@@ -29,6 +30,7 @@ class QNetwork(NN):
 
     Paper: https://proceedings.mlr.press/v48/wangf16.pdf
     """
+    independent: bool = False
 
     def __post_init__(self):
         n_action_outputs = self.n_actions
@@ -115,8 +117,25 @@ class QNetwork(NN):
         return ActorFromQNet(self)
 
     @classmethod
-    def from_env(cls, env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv, *, noisy: bool = False, duelling: bool = False, **kwargs):
-        return cls(env.n_actions, env.observation_shape, env.extras_shape, noisy=noisy, duelling=duelling, **kwargs)
+    def from_env(
+        cls,
+        env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv,
+        *,
+        noisy: bool = False,
+        duelling: bool = False,
+        independent: bool = False,
+        **kwargs,
+    ):
+        return cls(
+            env.n_actions,
+            env.n_agents,
+            env.observation_shape,
+            env.extras_shape,
+            noisy=noisy,
+            duelling=duelling,
+            independent=independent,
+            **kwargs,
+        )
 
 
 @dataclass

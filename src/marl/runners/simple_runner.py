@@ -27,6 +27,7 @@ def simple_run[E: MARLEnv](run: Run[E], quiet: bool, render_tests: bool, device:
             import marl
 
             env, test_env = run.env.make(), run.test_env.make()
+            run.trainer.compile()
             trainer = run.trainer.to(device)
             agent = trainer.make_agent().to(device)
             marl.seed(run.seed, env, test_env)

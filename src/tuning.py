@@ -84,8 +84,7 @@ if __name__ == "__main__":
                 storage=JournalStorage(JournalFileBackend("optuna_study.journal")),
                 load_if_exists=True,
             )
-            n_trials = 100
-            study.optimize(lambda trial: objective(trial, algo=algo), n_trials=n_trials, n_jobs=3)  # type: ignore
+            study.optimize(lambda trial: objective(trial, algo=algo), n_trials=100, n_jobs=3)  # type: ignore
         except KeyboardInterrupt:
             pass
         except Exception as e:

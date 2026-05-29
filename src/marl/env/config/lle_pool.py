@@ -10,7 +10,7 @@ from lle.observations import ObservationTypeLiteral
 from .env_config import EnvConfig
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
     directory: str
     size: int
@@ -51,3 +51,6 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
 
     def to_dict(self):
         return super().to_dict()
+
+    def __hash__(self):
+        return id(self)

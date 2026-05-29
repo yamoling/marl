@@ -4,15 +4,13 @@ Purpose: provide concise, actionable guidance so AI coding agents become product
 
 Quick setup
 - **Activate virtualenv:** source .venv/bin/activate
-- **Install dependencies:** `uv sync` (see [README.md](README.md))
+- **Install dependencies:** `uv sync -U` (see [README.md](README.md))
 
 Run & test
 - **Run an example experiment:** `python src/test.py`
-- **Start a run launcher:** `python start_run.py` (see [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md#L1))
-- **Serve UI (build first):**
-  - `cd src/ui && bun install && bun run build`
-  - `python src/serve.py`
-- **Run tests:** `pytest -q` (pytest configured in `pyproject.toml`)
+- **Start a run from an existing experiment:** `python start_run.py` (see [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md#L1))
+- **Serve UI:** `python src/serve.py`
+- **Run tests:** `pytest -q` (pytest configured in `pyproject.toml`) (note: poorly maintained)
 
 Key locations
 - **Project root:** [pyproject.toml](pyproject.toml) — dependencies and test config
@@ -25,7 +23,6 @@ Key locations
 
 Conventions & tips for agents
 - The repo uses a `src/` layout; add new imports relative to `src` or update `pyproject.toml` if needed.
-- Use `pytest` for tests and respect `pyproject.toml` test settings.
 - Prefer linking to docs rather than copying them into this file.
 - Keep changes minimal and consistent with existing style (line length 140, typed code, `basedpyright` configured).
 

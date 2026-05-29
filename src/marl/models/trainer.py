@@ -57,6 +57,11 @@ class Trainer(Serializable):
         """
         return {}
 
+    def compile(self, fullgraph: bool = True):
+        """Compile all the networks in the trainer with torch.compile."""
+        for nn in self.networks(modules=True):
+            nn.compile(fullgraph=fullgraph, options={"triton.cudagraphs": True})
+
     @overload
     def should_update_at(self, *, time_step: int) -> bool: ...
 

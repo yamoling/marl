@@ -95,7 +95,7 @@ class Serializable:
     def to_file(self, path: Path | str, beautify: bool = False):
         if not isinstance(path, Path):
             path = Path(path)
-        path.parent.mkdir(exist_ok=True)
+        path.parent.mkdir(exist_ok=True, parents=True)
         with open(path, "wb") as f:
             f.write(self.to_json(beautify=beautify))
 
