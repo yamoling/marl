@@ -2,6 +2,7 @@ import os
 import pickle
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal, cast
 
@@ -24,11 +25,13 @@ class EnvConfig[E: MARLEnv](Serializable):
     time_limit: int | None = None
     last_action: bool = False
     maven_noise_size: int | None = None
-    env: MARLEnv = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
-        self.env = self.make()
+
+    @property
+    def env(self):
+        return self.make()
 
     @property
     def name(self):
@@ -59,6 +62,7 @@ class EnvConfig[E: MARLEnv](Serializable):
     @abstractmethod
     def make_base_env(self) -> E: ...
 
+    @lru_cache(maxsize=1)
     def make(self):
         base_env = self.make_base_env()
         builder = marlenv.Builder(base_env)
@@ -152,7 +156,7 @@ class LLEConfig(EnvConfig[lle.LLE]):
     """A level or a file path"""
     _: KW_ONLY
     obs_type: ObservationTypeLiteral = "layered"
-    state_type: ObservationTypeLiteral = "state"
+    state_type: ObservationTypeLiteral = "flattened"
     pbrs: bool = False
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
@@ -180,7 +184,7 @@ class LLEConfig(EnvConfig[lle.LLE]):
         return builder.build()
 
 
-@dataclass
+@dataclass(unsafe_hash=True)
 class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
     directory: str
     size: int
@@ -198,13 +202,13 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
         if self.time_limit is not None and self.time_limit <= -1:
             self.time_limit = self.width * self.height // 2
         super().__post_init__()
-        self.worlds = [World.from_file(Path(self.directory, f)) for f in os.listdir(self.directory)[: self.size]]
 
     def make_base_env(self):
         from lle import ObservationType
         from lle.env import LLE, SingleObjective
 
-        assert len(self.worlds) == self.size
+        worlds = [World.from_file(os.path.join(self.directory, f)) for f in os.listdir(self.directory)[: self.size]]
+        assert len(worlds) == self.size
         envs = [
             LLE(
                 w,
@@ -212,7 +216,7 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
                 ObservationType.from_str(self.obs_type),
                 ObservationType.from_str(self.state_type),
             )
-            for w in self.worlds
+            for w in worlds
         ]
         return marlenv.wrappers.EnvPool(envs)
 
