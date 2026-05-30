@@ -109,6 +109,7 @@ def seeded_rollout[A](env: MARLEnv[A], agent: Agent, seed: int, render=False, co
 
     agent.new_episode()
     obs, state = env.reset()
+    # print(env.unwrapped.world.world_string)
     episode = Episode.new(obs, state)
     frames = list[npt.NDArray[np.uint8]]()
     action_details = []

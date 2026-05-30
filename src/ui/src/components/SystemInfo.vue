@@ -184,10 +184,15 @@ onBeforeUnmount(() => {
     top: calc(100% + 0.35rem);
     right: 0;
     z-index: 30;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.35rem;
     align-items: stretch;
     padding: 0.35rem;
+    width: max-content;
+    min-width: 44rem;
+    max-width: calc(100vw - 1rem);
+    box-sizing: border-box;
     border: 1px solid var(--bs-border-color);
     border-radius: 0.4rem;
     background: var(--bs-body-bg);
@@ -203,9 +208,16 @@ onBeforeUnmount(() => {
     border-radius: 0.3rem;
     background: var(--bs-tertiary-bg);
     border: 1px solid var(--bs-border-color);
-    min-width: 90px;
+    min-width: 0;
+    width: 100%;
+    overflow: hidden;
     transition: all 0.3s ease;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.cpu-card,
+.ram-card {
+    grid-column: span 2;
 }
 
 .metric-card:hover {
@@ -278,7 +290,8 @@ onBeforeUnmount(() => {
 }
 
 .gpu-card {
-    min-width: 110px;
+    grid-column: span 1;
+    min-width: 0;
 }
 
 .gpu-bar-group {
@@ -340,6 +353,19 @@ onBeforeUnmount(() => {
 
 /* Responsive Design */
 @media (max-width: 1400px) {
+    .details-popover {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .cpu-card,
+    .ram-card {
+        grid-column: span 2;
+    }
+
+    .gpu-card {
+        grid-column: span 1;
+    }
+
     .metric-card {
         min-width: 80px;
     }
@@ -351,8 +377,15 @@ onBeforeUnmount(() => {
     }
 
     .details-popover {
+        grid-template-columns: repeat(1, minmax(0, 1fr));
         max-width: calc(100vw - 1rem);
         overflow-x: auto;
+    }
+
+    .cpu-card,
+    .ram-card,
+    .gpu-card {
+        grid-column: span 1;
     }
 
     .metric-card {

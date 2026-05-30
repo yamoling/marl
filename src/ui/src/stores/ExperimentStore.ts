@@ -113,13 +113,16 @@ export const useExperimentStore = defineStore("ExperimentStore", () => {
     nJobs: number,
     seed: number,
     nTests: number,
+    testInterval: number = 5000,
     gpuStrategy: "scatter" | "group" = "scatter",
     disabledDevices: number[] = [],
+    saveWeights: boolean = false,
+    saveActions: boolean = true,
   ) {
     await apiFetch(
       `${HTTP_URL}/runner/new/${logdir}`,
       "Failed to start new run",
-      jsonBody({ seed, nTests, nRuns, nJobs, gpuStrategy, disabledDevices }),
+      jsonBody({ seed, nTests, testInterval, nRuns, nJobs, gpuStrategy, disabledDevices, saveWeights, saveActions }),
     );
     await runStore.refresh(logdir);
   }

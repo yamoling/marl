@@ -9,6 +9,7 @@ from signal import SIGINT
 from typing import Collection, Literal, overload
 
 import numpy as np
+import orjson
 import polars as pl
 import torch
 from marlenv import MARLEnv
@@ -176,6 +177,9 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
                 yield Run[E].load(rundir)
             except FileNotFoundError:
                 # Not a run directory
+                pass
+            except orjson.JSONDecodeError:
+                # TODO: create a recovery mechanism for corrupt runs
                 pass
 
     @staticmethod

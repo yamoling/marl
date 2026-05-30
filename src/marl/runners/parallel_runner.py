@@ -124,7 +124,7 @@ def _start_run(
     auto_device_strategy: Literal["scatter", "group"],
     disabled_gpus: Collection[int] = (),
 ):
-    setproctitle(f"worker-{run.seed}-{run.env.name}-{run.trainer.name}")
+    setproctitle(f"worker: {run.rundir}")
     match device_type:
         case int() | "cpu":
             device = torch.device(device_type)

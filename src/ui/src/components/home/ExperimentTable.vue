@@ -1,31 +1,28 @@
 <template>
     <div class="row">
         <ContextMenu ref="contextMenuRef" :model="contextMenuItems" />
-        <DataTable v-model:expandedRows="expandedRows" :value="experimentStore.experiments" dataKey="logdir"
-            size="small" v-model:filters="filters" filterDisplay="menu"
-            :globalFilterFields="['logdir', 'env.name', 'trainer.name']" sortField="creation_timestamp" :sortOrder="-1"
+        <div class="panel-header">
+            <div class="panel-header-row">
+                <h2>Experiments</h2>
+                <div class="experiment-table-toolbar">
+                    <div class="experiment-toolbar-actions">
+                        <MultiSelect v-model="selectedColumnKeys" :options="columnOptions" optionLabel="label"
+                            optionValue="key" display="chip" placeholder="Columns" class="experiment-column-toggle"
+                            :maxSelectedLabels="2" />
+                        <button class="btn btn-primary" type="button" @click="experimentStore.refresh"
+                            :disabled="experimentStore.loading">
+                            <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <DataTable v-model:expandedRows="expandedRows" :value="tableExperiments" dataKey="logdir" size="small"
+            v-model:filters="filters" filterDisplay="row" sortField="creation_timestamp" :sortOrder="-1"
             :rowClass="experimentRowClass" contextMenu @row-click="onRowClicked" @row-expand="onRowExpanded"
             @row-contextmenu="onRowContextMenu" selection-mode="single" paginator :rows="5"
-            :rowsPerPageOptions="[5, 10, 20, 50]">
-            <template #header>
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <font-awesome-icon :icon="['fas', 'search']" class="pe-2" />
-                        Filter
-                    </span>
-                    <input class="form-control" type="text" v-model="filters.global.value"
-                        placeholder="Directory, env, algo" />
-                    <button class="btn btn-secondary input-group-btn" @click="clearGlobalFilter"
-                        :disabled="!filters.global.value">
-                        <font-awesome-icon :icon="['fas', 'times']" />
-                    </button>
-                    <button class="btn btn-primary input-group-btn" @click="experimentStore.refresh"
-                        :disabled="experimentStore.loading">
-                        <font-awesome-icon :icon="['fas', 'arrows-rotate']" :spin="experimentStore.loading" />
-                    </button>
-                </div>
-            </template>
-            <Column header="Status">
+            :rowsPerPageOptions="[5, 10, 20, 50]" class="experiment-table">
+            <Column header="Status" style="width: 5.5rem">
                 <template #body="{ data }">
                     <button class="runs-matrix" :class="{ 'runs-matrix-expanded': isExpanded(data.logdir) }"
                         @click.stop="toggleRunsExpansion(data.logdir)" title="Show run details">
@@ -55,7 +52,12 @@
                     </button>
                 </template>
             </Column>
-            <Column field="logdir" header="Directory" sortable style="min-width: 14rem">
+            <Column v-if="isColumnVisible('logdir')" field="logdir" header="Directory" sortable filter
+                style="min-width: 14rem">
+                <template #filter="{ filterModel, filterCallback }">
+                    <InputText v-model="filterModel.value" type="text" class="experiment-column-filter"
+                        placeholder="Search directory" @input="filterCallback()" />
+                </template>
                 <template #body="{ data }">
                     <div class="d-flex align-items-center gap-2">
                         <RouterLink class="text-success" :to="`/inspect/${data.logdir}`" @click.stop
@@ -63,25 +65,42 @@
                             <font-awesome-icon :icon="['fas', 'arrow-up-right-from-square']" />
                         </RouterLink>
                         <span>{{ data.logdir.replace("logs/", "") }}</span>
-                        <input type="color" class="d-none" :value="experimentColour(data.logdir)"
-                            :ref="(element) => setColourInputRef(data.logdir, element)"
-                            @input="(event) => onExperimentColourChanged(data.logdir, event)" />
                     </div>
                 </template>
             </Column>
-            <Column field="env.name" header="Env" sortable style="min-width: 10rem">
+            <Column v-if="isColumnVisible('env.name')" field="env.name" header="Env" sortable filter
+                style="min-width: 10rem">
+                <template #filter="{ filterModel, filterCallback }">
+                    <InputText v-model="filterModel.value" type="text" class="experiment-column-filter"
+                        placeholder="Search env" @input="filterCallback()" />
+                </template>
                 <template #body="{ data }">
                     {{ data.env.name }}
                 </template>
             </Column>
-            <Column field="trainer.name" header="Algo" sortable style="min-width: 10rem">
+            <Column v-if="isColumnVisible('trainer.name')" field="trainer.name" header="Algo" sortable filter
+                style="min-width: 10rem">
+                <template #filter="{ filterModel, filterCallback }">
+                    <InputText v-model="filterModel.value" type="text" class="experiment-column-filter"
+                        placeholder="Search algo" @input="filterCallback()" />
+                </template>
                 <template #body="{ data }">
                     {{ data.trainer.name }}
                 </template>
             </Column>
-            <Column field="creation_timestamp" header="Start date" sortable style="min-width: 12rem">
+            <Column v-if="isColumnVisible('creation_timestamp')" field="creation_timestamp" header="Start date" sortable
+                style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.creation_timestamp.toLocaleString() }}
+                </template>
+            </Column>
+            <Column header="" style="width: 5rem; text-align: center">
+                <template #body="{ data }">
+                    <input v-if="data.loaded" type="color" class="experiment-colour-input"
+                        :value="experimentColour(data.logdir)"
+                        :ref="(element) => setColourInputRef(data.logdir, element)" @click.stop
+                        @input="(event) => onExperimentColourChanged(data.logdir, event)"
+                        aria-label="Experiment colour" />
                 </template>
             </Column>
             <template #empty> No experiments match the current filters. </template>
@@ -97,8 +116,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent } from "primevue";
+import { computed, onMounted, ref, watch } from "vue";
+import { Column, ContextMenu, DataTable, DataTableRowClickEvent, DataTableRowContextMenuEvent, DataTableRowExpandEvent, InputText, MultiSelect, Select } from "primevue";
 import { Experiment } from "../../models/Experiment";
 import { toCSV } from "../../models/Results";
 import { downloadStringAsFile } from "../../utils";
@@ -112,6 +131,10 @@ import { RouterLink, useRouter } from "vue-router";
 import NewRun from "../modals/NewRun.vue";
 import DevicePickerModal from "../modals/DevicePickerModal.vue";
 
+type ExperimentRow = Experiment & {
+    loaded: boolean;
+};
+
 const experimentStore = useExperimentStore();
 const resultsStore = useResultsStore();
 const runStore = useRunStore();
@@ -119,18 +142,83 @@ const colourStore = useColourStore();
 const router = useRouter();
 
 const filters = ref({
-    global: { value: "", matchMode: "contains" },
+    loaded: { value: null as boolean | null, matchMode: "equals" },
+    logdir: { value: "", matchMode: "contains" },
+    "env.name": { value: "", matchMode: "contains" },
+    "trainer.name": { value: "", matchMode: "contains" },
+});
+const loadedFilterOptions = [
+    { label: "Loaded", value: true },
+    { label: "Unloaded", value: false },
+];
+const columnOptions = [
+    { key: "logdir", label: "Directory" },
+    { key: "env.name", label: "Env" },
+    { key: "trainer.name", label: "Algo" },
+    { key: "creation_timestamp", label: "Start date" },
+];
+const selectedColumnStorageKey = "experiment-table.selected-columns";
+const defaultSelectedColumnKeys = columnOptions.map((column) => column.key);
+const selectedColumnKeys = ref<string[]>(defaultSelectedColumnKeys);
+const tableExperiments = computed<ExperimentRow[]>(() => {
+    return experimentStore.experiments.map((experiment) => ({
+        ...experiment,
+        loaded: resultsStore.isLoaded(experiment.logdir),
+    }));
 });
 const expandedRows = ref({} as Record<string, boolean>);
 const stoppingRuns = ref({} as Record<string, boolean>);
 const startingRuns = ref({} as Record<string, boolean>);
 const contextMenuRef = ref();
-const selectedContextExperiment = ref<Experiment | null>(null);
+const selectedContextExperiment = ref<ExperimentRow | null>(null);
 const colourInputs = new Map<string, HTMLInputElement>();
 const newRunModalRef = ref<{ showModal: (exp: Experiment) => void } | null>(null);
 const devicePickerModalRef = ref<{ showModal: (onConfirm: (device: string) => void) => void } | null>(null);
+const selectedColumnKeySet = computed(() => new Set(selectedColumnKeys.value));
 
-onMounted(experimentStore.refresh);
+function isValidColumnKey(columnKey: unknown): columnKey is string {
+    return typeof columnKey === "string" && columnOptions.some((column) => column.key === columnKey);
+}
+
+function loadSelectedColumnKeys(): string[] {
+    if (typeof window === "undefined") {
+        return defaultSelectedColumnKeys;
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(selectedColumnStorageKey);
+        if (rawValue == null) {
+            return defaultSelectedColumnKeys;
+        }
+
+        const parsedValue = JSON.parse(rawValue) as unknown;
+        if (!Array.isArray(parsedValue)) {
+            return defaultSelectedColumnKeys;
+        }
+
+        const loadedKeys = parsedValue.filter(isValidColumnKey);
+        return loadedKeys.length > 0 ? loadedKeys : defaultSelectedColumnKeys;
+    } catch {
+        return defaultSelectedColumnKeys;
+    }
+}
+
+function saveSelectedColumnKeys(columnKeys: string[]) {
+    if (typeof window === "undefined") {
+        return;
+    }
+
+    window.localStorage.setItem(selectedColumnStorageKey, JSON.stringify(columnKeys));
+}
+
+onMounted(() => {
+    selectedColumnKeys.value = loadSelectedColumnKeys();
+    experimentStore.refresh();
+});
+
+watch(selectedColumnKeys, (columnKeys) => {
+    saveSelectedColumnKeys(columnKeys);
+});
 
 const contextMenuItems = computed(() => {
     const exp = selectedContextExperiment.value;
@@ -138,7 +226,7 @@ const contextMenuItems = computed(() => {
         return [];
     }
     const logdir = exp.logdir;
-    const isLoaded = resultsStore.isLoaded(logdir);
+    const isLoaded = exp.loaded;
     const hasResults = resultsStore.results.has(logdir);
     const items: any[] = [
         {
@@ -240,7 +328,7 @@ async function toggleRunsExpansion(logdir: string) {
 }
 
 function experimentRowClass(data: Experiment) {
-    if (resultsStore.isLoaded(data.logdir)) {
+    if ((data as ExperimentRow).loaded) {
         return "row-loaded";
     }
     if (resultsStore.loading.get(data.logdir) ?? false) {
@@ -261,7 +349,7 @@ async function onRowExpanded(event: DataTableRowExpandEvent) {
 
 function onRowContextMenu(event: DataTableRowContextMenuEvent) {
     const experiment = event.data as Experiment;
-    selectedContextExperiment.value = experiment;
+    selectedContextExperiment.value = experiment as ExperimentRow;
     (contextMenuRef.value as any)?.show(event.originalEvent);
 }
 
@@ -336,8 +424,15 @@ function downloadDatasets(logdir: string) {
     downloadStringAsFile(csvMetrics, `${logdir}_metrics.csv`);
 }
 
-function clearGlobalFilter() {
-    filters.value.global.value = "";
+function clearColumnFilters() {
+    filters.value.loaded.value = null;
+    filters.value.logdir.value = "";
+    filters.value["env.name"].value = "";
+    filters.value["trainer.name"].value = "";
+}
+
+function isColumnVisible(columnKey: string) {
+    return selectedColumnKeySet.value.has(columnKey);
 }
 
 function renameExperiment(logdir: string) {
@@ -375,6 +470,71 @@ function stopAllRuns(logdir: string) {
 
 :deep(.row-loading) {
     background-color: rgba(13, 110, 253, 0.08) !important;
+}
+
+.experiment-table-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.experiment-global-filter {
+    flex: 1 1 24rem;
+    min-width: 18rem;
+}
+
+.experiment-table :deep(.p-datatable-thead > tr:last-child) {
+    transition: opacity 0.15s ease;
+}
+
+.experiment-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.experiment-column-toggle {
+    min-width: 16rem;
+}
+
+.experiment-column-filter {
+    width: 100%;
+}
+
+.experiment-filter-select {
+    width: 100%;
+}
+
+.loaded-icon-loaded {
+    color: rgb(25, 135, 84);
+}
+
+.loaded-icon-unloaded {
+    color: rgb(108, 117, 125);
+}
+
+.filter-field {
+    min-width: 0;
+}
+
+.filter-field-actions {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.experiment-colour-input {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.4rem;
+    background: transparent;
+    cursor: pointer;
 }
 
 .runs-matrix {

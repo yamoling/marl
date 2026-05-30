@@ -6,12 +6,13 @@ import numpy as np
 import numpy.typing as npt
 from lle import World
 from lle.observations import ObservationTypeLiteral
+from marlenv.catalog import EnvPool
 
 from .env_config import EnvConfig
 
 
 @dataclass
-class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
+class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
     directory: str
     size: int
     _: KW_ONLY
@@ -35,19 +36,20 @@ class LLEPool(EnvConfig[marlenv.wrappers.EnvPool[npt.NDArray[np.int64]]]):
         from lle.env import LLE, SingleObjective
 
         files = sorted(os.listdir(self.directory))[self.offset : self.offset + self.size]
-        worlds = [World.from_file(os.path.join(self.directory, f)) for f in files]
-        assert len(worlds) == self.size
+        assert len(files) == self.size
+        files = [os.path.join(self.directory, f) for f in files]
+        w = World.from_file(files[0])
         envs = [
             LLE(
-                w,
+                World.from_file(f),
                 SingleObjective(w.n_agents),
                 ObservationType.from_str(self.obs_type),
                 ObservationType.from_str(self.state_type),
-                name=f"Pool-LLE-{i}",
+                name=f.replace("/", "-"),
             )
-            for i, w in enumerate(worlds)
+            for f in files
         ]
-        return marlenv.wrappers.EnvPool(envs)
+        return EnvPool(envs)
 
     def to_dict(self):
         return super().to_dict()

@@ -87,13 +87,8 @@ export function getDefaultSelectedGpuDevices(
     return [];
   }
 
-  return systemUsage.gpus
-    .filter(
-      (gpu) =>
-        getStressLabel(getGpuStress(gpu)) !== "High" &&
-        getStressLabel(getGpuStress(gpu)) !== "Critical",
-    )
-    .map((gpu) => `cuda:${gpu.index}`);
+  const recommendedDevice = getRecommendedDevice(systemUsage);
+  return recommendedDevice.value.startsWith("cuda:") ? [recommendedDevice.value] : [];
 }
 
 export function getDisabledDevicesFromSelected(

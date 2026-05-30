@@ -8,10 +8,6 @@
                 </div>
                 <div class="modal-body launch-body">
                     <section class="launch-panel">
-                        <div class="section-title-row">
-                            <div class="section-title">Run settings</div>
-                            <div class="section-hint">Configure run count, tests, seed, and GPU fill strategy.</div>
-                        </div>
                         <div class="launch-grid">
                             <label class="launch-field">
                                 <span class="launch-field-label">Runs</span>
@@ -34,6 +30,11 @@
                                 </div>
                             </label>
                             <label class="launch-field">
+                                <span class="launch-field-label">Test interval</span>
+                                <input type="number" class="form-control launch-control" v-model="testInterval"
+                                    min="1" />
+                            </label>
+                            <label class="launch-field">
                                 <span class="launch-field-label">Seed</span>
                                 <div class="field-input-wrap">
                                     <input type="number" class="form-control launch-control field-control"
@@ -52,12 +53,26 @@
                                     <option value="scatter">scatter</option>
                                 </select>
                             </label>
+                            <div class="launch-field switch-field">
+                                <span class="launch-field-label">Save actions</span>
+                                <label class="form-check settings-switch">
+                                    <input class="form-check-input" type="checkbox" v-model="saveActions" />
+                                    <span class="form-check-label">Store test actions for replay</span>
+                                </label>
+                            </div>
+                            <div class="launch-field switch-field">
+                                <span class="launch-field-label">Save weights</span>
+                                <label class="form-check settings-switch">
+                                    <input class="form-check-input" type="checkbox" v-model="saveWeights" />
+                                    <span class="form-check-label">Store model weights at test intervals</span>
+                                </label>
+                            </div>
                         </div>
                     </section>
                     <div class="launch-section">
                         <div class="section-title-row">
                             <div class="section-title">Devices</div>
-                            <div class="section-hint">Uncheck GPUs you do not want to use.</div>
+                            <div class="section-hint">Check the GPUs you want to use.</div>
                         </div>
                         <DeviceSelectionList v-model="selectedDevices" :multiple="true" :include-system-devices="false"
                             :warning-text="deviceWarning" />
@@ -98,8 +113,11 @@ let modalInstance: Modal | null = null;
 const nRuns = ref(1);
 const nJobs = ref(1);
 const nTests = ref(1);
+const testInterval = ref(5000);
 const seed = ref(0);
 const gpuStrategy = ref<"scatter" | "group">("group");
+const saveActions = ref(true);
+const saveWeights = ref(false);
 const selectedDevices = ref<string[]>([]);
 
 const recommendedDevice = computed(() => getRecommendedDevice(systemStore.systemUsage));
@@ -136,8 +154,6 @@ async function setDefaultSeed(logdir: string) {
         const runs = await runStore.getRuns(logdir);
         const maxSeed = runs.reduce((currentMax, run) => Math.max(currentMax, run.seed), -1);
         seed.value = maxSeed + 1;
-        const maxNTests = runs.reduce((currentMax, run) => Math.max(currentMax, run.n_tests), 0);
-        nTests.value = Math.max(1, maxNTests);
     } finally {
         defaultSeedIsLoading.value = false;
     }
@@ -151,7 +167,18 @@ async function start() {
         }
     }
     const disabledDevices = getDisabledDevicesFromSelected(systemStore.systemUsage, selectedDevices.value);
-    await store.newRun(experiment.value.logdir, nRuns.value, nJobs.value, seed.value, nTests.value, gpuStrategy.value, disabledDevices);
+    await store.newRun(
+        experiment.value.logdir,
+        nRuns.value,
+        nJobs.value,
+        seed.value,
+        nTests.value,
+        testInterval.value,
+        gpuStrategy.value,
+        disabledDevices,
+        saveWeights.value,
+        saveActions.value,
+    );
     modalInstance?.hide();
 }
 
@@ -159,8 +186,6 @@ function showModal(exp: Experiment) {
     setDefaultSeed(exp.logdir);
     experiment.value = exp;
     selectedDevices.value = getDefaultSelectedGpuDevices(systemStore.systemUsage);
-    nJobs.value = Math.max(1, systemStore.systemUsage?.gpus.length ?? 0);
-    gpuStrategy.value = "group";
     if (modalInstance == null) {
         modalInstance = new Modal(modal.value);
     }
@@ -208,6 +233,29 @@ defineExpose({ showModal });
 
 .strategy-group {
     min-width: 11rem;
+}
+
+.settings-switch {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    margin: 0;
+    min-height: 2.375rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background: var(--bs-body-bg);
+}
+
+.settings-switch .form-check-input {
+    margin-left: 0;
+    margin-top: 0;
+    flex-shrink: 0;
+}
+
+.settings-switch .form-check-label {
+    font-size: 0.9rem;
+    color: var(--bs-body-color);
 }
 
 .launch-field {

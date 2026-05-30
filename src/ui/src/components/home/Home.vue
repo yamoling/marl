@@ -2,12 +2,6 @@
     <div ref="workspaceRef" class="home-workspace" :style="workspaceStyle">
         <aside class="home-sidebar">
             <section class="panel-surface home-panel">
-                <div class="panel-header">
-                    <div class="panel-header-row">
-                        <h2>Experiments</h2>
-                        <span class="panel-subtitle">Select an experiment to load metrics</span>
-                    </div>
-                </div>
                 <ExperimentTable />
             </section>
 

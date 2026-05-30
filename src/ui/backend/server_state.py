@@ -39,10 +39,13 @@ class ServerState:
         n_runs: int,
         n_tests: int,
         seed: int,
+        n_jobs: int,
+        test_interval: int = 5000,
         device: str = "auto",
-        n_jobs: int | None = None,
         gpu_strategy: str = "group",
         disabled_devices: list[int] | None = None,
+        save_weights: bool = False,
+        save_actions: bool = True,
     ):
         if disabled_devices is None:
             disabled_devices = []
@@ -52,15 +55,20 @@ class ServerState:
             logdir,
             f"--n-runs={n_runs}",
             f"--n-tests={n_tests}",
+            f"--test-interval={test_interval}",
             f"--seed={seed}",
             f"--device={device}",
             f"--gpu-strategy={gpu_strategy}",
+            f"--n-jobs={n_jobs}",
         ]
-        if n_jobs is not None:
-            command.append(f"--n-jobs={n_jobs}")
-        if disabled_devices:
+        if save_weights:
+            command.append("--save-weights")
+        if not save_actions:
+            command.append("--no-save-actions")
+        if len(disabled_devices) > 0:
             command.extend(["--disabled-devices", *[str(device_id) for device_id in disabled_devices]])
         logging.info("Starting new process with command: " + " ".join(command))
+        print(" ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
         subprocess.Popen(
             command,
@@ -87,7 +95,17 @@ class ServerState:
 
         if target_run.is_running or target_run.is_complete:
             return
-        self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed, device=device)
+        self.new_runs(
+            logdir,
+            n_runs=1,
+            n_tests=1,
+            seed=target_run.seed,
+            test_interval=target_run.test_interval,
+            n_jobs=1,
+            device=device,
+            save_weights=target_run.save_weights,
+            save_actions=target_run.save_actions,
+        )
 
     def get_experiment(self, logdir: str) -> Experiment:
         self.last_accessed[logdir] = time.time()
