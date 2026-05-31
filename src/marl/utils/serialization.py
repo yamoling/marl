@@ -46,15 +46,15 @@ class Serializable:
         return res
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> Self:
+    def from_dict(cls, d: dict[str, Any], *, exact_type: bool = False) -> Self:
         """
         Recursively build the configuration from a dictionary.
         Child objects that are serializable are deserialized thanks to their `from_dict` method.
         """
         # If the DISCRIMINATOR_KEY field is no longer there, it means that a parent class has already
-        # tasked a subclass (current cls) to handle deserialisation.
+        # tasked a subclass (current cls) to handle deserialization.
         class_name = d.pop(DISCRIMINATOR_KEY, cls.__name__)
-        if class_name != cls.__name__:
+        if class_name != cls.__name__ and not exact_type:
             subtype = get_subclass_from_name(cls, class_name)
             if subtype is None:
                 raise KeyError(f"Unknown subclass {class_name} for {cls.__name__}")
@@ -76,10 +76,10 @@ class Serializable:
         return cls(**init_dict)
 
     @classmethod
-    def from_json(cls, data: bytes) -> Self:
+    def from_json(cls, data: bytes, *, exact_type: bool = False) -> Self:
         """Build the configuration from a JSON file."""
         d = orjson.loads(data)
-        return cls.from_dict(d)
+        return cls.from_dict(d, exact_type=exact_type)
 
     def to_json(self, *, beautify: bool = False):
         option = None
@@ -88,11 +88,11 @@ class Serializable:
         return orjson.dumps(self.to_dict(), option=option, default=default_serialization)
 
     @classmethod
-    def from_file(cls, path: Path | str):
+    def from_file(cls, path: Path | str, *, exact_type: bool = False):
         with open(path, "rb") as f:
-            return cls.from_json(f.read())
+            return cls.from_json(f.read(), exact_type=exact_type)
 
-    def to_file(self, path: Path | str, beautify: bool = False):
+    def to_file(self, path: Path | str, *, beautify: bool = False):
         if not isinstance(path, Path):
             path = Path(path)
         path.parent.mkdir(exist_ok=True, parents=True)

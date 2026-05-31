@@ -1,6 +1,7 @@
 from http import HTTPStatus
 
 import orjson
+import pyinstrument
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
@@ -10,6 +11,7 @@ router = APIRouter()
 
 
 @router.get("/runs/get/{logdir:path}")
+@pyinstrument.profile()
 def list_runs(logdir: str):
     exp = state.get_experiment(logdir)
     runs = []

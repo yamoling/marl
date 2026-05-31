@@ -34,7 +34,7 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     @classmethod
     def load(cls, rundir: Path):
-        return cls.from_file(rundir / RUN_FILE)
+        return cls.from_file(rundir / RUN_FILE, exact_type=True)
 
     @property
     def runpath(self):
@@ -116,18 +116,18 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
     def is_running(self) -> bool:
         return self.pid is not None
 
-    @property
+    @ttl_cache(maxsize=1024, ttl=1)
     def latest_train_step(self) -> int:
         try:
             max_train = self.train_metrics.last().select(TIME_STEP_COL).collect().item()
-            if max_train == self.n_steps:
+            if max_train >= self.n_steps:
                 return max_train
             max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).collect().item()
             return max(max_train, max_training_data)
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 0
 
-    @property
+    @ttl_cache(maxsize=1024, ttl=1)
     def latest_test_step(self) -> int:
         try:
             return self.reader.test_metrics.last().select(TIME_STEP_COL).collect().item()
@@ -140,31 +140,38 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     @property
     def latest_time_step(self) -> int:
-        latest_test = self.latest_test_step
+        latest_test = self.latest_test_step()
         if latest_test >= self.n_steps:
             return latest_test
-        return max(latest_test, self.latest_train_step)
+        return max(latest_test, self.latest_train_step())
 
     @property
     def progress(self) -> float:
         """The progress between 0 and 1."""
         return self.latest_time_step / self.n_steps
 
-    @property
+    @ttl_cache(maxsize=1024, ttl=1)
     def pid(self):
-        # 1second TTL-cached property
-        return _get_pid(self.pid_filename)
+        try:
+            with open(self.pid_filename, "r") as f:
+                pid = int(f.read())
+            if not psutil.pid_exists(pid):
+                self._cleanup_pid_file()
+                return
+            return pid
+        except FileNotFoundError:
+            return None
 
     @property
     def ppid(self):
         pid = self.pid
         if pid is None:
             return None
-        return psutil.Process(self.pid).ppid()
+        return psutil.Process(self.pid()).ppid()
 
     def kill(self, signal: Signals | int = SIGINT):
         """Kill the run, if it is running and return whether the run was killed or not."""
-        pid = self.pid
+        pid = self.pid()
         killed = False
         if pid is not None:
             try:
@@ -183,6 +190,11 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     def __hash__(self):
         return hash(self.rundir)
+
+    def __eq__(self, other):
+        if not isinstance(other, LightRun):
+            return False
+        return self.rundir == other.rundir
 
     def __enter__(self):
         return self.to_full().__enter__()
@@ -263,9 +275,7 @@ class Run[E: MARLEnv, T: Trainer](LightRun):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
-        return ReplayEpisode(
-            self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent
-        )
+        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
 
     def __hash__(self):
         return hash(self.rundir)
@@ -292,6 +302,11 @@ def _get_pid(file: Path):
         return pid
     except FileNotFoundError:
         return None
+
+
+@ttl_cache(ttl=1)
+def _latest_step(df: pl.LazyFrame):
+    pass
 
 
 def _cleanup(file: Path):
