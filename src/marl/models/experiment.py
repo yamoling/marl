@@ -21,7 +21,7 @@ from marl.models.trainer import Trainer
 from marl.utils import DeviceLike, Serializable, stats
 
 from .dataset import Dataset
-from .run import Run
+from .run import LightRun, Run
 
 EXPERIMENT_FILENAME = "experiment.json"
 
@@ -89,7 +89,9 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         json_file = cls.json_file(logdir)
         return cls.from_file(json_file)
 
-    def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):
+    def create_runs(
+        self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool
+    ):
         if isinstance(seeds, int):
             seeds = list(range(seeds))
         if self.test_env is None:
@@ -164,7 +166,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     def move(self, new_logdir: Path):
         """Move an experiment to a new directory."""
         # Load the runs before moving the files, because we will not be able to load them after the move.
-        runs = list(self.runs)
+        runs = (r.to_full() for r in self.runs)
         # 1) move all files (with weights, logs, etc)
         shutil.move(self.logdir, new_logdir)
         # 2) update the experiment.json file with the new logdir
@@ -207,7 +209,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             if not rundir.is_dir():
                 continue
             try:
-                yield Run[E].load(rundir)
+                yield LightRun[E, T].load(rundir)
             except FileNotFoundError:
                 # Not a run directory
                 pass
@@ -317,7 +319,9 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return {
             "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
             "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
-            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
+            "Training data": stats.compute_experiment_results(
+                [run.training_data for run in runs], aggregate_by, granularity
+            ),
         }
 
     def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):

@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass
 from functools import cached_property
 from pathlib import Path
 from signal import SIGINT, Signals
@@ -21,46 +21,20 @@ RUN_FILE = "run.json"
 
 
 @dataclass
-class Run[E: MARLEnv](Serializable):
+class LightRun[E: MARLEnv, T: Trainer](Serializable):
     seed: int
     rundir: str
-    trainer: Trainer
-    env: EnvConfig[E]
-    test_env: EnvConfig[E]
     n_steps: int
-    test_interval: int
-    n_tests: int
-    loggers: Collection[LoggerType]
-    save_weights: bool
-    save_actions: bool
+    _: KW_ONLY
+    test_interval: int = 5_000
+    n_tests: int = 1
+    loggers: Collection[LoggerType] = ("csv",)
+    save_weights: bool = False
+    save_actions: bool = True
 
     @classmethod
     def load(cls, rundir: Path):
         return cls.from_file(rundir / RUN_FILE)
-
-    @classmethod
-    def create(
-        cls,
-        seed: int,
-        rundir: str,
-        trainer: Trainer,
-        env: EnvConfig[E],
-        n_steps: int,
-        test_env: EnvConfig[E],
-        *,
-        test_interval: int = 5_000,
-        n_tests: int = 1,
-        loggers: Collection[LoggerType] = ("csv",),
-        save_weights: bool = True,
-        save_actions: bool = True,
-    ):
-        run = cls(seed, rundir, trainer, env, test_env, n_steps, test_interval, n_tests, loggers, save_weights, save_actions)
-        run.save()
-        return run
-
-    def __post_init__(self):
-        if not self.runpath.exists():
-            self.save()
 
     @property
     def runpath(self):
@@ -75,9 +49,6 @@ class Run[E: MARLEnv](Serializable):
         if self.test_interval <= 0:
             return False
         return time_step % self.test_interval == 0
-
-    def make_agent(self):
-        return self.trainer.make_agent()
 
     @property
     def run_file(self):
@@ -214,14 +185,52 @@ class Run[E: MARLEnv](Serializable):
         return hash(self.rundir)
 
     def __enter__(self):
-        if self.is_running:
-            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
-        pid = os.getpid()
-        with open(self.pid_filename, "w") as f:
-            f.write(str(pid))
+        return self.to_full().__enter__()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup_pid_file()
+    def to_full(self):
+        return Run[E, T].load(self.runpath)
+
+
+@dataclass
+class Run[E: MARLEnv, T: Trainer](LightRun):
+    trainer: T
+    env: EnvConfig[E]
+    test_env: EnvConfig[E]
+
+    @classmethod
+    def create(
+        cls,
+        seed: int,
+        rundir: str,
+        trainer: T,
+        env: EnvConfig[E],
+        n_steps: int,
+        test_env: EnvConfig[E],
+        *,
+        test_interval: int = 5_000,
+        n_tests: int = 1,
+        loggers: Collection[LoggerType] = ("csv",),
+        save_weights: bool = True,
+        save_actions: bool = True,
+    ):
+        run = Run(
+            seed,
+            rundir,
+            n_steps,
+            trainer,
+            env,
+            test_env,
+            test_interval=test_interval,
+            n_tests=n_tests,
+            loggers=loggers,
+            save_weights=save_weights,
+            save_actions=save_actions,
+        )
+        run.save()
+        return run
+
+    def make_agent(self):
+        return self.trainer.make_agent()
 
     def make_replay_agent(self, time_step: int, test_num: int, only_saved_actions: bool):
         if only_saved_actions:
@@ -254,7 +263,22 @@ class Run[E: MARLEnv](Serializable):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
-        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
+        return ReplayEpisode(
+            self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent
+        )
+
+    def __hash__(self):
+        return hash(self.rundir)
+
+    def __enter__(self):
+        if self.is_running:
+            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
+        pid = os.getpid()
+        with open(self.pid_filename, "w") as f:
+            f.write(str(pid))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cleanup_pid_file()
 
 
 @ttl_cache(ttl=1)
