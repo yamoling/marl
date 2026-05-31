@@ -36,14 +36,13 @@ def main(args: Args):
             )
             trainer_name = "IPPO" if trainer.mixer is None else "MAPPO"
             try:
-                exp = marl.Experiment(
+                exp = marl.Experiment.create(
                     env,
                     trainer,
                     test_env=test_env,
-                    # logdir=f"{trainer_name}-pool-{size}-{cooperation.name}",
+                    logdir=f"{trainer_name}-pool-{size}-{cooperation.name}",
                 )
                 logging.info(f"Created experiment in {exp.logdir}")
-                exp.run()
             except FileExistsError:
                 logging.info(f"Experiment directory already exists for cooperation level {cooperation}. Skipping.")
 

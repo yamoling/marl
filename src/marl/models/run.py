@@ -20,7 +20,7 @@ from marl.utils import Serializable
 RUN_FILE = "run.json"
 
 
-@dataclass(unsafe_hash=True)
+@dataclass
 class Run[E: MARLEnv](Serializable):
     seed: int
     rundir: str
@@ -31,8 +31,32 @@ class Run[E: MARLEnv](Serializable):
     test_interval: int
     n_tests: int
     loggers: Collection[LoggerType]
-    save_weights: bool = True
-    save_actions: bool = True
+    save_weights: bool
+    save_actions: bool
+
+    @classmethod
+    def load(cls, rundir: Path):
+        return cls.from_file(rundir / RUN_FILE)
+
+    @classmethod
+    def create(
+        cls,
+        seed: int,
+        rundir: str,
+        trainer: Trainer,
+        env: EnvConfig[E],
+        n_steps: int,
+        test_env: EnvConfig[E],
+        *,
+        test_interval: int = 5_000,
+        n_tests: int = 1,
+        loggers: Collection[LoggerType] = ("csv",),
+        save_weights: bool = True,
+        save_actions: bool = True,
+    ):
+        run = cls(seed, rundir, trainer, env, test_env, n_steps, test_interval, n_tests, loggers, save_weights, save_actions)
+        run.save()
+        return run
 
     def __post_init__(self):
         if not self.runpath.exists():
@@ -186,6 +210,9 @@ class Run[E: MARLEnv](Serializable):
         except FileNotFoundError:
             pass
 
+    def __hash__(self):
+        return hash(self.rundir)
+
     def __enter__(self):
         if self.is_running:
             raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
@@ -228,10 +255,6 @@ class Run[E: MARLEnv](Serializable):
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
         return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
-
-    @classmethod
-    def load(cls, rundir: Path):
-        return cls.from_file(rundir / RUN_FILE)
 
 
 @ttl_cache(ttl=1)

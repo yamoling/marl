@@ -96,11 +96,23 @@
             </Column>
             <Column header="" style="width: 5rem; text-align: center">
                 <template #body="{ data }">
-                    <input v-if="data.loaded" type="color" class="experiment-colour-input"
-                        :value="experimentColour(data.logdir)"
-                        :ref="(element) => setColourInputRef(data.logdir, element)" @click.stop
-                        @input="(event) => onExperimentColourChanged(data.logdir, event)"
-                        aria-label="Experiment colour" />
+                    <div v-if="data.loaded" class="experiment-actions-inline">
+                        <input type="color" class="experiment-colour-input" :value="experimentColour(data.logdir)"
+                            :ref="(element) => setColourInputRef(data.logdir, element)" @click.stop
+                            @input="(event) => onExperimentColourChanged(data.logdir, event)"
+                            aria-label="Experiment colour" />
+                        <button class="btn btn-outline-secondary btn-sm experiment-unload-button" type="button"
+                            @click.stop="unloadExperiment(data.logdir)" title="Unload experiment"
+                            aria-label="Unload experiment">
+                            <font-awesome-icon :icon="['fas', 'xmark']" />
+                        </button>
+                    </div>
+                    <div v-else-if="isExperimentLoading(data.logdir)" class="experiment-actions-inline">
+                        <span class="experiment-loading-indicator" title="Loading experiment"
+                            aria-label="Loading experiment">
+                            <font-awesome-icon :icon="['fas', 'spinner']" spin />
+                        </span>
+                    </div>
                 </template>
             </Column>
             <template #empty> No experiments match the current filters. </template>
@@ -297,6 +309,10 @@ function isRunsLoading(logdir: string) {
     return runStore.loading.get(logdir) ?? false;
 }
 
+function isExperimentLoading(logdir: string) {
+    return resultsStore.loading.get(logdir) ?? false;
+}
+
 function runStatusCounts(logdir: string): Record<RunStatus, number> {
     const counts: Record<RunStatus, number> = {
         CREATED: 0,
@@ -356,6 +372,10 @@ function onRowContextMenu(event: DataTableRowContextMenuEvent) {
 function onExperimentClicked(logdir: string) {
     resultsStore.load(logdir);
     runStore.refresh(logdir);
+}
+
+function unloadExperiment(logdir: string) {
+    resultsStore.unload(logdir);
 }
 
 function setColourInputRef(logdir: string, element: unknown) {
@@ -535,6 +555,28 @@ function stopAllRuns(logdir: string) {
     border-radius: 0.4rem;
     background: transparent;
     cursor: pointer;
+}
+
+.experiment-actions-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.experiment-unload-button {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    display: grid;
+    place-items: center;
+}
+
+.experiment-loading-indicator {
+    width: 2rem;
+    height: 2rem;
+    display: grid;
+    place-items: center;
+    color: rgba(13, 110, 253, 0.85);
 }
 
 .runs-matrix {
