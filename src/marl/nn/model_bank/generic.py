@@ -6,7 +6,7 @@ import torch
 
 from marl.models.nn import NN, ActivationType, RecurrentNN, get_activation
 
-from ..layers import IndependentLinear
+from ..layers import ILinear
 from ..utils import make_cnn
 
 
@@ -36,7 +36,7 @@ class MLP(NN):
                 # Input layer has to transpose the input to be agent-wise and the output layer has to transpose the output back to the original shape.
                 transpose_in = i == 0
                 transpose_out = i == len(self.layer_sizes) - 2
-                layer = IndependentLinear(self.n_agents, in_size, out_size, transpose_in, transpose_out)
+                layer = ILinear(self.n_agents, in_size, out_size, transpose_in, transpose_out)
             else:
                 layer = torch.nn.Linear(in_size, out_size)
             self.nn.append(layer)
@@ -111,8 +111,11 @@ class RNN(RecurrentNN):
     mlp_tail_sizes: Sequence[int] = (128,)
     n_grus: int = 1
     hidden_activation: ActivationType = "relu"
+    independent: bool = False
 
     def __post_init__(self):
+        if self.independent:
+            raise NotImplementedError("Independent RNN is not implemented yet. Feel free to implement it !")
         super().__post_init__()
         self.head = torch.nn.Sequential()
         self.tail = torch.nn.Sequential()
@@ -141,7 +144,7 @@ class RNN(RecurrentNN):
     def __hash__(self):
         return id(self)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
@@ -164,4 +167,3 @@ class RNN(RecurrentNN):
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_size, n_agents, self.output_size)
         return x
-

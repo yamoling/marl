@@ -52,14 +52,8 @@ class QNetwork(NN):
     def _get_qvalues(self, outputs: torch.Tensor):
         if not self.duelling:
             return outputs
-        if outputs.ndim == 3:
-            value = outputs[:, :, -1].unsqueeze(-1)  # Unsqueeze to keep 3 dimensions (batch_size, n_agents, 1)
-            adv = outputs[:, :, :-1]
-        elif outputs.ndim == 4:
-            value = outputs[:, :, :, -1].unsqueeze(-1)
-            adv = outputs[:, :, :, :-1]
-        else:
-            raise NotImplementedError()
+        value = outputs[..., -1].unsqueeze(-1)
+        adv = outputs[..., :-1]
         mean_adv = torch.mean(adv, dim=-1, keepdim=True)
         res = value + adv - mean_adv
         return res
@@ -98,17 +92,19 @@ class QNetwork(NN):
         return self._get_qvalues(outputs)
 
     def to_softmax_actor(self):
-        from .actor_critic import DiscreteActor
+        from .actor_critic import CategoricalActor
 
-        class ActorFromQNet(DiscreteActor):
+        class ActorFromQNet(CategoricalActor):
             def __init__(self, qnet: QNetwork):
-                super().__init__(qnet.output_shape)
+                super().__init__(self.n_actions, self.obs_shape, self.extras_shape)
                 self.qnet = qnet
 
             def __hash__(self):
                 return hash(self.name)
 
-            def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
+            def logits(
+                self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None
+            ) -> torch.Tensor:
                 logits = self.qnet.batch_qvalues(obs, extras)
                 if available_actions is not None:
                     logits = logits.masked_fill(~available_actions, -torch.inf)
@@ -144,7 +140,9 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
 
-    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs) -> torch.Tensor:
+    def batch_qvalues(
+        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 

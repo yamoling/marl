@@ -1,4 +1,11 @@
-from .actor_critic import Actor, ActorCritic, ContinuousActor, ContinuousActorCritic, Critic, DiscreteActor, DiscreteActorCritic
+from .actor_critic import (
+    Actor,
+    CategoricalActor,
+    ContinuousActor,
+    Critic,
+    MVNActor,
+    NormalActor,
+)
 from .ir_module import IRModule
 from .mixer import Mixer, StateMixer
 from .nn import NN, ActivationType, RecurrentNN, get_activation, randomize
@@ -10,16 +17,15 @@ __all__ = [
     "randomize",
     "QNetwork",
     "RecurrentQNetwork",
-    "DiscreteActor",
+    "CategoricalActor",
     "Actor",
-    "ActorCritic",
-    "DiscreteActorCritic",
     "ContinuousActor",
-    "ContinuousActorCritic",
     "Critic",
     "Mixer",
     "StateMixer",
     "IRModule",
     "get_activation",
     "ActivationType",
+    "NormalActor",
+    "MVNActor",
 ]

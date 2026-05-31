@@ -114,7 +114,8 @@ class RecurrentNN(NN):
 
     def forward(self, *args, masks: torch.Tensor | None = None, **kwargs) -> Any:
         """
-        Forward the RNN in a (time, batch, *data) shape.
+        Forward the RNN in a (time, batch, *data) shape and return the output (not the hidden states). Hidden states are
+        managed internally and can be reset with reset_hidden_states().
 
         If time-step masks are provided, then inputs can be transrofmed into a PackedSequence for efficient
         GRU or LSTM forwarding.

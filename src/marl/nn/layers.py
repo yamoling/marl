@@ -102,7 +102,9 @@ class BMMLayer(torch.nn.Module):
         return torch.bmm(x, self.weight) + self.bias
 
 
-class IndependentLinear(torch.nn.Module):
+class ILinear(torch.nn.Module):
+    """Independent (agent-wise) Linear layer implemented as a batched matrix multiplication."""
+
     def __init__(self, n_agents: int, in_features: int, out_features: int, transpose_in: bool = False, transpose_out: bool = False):
         super().__init__()
         self.nn = torch.nn.Sequential()
