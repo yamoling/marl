@@ -55,7 +55,7 @@ class MLP(NN):
     def layer_sizes(self) -> tuple[int, ...]:
         return self.input_size, *self.hidden_sizes, self.output_size
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /) -> torch.Tensor:
         *dims, _ = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
         x = self.nn.forward(obs)
@@ -85,7 +85,9 @@ class CNN(NN):
         assert len(self.strides) == len(self.kernel_sizes) == len(self.filters), (
             "The number of strides, kernel sizes and filters must be the same."
         )
-        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
+        self.cnn, n_features = make_cnn(
+            self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation
+        )
         self.output_shape = (n_features,)
 
     def __hash__(self):
@@ -144,7 +146,9 @@ class RNN(RecurrentNN):
     def __hash__(self):
         return id(self)
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
+    def forward(
+        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs
+    ) -> torch.Tensor:
         self.gru.flatten_parameters()
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).

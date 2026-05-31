@@ -3,7 +3,7 @@ from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 
 import torch
-from marlenv import ContinuousSpace, DiscreteMARLEnv, MARLEnv
+from marlenv import ContinuousSpace, MARLEnv
 from torch.distributions import transforms
 
 from marl.env import EnvConfig
@@ -35,7 +35,12 @@ class Actor[T: torch.distributions.Distribution](NN):
 
     @abstractmethod
     def forward(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, available_actions: torch.Tensor | None = None, **kwargs
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        *,
+        available_actions: torch.Tensor | None = None,
+        **kwargs,
     ) -> torch.Tensor:
         """Compute the logits of the distribution."""
 
@@ -58,7 +63,7 @@ class Actor[T: torch.distributions.Distribution](NN):
         return math.prod(self.extras_shape)
 
     @classmethod
-    def from_env(cls, env: EnvConfig | DiscreteMARLEnv, independent: bool = False, **kwargs):
+    def from_env(cls, env: EnvConfig | MARLEnv, *, independent: bool = True, **kwargs):
         return cls(
             env.n_actions,
             env.observation_shape,
@@ -110,7 +115,12 @@ class CategoricalActor(Actor[torch.distributions.Categorical]):
     """Discrete actor neural network"""
 
     def policy(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, available_actions: torch.Tensor | None = None, **kwargs
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        *,
+        available_actions: torch.Tensor | None = None,
+        **kwargs,
     ):
         logits = self.forward(obs, extras, available_actions=available_actions, **kwargs)
         return torch.distributions.Categorical(logits=logits)
@@ -179,6 +189,12 @@ class ContinuousActor[T: ContinuousDistribution](Actor[torch.distributions.Trans
         """
         Create a distribution from the logits output by the NN.
         """
+
+    @classmethod
+    def from_env(cls, env: EnvConfig | MARLEnv, *, independent: bool = True, **kwargs):
+        aspace = env.action_space
+        assert isinstance(aspace, ContinuousSpace), "ContinuousActor can only be used with continuous action spaces."
+        return super().from_env(env, independent=independent, action_space=aspace, **kwargs)
 
 
 @dataclass

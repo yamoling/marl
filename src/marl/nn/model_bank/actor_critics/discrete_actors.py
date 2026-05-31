@@ -1,5 +1,5 @@
 from dataclasses import KW_ONLY, dataclass
-from typing import Any, Sequence, cast
+from typing import Sequence
 
 import torch
 from marlenv import MARLEnv
@@ -10,13 +10,7 @@ from marl.models.nn import ActivationType, CategoricalActor, RecurrentNN
 from ..generic import CNN, MLP, RNN
 
 
-def from_env(
-    env: MARLEnv | EnvConfig,
-    mlp_sizes: Sequence[int] = (256, 128),
-    activation: ActivationType = "relu",
-    independent: bool = True,
-    recurrent: bool = False,
-) -> CategoricalActor:
+def from_env(env: MARLEnv | EnvConfig, recurrent: bool, *, independent: bool = True, **init_kwargs) -> CategoricalActor:
     assert env.action_space.is_discrete, "Only discrete action spaces are supported by the discrete actor factory."
     registry = {
         (1, False): CategoricalLinearActor,
@@ -27,9 +21,7 @@ def from_env(
     config = (len(env.observation_shape), recurrent)
     network_class = registry.get(config)
     if network_class is not None:
-        return cast(Any, network_class).from_env(
-            env, mlp_sizes=mlp_sizes, activation=activation, independent=independent
-        )
+        return network_class.from_env(env, independent=independent, **init_kwargs)
     err_msg = "\n".join(
         [f" - Shape Len: {shape_len}, Recurrent: {is_recurrent}" for shape_len, is_recurrent in registry.keys()]
     )
@@ -67,14 +59,18 @@ class CategoricalLinearActor(CategoricalActor):
         activation: ActivationType = "relu",
         **kwargs,
     ):
-        return super().from_env(env, mlp_sizes=mlp_sizes, activation=activation, independent=independent)
+        return super().from_env(env, mlp_sizes=mlp_sizes, activation=activation, independent=independent, **kwargs)
 
     def forward(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, available_actions: torch.Tensor | None = None, **kwargs
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        *,
+        available_actions: torch.Tensor | None = None,
+        **kwargs,
     ):
         logits = self.mlp(obs, extras, **kwargs)
-        logits = self.mask(logits, available_actions, replacement=-torch.inf)
-        return logits
+        return self.mask(logits, available_actions)
 
     def __hash__(self):
         return id(self)
@@ -127,7 +123,7 @@ class CategoricalRecurrentActor(CategoricalActor, RecurrentNN):
         **kwargs,
     ):
         logits = self.rnn.forward(obs, extras, masks=masks, **kwargs)
-        return self.mask(logits, available_actions, replacement=-torch.inf)
+        return self.mask(logits, available_actions)
 
     def reset_hidden_states(self):
         return self.rnn.reset_hidden_states()
@@ -169,11 +165,17 @@ class CategoricalConvActor(CategoricalActor):
             n_agents=self.n_agents,
         )
 
-    def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor, **kwargs):
+    def forward(
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        *,
+        available_actions: torch.Tensor | None = None,
+        **kwargs,
+    ):
         x = self.cnn.forward(obs)
         logits = self.mlp.forward(x, extras)
-        logits[~available_actions] = -torch.inf
-        return logits
+        return self.mask(logits, available_actions)
 
     def __hash__(self):
         return hash(self.name)

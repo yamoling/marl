@@ -80,7 +80,9 @@ class PPO(Trainer):
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
-        advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
+        advantages = batch.compute_gae(
+            self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages
+        )
         returns = batch.compute_mc_returns(self.gamma, next_values[-1])
         advantages[batch.masked_indices] = 0.0
         return returns, advantages
@@ -97,7 +99,7 @@ class PPO(Trainer):
         if self.ir_module is not None:
             batch.rewards = batch.rewards + self.ir_module.compute(batch)
         with torch.no_grad():
-            old_dist = self.actor.policy(batch.obs, batch.extras, batch.available_actions)
+            old_dist = self.actor.policy(batch.obs, batch.extras, available_actions=batch.available_actions)
             old_log_probs = old_dist.log_prob(batch.actions)
             old_log_probs[batch.masked_indices] = 0.0
             returns, advantages = self._compute_training_data(batch)
@@ -112,7 +114,10 @@ class PPO(Trainer):
             if self.mixer is None:
                 minibatch = minibatch.for_individual_learners()
             if isinstance(minibatch, EpisodeBatch):
-                indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
+                indices = (
+                    slice(None),
+                    indices,
+                )  # The episode dimension come second in episode batches: (time, episode, ...)
             else:
                 indices = (indices,)
             mini_returns = returns[*indices]
@@ -120,7 +125,11 @@ class PPO(Trainer):
 
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
-            mini_policy = self.actor.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
+            mini_policy = self.actor.policy(
+                minibatch.obs,
+                minibatch.extras,
+                available_actions=minibatch.available_actions,
+            )
             mini_new_log_probs: torch.Tensor = mini_policy.log_prob(minibatch.actions)
             mini_new_log_probs[minibatch.masked_indices] = 0.0
             log_ratio = mini_new_log_probs - old_log_probs[indices]

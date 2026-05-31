@@ -7,7 +7,7 @@ from lle import CooperationLevel
 
 import marl
 from marl.env import LLEPool
-from marl.nn.model_bank import actor_critics, qnetworks
+from marl.nn.model_bank import actor_critics
 
 
 class Args(tap.TypedArgs):
@@ -25,43 +25,27 @@ def main(args: Args):
                 generator = "random"
             env = LLEPool(f"maps/pool/{generator}/{cooperation.name}", size)
             test_env = LLEPool(f"maps/pool/{generator}/{cooperation.name}", size, offset=500)
-            # trainer = marl.algos.QMix(
-            #     qnetworks.from_env(env, independent=True, duelling=True),
-            #     gamma=0.95,
-            #     grad_norm_clipping=10.0,
-            #     train_policy=marl.policy.EpsilonGreedy.linear(1.0, 0.025, 200_000),
-            # )
+            actor, critic = actor_critics.from_env(env, False)
             trainer = marl.algos.PPO(
-                actor_critics.from_env(env),
+                actor,
+                critic,
                 marl.nn.mixers.VDN.from_env(env),
                 gamma=0.95,
                 grad_norm_clipping=10,
                 early_stopping_kl=1e-2,
             )
+            trainer_name = "IPPO" if trainer.mixer is None else "MAPPO"
             try:
                 exp = marl.Experiment(
-                    env, trainer, test_env=test_env, logdir=f"{trainer.__class__.__name__}-pool-{size}-{cooperation.name}"
+                    env,
+                    trainer,
+                    test_env=test_env,
+                    # logdir=f"{trainer_name}-pool-{size}-{cooperation.name}",
                 )
                 logging.info(f"Created experiment in {exp.logdir}")
                 exp.run()
             except FileExistsError:
                 logging.info(f"Experiment directory already exists for cooperation level {cooperation}. Skipping.")
-
-        # exp.run(
-        #     5,
-        #     n_tests=args.pool_size,
-        #     test_interval=10_000,
-        #     gpu_strategy="scatter",
-        #     disabled_gpus=[0, 1, 2],
-        # )
-        # exp.run(
-        #     range(5, 10),
-        #     n_tests=args.pool_size,
-        #     test_interval=10_000,
-        #     gpu_strategy="scatter",
-        #     disabled_gpus=[0, 1, 2],
-        #     save_weights=False,
-        # )
 
 
 if __name__ == "__main__":

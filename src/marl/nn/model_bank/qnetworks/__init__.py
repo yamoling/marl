@@ -13,6 +13,7 @@ def from_env(
     independent: bool = False,
     duelling: bool = True,
     noisy: bool = False,
+    **init_kwargs,
 ) -> QNetwork:
     registry: dict[tuple[int, bool], type[QNetwork]] = {
         (1, False): QMLP,
@@ -23,7 +24,7 @@ def from_env(
     config = (len(env.observation_shape), recurrent)
     network_class = registry.get(config)
     if network_class is not None:
-        return network_class.from_env(env, duelling=duelling, noisy=noisy, independent=independent)
+        return network_class.from_env(env, duelling=duelling, noisy=noisy, independent=independent, **init_kwargs)
     err_msg = "\n".join([f" - Shape Len: {s}, Recurrent: {r}" for s, r in registry.keys()])
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")
 

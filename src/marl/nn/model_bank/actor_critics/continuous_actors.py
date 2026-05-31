@@ -1,30 +1,49 @@
 from dataclasses import KW_ONLY, dataclass
-from typing import Any, Literal, Sequence, cast
+from typing import Literal, Sequence, overload
 
 import torch
 from marlenv import ContinuousMARLEnv
 
 from marl.env import EnvConfig
-from marl.models.nn import (
-    ActivationType,
-    Actor,
-    MVNActor,
-    NormalActor,
-    RecurrentNN,
-)
+from marl.models.nn import ActivationType, ContinuousActor, MVNActor, NormalActor, RecurrentNN
+from marl.models.nn.actor_critic import ContinuousDistribution
 
 from ..generic import CNN, MLP, RNN
 
 
+@overload
 def from_env(
     env: ContinuousMARLEnv | EnvConfig[ContinuousMARLEnv],
-    dist_type: Literal["normal", "multivariate-normal"] = "multivariate-normal",
-    mlp_sizes: Sequence[int] = (256, 128),
-    activation: ActivationType = "relu",
+    dist: Literal["normal"] = "normal",
+    *,
     independent: bool = True,
     recurrent: bool = False,
-) -> Actor:
-    registry: dict[tuple[int, Literal["normal", "multivariate-normal"], bool], type[Actor]] = {
+    **init_kwargs,
+) -> NormalActor: ...
+
+
+@overload
+def from_env(
+    env: ContinuousMARLEnv | EnvConfig[ContinuousMARLEnv],
+    dist: Literal["multivariate-normal"],
+    *,
+    independent: bool = True,
+    recurrent: bool = False,
+    **init_kwargs,
+) -> MVNActor: ...
+
+
+def from_env(
+    env: ContinuousMARLEnv | EnvConfig[ContinuousMARLEnv],
+    dist: Literal["normal", "multivariate-normal"] = "normal",
+    *,
+    independent: bool = True,
+    recurrent: bool = False,
+    **init_kwargs,
+):
+    registry: dict[
+        tuple[int, Literal["normal", "multivariate-normal"], bool], type[ContinuousActor[ContinuousDistribution]]
+    ] = {
         # (obs shape rank, discrete action space, recurrent)
         (1, "normal", False): NormalLinearActor,
         (1, "normal", True): NormalRecurrentActor,
@@ -32,16 +51,14 @@ def from_env(
         (3, "normal", True): NormalRecurrentConvActor,
         (1, "multivariate-normal", False): MVNLinearActor,
     }
-    config = (len(env.observation_shape), dist_type, recurrent)
+    config = (len(env.observation_shape), dist, recurrent)
     network_class = registry.get(config)
     if network_class is not None:
-        return cast(Any, network_class).from_env(
-            env, mlp_sizes=mlp_sizes, activation=activation, independent=independent
-        )
+        return network_class.from_env(env, independent=independent, **init_kwargs)
     err_msg = "\n".join(
         [
-            f" - Shape Len: {shape_len}, Discrete: {is_discrete}, Recurrent: {is_recurrent}"
-            for shape_len, is_discrete, is_recurrent in registry.keys()
+            f" - Shape Len: {shape_len}, distribution: {dist}, recurrent: {is_recurrent}"
+            for shape_len, dist, is_recurrent in registry.keys()
         ]
     )
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")

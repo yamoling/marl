@@ -1,5 +1,5 @@
 from dataclasses import KW_ONLY, dataclass
-from typing import Any, Sequence, cast
+from typing import Sequence
 
 import torch
 from marlenv import MARLEnv
@@ -14,24 +14,18 @@ from marl.models.nn import (
 from ..generic import CNN, MLP, RNN
 
 
-def from_env(
-    env: MARLEnv | EnvConfig,
-    mlp_sizes: Sequence[int] = (256, 128),
-    activation: ActivationType = "relu",
-    independent: bool = True,
-    recurrent: bool = False,
-) -> Critic:
+def from_env(env: MARLEnv | EnvConfig, *, independent: bool = True, recurrent: bool = False, **init_kwargs) -> Critic:
     registry: dict[tuple[int, bool, bool], type[Critic]] = {
         # (obs shape rank, discrete action space, recurrent)
-        (3, True, False): (ConvCritic),
-        (1, True, False): (LinearCritic),
-        (3, True, True): (RecurrentCritic),
-        (1, True, True): (RecurrentConvCritic),
+        (3, True, False): ConvCritic,
+        (1, True, False): LinearCritic,
+        (3, True, True): RecurrentCritic,
+        (1, True, True): RecurrentConvCritic,
     }
     config = (len(env.observation_shape), env.action_space.is_discrete, recurrent)
     network_class = registry.get(config)
     if network_class is not None:
-        return cast(Any, network_class).from_env(env, mlp_sizes=mlp_sizes, activation=activation, independent=independent)
+        return network_class.from_env(env, independent=independent, **init_kwargs)
     err_msg = "\n".join(
         [
             f" - Shape Len: {shape_len}, Discrete: {is_discrete}, Recurrent: {is_recurrent}"
@@ -74,7 +68,7 @@ class ConvCritic(Critic):
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
         x = self.cnn.forward(obs)
-        return self.mlp.forward(x, extras)
+        return self.mlp.forward(x, extras).squeeze(-1)
 
     def __hash__(self):
         return id(self)
@@ -100,7 +94,7 @@ class LinearCritic(Critic):
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor):
-        return self.mlp.forward(obs, extras)
+        return self.mlp.forward(obs, extras).squeeze(-1)
 
     def __hash__(self):
         return id(self)
@@ -122,7 +116,7 @@ class RecurrentCritic(Critic):
         )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs):
-        return self.rnn.forward(obs, extras, masks=masks, **kwargs)
+        return self.rnn.forward(obs, extras, masks=masks, **kwargs).squeeze(-1)
 
     def reset_hidden_states(self):
         self.rnn.reset_hidden_states()
@@ -160,7 +154,7 @@ class RecurrentConvCritic(Critic, RecurrentNN):
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs):
         x = self.cnn.forward(obs)
-        return self.rnn.forward(x, extras, masks=masks, **kwargs)
+        return self.rnn.forward(x, extras, masks=masks, **kwargs).squeeze(-1)
 
     def reset_hidden_states(self):
         self.rnn.reset_hidden_states()

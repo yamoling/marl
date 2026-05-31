@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from marlenv import MARLEnv, MultiDiscreteSpace, State
 
-from marl.nn.model_bank import CNN_ActorCritic
+from marl.nn.model_bank import CategoricalConvActor, ConvCritic
 
 from .alpha_node import AlphaNode
 
@@ -26,18 +26,19 @@ class AlphaZero:
         assert len(env.state_shape) == 3
         assert len(env.state_extra_shape) == 1
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.network = CNN_ActorCritic(env.state_shape, env.state_extras_size, env.n_actions).to(self.device)
+        self.actor = CategoricalConvActor(env.n_actions, env.state_shape, env.state_extra_shape).to(self.device)
+        self.critic = ConvCritic(env.state_shape, env.state_extra_shape)
         self.tau = tau
         self.c = exploration_constant
         self.n_search_iterations = n_search_iterations
-        self.optimizer = torch.optim.Adam(self.network.parameters(), lr=lr)
+        self.optimizer = torch.optim.Adam([*self.actor.parameters(), *self.critic.parameters()], lr=lr)
         self.batch_size = batch_size
 
     def search(self, state: State):
         s = torch.from_numpy(state.data).unsqueeze(0).to(self.device)
         e = torch.from_numpy(state.extras).unsqueeze(0).to(self.device)
         with torch.no_grad():
-            value = self.network.value(s, e).item()
+            value = self.critic.value(s, e).item()
         root = AlphaNode.root(state, value)
         for _ in range(self.n_search_iterations):
             self.update(root)
@@ -46,7 +47,7 @@ class AlphaZero:
     def update(self, root: AlphaNode):
         while root.is_expanded:
             root = root.get_max_ucb_child(self.c)
-        root.expand(self.env, self.network, self.gamma)
+        root.expand(self.env, self.actor, self.gamma)
         root.backprop(root.value)
 
     def self_play(self, render: bool):
@@ -90,11 +91,13 @@ class AlphaZero:
         states_data = torch.from_numpy(np.array([all_states[i].data for i in indices])).to(self.device)
         state_extras = torch.from_numpy(np.array([all_states[i].extras for i in indices])).to(self.device)
         qvalues = torch.from_numpy(np.array([all_qvalues[i] for i in indices], dtype=np.float32)).to(self.device)
-        target_probs = torch.from_numpy(np.array([all_target_probs[i] for i in indices], dtype=np.float32)).to(self.device)
+        target_probs = torch.from_numpy(np.array([all_target_probs[i] for i in indices], dtype=np.float32)).to(
+            self.device
+        )
         actions = torch.from_numpy(np.array([all_actions[i] for i in indices])).to(self.device)
         availables = torch.from_numpy(np.array([all_availables[i] for i in indices])).to(self.device)
 
-        pi, value = self.network.forward(states_data, state_extras, availables)
+        pi, value = self.actor.forward(states_data, state_extras, available_actions=availables)
         pi = torch.gather(pi, 1, actions.unsqueeze(-1)).squeeze()  # type: ignore
         value = value.squeeze()
         value_loss = torch.nn.functional.mse_loss(value, qvalues)

@@ -3,7 +3,7 @@ from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
 from .dataset import Dataset, ExperimentResults
 from .experiment import Experiment
-from .nn import NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
+from .nn import NN, Actor, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
 from .policy import Policy
 from .replay_episode import LightEpisodeSummary, ReplayEpisode
 from .replay_memory import (
