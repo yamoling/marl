@@ -13,7 +13,7 @@ def short_run():
         mixer=mixers.VDN.from_env(env),
         ir_module=rnd,
     )
-    exp = Experiment(env, trainer, logdir="auto", n_steps=10_000)
+    exp = Experiment.create(env, trainer, logdir="auto", n_steps=10_000)
     exp.run(test_interval=1000)
 
 

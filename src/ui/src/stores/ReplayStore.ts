@@ -7,12 +7,7 @@ import { ref } from "vue";
 export const useReplayStore = defineStore("ReplayStore", () => {
   const loading = ref(false);
 
-  async function getEpisode(
-    test_step: number,
-    test_num: number,
-    rundir: string,
-    only_saved_actions: boolean,
-  ) {
+  async function getEpisode(test_step: number, test_num: number, rundir: string, only_saved_actions: boolean) {
     loading.value = true;
     try {
       const resp = await apiFetch(
@@ -20,10 +15,8 @@ export const useReplayStore = defineStore("ReplayStore", () => {
         "Failed to load replay episode",
       );
       const json = await resp.json();
-      console.log(json.agent_details[0]);
-      const d = AgentDetailsSchema.parse(json.agent_details[0])
-      console.log(d)
       const payload = parseOrThrow(ReplayEpisodeSchema, json);
+      console.debug(payload);
       return ReplayEpisode.fromJSON(payload);
     } finally {
       loading.value = false;

@@ -7,17 +7,19 @@ import dotenv
 import pyinstrument
 import typed_argparse as tap
 
-from marl import Experiment
+from marl import Experiment, LightExperiment, Run
 
 
 class Args(tap.TypedArgs):
     quiet: bool | None = tap.arg("--quiet", default=False)
 
 
-@pyinstrument.profile()
-def to_profile(exp: Experiment):
+# @pyinstrument.profile()
+def to_profile(exp: LightExperiment):
     runs = []
     for run in exp.runs:
+        if isinstance(run, Run):
+            raise ValueError("Should not be a run !")
         if run.is_running:
             status = "RUNNING"
         elif run.is_complete:
@@ -39,14 +41,15 @@ def to_profile(exp: Experiment):
     return runs
 
 
+@pyinstrument.profile()
 def main(args: Args):
     dirs = [os.path.join("logs", logdir) for logdir in os.listdir("logs")]
     start = datetime.now()
     i = 0
     for logdir in dirs:
-        exp = Experiment.load(logdir)
+        exp = LightExperiment.load(logdir)
         i += len(to_profile(exp))
-        break
+        # break
     end = datetime.now()
     print(i)
     print(f"Time taken: {end - start}")
@@ -63,4 +66,6 @@ if __name__ == "__main__":
     try:
         tap.Parser(Args).bind(main).run()
     except Exception as e:
-        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)
+        logging.error(
+            f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
+        )

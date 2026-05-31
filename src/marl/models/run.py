@@ -114,7 +114,8 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     @property
     def is_running(self) -> bool:
-        return self.pid is not None
+        res = self.pid is not None
+        return res
 
     @ttl_cache(maxsize=1024, ttl=1)
     def latest_train_step(self) -> int:
@@ -140,18 +141,19 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     @property
     def latest_time_step(self) -> int:
-        latest_test = self.latest_test_step()
-        if latest_test >= self.n_steps:
-            return latest_test
-        return max(latest_test, self.latest_train_step())
+        if self.is_running:
+            return LightRun.latest_train_step(self)
+        return LightRun.latest_test_step(self)
 
     @property
     def progress(self) -> float:
         """The progress between 0 and 1."""
         return self.latest_time_step / self.n_steps
 
-    @ttl_cache(maxsize=1024, ttl=1)
+    @property
     def pid(self):
+        if not os.path.exists(self.pid_filename):
+            return
         try:
             with open(self.pid_filename, "r") as f:
                 pid = int(f.read())
@@ -160,18 +162,18 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
                 return
             return pid
         except FileNotFoundError:
-            return None
+            return
 
     @property
     def ppid(self):
         pid = self.pid
         if pid is None:
             return None
-        return psutil.Process(self.pid()).ppid()
+        return psutil.Process(self.pid).ppid()
 
     def kill(self, signal: Signals | int = SIGINT):
         """Kill the run, if it is running and return whether the run was killed or not."""
-        pid = self.pid()
+        pid = self.pid
         killed = False
         if pid is not None:
             try:
@@ -275,7 +277,9 @@ class Run[E: MARLEnv, T: Trainer](LightRun):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
-        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
+        return ReplayEpisode(
+            self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent
+        )
 
     def __hash__(self):
         return hash(self.rundir)
@@ -302,11 +306,6 @@ def _get_pid(file: Path):
         return pid
     except FileNotFoundError:
         return None
-
-
-@ttl_cache(ttl=1)
-def _latest_step(df: pl.LazyFrame):
-    pass
 
 
 def _cleanup(file: Path):
