@@ -48,7 +48,7 @@ class QCNN(QNetwork):
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
         x = self.cnn.forward(obs)
-        x = self.mlp.forward(x, extras, **kwargs)
+        x = self.mlp.forward(x, extras)
         return x
 
     def __hash__(self):
@@ -91,7 +91,7 @@ class QMLP(QNetwork):
             )
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs):
-        return self.nn.forward(obs, extras, **kwargs)
+        return self.nn.forward(obs, extras)
 
     def __hash__(self):
         return id(self)
@@ -106,7 +106,7 @@ class QMLP(QNetwork):
         duelling: bool = False,
         **kwargs,
     ):
-        return super().from_env(env, activation=activation, hidden_size=hidden_sizes, noisy=noisy, **kwargs)
+        return super().from_env(env, activation=activation, hidden_size=hidden_sizes, noisy=noisy, duelling=duelling, **kwargs)
 
 
 @dataclass

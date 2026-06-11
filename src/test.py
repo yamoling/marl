@@ -6,7 +6,9 @@ from datetime import datetime
 import dotenv
 import pyinstrument
 import typed_argparse as tap
+from lle import CooperationLevel
 
+import plot
 from marl import Experiment, LightExperiment, Run
 
 
@@ -41,18 +43,20 @@ def to_profile(exp: LightExperiment):
     return runs
 
 
-@pyinstrument.profile()
 def main(args: Args):
-    dirs = [os.path.join("logs", logdir) for logdir in os.listdir("logs")]
-    start = datetime.now()
-    i = 0
-    for logdir in dirs:
-        exp = LightExperiment.load(logdir)
-        i += len(to_profile(exp))
-        # break
-    end = datetime.now()
-    print(i)
-    print(f"Time taken: {end - start}")
+    for size in ("100", "250", "500"):
+        for coop in CooperationLevel:
+            logdirs = [
+                os.path.join("logs", d)
+                for d in os.listdir("logs")
+                if size in d and coop.value in d and os.path.isdir(os.path.join("logs", d))
+            ]
+            experiments = [LightExperiment.load(logdir) for logdir in logdirs]
+
+            fig, ax = plot.boxplot_at(experiments, "exit_rate")
+            ax.set_title(f"Exit rate at size {size} and cooperation level {coop.value}")
+            fig.savefig(f"boxplot-{size}-{coop.value}")
+            break
 
 
 if __name__ == "__main__":
@@ -66,6 +70,4 @@ if __name__ == "__main__":
     try:
         tap.Parser(Args).bind(main).run()
     except Exception as e:
-        logging.error(
-            f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
-        )
+        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)

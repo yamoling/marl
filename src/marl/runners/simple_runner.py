@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from marl import Agent, Run, Trainer
 
 
-def simple_run[E: MARLEnv](run: Run[E], quiet: bool, render_tests: bool, device: torch.device):
+def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests: bool, device: torch.device):
     """
     Boilerplate to run an RL experiment:
         - Seeding first

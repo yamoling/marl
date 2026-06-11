@@ -22,9 +22,7 @@ class Actor[T: torch.distributions.Distribution](NN):
     output_shape: tuple[int, ...] = field(init=False)
 
     @abstractmethod
-    def policy(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, available_actions: torch.Tensor | None = None, **kwargs
-    ) -> T:
+    def policy(self, obs: torch.Tensor, extras: torch.Tensor, *, available_actions: torch.Tensor | None = None, **kwargs) -> T:
         """
         Returns the probability distribution over the actions.
 
@@ -113,6 +111,10 @@ class Critic(NN):
 @dataclass
 class CategoricalActor(Actor[torch.distributions.Categorical]):
     """Discrete actor neural network"""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.output_shape = (self.n_actions,)
 
     def policy(
         self,
@@ -215,7 +217,8 @@ class NormalActor(ContinuousActor[torch.distributions.Normal]):
 @dataclass
 class MVNActor(ContinuousActor[torch.distributions.MultivariateNormal]):
     def __post_init__(self):
-        self.output_shape = (self.n_actions * (self.n_actions + 3) // 2,)
+        # ,_actions for the means, n_actions ** 2 for the covariance matrix
+        self.output_shape = (self.n_actions + self.n_actions**2,)
         self._eye = torch.eye(self.n_actions, device=self.device)
         return super().__post_init__()
 
