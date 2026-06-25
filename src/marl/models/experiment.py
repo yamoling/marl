@@ -250,7 +250,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         cls,
         env: EnvConfig[E],
         trainer: T,
-        logdir: str | Literal["auto", "test", "tmp"] = "tmp",
+        logdir: str | Literal["auto", "test", "tmp"] | Path = "tmp",
         n_steps: int = 1_000_000,
         test_env: EnvConfig[E] | None = None,
         loggers: Collection[LoggerType] = ("csv",),
@@ -273,8 +273,10 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         """
         if logdir == "auto":
             logdir = Path("logs", f"{trainer.name}-{env.name}").as_posix()
-        elif not logdir.startswith("logs"):
-            logdir = Path("logs", logdir).as_posix()
+        else:
+            logdir = Path(logdir).as_posix()
+            if not logdir.startswith("logs"):
+                logdir = Path("logs", logdir).as_posix()
         logpath = Path(logdir)
         if logpath.parts[-1].lower() in ("test", "tmp"):
             logging.info(f"Discarding pre-existing experiment {logdir}.")

@@ -12,9 +12,10 @@ if TYPE_CHECKING:
     from marl.models import Actor
 
 
-@dataclass
 class SimpleAgent[T: torch.distributions.Distribution](Agent):
-    actor: Actor[T]
+    def __init__(self, actor: Actor[T]):
+        super().__init__()
+        self.actor = actor
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
         with torch.no_grad():

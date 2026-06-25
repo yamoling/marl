@@ -1,5 +1,6 @@
 import os
 from dataclasses import KW_ONLY, dataclass
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -13,14 +14,13 @@ from .env_config import EnvConfig
 
 @dataclass
 class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
-    directory: str | Literal["mix"]
+    directory: str | Literal["mix"] | Path
     size: int
+    """Size of the pool"""
     _: KW_ONLY
     offset: int = 0
     width: int = 13
     height: int = 12
-    n_lasers: int = 3
-    _n_agents: int = 4
     obs_type: ObservationTypeLiteral = "layered"
     state_type: ObservationTypeLiteral = "flattened"
     time_limit: int | None = -1
