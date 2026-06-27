@@ -24,7 +24,7 @@ Setting = Literal["cooperative", "independent"]
 
 N_STEPS = 150_000
 POOL_SIZE = 500
-N_TRIALS = 75
+N_TRIALS = 74
 N_JOBS = 6
 MAP_DIR = Path("maps/5x5_agents2_lasers1")
 POOL_DIR = Path("logs/optuna-map-pools")
@@ -78,8 +78,8 @@ def make_dqn_trainer(trial: optuna.Trial, algo: Literal["vdn", "qmix", "dqn"], e
             return suggest(VDN, trial, qnetwork=qnetwork, test_policy=test_policy, vbe=None, catch_all=catch_all)
         case "qmix":
             return suggest(
-                QMix,
-                trial,
+                cls=QMix,
+                trial=trial,
                 qnetwork=qnetwork,
                 mixer=mixers.QMix.from_env(env),
                 test_policy=test_policy,

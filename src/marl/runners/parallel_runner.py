@@ -15,6 +15,7 @@ from setproctitle import setproctitle
 from marl.utils import DeviceLike
 from marl.utils.gpu import get_device, get_gpu_processes, get_gpu_usage_by_pid, scatter_plan
 
+from ..models.trainer import Trainer
 from .simple_runner import simple_run
 
 if TYPE_CHECKING:
@@ -36,8 +37,8 @@ def ignore_sigint():
         signal.signal(signal.SIGINT, original_handler)
 
 
-def parallel_run[E: MARLEnv](
-    runs: Collection[Run[E]],
+def parallel_run[E: MARLEnv, T: Trainer](
+    runs: Collection[Run[E, T]],
     n_jobs: int | None = None,
     device: DeviceLike = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
@@ -125,6 +126,8 @@ def _start_run(
     disabled_gpus: Collection[int] = (),
 ):
     setproctitle(f"worker: {run.rundir}")
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
     match device_type:
         case int() | "cpu":
             device = torch.device(device_type)
