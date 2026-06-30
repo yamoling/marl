@@ -15,7 +15,7 @@ class Schedule(Serializable):
     _: KW_ONLY
     start_value: float = field(metadata=tuning(1e-2, 1.0))
     end_value: float = field(metadata=tuning(1e-2, 1.0, log=True))
-    n_steps: int = field(metadata=tuning(0, 1_000_000, step=5000))
+    n_steps: int = field(metadata=tuning(1000, 1_000_000, step=1000))
 
     def __post_init__(self):
         super().__post_init__()

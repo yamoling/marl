@@ -1,13 +1,10 @@
 import logging
 import os
-import random
 from pathlib import Path
 from typing import Literal
 
 import dotenv
 import optuna
-from lle import ObservationType, World
-from lle.env import LLE, SingleObjective
 from marlenv import DiscreteMARLEnv
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
@@ -22,43 +19,20 @@ from marl.utils.tuning import suggest
 Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo"]
 Setting = Literal["cooperative", "independent"]
 
-N_STEPS = 150_000
+N_STEPS = 400_000
 POOL_SIZE = 500
-N_TRIALS = 74
+N_TRIALS = 75
 N_JOBS = 6
-MAP_DIR = Path("maps/5x5_agents2_lasers1")
-POOL_DIR = Path("logs/optuna-map-pools")
-
-
-def pool_dir(setting: Setting):
-    dst = POOL_DIR / setting
-    if dst.exists():
-        return dst
-    dst.mkdir(parents=True, exist_ok=True)
-    groups = []
-    for path in sorted((MAP_DIR / setting).iterdir()):
-        world = World.from_file(path.as_posix())
-        env = LLE(world, SingleObjective(world.n_agents), ObservationType.LAYERED, ObservationType.FLATTENED)
-        for group in groups:
-            if env.has_same_inouts(group[0][0]):
-                group.append((env, path))
-                break
-        else:
-            groups.append([(env, path)])
-    maps = [path for _, path in max(groups, key=len)]
-    # ponytail: source dirs mix incompatible I/O; pick the largest compatible group and cycle only if it has <1000 maps.
-    for i in range(POOL_SIZE * 2):
-        (dst / f"{i:04d}.txt").symlink_to(maps[i % len(maps)].resolve())
-    return dst
+MAP_DIR = Path("maps", "9x9_agents3_lasers2")
 
 
 def make_env(setting: Setting, *, offset: int = 0):
-    return LLEPool(pool_dir(setting), POOL_SIZE, offset=offset, width=5, height=5, time_limit=25)
+    return LLEPool(MAP_DIR / setting, POOL_SIZE, offset=offset, time_limit=81, state_type="layered")
 
 
 def hidden_sizes(trial: optuna.Trial, prefix: str):
     n_layers = trial.suggest_int(f"{prefix}.n_layers", 1, 5)
-    size = trial.suggest_categorical(f"{prefix}.size", [64, 128, 256])
+    size = trial.suggest_int(f"{prefix}.size", 32, 512, step=32)
     return [size] * n_layers
 
 
@@ -162,7 +136,7 @@ def objective(trial: optuna.Trial, algo: Algo, setting: Setting):
         n_tests=POOL_SIZE,
         n_jobs=4,
         gpu_strategy="scatter",
-        disabled_gpus=[2],
+        disabled_gpus=[0, 1, 2],
         quiet=True,
     )
     result = exp.get_results(N_STEPS)["Test"].select("mean-exit_rate").last().collect().item()
@@ -183,7 +157,7 @@ if __name__ == "__main__":
             try:
                 study = optuna.create_study(
                     direction="maximize",
-                    study_name=f"{algo.upper()}-{setting}",
+                    study_name=f"{algo.upper()}-{setting}-{MAP_DIR.name}",
                     storage=storage,
                     load_if_exists=True,
                 )

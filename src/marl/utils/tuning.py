@@ -336,12 +336,8 @@ def suggest(
         # ------------------------------------------------------------------
         if has_default and default is not None and resolved in (int, float):
             logger.warning(
-                "Field '%s' (%s) in %s has no tuning() annotation — "
-                "using default value %r. Add tuning(low, high) to include it in the search.",
-                full_name,
-                "float" if resolved is float else "int",
-                cls.__name__,
-                default,
+                f"Field '{full_name}' ({'float' if resolved is float else 'int'}) in {cls.__name__} has no tuning() annotation — "
+                f"using default value {default}. Add tuning(low, high) to include it in the search.",
             )
             init_kwargs[name] = default
             continue

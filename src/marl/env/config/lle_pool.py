@@ -19,8 +19,7 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
     """Size of the pool"""
     _: KW_ONLY
     offset: int = 0
-    width: int = 13
-    height: int = 12
+    dims: tuple[int, int] | None = None
     obs_type: ObservationTypeLiteral = "layered"
     state_type: ObservationTypeLiteral = "flattened"
     time_limit: int | None = -1
@@ -28,7 +27,9 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
 
     def __post_init__(self):
         if self.time_limit is not None and self.time_limit <= -1:
-            self.time_limit = self.width * self.height // 2
+            if self.dims is None:
+                raise ValueError("dims must be specified if time_limit is not set.")
+            self.time_limit = self.dims[0] * self.dims[1] // 2
         super().__post_init__()
 
     def make_base_env(self):
