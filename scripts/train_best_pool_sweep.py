@@ -21,14 +21,13 @@ N_STEPS = 1_000_000
 N_TESTS = 500
 TEST_OFFSET = 500
 POOL_SIZES = [1, 10, 20, 50, 100, 150, 200, 300, 400, 500]
-ALGOS = ("vdn", "qmix", "mappo", "dqn", "ippo")
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
 POOL_DIRS = (
     Path("maps/train/5x5_2agents_1laser/independent"),
     Path("maps/train/5x5_2agents_1laser/cooperative"),
     Path("maps/train/9x9_3agents_2lasers/independent"),
     Path("maps/train/9x9_3agents_2lasers/cooperative"),
 )
-DEFAULT_STUDY_MAP_NAME = "9x9_agents3_lasers2"
 
 
 @dataclass(frozen=True)
@@ -36,6 +35,7 @@ class PoolSpec:
     path: Path
     setting: Setting
     time_limit: int
+    study_map_name: str
 
     @property
     def map_name(self):
@@ -53,13 +53,10 @@ class Args(tap.TypedArgs):
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
     study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
-    study_map_name: str = tap.arg("--study-map-name", default=DEFAULT_STUDY_MAP_NAME)
-    log_root: Path = tap.arg("--log-root", default=Path("logs/best-pool-sweep"))
     quiet: bool = tap.arg("--quiet", default=True)
     dry_run: bool = tap.arg("--dry-run", default=False)
-    save_weights: bool = tap.arg("--save-weights", default=False)
-    no_save_actions: bool = tap.arg("--no-save-actions", default=False)
     skip_existing: bool = tap.arg("--skip-existing", default=True)
+    test_interval: int = tap.arg("--test-interval", default=10_000)
 
 
 def parse_pool_spec(pool_dir: Path) -> PoolSpec:
@@ -68,17 +65,22 @@ def parse_pool_spec(pool_dir: Path) -> PoolSpec:
         raise ValueError(f"Could not infer setting from pool directory: {pool_dir}")
     setting = cast(Setting, setting_name)
 
-    match = re.match(r"(?P<size>\d+)x(?P=size)_", pool_dir.parent.name)
+    match = re.match(
+        r"(?P<grid>(?P<size>\d+)x(?P=size))_(?P<agents>\d+)agents_(?P<lasers>\d+)lasers?", pool_dir.parent.name
+    )
     if match is None:
-        raise ValueError(f"Could not infer grid size from pool directory: {pool_dir}")
+        raise ValueError(f"Could not infer map settings from pool directory: {pool_dir}")
 
     grid_size = int(match.group("size"))
-    return PoolSpec(path=pool_dir, setting=setting, time_limit=grid_size**2)
+    n_lasers = int(match.group("lasers"))
+    laser_label = "laser" if n_lasers == 1 else "lasers"
+    study_map_name = f"{match.group('grid')}_agents{match.group('agents')}_{laser_label}{n_lasers}"
+    return PoolSpec(path=pool_dir, setting=setting, time_limit=grid_size**2, study_map_name=study_map_name)
 
 
-def load_best_params(args: Args, algo: Algo, setting: Setting):
+def load_best_params(args: Args, algo: Algo, setting: Setting, study_map_name: str):
     storage = JournalStorage(JournalFileBackend(args.study_journal.as_posix()))
-    study_name = f"{algo.upper()}-{setting}-{args.study_map_name}"
+    study_name = f"{algo.upper()}-{setting}-{study_map_name}"
     study = optuna.load_study(study_name=study_name, storage=storage)
     complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
     if not complete_trials:
@@ -92,7 +94,7 @@ def make_env(pool_dir: Path, pool_size: int, *, offset: int = 0, time_limit: int
 
 
 def experiment_logdir(args: Args, spec: PoolSpec, algo: Algo, pool_size: int):
-    return args.log_root / spec.map_name / spec.setting / algo / f"pool-{pool_size}"
+    return Path("logs") / f"{spec.map_name}-{spec.setting}-{algo}-{pool_size}"
 
 
 def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int, best_params: dict):
@@ -115,9 +117,9 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int, best_
     logging.info("Created experiment in %s", exp.logdir)
     exp.run(
         seeds=args.n_seeds,
-        save_weights=args.save_weights,
-        save_actions=not args.no_save_actions,
-        test_interval=args.n_steps,
+        save_weights=True,
+        save_actions=True,
+        test_interval=args.test_interval,
         n_tests=N_TESTS,
         n_jobs=args.n_jobs,
         gpu_strategy=args.gpu_strategy,
@@ -129,16 +131,16 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int, best_
 def main(args: Args):
     specs = [parse_pool_spec(pool_dir) for pool_dir in POOL_DIRS]
     best_params = {
-        (algo, setting): load_best_params(args, algo, setting)
-        for setting in ("cooperative", "independent")
+        (algo, spec.setting, spec.study_map_name): load_best_params(args, algo, spec.setting, spec.study_map_name)
+        for spec in specs
         for algo in ALGOS
     }
 
     n_total = len(specs) * len(ALGOS) * len(POOL_SIZES)
-    logging.info("Starting best-parameter pool sweep with %s experiments.", n_total)
+    logging.info(f"Starting best-parameter pool sweep with {n_total} experiments.")
     for spec in specs:
         for algo in ALGOS:
-            params = best_params[(algo, spec.setting)]
+            params = best_params[(algo, spec.setting, spec.study_map_name)]
             for pool_size in POOL_SIZES:
                 run_experiment(args, spec, algo, pool_size, params)
 
