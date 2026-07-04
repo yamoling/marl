@@ -18,6 +18,7 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
     size: int
     """Size of the pool"""
     _: KW_ONLY
+    sequential: bool = True
     offset: int = 0
     dims: tuple[int, int] | None = None
     obs_type: ObservationTypeLiteral = "layered"
@@ -66,7 +67,7 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
             )
             for f in files
         ]
-        return EnvPool(envs)
+        return EnvPool(envs, self.sequential)
 
     def to_dict(self):
         return super().to_dict()

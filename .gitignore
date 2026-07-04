@@ -211,3 +211,5 @@ papers/
 envs/*
 plots/
 maps/
+prompt.md
+.agents/scratches

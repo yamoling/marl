@@ -36,7 +36,9 @@ class Args(tap.TypedArgs):
 
     @property
     def logdir(self):
-        return Path("logs", f"{self.pool_size}-{self._setting_dir}_{self.algo}_{'coop' if self.cooperative else 'indep'}")
+        return Path(
+            "logs", f"{self.pool_size}-{self._setting_dir}_{self.algo}_{'coop' if self.cooperative else 'indep'}"
+        )
 
     def _make_dqn(self, env: EnvConfig[DiscreteMARLEnv]):
         qnetwork = model_bank.qnetworks.from_env(env, independent=True)
@@ -65,16 +67,12 @@ def main(args: Args):
     train_env = LLEPool(
         args.pool_dir,
         args.pool_size,
-        width=args.grid_size,
-        height=args.grid_size,
         time_limit=args.grid_size**2,
     )
     test_env = LLEPool(
         args.pool_dir,
         args.pool_size,
         offset=500,
-        width=args.grid_size,
-        height=args.grid_size,
         time_limit=args.grid_size**2,
     )
     trainer = args.trainer(train_env)
@@ -94,4 +92,6 @@ if __name__ == "__main__":
     try:
         tap.Parser(Args).bind(main).run()
     except Exception as e:
-        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)
+        logging.error(
+            f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
+        )
