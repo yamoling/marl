@@ -213,3 +213,6 @@ plots/
 maps/
 prompt.md
 .agents/scratches
+
+# Cloud sync cache
+.sync_cache.json

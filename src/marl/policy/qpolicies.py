@@ -26,8 +26,10 @@ class SoftmaxPolicy(Policy):
         available_actions: npt.NDArray[np.float32] | None = None,
     ) -> npt.NDArray[np.int64]:
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
-        exp = np.exp(qvalues / self.tau)
+            qvalues = np.where(available_actions == 0.0, -np.inf, qvalues)
+        scaled = qvalues / self.tau
+        scaled = scaled - np.max(scaled, axis=-1, keepdims=True)
+        exp = np.exp(scaled)
         probs = exp / np.sum(exp, axis=-1, keepdims=True)
         chosen_actions = [np.random.choice(self.actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)

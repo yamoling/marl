@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,18 +57,16 @@ class Args(tap.TypedArgs):
     quiet: bool = tap.arg("--quiet", default=True)
     dry_run: bool = tap.arg("--dry-run", default=False)
     skip_existing: bool = tap.arg("--skip-existing", default=True)
-    test_interval: int = tap.arg("--test-interval", default=10_000)
+    test_interval: int = tap.arg("--test-interval", default=50_000)
 
 
-def parse_pool_spec(pool_dir: Path) -> PoolSpec:
+def parse_pool_spec(pool_dir: Path):
     setting_name = pool_dir.name
     if setting_name not in ("cooperative", "independent"):
         raise ValueError(f"Could not infer setting from pool directory: {pool_dir}")
     setting = cast(Setting, setting_name)
 
-    match = re.match(
-        r"(?P<grid>(?P<size>\d+)x(?P=size))_(?P<agents>\d+)agents_(?P<lasers>\d+)lasers?", pool_dir.parent.name
-    )
+    match = re.match(r"(?P<grid>(?P<size>\d+)x(?P=size))_(?P<agents>\d+)agents_(?P<lasers>\d+)lasers?", pool_dir.parent.name)
     if match is None:
         raise ValueError(f"Could not infer map settings from pool directory: {pool_dir}")
 
@@ -90,33 +89,47 @@ def load_best_params(args: Args, algo: Algo, setting: Setting, study_map_name: s
 
 
 def make_env(pool_dir: Path, pool_size: int, *, offset: int = 0, time_limit: int):
-    return LLEPool(pool_dir, pool_size, offset=offset, time_limit=time_limit, state_type="layered")
+    return LLEPool(pool_dir, pool_size, offset=offset, time_limit=time_limit, state_type="flattened")
 
 
-def experiment_logdir(args: Args, spec: PoolSpec, algo: Algo, pool_size: int):
+def experiment_logdir(spec: PoolSpec, algo: Algo, pool_size: int):
     return Path("logs") / f"{spec.map_name}-{spec.setting}-{algo}-{pool_size}"
 
 
-def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int, best_params: dict):
-    logdir = experiment_logdir(args, spec, algo, pool_size)
+def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int):
+    logdir = experiment_logdir(spec, algo, pool_size)
     if logdir.exists():
-        if args.skip_existing:
-            logging.info("Skipping existing experiment: %s", logdir)
+        exp = marl.Experiment.load(logdir)
+        n_complete = sum(run.is_complete for run in exp.runs)
+        if n_complete == 0:
+            shutil.rmtree(logdir)
+    if logdir.exists():
+        exp = marl.Experiment.load(logdir)
+        completed_seeds = {run.seed for run in exp.runs if run.is_complete}
+        seeds = [seed for seed in range(args.n_seeds) if seed not in completed_seeds]
+        if args.dry_run:
+            logging.info(f"[exists] {len(seeds)} runs of  {spec.label} / {algo} / pool={pool_size} -> {logdir}")
             return
-        raise FileExistsError(f"Experiment directory already exists: {logdir}")
-
-    train_env = make_env(spec.path, pool_size, time_limit=spec.time_limit)
-    test_env = make_env(spec.path, N_TESTS, offset=TEST_OFFSET, time_limit=spec.time_limit)
-    trainer = make_trainer(cast(optuna.Trial, FixedTrial(best_params)), algo, train_env)
-
-    if args.dry_run:
-        logging.info("Would run %s / %s / pool=%s -> %s", spec.label, algo, pool_size, logdir)
-        return
-
-    exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
-    logging.info("Created experiment in %s", exp.logdir)
+        if len(seeds) == 0:
+            if args.skip_existing:
+                logging.info(f"Skipping existing experiment: {logdir} ({len(completed_seeds)}/{args.n_seeds} runs complete)")
+                return
+            raise FileExistsError(f"Experiment directory already exists: {logdir}")
+        logging.info(f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}")
+    else:
+        seeds = list(range(args.n_seeds))
+        if args.dry_run:
+            logging.info(f"[new] {len(seeds)} runs of  {spec.label} / {algo} / pool={pool_size} -> {logdir}")
+            return
+        train_env = make_env(spec.path, pool_size, time_limit=spec.time_limit)
+        test_env = make_env(spec.path, N_TESTS, offset=TEST_OFFSET, time_limit=spec.time_limit)
+        params = load_best_params(args, algo, spec.setting, spec.study_map_name)
+        trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env)
+        print(params)
+        exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
+        logging.info("Created experiment in %s", exp.logdir)
     exp.run(
-        seeds=args.n_seeds,
+        seeds=seeds,
         save_weights=True,
         save_actions=True,
         test_interval=args.test_interval,
@@ -130,19 +143,12 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int, best_
 
 def main(args: Args):
     specs = [parse_pool_spec(pool_dir) for pool_dir in POOL_DIRS]
-    best_params = {
-        (algo, spec.setting, spec.study_map_name): load_best_params(args, algo, spec.setting, spec.study_map_name)
-        for spec in specs
-        for algo in ALGOS
-    }
-
     n_total = len(specs) * len(ALGOS) * len(POOL_SIZES)
     logging.info(f"Starting best-parameter pool sweep with {n_total} experiments.")
     for spec in specs:
         for algo in ALGOS:
-            params = best_params[(algo, spec.setting, spec.study_map_name)]
             for pool_size in POOL_SIZES:
-                run_experiment(args, spec, algo, pool_size, params)
+                run_experiment(args, spec, algo, pool_size)
 
 
 if __name__ == "__main__":
