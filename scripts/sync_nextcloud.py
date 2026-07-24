@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Nextcloud synchronization script for logs directory.
 Provides bidirectional sync between local logs/ and Nextcloud.
@@ -13,7 +12,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
 
 try:
     from webdav3.client import Client
@@ -52,9 +50,9 @@ class NextcloudSync:
         self.username = username
         self.password = password
         self.max_workers = max_workers
-        self.client: Optional[Client] = None
-        self.sync_cache: Dict = {}
-        self._client_options: Optional[Dict] = None
+        self.client: Client | None = None
+        self.sync_cache: dict = {}
+        self._client_options: dict = {}
         self._thread_local = threading.local()
         self._verified_dirs: set = set()
         self._cache_lock = threading.Lock()
@@ -68,13 +66,11 @@ class NextcloudSync:
         try:
             # WebDAV URL for Nextcloud: /remote.php/dav/files/{username}/
             webdav_url = f"{self.server_url}/remote.php/dav/files/{self.username}/"
-
             options = {
                 "webdav_hostname": webdav_url,
                 "webdav_login": self.username,
                 "webdav_password": self.password,
             }
-
             self._client_options = options
             self.client = Client(options)
             # Test connection
@@ -83,9 +79,7 @@ class NextcloudSync:
 
             # Check and create remote directory if needed
             self._ensure_remote_dir(self.remote_dir)
-
             return True
-
         except Exception as e:
             print(f"✗ Authentication error: {e}")
             return False
@@ -103,7 +97,7 @@ class NextcloudSync:
             self._thread_local.client = client
         return client
 
-    def _load_cache(self) -> Dict:
+    def _load_cache(self) -> dict:
         """Load sync cache from file."""
         if self.cache_file.exists():
             try:
@@ -136,11 +130,9 @@ class NextcloudSync:
         remote_path = remote_path.strip("/")
         if not remote_path or remote_path == ".":
             return True
-
         # Already verified/created earlier in this run - skip the network round-trip
         if remote_path in self._verified_dirs:
             return True
-
         try:
             if self.client.check(remote_path):
                 self._verified_dirs.add(remote_path)
@@ -184,7 +176,7 @@ class NextcloudSync:
                 all_dirs.add(p)
                 p = str(Path(p).parent)
 
-        by_depth: Dict[int, list] = {}
+        by_depth: dict[int, list] = {}
         for d in all_dirs:
             if d in self._verified_dirs:
                 continue
@@ -221,7 +213,7 @@ class NextcloudSync:
 
         return True
 
-    def _find_changed_local_files(self) -> Optional[list]:
+    def _find_changed_local_files(self) -> list | None:
         """Scan local_dir and return files that need uploading.
 
         "test" (sub-)directories are pruned from the walk itself (via
@@ -285,7 +277,7 @@ class NextcloudSync:
             return -1
 
         def _upload_one(item):
-            local_file, rel_path, stat = item
+            local_file, rel_path, _ = item
             remote_path = f"{self.remote_dir}/{rel_path.as_posix()}"
             client = self._get_thread_client()
             client.upload(remote_path, str(local_file))
@@ -297,7 +289,7 @@ class NextcloudSync:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {executor.submit(_upload_one, item): item for item in to_upload}
             for future in as_completed(futures):
-                local_file, rel_path, stat = futures[future]
+                _, rel_path, stat = futures[future]
                 try:
                     future.result()
                 except Exception as e:
@@ -305,7 +297,7 @@ class NextcloudSync:
                     for pending in futures:
                         pending.cancel()
                     return -1
-
+                    datetime.now(datetime.tzinfo)
                 with self._cache_lock:
                     self.sync_cache[str(rel_path)] = {
                         "mtime": stat.st_mtime,
@@ -318,7 +310,7 @@ class NextcloudSync:
         print(f"{uploaded}/{total} uploaded")
         return uploaded
 
-    def _find_changed_remote_files(self) -> Optional[list]:
+    def _find_changed_remote_files(self) -> list | None:
         """List remote_dir recursively and return files that need downloading.
 
         Uses remote size+modified-time (from the PROPFIND response) to skip
@@ -430,10 +422,9 @@ class NextcloudSync:
         Args:
             direction: 'up' (upload only), 'down' (download only), or 'both' (bidirectional)
         """
-        if not self.client:
-            if not self.authenticate():
-                print("✗ Failed to authenticate with Nextcloud. Exiting.")
-                sys.exit(1)
+        if not self.client and not self.authenticate():
+            print("✗ Failed to authenticate with Nextcloud. Exiting.")
+            sys.exit(1)
 
         # Verify remote directory exists
         if not self.client.check(self.remote_dir):
@@ -479,7 +470,7 @@ class NextcloudSync:
         print(f"{'=' * 60}\n")
 
 
-def load_config() -> Optional[Dict]:
+def load_config() -> dict | None:
     """Load Nextcloud credentials from the environment (.env file).
 
     Returns:
@@ -504,10 +495,14 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Synchronize a directory with Nextcloud")
-    parser.add_argument("--direction", choices=["up", "down", "both"], default="both", help="Sync direction (default: both)")
+    parser.add_argument(
+        "--direction", choices=["up", "down", "both"], default="both", help="Sync direction (default: both)"
+    )
     parser.add_argument("dir", help="Local and remote directory name")
     parser.add_argument("--check-remote", action="store_true", help="Check remote directory status and exit")
-    parser.add_argument("--workers", type=int, default=16, help="Number of concurrent upload/download threads (default: 8)")
+    parser.add_argument(
+        "--workers", type=int, default=16, help="Number of concurrent upload/download threads (default: 8)"
+    )
 
     args = parser.parse_args()
 

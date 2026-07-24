@@ -8,6 +8,6 @@ __all__ = [
     "EnvConfig",
     "LLEConfig",
     "LLEPool",
-    "SMACConfig",
     "PickleEnvConfig",
+    "SMACConfig",
 ]

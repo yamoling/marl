@@ -37,26 +37,14 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
         from lle import ObservationType
         from lle.env import LLE, SingleObjective
 
-        if self.directory == "mix":
-            dirs = [
-                "maps/pool/level6_style/FULLY_COUPLED",
-                "maps/pool/random/DISTRIBUTED",
-                "maps/pool/random/INDEPENDENT",
-                "maps/pool/random/CHAIN",
-                "maps/pool/random/ASYMMETRIC",
-                "maps/pool/random/MUTUAL",
-            ]
-            files = []
-            n_per_dir = self.size // len(dirs)
-            for d in dirs:
-                dir_files = sorted([os.path.join(d, f) for f in sorted(os.listdir(d))])
-                dir_files = dir_files[self.offset : self.offset + n_per_dir]
-                files.extend(dir_files)
-        else:
-            files = sorted(os.listdir(self.directory))[self.offset : self.offset + self.size]
-            files = [os.path.join(self.directory, f) for f in files]
-            assert len(files) == self.size
+        files = sorted(os.listdir(self.directory))[self.offset : self.offset + self.size]
+        files = [os.path.join(self.directory, f) for f in files]
+        assert len(files) == self.size
+        assert len(set(files)) == len(files)
         w = World.from_file(files[0])
+        for f in files:
+            print(f)
+            World.from_file(f)
         envs = [
             LLE(
                 World.from_file(f),
