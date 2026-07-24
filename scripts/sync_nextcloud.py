@@ -33,7 +33,7 @@ class NextcloudSync:
         password: str,
         local_dir: str = "logs",
         remote_dir: str = "logs",
-        max_workers: int = 8,
+        max_workers: int = 16,
     ):
         """Initialize Nextcloud sync.
 
@@ -503,16 +503,11 @@ def main():
     """Main entry point."""
     import argparse
 
-    # Force line-buffered stdout so progress prints show up immediately even
-    # when not attached to a terminal (Python fully buffers stdout otherwise).
-    sys.stdout.reconfigure(line_buffering=True)
-
-    parser = argparse.ArgumentParser(description="Synchronize logs directory with Nextcloud")
+    parser = argparse.ArgumentParser(description="Synchronize a directory with Nextcloud")
     parser.add_argument("--direction", choices=["up", "down", "both"], default="both", help="Sync direction (default: both)")
-    parser.add_argument("--local", default="logs", help="Local directory path (default: logs)")
-    parser.add_argument("--remote", default="logs", help="Remote directory path on Nextcloud (default: logs)")
+    parser.add_argument("dir", help="Local and remote directory name")
     parser.add_argument("--check-remote", action="store_true", help="Check remote directory status and exit")
-    parser.add_argument("--workers", type=int, default=8, help="Number of concurrent upload/download threads (default: 8)")
+    parser.add_argument("--workers", type=int, default=16, help="Number of concurrent upload/download threads (default: 8)")
 
     args = parser.parse_args()
 
@@ -531,19 +526,19 @@ def main():
         server_url=config["server_url"],
         username=config["username"],
         password=config["password"],
-        local_dir=args.local,
-        remote_dir=args.remote,
+        local_dir=args.dir,
+        remote_dir=args.dir,
         max_workers=args.workers,
     )
 
     # Check remote directory if requested
     if args.check_remote:
-        print(f"Checking remote directory: {args.remote}")
+        print(f"Checking remote directory: {args.dir}")
         if syncer.authenticate():
-            if syncer.client.check(args.remote):
-                print(f"✓ Remote directory exists: {args.remote}")
+            if syncer.client.check(args.dir):
+                print(f"✓ Remote directory exists: {args.dir}")
                 try:
-                    items = syncer.client.list(args.remote, get_info=True)
+                    items = syncer.client.list(args.dir, get_info=True)
                     print(f"  Contents ({len(items)} items):")
                     for item in items[:10]:  # Show first 10 items
                         print(f"    - {item}")

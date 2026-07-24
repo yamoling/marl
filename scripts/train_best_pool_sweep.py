@@ -1,8 +1,10 @@
+import itertools
 import logging
 import os
 import re
 import shutil
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
@@ -26,8 +28,8 @@ ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
 POOL_DIRS = (
     Path("maps/train/5x5_2agents_1laser/independent"),
     Path("maps/train/5x5_2agents_1laser/cooperative"),
-    Path("maps/train/9x9_3agents_2lasers/independent"),
-    Path("maps/train/9x9_3agents_2lasers/cooperative"),
+    # Path("maps/train/9x9_3agents_2lasers/independent"),
+    # Path("maps/train/9x9_3agents_2lasers/cooperative"),
 )
 
 
@@ -51,6 +53,7 @@ class Args(tap.TypedArgs):
     n_seeds: int = tap.arg("--n-seeds", default=10)
     n_steps: int = tap.arg("--n-steps", default=N_STEPS)
     n_jobs: int = tap.arg("--n-jobs", default=8)
+    n_parallel: int = tap.arg("--n-parallel", default=1)
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
     study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
@@ -143,12 +146,19 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo, pool_size: int):
 
 def main(args: Args):
     specs = [parse_pool_spec(pool_dir) for pool_dir in POOL_DIRS]
-    n_total = len(specs) * len(ALGOS) * len(POOL_SIZES)
-    logging.info(f"Starting best-parameter pool sweep with {n_total} experiments.")
-    for spec in specs:
-        for algo in ALGOS:
-            for pool_size in POOL_SIZES:
-                run_experiment(args, spec, algo, pool_size)
+    tasks = list(itertools.product(specs, ALGOS, POOL_SIZES))
+    logging.info(f"Starting best-parameter pool sweep with {len(tasks)} experiments.")
+
+    if args.n_parallel <= 1:
+        for spec, algo, pool_size in tasks:
+            run_experiment(args, spec, algo, pool_size)
+        return
+
+    logging.info(f"Running with {args.n_parallel} parallel experiments, each using --n-jobs={args.n_jobs}.")
+    with ThreadPoolExecutor(max_workers=args.n_parallel) as executor:
+        futures = [executor.submit(run_experiment, args, spec, algo, pool_size) for spec, algo, pool_size in tasks]
+        for future in as_completed(futures):
+            future.result()
 
 
 if __name__ == "__main__":
