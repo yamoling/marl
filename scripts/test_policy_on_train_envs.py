@@ -114,9 +114,12 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
     seed = compute_test_seed(checkpoint_step, test_num)
     episode, _, _ = seeded_rollout(env, agent, seed)
     plan = [[Action(int(action)) for action in cast(Iterable[Any], joint_action)] for joint_action in episode.actions]
-    profile: PlanProfile = profile_plan(env.unwrapped.current.world, plan)
+    world = env.unwrapped.current.world
+    profile: PlanProfile = profile_plan(world, plan)
+    exit_status = {f"agent-{agent.num}-exited": agent.has_arrived for agent in world.agents}
     return {
         **episode.metrics,
+        **exit_status,
         "cooperative-trajectory": profile.is_cooperative,
         "asymmetric-trajectory": profile.is_asymmetric,
         "chained-trajectory": profile.is_chained(2),
