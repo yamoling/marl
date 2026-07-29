@@ -39,12 +39,13 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
 
         files = sorted(os.listdir(self.directory))[self.offset : self.offset + self.size]
         files = [os.path.join(self.directory, f) for f in files]
-        assert len(files) == self.size
-        assert len(set(files)) == len(files)
-        w = World.from_file(files[0])
+        assert len(files) == self.size, f"Expected {self.size} files, got {len(files)}."
+        contents = set[str]()
         for f in files:
-            print(f)
-            World.from_file(f)
+            with open(f, "r") as file:
+                contents.add(file.read())
+        assert len(contents) == len(files)
+        w = World.from_file(files[0])
         envs = [
             LLE(
                 World.from_file(f),

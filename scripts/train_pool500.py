@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,11 +33,7 @@ class PoolSpec:
 
     @property
     def map_name(self):
-        return self.path.parent.name
-
-    @property
-    def label(self):
-        return f"{self.map_name}-{SETTING}"
+        return self.path.name
 
 
 class Args(tap.TypedArgs):
@@ -81,22 +76,17 @@ def make_env(pool_dir: Path, pool_size: int, *, offset: int = 0, time_limit: int
 
 
 def experiment_logdir(spec: PoolSpec, algo: Algo):
-    return Path("logs") / f"{spec.map_name}-{SETTING}-{algo}-{POOL_SIZE}"
+    return Path("logs") / f"{spec.map_name}-{algo}"
 
 
 def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
     logdir = experiment_logdir(spec, algo)
     if logdir.exists():
         exp = marl.Experiment.load(logdir)
-        n_complete = sum(run.is_complete for run in exp.runs)
-        if n_complete == 0:
-            shutil.rmtree(logdir)
-    if logdir.exists():
-        exp = marl.Experiment.load(logdir)
         completed_seeds = {run.seed for run in exp.runs if run.is_complete}
         seeds = [seed for seed in range(args.n_seeds) if seed not in completed_seeds]
         if args.dry_run:
-            logging.info(f"[exists] {len(seeds)} runs of {spec.label} / {algo} / pool={POOL_SIZE} -> {logdir}")
+            logging.info(f"[exists] {len(seeds)} runs of {spec.map_name} / {algo} / pool={POOL_SIZE} -> {logdir}")
             return
         if len(seeds) == 0:
             if args.skip_existing:
@@ -111,7 +101,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
     else:
         seeds = list(range(args.n_seeds))
         if args.dry_run:
-            logging.info(f"[new] {len(seeds)} runs of {spec.label} / {algo} / pool={POOL_SIZE} -> {logdir}")
+            logging.info(f"[new] {len(seeds)} runs of {spec.map_name} / {algo} / pool={POOL_SIZE} -> {logdir}")
             return
         train_env = make_env(spec.path, POOL_SIZE, time_limit=spec.time_limit)
         test_env = make_env(spec.path, N_TESTS, offset=TEST_OFFSET, time_limit=spec.time_limit)
@@ -135,7 +125,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
 
 def main(args: Args):
     spec = parse_pool_spec(args.pool_dir)
-    logging.info(f"Starting pool-500 sweep on {spec.label} with {len(ALGOS)} algorithms.")
+    logging.info(f"Starting pool-500 sweep on {spec.map_name} with {len(ALGOS)} algorithms.")
 
     for algo in ALGOS:
         run_experiment(args, spec, algo)
