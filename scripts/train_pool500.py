@@ -120,6 +120,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
         gpu_strategy=args.gpu_strategy,
         disabled_gpus=args.disabled_gpus,
         quiet=args.quiet,
+        limit_torch_threads=False,
     )
 
 

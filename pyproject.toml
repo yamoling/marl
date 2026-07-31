@@ -48,7 +48,6 @@ modern-gpu = ["torch"]
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
-  "marker-pdf>=1.10.2",
   "pyinstrument>=5.1.2",
   "pytest>=8.3.2",
 ]

@@ -1,12 +1,13 @@
 import logging
 import os
 import shutil
+from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import Collection, Literal, overload
+from typing import Literal, overload
 
 import numpy as np
 import orjson
@@ -347,6 +348,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         render_tests: bool = False,
         n_jobs: int | Literal["auto"] = "auto",
         disabled_gpus: Collection[int] = (),
+        limit_torch_threads: bool = True,
     ):
         """
         Train the Agent on the environment according to the experiment parameters.
@@ -355,6 +357,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         ---------
         - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
         - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
+        - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
         """
         from marl.runners import parallel_run, sequential_run
 
@@ -365,4 +368,13 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
         if n_jobs <= 1 or len(runs) <= 1:
             return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
-        return parallel_run(runs, n_jobs, device, gpu_strategy, render_tests, disabled_gpus, quiet)
+        return parallel_run(
+            runs,
+            n_jobs,
+            device,
+            gpu_strategy,
+            render_tests,
+            disabled_gpus,
+            quiet,
+            limit_torch_threads,
+        )
