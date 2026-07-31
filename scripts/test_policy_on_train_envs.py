@@ -48,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Number of runs to evaluate in parallel (default: 1).",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Evaluate only the run with this seed (default: evaluate every run).",
+    )
     return parser.parse_args()
 
 
@@ -75,7 +81,7 @@ def latest_checkpoint(run: Run) -> tuple[int, Path]:
     return max(checkpoints, key=lambda checkpoint: checkpoint[0])
 
 
-def iter_runs(logdir: Path) -> Iterable[Run]:
+def iter_runs(logdir: Path):
     if not marl.Experiment.is_experiment_directory(logdir):
         raise ValueError(f"Not an experiment directory (missing experiment.json): {logdir}")
 
@@ -103,7 +109,7 @@ def evaluate_run(task: tuple[Path, int, Path, Pool]) -> list[dict[str, object]]:
     """
     rundir, checkpoint_step, checkpoint_dir, pool = task
     run = Run.load(rundir)
-    device = torch.device(f"cuda:{run.seed % 3}") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device(f"cuda:{run.seed % 8}") if torch.cuda.is_available() else torch.device("cpu")
     agent = run.make_agent().to(device)
     agent.load(checkpoint_dir)
     env = pool_config(run, pool).make()
@@ -116,10 +122,17 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
     plan = [[Action(int(action)) for action in cast(Iterable[Any], joint_action)] for joint_action in episode.actions]
     world = env.unwrapped.current.world
     profile: PlanProfile = profile_plan(world, plan)
-    exit_status = {f"agent-{agent.num}-exited": agent.has_arrived for agent in world.agents}
+    agent_status = {
+        field: value
+        for agent in world.agents
+        for field, value in (
+            (f"agent-{agent.num}-exited", agent.has_arrived),
+            (f"agent-{agent.num}-alive", agent.is_alive),
+        )
+    }
     return {
         **episode.metrics,
-        **exit_status,
+        **agent_status,
         "cooperative-trajectory": profile.is_cooperative,
         "asymmetric-trajectory": profile.is_asymmetric,
         "chained-trajectory": profile.is_chained(2),
@@ -158,8 +171,21 @@ def write_rows(output: Path, rows: list[dict[str, object]]) -> None:
         writer.writerows(rows)
 
 
-def process_logdir(logdir: Path, pool: Pool, *, dry_run: bool, overwrite: bool, n_jobs: int) -> int:
+def process_logdir(
+    logdir: Path,
+    pool: Pool,
+    *,
+    dry_run: bool,
+    overwrite: bool,
+    n_jobs: int,
+    seed: int | None = None,
+) -> int:
     runs = iter_runs(logdir)
+    if seed is not None:
+        runs = [run for run in runs if run.seed == seed]
+        if not runs:
+            raise ValueError(f"No run with seed {seed} found in experiment directory: {logdir}")
+
     pending: list[tuple[Run, Path, int, Path]] = []
     for run in runs:
         output = run.runpath / f"test-policy-on-{pool}-envs.csv"
@@ -205,7 +231,14 @@ def main() -> int:
     failures = 0
     for logdir in args.logdirs:
         try:
-            process_logdir(logdir, pool, dry_run=args.dry_run, overwrite=args.overwrite, n_jobs=args.n_jobs)
+            process_logdir(
+                logdir,
+                pool,
+                dry_run=args.dry_run,
+                overwrite=args.overwrite,
+                n_jobs=args.n_jobs,
+                seed=args.seed,
+            )
         except Exception as error:
             failures += 1
             print(f"[failed] {logdir}: {error}", file=sys.stderr)

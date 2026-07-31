@@ -57,8 +57,10 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         assert run is not None
         return run.to_full().replay_episode(time_step, test_num, only_saved_actions)
 
-    def move(self, new_logdir: Path):
+    def move(self, new_logdir: Path | str):
         """Move an experiment to a new directory."""
+        if not isinstance(new_logdir, Path):
+            new_logdir = Path(new_logdir)
         # Load the runs before moving the files, because we will not be able to load them after the move.
         runs = list(self.runs)
         # 1) move all files (with weights, logs, etc)
@@ -214,7 +216,9 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         return {
             "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
             "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
-            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
+            "Training data": stats.compute_experiment_results(
+                [run.training_data for run in runs], aggregate_by, granularity
+            ),
         }
 
     def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
