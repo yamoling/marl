@@ -9,11 +9,12 @@ from __future__ import annotations
 import argparse
 import csv
 import multiprocessing
+import os
 import random
 import sys
 import time
 from collections.abc import Iterable
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -170,20 +171,49 @@ def output_has_data(output: Path) -> bool:
         return False
 
 
-def write_rows(output: Path, rows: list[dict[str, object]]) -> None:
+def append_rows(output: Path, rows: list[dict[str, object]]) -> None:
+    """Append a batch of results, writing it durably before returning.
+
+    CSV headers cannot be extended in place. If a later batch introduces a new
+    field (for example, when runs have different numbers of agents), rewrite
+    the existing rows with the expanded header before appending the batch.
+    """
     if not rows:
         raise RuntimeError(f"Evaluation produced no episodes for {output.parent}")
 
-    fieldnames = list(rows[0])
-    for row in rows[1:]:
+    existing_rows: list[dict[str, str]] = []
+    fieldnames: list[str] = []
+    if output.exists() and output.stat().st_size:
+        with output.open(newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            fieldnames = list(reader.fieldnames or [])
+            existing_rows = list(reader)
+    original_fieldnames = set(fieldnames)
+
+    for row in rows:
         for fieldname in row:
             if fieldname not in fieldnames:
                 fieldnames.append(fieldname)
 
-    with output.open("w", newline="") as csv_file:
+    needs_rewrite = any(fieldname not in original_fieldnames for fieldname in fieldnames)
+    if needs_rewrite:
+        with output.open("w", newline="") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(existing_rows)
+            writer.writerows(rows)
+            csv_file.flush()
+            os.fsync(csv_file.fileno())
+        return
+
+    mode = "a" if output.exists() and output.stat().st_size else "w"
+    with output.open(mode, newline="") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        writer.writeheader()
+        if mode == "w":
+            writer.writeheader()
         writer.writerows(rows)
+        csv_file.flush()
+        os.fsync(csv_file.fileno())
 
 
 def process_logdir(
@@ -227,29 +257,40 @@ def process_logdir(
         return 0
     if shuffle:
         random.shuffle(pending)
-    rows_by_output: dict[Path, list[dict[str, object]]] = {}
+
+    # Start fresh once per output when requested. Subsequent checkpoint results
+    # are appended as workers finish, so completed work survives interruptions.
+    outputs = {output for _run, output, _step, _checkpoint_dir in pending}
+    if overwrite:
+        for output in outputs:
+            output.unlink(missing_ok=True)
+
+    rows_by_output: dict[Path, int] = {output: 0 for output in outputs}
     with ProcessPoolExecutor(
         max_workers=min(n_jobs, len(pending)),
         mp_context=multiprocessing.get_context("spawn"),
     ) as executor:
-        jobs = (
-            (run.runpath, checkpoint_step, checkpoint_dir, pool)
-            for run, _output, checkpoint_step, checkpoint_dir in pending
-        )
-        results = executor.map(evaluate_run, jobs)
-        for (run, output, checkpoint_step, _checkpoint_dir), rows in zip(pending, results, strict=True):
-            rows_by_output.setdefault(output, []).extend(rows)
+        futures = {
+            executor.submit(evaluate_run, (run.runpath, checkpoint_step, checkpoint_dir, pool)): (
+                run,
+                output,
+                checkpoint_step,
+            )
+            for run, output, checkpoint_step, checkpoint_dir in pending
+        }
+        for future in as_completed(futures):
+            run, output, checkpoint_step = futures[future]
+            rows = future.result()
+            append_rows(output, rows)
+            rows_by_output[output] += len(rows)
             print(
                 f"[completed] {run.runpath}: checkpoint={checkpoint_step}, "
-                f"{pool}-pool episodes={len(rows)} ({len(rows_by_output[output])} accumulated)",
+                f"{pool}-pool episodes={len(rows)} ({rows_by_output[output]} accumulated), "
+                f"saved to {output}",
                 flush=True,
             )
 
-    for output, rows in rows_by_output.items():
-        write_rows(output, rows)
-        print(f"[written] {output}: {len(rows)} rows", flush=True)
-
-    return len(rows_by_output)
+    return len(outputs)
 
 
 def main() -> int:
