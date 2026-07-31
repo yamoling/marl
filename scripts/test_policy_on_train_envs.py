@@ -1,4 +1,4 @@
-"""Evaluate each run's latest test-policy checkpoint on its train or test pool.
+"""Evaluate saved policy checkpoints on a run's train or test pool.
 
 Example:
     uv run python scripts/test_policy_on_train_envs.py test logs/5x5_2agents_1laser-cooperative-dqn-1
@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Evaluate only the run with this seed (default: evaluate every run).",
     )
+    parser.add_argument(
+        "--checkpoint-steps",
+        action="store_true",
+        help="Evaluate every saved checkpoint instead of only the latest one.",
+    )
     return parser.parse_args()
 
 
@@ -64,8 +69,8 @@ def positive_int(value: str) -> int:
     return parsed
 
 
-def latest_checkpoint(run: Run) -> tuple[int, Path]:
-    """Return the highest numbered checkpoint that contains saved agent state."""
+def saved_checkpoints(run: Run) -> list[tuple[int, Path]]:
+    """Return all numbered checkpoints that contain saved agent state."""
     test_root = run.runpath / "test"
     checkpoints = (
         [
@@ -78,7 +83,11 @@ def latest_checkpoint(run: Run) -> tuple[int, Path]:
     )
     if not checkpoints:
         raise FileNotFoundError(f"No saved checkpoints found in {test_root}")
-    return max(checkpoints, key=lambda checkpoint: checkpoint[0])
+    return sorted(checkpoints)
+
+
+def latest_checkpoint(run: Run) -> tuple[int, Path]:
+    return saved_checkpoints(run)[-1]
 
 
 def iter_runs(logdir: Path):
@@ -109,7 +118,7 @@ def evaluate_run(task: tuple[Path, int, Path, Pool]) -> list[dict[str, object]]:
     """
     rundir, checkpoint_step, checkpoint_dir, pool = task
     run = Run.load(rundir)
-    device = torch.device(f"cuda:{run.seed % 8}") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device(f"cuda:{run.seed % 3}") if torch.cuda.is_available() else torch.device("cpu")
     agent = run.make_agent().to(device)
     agent.load(checkpoint_dir)
     env = pool_config(run, pool).make()
@@ -179,6 +188,7 @@ def process_logdir(
     overwrite: bool,
     n_jobs: int,
     seed: int | None = None,
+    checkpoint_steps: bool = False,
 ) -> int:
     runs = iter_runs(logdir)
     if seed is not None:
@@ -188,23 +198,28 @@ def process_logdir(
 
     pending: list[tuple[Run, Path, int, Path]] = []
     for run in runs:
-        output = run.runpath / f"test-policy-on-{pool}-envs.csv"
-        checkpoint_step, checkpoint_dir = latest_checkpoint(run)
-        description = (
-            f"{run.runpath}: checkpoint={checkpoint_step}, {pool}-pool episodes={pool_size(run, pool)}, output={output}"
-        )
+        try:
+            checkpoints = saved_checkpoints(run) if checkpoint_steps else [latest_checkpoint(run)]
+        except FileNotFoundError as error:
+            print(f"[skip no checkpoints] {error}", flush=True)
+            continue
 
-        if output_has_data(output) and not overwrite:
-            print(f"[skip existing] {description}")
-            continue
-        if dry_run:
-            print(f"[dry run] {description}")
-            continue
-        pending.append((run, output, checkpoint_step, checkpoint_dir))
+        for current_step, checkpoint_dir in checkpoints:
+            output = run.runpath / f"test-policy-on-{pool}-envs.csv"
+            description = f"{run.runpath}: checkpoint={current_step}, {pool}-pool episodes={pool_size(run, pool)}, output={output}"
+
+            if output_has_data(output) and not overwrite:
+                print(f"[skip existing] {description}", flush=True)
+                continue
+            if dry_run:
+                print(f"[dry run] {description}", flush=True)
+                continue
+            pending.append((run, output, current_step, checkpoint_dir))
 
     if dry_run or not pending:
         return 0
 
+    rows_by_output: dict[Path, list[dict[str, object]]] = {}
     with ProcessPoolExecutor(
         max_workers=min(n_jobs, len(pending)),
         mp_context=multiprocessing.get_context("spawn"),
@@ -214,15 +229,19 @@ def process_logdir(
             for run, _output, checkpoint_step, checkpoint_dir in pending
         )
         results = executor.map(evaluate_run, jobs)
-        for (run, output, checkpoint_step, checkpoint_dir), rows in zip(pending, results, strict=True):
-            description = (
-                f"{run.runpath}: checkpoint={checkpoint_step}, {pool}-pool episodes={pool_size(run, pool)}, "
-                f"output={output}"
+        for (run, output, checkpoint_step, _checkpoint_dir), rows in zip(pending, results, strict=True):
+            rows_by_output.setdefault(output, []).extend(rows)
+            print(
+                f"[completed] {run.runpath}: checkpoint={checkpoint_step}, "
+                f"{pool}-pool episodes={len(rows)} ({len(rows_by_output[output])} accumulated)",
+                flush=True,
             )
-            write_rows(output, rows)
-            print(f"[written] {description}")
 
-    return len(pending)
+    for output, rows in rows_by_output.items():
+        write_rows(output, rows)
+        print(f"[written] {output}: {len(rows)} rows", flush=True)
+
+    return len(rows_by_output)
 
 
 def main() -> int:
@@ -238,6 +257,7 @@ def main() -> int:
                 overwrite=args.overwrite,
                 n_jobs=args.n_jobs,
                 seed=args.seed,
+                checkpoint_steps=args.checkpoint_steps,
             )
         except Exception as error:
             failures += 1
