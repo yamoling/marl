@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import multiprocessing
+import random
 import sys
 import time
 from collections.abc import Iterable
@@ -30,7 +31,7 @@ Pool = Literal["train", "test"]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("pool", choices=("train", "test"), help="Environment pool to evaluate.")
+    parser.add_argument("pool", choices=("train", "test", "both"), help="Environment pool to evaluate.")
     parser.add_argument("logdirs", type=Path, nargs="+", help="Experiment log directories to evaluate.")
     parser.add_argument(
         "--dry-run",
@@ -58,6 +59,11 @@ def parse_args() -> argparse.Namespace:
         "--checkpoint-steps",
         action="store_true",
         help="Evaluate every saved checkpoint instead of only the latest one.",
+    )
+    parser.add_argument(
+        "--shuffle",
+        action="store_true",
+        help="Shuffle the order of the runs before evaluating.",
     )
     return parser.parse_args()
 
@@ -189,6 +195,7 @@ def process_logdir(
     n_jobs: int,
     seed: int | None = None,
     checkpoint_steps: bool = False,
+    shuffle: bool = False,
 ) -> int:
     runs = iter_runs(logdir)
     if seed is not None:
@@ -218,7 +225,8 @@ def process_logdir(
 
     if dry_run or not pending:
         return 0
-
+    if shuffle:
+        random.shuffle(pending)
     rows_by_output: dict[Path, list[dict[str, object]]] = {}
     with ProcessPoolExecutor(
         max_workers=min(n_jobs, len(pending)),
@@ -246,22 +254,24 @@ def process_logdir(
 
 def main() -> int:
     args = parse_args()
-    pool = cast(Pool, args.pool)
+    pools: tuple[Pool, ...] = ("test", "train") if args.pool == "both" else (cast(Pool, args.pool),)
     failures = 0
-    for logdir in args.logdirs:
-        try:
-            process_logdir(
-                logdir,
-                pool,
-                dry_run=args.dry_run,
-                overwrite=args.overwrite,
-                n_jobs=args.n_jobs,
-                seed=args.seed,
-                checkpoint_steps=args.checkpoint_steps,
-            )
-        except Exception as error:
-            failures += 1
-            print(f"[failed] {logdir}: {error}", file=sys.stderr)
+    for pool in pools:
+        for logdir in args.logdirs:
+            try:
+                process_logdir(
+                    logdir,
+                    pool,
+                    dry_run=args.dry_run,
+                    overwrite=args.overwrite,
+                    n_jobs=args.n_jobs,
+                    seed=args.seed,
+                    checkpoint_steps=args.checkpoint_steps,
+                    shuffle=args.shuffle,
+                )
+            except Exception as error:
+                failures += 1
+                print(f"[failed] {logdir} ({pool}): {error}", file=sys.stderr)
     return 1 if failures else 0
 
 
