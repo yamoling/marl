@@ -18,6 +18,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import polars as pl
 import torch
 from lle import Action
 from lle.characterization.plan import PlanProfile, profile_plan
@@ -116,20 +117,20 @@ def pool_size(run: Run, pool: Pool) -> int:
     return int(pool_config(run, pool).size)
 
 
-def evaluate_run(task: tuple[Path, int, Path, Pool]) -> list[dict[str, object]]:
-    """Evaluate one run's saved policy on every environment in the selected pool.
+def evaluate_run(task: tuple[Path, int, Path, Pool, list[int]]) -> list[dict[str, object]]:
+    """Evaluate the requested environments for one saved policy checkpoint.
 
     This function is executed in a run-level worker. The worker reconstructs the
-    agent and environment from disk, then evaluates all episodes for the run
-    serially so model and environment state stay isolated to that process.
+    agent and environment from disk, then evaluates all requested episodes for
+    the run serially so model and environment state stay isolated to that process.
     """
-    rundir, checkpoint_step, checkpoint_dir, pool = task
+    rundir, checkpoint_step, checkpoint_dir, pool, test_nums = task
     run = Run.load(rundir)
-    device = torch.device(f"cuda:{run.seed % 3}") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device(f"cuda:{run.seed % 8}") if torch.cuda.is_available() else torch.device("cpu")
     agent = run.make_agent().to(device)
     agent.load(checkpoint_dir)
     env = pool_config(run, pool).make()
-    return [_evaluate_episode(env, agent, checkpoint_step, test_num) for test_num in range(pool_size(run, pool))]
+    return [_evaluate_episode(env, agent, checkpoint_step, test_num) for test_num in test_nums]
 
 
 def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: int) -> dict[str, object]:
@@ -157,18 +158,40 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
         "interdependent-trajectory": profile.is_interdependent(2),
         "timestamp_sec": time.time(),
         "time_step": checkpoint_step,
+        "test_num": test_num,
     }
 
 
-def output_has_data(output: Path) -> bool:
-    """Return whether an existing output has a header and at least one result row."""
+def completed_results(output: Path) -> set[tuple[int, int]]:
+    """Return ``(checkpoint_step, test_num)`` pairs already present in ``output``.
+
+    Older output files predate the ``test_num`` column. Their rows were written
+    in test-number order, so assign those rows sequentially within each
+    checkpoint as a best-effort compatibility fallback.
+    """
     try:
-        with output.open(newline="") as csv_file:
-            reader = csv.reader(csv_file)
-            next(reader)  # Header
-            return next(reader, None) is not None
-    except (FileNotFoundError, StopIteration):
-        return False
+        results = pl.read_csv(output)
+    except (pl.exceptions.NoDataError, FileNotFoundError):
+        return set()
+
+    completed: set[tuple[int, int]] = set()
+    legacy_counts: dict[int, int] = {}
+    has_test_num = "test_num" in results.columns
+    for row in results.iter_rows(named=True):
+        checkpoint_value = row.get("time_step")
+        if checkpoint_value is None:
+            continue
+        checkpoint_step = int(checkpoint_value)
+
+        test_value = row.get("test_num") if has_test_num else None
+        if test_value is None:
+            test_num = legacy_counts.get(checkpoint_step, 0)
+        else:
+            test_num = int(test_value)
+
+        completed.add((checkpoint_step, test_num))
+        legacy_counts[checkpoint_step] = max(legacy_counts.get(checkpoint_step, 0), test_num + 1)
+    return completed
 
 
 def append_rows(output: Path, rows: list[dict[str, object]]) -> None:
@@ -233,7 +256,8 @@ def process_logdir(
         if not runs:
             raise ValueError(f"No run with seed {seed} found in experiment directory: {logdir}")
 
-    pending: list[tuple[Run, Path, int, Path]] = []
+    pending: list[tuple[Run, Path, int, Path, list[int]]] = []
+    completed_by_output: dict[Path, set[tuple[int, int]]] = {}
     for run in runs:
         try:
             checkpoints = saved_checkpoints(run) if checkpoint_steps else [latest_checkpoint(run)]
@@ -243,15 +267,24 @@ def process_logdir(
 
         for current_step, checkpoint_dir in checkpoints:
             output = run.runpath / f"test-policy-on-{pool}-envs.csv"
-            description = f"{run.runpath}: checkpoint={current_step}, {pool}-pool episodes={pool_size(run, pool)}, output={output}"
+            completed = completed_by_output.setdefault(output, completed_results(output))
+            test_nums = (
+                list(range(pool_size(run, pool)))
+                if overwrite
+                else [test_num for test_num in range(pool_size(run, pool)) if (current_step, test_num) not in completed]
+            )
+            description = (
+                f"{run.runpath}: checkpoint={current_step}, {pool}-pool episodes={pool_size(run, pool)}, "
+                f"missing={len(test_nums)}, output={output}"
+            )
 
-            if output_has_data(output) and not overwrite:
+            if not test_nums:
                 print(f"[skip existing] {description}", flush=True)
                 continue
             if dry_run:
                 print(f"[dry run] {description}", flush=True)
                 continue
-            pending.append((run, output, current_step, checkpoint_dir))
+            pending.append((run, output, current_step, checkpoint_dir, test_nums))
 
     if dry_run or not pending:
         return 0
@@ -260,7 +293,7 @@ def process_logdir(
 
     # Start fresh once per output when requested. Subsequent checkpoint results
     # are appended as workers finish, so completed work survives interruptions.
-    outputs = {output for _run, output, _step, _checkpoint_dir in pending}
+    outputs = {output for _run, output, _step, _checkpoint_dir, _test_nums in pending}
     if overwrite:
         for output in outputs:
             output.unlink(missing_ok=True)
@@ -271,12 +304,12 @@ def process_logdir(
         mp_context=multiprocessing.get_context("spawn"),
     ) as executor:
         futures = {
-            executor.submit(evaluate_run, (run.runpath, checkpoint_step, checkpoint_dir, pool)): (
+            executor.submit(evaluate_run, (run.runpath, checkpoint_step, checkpoint_dir, pool, test_nums)): (
                 run,
                 output,
                 checkpoint_step,
             )
-            for run, output, checkpoint_step, checkpoint_dir in pending
+            for run, output, checkpoint_step, checkpoint_dir, test_nums in pending
         }
         for future in as_completed(futures):
             run, output, checkpoint_step = futures[future]
