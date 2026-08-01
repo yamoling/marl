@@ -9,10 +9,13 @@ from __future__ import annotations
 import argparse
 import multiprocessing
 import random
+import sys
 import time
+import traceback
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -22,8 +25,9 @@ from lle.characterization.plan import profile_plan
 
 import marl
 from marl import Agent
-from marl.models.run import Run
 from marl.runners import compute_test_seed, seeded_rollout
+
+EPISODES_PER_CHECKPOINT = 500
 
 
 def parse_args() -> argparse.Namespace:
@@ -110,30 +114,40 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
     }
 
 
-def process_task(task: Task):
-    run = marl.Run.load(task.runpath)
-    device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
-    print(f"Processing {task.runpath} on {device}")
-    agent = run.make_agent().to(device)
-    train_env, test_env = None, None
-    train_logs, test_logs = [], []
-    for time_step in task.all_steps():
-        directory = run.get_saved_algo_dir(time_step)
-        agent.load(directory)
-        if time_step in task.train_steps:
-            if train_env is None:
-                train_env = run.env.make()
-            for test_num in range(500):
-                train_logs.append(_evaluate_episode(train_env, agent, time_step, test_num))
-        if time_step in task.test_steps:
-            if test_env is None:
-                test_env = run.test_env.make()
-            for test_num in range(500):
-                test_logs.append(_evaluate_episode(test_env, agent, time_step, test_num))
-    return task.runpath, train_logs, test_logs
+def process_task(task: Task) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+    train_logs: list[dict[str, Any]] = []
+    test_logs: list[dict[str, Any]] = []
+    try:
+        run = marl.Run.load(task.runpath)
+        device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
+        print(f"Processing {task.runpath} on {device}")
+        agent = run.make_agent().to(device)
+        train_env, test_env = None, None
+        for time_step in task.all_steps():
+            directory = run.get_saved_algo_dir(time_step)
+            agent.load(directory)
+            if time_step in task.train_steps:
+                if train_env is None:
+                    train_env = run.env.make()
+                for test_num in range(EPISODES_PER_CHECKPOINT):
+                    train_logs.append(_evaluate_episode(train_env, agent, time_step, test_num))
+            if time_step in task.test_steps:
+                if test_env is None:
+                    test_env = run.test_env.make()
+                for test_num in range(EPISODES_PER_CHECKPOINT):
+                    test_logs.append(_evaluate_episode(test_env, agent, time_step, test_num))
+    except Exception:  # noqa: BLE001 - preserve partial results from any evaluation failure
+        return train_logs, test_logs, traceback.format_exc()
+    return train_logs, test_logs, None
 
 
-def gather_missing_time_steps(filepath: Path, timesteps: list[int]):
+def discover_checkpoint_steps(runpath: Path) -> list[int]:
+    """Return the sorted time steps stored in ``runpath/test`` checkpoint directories."""
+    test_directory = runpath / "test"
+    return sorted(int(path.name) for path in test_directory.glob("*") if path.is_dir() and path.name.isdigit())
+
+
+def gather_missing_time_steps(filepath: Path, timesteps: list[int]) -> set[int]:
     try:
         df = pl.read_csv(filepath)
         missing = set(timesteps)
@@ -160,31 +174,31 @@ def collect_tasks(
         runs = [run]
     else:
         runs = list(exp.runs)
-    if checkpoint_steps:
-        timesteps = list(range(0, 1_050_000, 50_000))
-    else:
-        timesteps = [1_000_000]
     tasks = list[Task]()
     for run in runs:
+        discovered_steps = discover_checkpoint_steps(run.runpath)
+        if len(discovered_steps) == 0:
+            raise FileNotFoundError(f"No checkpoint directories found in: {run.runpath / 'test'}")
+        timesteps = discovered_steps if checkpoint_steps else discovered_steps[-1:]
         if overwrite:
             missing_train = timesteps
             missing_test = timesteps
         else:
             # Check if the time steps are already present in both pools
-            missing_train = gather_missing_time_steps(run.runpath / "test-policy-on-train-envs.csv", list(timesteps))
-            missing_test = gather_missing_time_steps(run.runpath / "test-policy-on-test-envs.csv", list(timesteps))
+            missing_train = gather_missing_time_steps(run.runpath / "test-policy-on-train-envs.csv", timesteps)
+            missing_test = gather_missing_time_steps(run.runpath / "test-policy-on-test-envs.csv", timesteps)
             if len(missing_train) == 0 and len(missing_test) == 0:
                 continue
         tasks.append(Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test)))
     return tasks
 
 
-def write_pool_results(filepath: Path, logs: list[dict], *, overwrite: bool):
+def write_pool_results(filepath: Path, logs: list[dict[str, Any]], *, overwrite: bool) -> None:
     results = pl.DataFrame(logs)
     if not overwrite:
         try:
             existing = pl.read_csv(filepath)
-            results = pl.concat([existing, results])
+            results = pl.concat([existing, results], how="diagonal_relaxed")
         except FileNotFoundError:
             pass
     results.write_csv(filepath)
@@ -216,7 +230,9 @@ def process_logdirs(
         random.shuffle(tasks)
     if dry_run:
         for t in tasks:
-            print(f"  {t.runpath}\t{len(t.train_steps) * 500} train steps {len(t.test_steps) * 500} test steps to run")
+            train_episodes = len(t.train_steps) * EPISODES_PER_CHECKPOINT
+            test_episodes = len(t.test_steps) * EPISODES_PER_CHECKPOINT
+            print(f"  {t.runpath}\t{train_episodes} train steps {test_episodes} test steps to run")
         return
     if len(tasks) == 0:
         print("No task to run")
@@ -226,11 +242,27 @@ def process_logdirs(
         mp_context=multiprocessing.get_context("spawn"),
         max_tasks_per_child=1,
     ) as executor:
-        futures = [executor.submit(process_task, t) for t in tasks]
+        futures = {executor.submit(process_task, task): task for task in tasks}
         for future in as_completed(futures):
-            runpath, train, test = future.result()
-            write_results(runpath, train, test, overwrite=overwrite)
-            print(f"[complete]\t{runpath}: {len(train)} train | {len(test)} test")
+            task = futures[future]
+            try:
+                train, test, error = future.result()
+            except Exception:  # noqa: BLE001 - one failed worker must not discard other workers' results
+                print(f"[error]\t{task.runpath}: worker process failed", file=sys.stderr, flush=True)
+                traceback.print_exc()
+                continue
+
+            try:
+                write_results(task.runpath, train, test, overwrite=overwrite)
+            except Exception:  # noqa: BLE001 - report the failure and continue saving other workers' results
+                print(f"[error]\t{task.runpath}: could not save evaluation results", file=sys.stderr, flush=True)
+                traceback.print_exc()
+                continue
+
+            status = "partial" if error is not None else "complete"
+            print(f"[{status}]\t{task.runpath}: {len(train)} train | {len(test)} test")
+            if error is not None:
+                print(f"[error]\t{task.runpath}:\n{error}", file=sys.stderr, flush=True)
 
 
 def main():
