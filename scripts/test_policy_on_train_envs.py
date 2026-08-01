@@ -7,33 +7,27 @@ Example:
 from __future__ import annotations
 
 import argparse
-import csv
 import multiprocessing
-import os
 import random
-import sys
 import time
-from collections.abc import Iterable
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
 
+import numpy as np
 import polars as pl
 import torch
 from lle import Action
-from lle.characterization.plan import PlanProfile, profile_plan
+from lle.characterization.plan import profile_plan
 
 import marl
 from marl import Agent
 from marl.models.run import Run
 from marl.runners import compute_test_seed, seeded_rollout
 
-Pool = Literal["train", "test"]
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("pool", choices=("train", "test", "both"), help="Environment pool to evaluate.")
     parser.add_argument("logdirs", type=Path, nargs="+", help="Experiment log directories to evaluate.")
     parser.add_argument(
         "--dry-run",
@@ -70,6 +64,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+@dataclass(frozen=True)
+class Task:
+    runpath: Path
+    train_steps: list[int]
+    test_steps: list[int]
+
+    def all_steps(self) -> list[int]:
+        return list(set(self.train_steps + self.test_steps))
+
+
 def positive_int(value: str) -> int:
     parsed = int(value)
     if parsed < 1:
@@ -77,68 +81,11 @@ def positive_int(value: str) -> int:
     return parsed
 
 
-def saved_checkpoints(run: Run) -> list[tuple[int, Path]]:
-    """Return all numbered checkpoints that contain saved agent state."""
-    test_root = run.runpath / "test"
-    checkpoints = (
-        [
-            (int(path.name), path)
-            for path in test_root.iterdir()
-            if path.is_dir() and path.name.isdigit() and any(path.iterdir())
-        ]
-        if test_root.exists()
-        else []
-    )
-    if not checkpoints:
-        raise FileNotFoundError(f"No saved checkpoints found in {test_root}")
-    return sorted(checkpoints)
-
-
-def latest_checkpoint(run: Run) -> tuple[int, Path]:
-    return saved_checkpoints(run)[-1]
-
-
-def iter_runs(logdir: Path):
-    if not marl.Experiment.is_experiment_directory(logdir):
-        raise ValueError(f"Not an experiment directory (missing experiment.json): {logdir}")
-
-    experiment = marl.Experiment.load(logdir)
-    runs = sorted((run.to_full() for run in experiment.runs), key=lambda run: run.seed)
-    if not runs:
-        raise ValueError(f"No runs found in experiment directory: {logdir}")
-    return runs
-
-
-def pool_config(run: Run, pool: Pool) -> Any:
-    return run.env if pool == "train" else run.test_env
-
-
-def pool_size(run: Run, pool: Pool) -> int:
-    return int(pool_config(run, pool).size)
-
-
-def evaluate_run(task: tuple[Path, int, Path, Pool, list[int]]) -> list[dict[str, object]]:
-    """Evaluate the requested environments for one saved policy checkpoint.
-
-    This function is executed in a run-level worker. The worker reconstructs the
-    agent and environment from disk, then evaluates all requested episodes for
-    the run serially so model and environment state stay isolated to that process.
-    """
-    rundir, checkpoint_step, checkpoint_dir, pool, test_nums = task
-    run = Run.load(rundir)
-    device = torch.device(f"cuda:{run.seed % 8}") if torch.cuda.is_available() else torch.device("cpu")
-    agent = run.make_agent().to(device)
-    agent.load(checkpoint_dir)
-    env = pool_config(run, pool).make()
-    return [_evaluate_episode(env, agent, checkpoint_step, test_num) for test_num in test_nums]
-
-
-def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: int) -> dict[str, object]:
+def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: int) -> dict[str, Any]:
     seed = compute_test_seed(checkpoint_step, test_num)
     episode, _, _ = seeded_rollout(env, agent, seed)
-    plan = [[Action(int(action)) for action in cast(Iterable[Any], joint_action)] for joint_action in episode.actions]
+    plan = [[Action(int(action)) for action in np.array(joint_action)] for joint_action in episode.actions]
     world = env.unwrapped.current.world
-    profile: PlanProfile = profile_plan(world, plan)
     agent_status = {
         field: value
         for agent in world.agents
@@ -147,6 +94,7 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
             (f"agent-{agent.num}-alive", agent.is_alive),
         )
     }
+    profile = profile_plan(world, plan)
     return {
         **episode.metrics,
         **agent_status,
@@ -162,192 +110,141 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
     }
 
 
-def completed_results(output: Path) -> set[tuple[int, int]]:
-    """Return ``(checkpoint_step, test_num)`` pairs already present in ``output``.
+def process_task(task: Task):
+    run = marl.Run.load(task.runpath)
+    device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
+    print(f"Processing {task.runpath} on {device}")
+    agent = run.make_agent().to(device)
+    train_env, test_env = None, None
+    train_logs, test_logs = [], []
+    for time_step in task.all_steps():
+        directory = run.get_saved_algo_dir(time_step)
+        agent.load(directory)
+        if time_step in task.train_steps:
+            if train_env is None:
+                train_env = run.env.make()
+            for test_num in range(500):
+                train_logs.append(_evaluate_episode(train_env, agent, time_step, test_num))
+        if time_step in task.test_steps:
+            if test_env is None:
+                test_env = run.test_env.make()
+            for test_num in range(500):
+                test_logs.append(_evaluate_episode(test_env, agent, time_step, test_num))
+    return task.runpath, train_logs, test_logs
 
-    Older output files predate the ``test_num`` column. Their rows were written
-    in test-number order, so assign those rows sequentially within each
-    checkpoint as a best-effort compatibility fallback.
-    """
+
+def gather_missing_time_steps(filepath: Path, timesteps: list[int]):
     try:
-        results = pl.read_csv(output)
-    except (pl.exceptions.NoDataError, FileNotFoundError):
-        return set()
-
-    completed: set[tuple[int, int]] = set()
-    legacy_counts: dict[int, int] = {}
-    has_test_num = "test_num" in results.columns
-    for row in results.iter_rows(named=True):
-        checkpoint_value = row.get("time_step")
-        if checkpoint_value is None:
-            continue
-        checkpoint_step = int(checkpoint_value)
-
-        test_value = row.get("test_num") if has_test_num else None
-        if test_value is None:
-            test_num = legacy_counts.get(checkpoint_step, 0)
-        else:
-            test_num = int(test_value)
-
-        completed.add((checkpoint_step, test_num))
-        legacy_counts[checkpoint_step] = max(legacy_counts.get(checkpoint_step, 0), test_num + 1)
-    return completed
+        df = pl.read_csv(filepath)
+        missing = set(timesteps)
+        for (t, *_), group in df.group_by("time_step"):
+            if group.height == 500 and t in missing:
+                missing.remove(t)
+        return missing
+    except FileNotFoundError:
+        return set(timesteps)
 
 
-def append_rows(output: Path, rows: list[dict[str, object]]) -> None:
-    """Append a batch of results, writing it durably before returning.
-
-    CSV headers cannot be extended in place. If a later batch introduces a new
-    field (for example, when runs have different numbers of agents), rewrite
-    the existing rows with the expanded header before appending the batch.
-    """
-    if not rows:
-        raise RuntimeError(f"Evaluation produced no episodes for {output.parent}")
-
-    existing_rows: list[dict[str, str]] = []
-    fieldnames: list[str] = []
-    if output.exists() and output.stat().st_size:
-        with output.open(newline="") as csv_file:
-            reader = csv.DictReader(csv_file)
-            fieldnames = list(reader.fieldnames or [])
-            existing_rows = list(reader)
-    original_fieldnames = set(fieldnames)
-
-    for row in rows:
-        for fieldname in row:
-            if fieldname not in fieldnames:
-                fieldnames.append(fieldname)
-
-    needs_rewrite = any(fieldname not in original_fieldnames for fieldname in fieldnames)
-    if needs_rewrite:
-        with output.open("w", newline="") as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(existing_rows)
-            writer.writerows(rows)
-            csv_file.flush()
-            os.fsync(csv_file.fileno())
-        return
-
-    mode = "a" if output.exists() and output.stat().st_size else "w"
-    with output.open(mode, newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-        if mode == "w":
-            writer.writeheader()
-        writer.writerows(rows)
-        csv_file.flush()
-        os.fsync(csv_file.fileno())
-
-
-def process_logdir(
+def collect_tasks(
     logdir: Path,
-    pool: Pool,
     *,
-    dry_run: bool,
     overwrite: bool,
-    n_jobs: int,
     seed: int | None = None,
     checkpoint_steps: bool = False,
-    shuffle: bool = False,
-) -> int:
-    runs = iter_runs(logdir)
+):
+    exp = marl.Experiment.load(logdir)
     if seed is not None:
-        runs = [run for run in runs if run.seed == seed]
-        if not runs:
+        run = exp.get_run(seed)
+        if run is None:
             raise ValueError(f"No run with seed {seed} found in experiment directory: {logdir}")
-
-    pending: list[tuple[Run, Path, int, Path, list[int]]] = []
-    completed_by_output: dict[Path, set[tuple[int, int]]] = {}
+        runs = [run]
+    else:
+        runs = list(exp.runs)
+    if checkpoint_steps:
+        timesteps = list(range(0, 1_050_000, 50_000))
+    else:
+        timesteps = [1_000_000]
+    tasks = list[Task]()
     for run in runs:
+        if overwrite:
+            missing_train = timesteps
+            missing_test = timesteps
+        else:
+            # Check if the time steps are already present in both pools
+            missing_train = gather_missing_time_steps(run.runpath / "test-policy-on-train-envs.csv", list(timesteps))
+            missing_test = gather_missing_time_steps(run.runpath / "test-policy-on-test-envs.csv", list(timesteps))
+            if len(missing_train) == 0 and len(missing_test) == 0:
+                continue
+        tasks.append(Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test)))
+    return tasks
+
+
+def write_pool_results(filepath: Path, logs: list[dict], *, overwrite: bool):
+    results = pl.DataFrame(logs)
+    if not overwrite:
         try:
-            checkpoints = saved_checkpoints(run) if checkpoint_steps else [latest_checkpoint(run)]
-        except FileNotFoundError as error:
-            print(f"[skip no checkpoints] {error}", flush=True)
-            continue
+            existing = pl.read_csv(filepath)
+            results = pl.concat([existing, results])
+        except FileNotFoundError:
+            pass
+    results.write_csv(filepath)
 
-        for current_step, checkpoint_dir in checkpoints:
-            output = run.runpath / f"test-policy-on-{pool}-envs.csv"
-            completed = completed_by_output.setdefault(output, completed_results(output))
-            test_nums = (
-                list(range(pool_size(run, pool)))
-                if overwrite
-                else [test_num for test_num in range(pool_size(run, pool)) if (current_step, test_num) not in completed]
-            )
-            description = (
-                f"{run.runpath}: checkpoint={current_step}, {pool}-pool episodes={pool_size(run, pool)}, "
-                f"missing={len(test_nums)}, output={output}"
-            )
 
-            if not test_nums:
-                print(f"[skip existing] {description}", flush=True)
-                continue
-            if dry_run:
-                print(f"[dry run] {description}", flush=True)
-                continue
-            pending.append((run, output, current_step, checkpoint_dir, test_nums))
+def write_results(runpath: Path, train_logs: list[dict], test_logs: list[dict], *, overwrite: bool):
+    if len(train_logs) > 0:
+        write_pool_results(runpath / "test-policy-on-train-envs.csv", train_logs, overwrite=overwrite)
+    if len(test_logs) > 0:
+        write_pool_results(runpath / "test-policy-on-test-envs.csv", test_logs, overwrite=overwrite)
 
-    if dry_run or not pending:
-        return 0
+
+def process_logdirs(
+    paths: list[Path],
+    n_jobs: int,
+    shuffle: bool,
+    seed: int | None,
+    overwrite: bool,
+    checkpoint_steps: bool,
+    dry_run: bool,
+):
+    tasks = [
+        t
+        for logdir in paths
+        for t in collect_tasks(logdir, overwrite=overwrite, seed=seed, checkpoint_steps=checkpoint_steps)
+    ]
+    print(f"Found {len(tasks)} tasks to run")
     if shuffle:
-        random.shuffle(pending)
-
-    # Start fresh once per output when requested. Subsequent checkpoint results
-    # are appended as workers finish, so completed work survives interruptions.
-    outputs = {output for _run, output, _step, _checkpoint_dir, _test_nums in pending}
-    if overwrite:
-        for output in outputs:
-            output.unlink(missing_ok=True)
-
-    rows_by_output: dict[Path, int] = {output: 0 for output in outputs}
+        random.shuffle(tasks)
+    if dry_run:
+        for t in tasks:
+            print(f"  {t.runpath}\t{len(t.train_steps) * 500} train steps {len(t.test_steps) * 500} test steps to run")
+        return
+    if len(tasks) == 0:
+        print("No task to run")
+        return
     with ProcessPoolExecutor(
-        max_workers=min(n_jobs, len(pending)),
+        max_workers=min(n_jobs, len(tasks)),
         mp_context=multiprocessing.get_context("spawn"),
+        max_tasks_per_child=1,
     ) as executor:
-        futures = {
-            executor.submit(evaluate_run, (run.runpath, checkpoint_step, checkpoint_dir, pool, test_nums)): (
-                run,
-                output,
-                checkpoint_step,
-            )
-            for run, output, checkpoint_step, checkpoint_dir, test_nums in pending
-        }
+        futures = [executor.submit(process_task, t) for t in tasks]
         for future in as_completed(futures):
-            run, output, checkpoint_step = futures[future]
-            rows = future.result()
-            append_rows(output, rows)
-            rows_by_output[output] += len(rows)
-            print(
-                f"[completed] {run.runpath}: checkpoint={checkpoint_step}, "
-                f"{pool}-pool episodes={len(rows)} ({rows_by_output[output]} accumulated), "
-                f"saved to {output}",
-                flush=True,
-            )
-
-    return len(outputs)
+            runpath, train, test = future.result()
+            write_results(runpath, train, test, overwrite=overwrite)
+            print(f"[complete]\t{runpath}: {len(train)} train | {len(test)} test")
 
 
-def main() -> int:
+def main():
     args = parse_args()
-    pools: tuple[Pool, ...] = ("test", "train") if args.pool == "both" else (cast(Pool, args.pool),)
-    failures = 0
-    for pool in pools:
-        for logdir in args.logdirs:
-            try:
-                process_logdir(
-                    logdir,
-                    pool,
-                    dry_run=args.dry_run,
-                    overwrite=args.overwrite,
-                    n_jobs=args.n_jobs,
-                    seed=args.seed,
-                    checkpoint_steps=args.checkpoint_steps,
-                    shuffle=args.shuffle,
-                )
-            except Exception as error:
-                failures += 1
-                print(f"[failed] {logdir} ({pool}): {error}", file=sys.stderr)
-    return 1 if failures else 0
+    process_logdirs(
+        args.logdirs,
+        args.n_jobs,
+        args.shuffle,
+        args.seed,
+        args.overwrite,
+        args.checkpoint_steps,
+        args.dry_run,
+    )
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
