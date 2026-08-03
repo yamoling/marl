@@ -23,10 +23,11 @@ class RunProgress:
     step: float
     steps_per_second: float | None
     eta_seconds: float | None
+    elapsed_seconds: float
 
 
 def read_run_progress(train_file: Path, total_steps: float) -> RunProgress:
-    """Read the latest step and throughput recorded in one run's ``train.csv``."""
+    """Read progress from ``train.csv`` and the latest step from ``test.csv``."""
     with train_file.open(newline="", encoding="utf-8") as file:
         rows = csv.DictReader(file)
         if rows.fieldnames is None or TIME_STEP not in rows.fieldnames or TIMESTAMP not in rows.fieldnames:
@@ -49,11 +50,27 @@ def read_run_progress(train_file: Path, total_steps: float) -> RunProgress:
     if first_timestamp is None or last_timestamp is None or last_step is None:
         raise ValueError(f"{train_file} is empty")
 
+    latest_step = last_step
+    test_file = train_file.with_name("test.csv")
+    latest_test_step = 0.0
+    if test_file.is_file():
+        with test_file.open(newline="", encoding="utf-8") as file:
+            rows = csv.DictReader(file)
+            if rows.fieldnames is None or TIME_STEP not in rows.fieldnames:
+                pass
+            else:
+                for row in rows:
+                    try:
+                        latest_test_step = float(row[TIME_STEP])
+                    except (TypeError, ValueError) as error:
+                        raise ValueError(f"{test_file} contains a non-numeric step") from error
+        latest_step = max(latest_step, latest_test_step)
+
     elapsed = last_timestamp - first_timestamp
     rate = last_step / elapsed if elapsed > 0 else None
-    remaining_steps = max(0.0, total_steps - last_step)
+    remaining_steps = max(0.0, total_steps - latest_step)
     eta = remaining_steps / rate if rate is not None and rate > 0 else None
-    return RunProgress(train_file.parent, last_step, rate, eta)
+    return RunProgress(train_file.parent, latest_step, rate, eta, elapsed)
 
 
 def format_duration(seconds: float | None) -> str:
@@ -119,8 +136,13 @@ def main() -> int:
     print("Current progress:")
     for run in progress:
         percentage = min(100.0, 100.0 * run.step / total_steps) if total_steps > 0 else 100.0
-        status = "complete" if run.step >= total_steps else f"ETA {format_duration(run.eta_seconds)}"
-        print(f"  {run.path.name}: {run.step:g}/{total_steps:g} steps ({percentage:.2f}%) - {status}")
+        status = (
+            f"complete in {format_duration(run.elapsed_seconds)}"
+            if run.step >= total_steps
+            else f"ETA {format_duration(run.eta_seconds)}"
+        )
+        rate = "unknown" if run.steps_per_second is None else f"{run.steps_per_second:.6f} steps/s"
+        print(f"  {run.path.name}: {run.step:g}/{total_steps:g} steps ({percentage:.2f}%) - {rate} - {status}")
 
     rates = [run.steps_per_second for run in progress if run.steps_per_second is not None]
     if not rates:
