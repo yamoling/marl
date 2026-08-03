@@ -12,6 +12,7 @@ from typing import Literal, overload
 import numpy as np
 import orjson
 import polars as pl
+import psutil
 import torch
 from marlenv import MARLEnv
 from polars import selectors as cs
@@ -137,22 +138,50 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         return any(r.is_running for r in self.runs)
 
     def kill_runs(self):
-        """Kill all runs of an experiment."""
+        """Kill all active runs and their process-pool owner, if any.
+
+        Returns the run process PIDs that were signalled and the parent pool
+        PID, or ``None`` when no process pool was detected.
+        """
+        runs = list(self.runs)
+        active_runs = list[tuple[LightRun, int]]()
         ppids = set[int]()
-        n_killed = 0
-        for run in self.runs:
-            ppid = run.ppid
-            if ppid is not None:
-                ppids.add(ppid)
+        for run in runs:
+            pid = run.pid
+            if pid is None:
+                continue
+            active_runs.append((run, pid))
+            try:
+                ppid = psutil.Process(pid).ppid()
+            except psutil.NoSuchProcess:
+                continue
+            ppids.add(ppid)
+
+        # Identify pool owners before signalling workers: otherwise a fast
+        # worker shutdown can hide the pool's other children from this check.
+        pool_ppids = set[int]()
+        for ppid in ppids:
+            try:
+                if len(psutil.Process(ppid).children()) >= 2:
+                    pool_ppids.add(ppid)
+            except psutil.NoSuchProcess:
+                pass
+
+        killed_pids = list[int]()
+        for run, pid in active_runs:
             if run.kill():
-                n_killed += 1
-        # If there was one single parent, we assume it was a parallel_runner and kill it as well
-        if n_killed > 1 and len(ppids) == 1:
-            ppid = ppids.pop()
+                killed_pids.append(pid)
+
+        # A parallel runner owns multiple worker processes.  Signal that owner
+        # too; otherwise the pool can keep spawning/replacing workers after its
+        # currently active child has been interrupted.
+        parent_ppid = next(iter(pool_ppids), None)
+        for ppid in pool_ppids:
             try:
                 os.kill(ppid, SIGINT)
             except ProcessLookupError:
                 pass
+        return killed_pids, parent_ppid
 
     def save(self):
         self.to_file(self.experiment_file)
