@@ -39,9 +39,13 @@ class PoolSpec:
 class Args(tap.TypedArgs):
     pool_dir: Path = tap.arg(positional=True, help="Directory containing the pool of maps to train on.")
     n_seeds: int = tap.arg("--n-seeds", default=10)
+    start_seed: int = tap.arg("--start-seed", default=0)
     n_steps: int = tap.arg("--n-steps", default=N_STEPS)
     n_jobs: int = tap.arg("--n-jobs", default=8)
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
+    algos: list[Algo] = tap.arg(
+        "--algos", default=list(ALGOS), nargs="+", help="Algorithms to train (defaults to all algorithms)."
+    )
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
     study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
     quiet: bool = tap.arg("--quiet", default=True)
@@ -67,7 +71,7 @@ def load_best_params(args: Args, algo: Algo, study_map_name: str):
     complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
     if not complete_trials:
         raise RuntimeError(f"Study {study_name!r} has no complete trials.")
-    logging.info("Using best trial %s from %s with value %s", study.best_trial.number, study_name, study.best_value)
+    logging.info(f"Using best trial {study.best_trial.number} from {study_name} with value {study.best_value}")
     return study.best_params
 
 
@@ -81,10 +85,11 @@ def experiment_logdir(spec: PoolSpec, algo: Algo):
 
 def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
     logdir = experiment_logdir(spec, algo)
+    requested_seeds = range(args.start_seed, args.start_seed + args.n_seeds)
     if logdir.exists():
         exp = marl.Experiment.load(logdir)
-        completed_seeds = {run.seed for run in exp.runs if run.is_complete}
-        seeds = [seed for seed in range(args.n_seeds) if seed not in completed_seeds]
+        completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in requested_seeds}
+        seeds = [seed for seed in requested_seeds if seed not in completed_seeds]
         if args.dry_run:
             logging.info(f"[exists] {len(seeds)} runs of {spec.map_name} / {algo} / pool={POOL_SIZE} -> {logdir}")
             return
@@ -99,7 +104,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
             f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}"
         )
     else:
-        seeds = list(range(args.n_seeds))
+        seeds = list(requested_seeds)
         if args.dry_run:
             logging.info(f"[new] {len(seeds)} runs of {spec.map_name} / {algo} / pool={POOL_SIZE} -> {logdir}")
             return
@@ -126,9 +131,9 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
 
 def main(args: Args):
     spec = parse_pool_spec(args.pool_dir)
-    logging.info(f"Starting pool-500 sweep on {spec.map_name} with {len(ALGOS)} algorithms.")
+    logging.info(f"Starting pool-500 sweep on {spec.map_name} with {len(args.algos)} algorithms.")
 
-    for algo in ALGOS:
+    for algo in args.algos:
         run_experiment(args, spec, algo)
 
 
