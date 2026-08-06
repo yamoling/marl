@@ -1,16 +1,18 @@
 import logging
 import os
 import shutil
+from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import Collection, Literal, overload
+from typing import Literal, overload
 
 import numpy as np
 import orjson
 import polars as pl
+import psutil
 import torch
 from marlenv import MARLEnv
 from polars import selectors as cs
@@ -57,8 +59,10 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         assert run is not None
         return run.to_full().replay_episode(time_step, test_num, only_saved_actions)
 
-    def move(self, new_logdir: Path):
+    def move(self, new_logdir: Path | str):
         """Move an experiment to a new directory."""
+        if not isinstance(new_logdir, Path):
+            new_logdir = Path(new_logdir)
         # Load the runs before moving the files, because we will not be able to load them after the move.
         runs = list(self.runs)
         # 1) move all files (with weights, logs, etc)
@@ -134,22 +138,50 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         return any(r.is_running for r in self.runs)
 
     def kill_runs(self):
-        """Kill all runs of an experiment."""
+        """Kill all active runs and their process-pool owner, if any.
+
+        Returns the run process PIDs that were signalled and the parent pool
+        PID, or ``None`` when no process pool was detected.
+        """
+        runs = list(self.runs)
+        active_runs = list[tuple[LightRun, int]]()
         ppids = set[int]()
-        n_killed = 0
-        for run in self.runs:
-            ppid = run.ppid
-            if ppid is not None:
-                ppids.add(ppid)
+        for run in runs:
+            pid = run.pid
+            if pid is None:
+                continue
+            active_runs.append((run, pid))
+            try:
+                ppid = psutil.Process(pid).ppid()
+            except psutil.NoSuchProcess:
+                continue
+            ppids.add(ppid)
+
+        # Identify pool owners before signalling workers: otherwise a fast
+        # worker shutdown can hide the pool's other children from this check.
+        pool_ppids = set[int]()
+        for ppid in ppids:
+            try:
+                if len(psutil.Process(ppid).children()) >= 2:
+                    pool_ppids.add(ppid)
+            except psutil.NoSuchProcess:
+                pass
+
+        killed_pids = list[int]()
+        for run, pid in active_runs:
             if run.kill():
-                n_killed += 1
-        # If there was one single parent, we assume it was a parallel_runner and kill it as well
-        if n_killed > 1 and len(ppids) == 1:
-            ppid = ppids.pop()
+                killed_pids.append(pid)
+
+        # A parallel runner owns multiple worker processes.  Signal that owner
+        # too; otherwise the pool can keep spawning/replacing workers after its
+        # currently active child has been interrupted.
+        parent_ppid = next(iter(pool_ppids), None)
+        for ppid in pool_ppids:
             try:
                 os.kill(ppid, SIGINT)
             except ProcessLookupError:
                 pass
+        return killed_pids, parent_ppid
 
     def save(self):
         self.to_file(self.experiment_file)
@@ -345,6 +377,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         render_tests: bool = False,
         n_jobs: int | Literal["auto"] = "auto",
         disabled_gpus: Collection[int] = (),
+        limit_torch_threads: bool = True,
     ):
         """
         Train the Agent on the environment according to the experiment parameters.
@@ -353,6 +386,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         ---------
         - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
         - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
+        - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
         """
         from marl.runners import parallel_run, sequential_run
 
@@ -363,4 +397,13 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
         if n_jobs <= 1 or len(runs) <= 1:
             return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
-        return parallel_run(runs, n_jobs, device, gpu_strategy, render_tests, disabled_gpus, quiet)
+        return parallel_run(
+            runs,
+            n_jobs,
+            device,
+            gpu_strategy,
+            render_tests,
+            disabled_gpus,
+            quiet,
+            limit_torch_threads,
+        )

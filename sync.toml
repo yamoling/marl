@@ -1,0 +1,8 @@
+# Directories are relative to the project root and use the same path on Nextcloud.
+directories = ["logs", "layouts"]
+
+# File and directory names to skip during synchronization. Each entry is a glob
+# pattern (fnmatch syntax) matched against individual path segments, so e.g.
+# "__pycache__" skips any directory with that name at any depth, and "*.pyc"
+# skips any matching file at any depth.
+ignore = ["__pycache__", "test"]

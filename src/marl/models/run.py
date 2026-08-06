@@ -1,9 +1,9 @@
 import os
+from collections.abc import Collection
 from dataclasses import KW_ONLY, dataclass
 from functools import cached_property
 from pathlib import Path
 from signal import SIGINT, Signals
-from typing import Collection
 
 import numpy as np
 import polars as pl

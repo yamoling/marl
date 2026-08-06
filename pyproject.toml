@@ -10,6 +10,7 @@ dependencies = [
   "fastapi>=0.135.2",
   "jupyterlab>=4.3.4",
   "laser-learning-environment>=2.9",
+  "marimo>=0.23",
   "matplotlib>=3.10.8",
   "mplcursors>=0.6",
   "multi-agent-rlenv>=4.0.0",
@@ -36,9 +37,8 @@ dependencies = [
   "typed-argparse>=0.3.1",
   "uvicorn>=0.34.3",
   "wandb>=0.21.2",
-  "websockets>=12.0",
-  "marimo>=0.23",
   "webdavclient3>=3.14",
+  "websockets>=12.0",
 ]
 
 [project.optional-dependencies]
@@ -48,9 +48,9 @@ modern-gpu = ["torch"]
 [dependency-groups]
 dev = [
   "basedpyright>=1.39.3",
-  "marker-pdf>=1.10.2",
   "pyinstrument>=5.1.2",
   "pytest>=8.3.2",
+  "ruff>=0.16.1"
 ]
 
 [build-system]
@@ -77,6 +77,7 @@ default-groups = ["dev"]
 conflicts = [[{ extra = "legacy-gpu" }, { extra = "modern-gpu" }]]
 
 [tool.uv.sources]
+laser-learning-environment = { git = "https://github.com/yamoling/lle.git", branch = "generator" }
 smacv2 = { git = "https://github.com/oxwhirl/smacv2.git" }
 smac = { git = "https://github.com/oxwhirl/smac.git" }
 pysc2 = { git = "https://github.com/google-deepmind/pysc2.git", rev = "0df53d3" }

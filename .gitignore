@@ -216,4 +216,5 @@ prompt.md
 
 # Cloud sync cache
 .sync_cache.json
+.nextcloud-sync-cache.json
 layouts
