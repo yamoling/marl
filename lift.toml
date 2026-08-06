@@ -1,0 +1,9 @@
+width = 4
+height = 2
+world_string = """
+S0 . B0 TU0
+S1  . .  X
+;
+X  . .  .
+.  . .  .
+"""

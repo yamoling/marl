@@ -77,7 +77,7 @@ default-groups = ["dev"]
 conflicts = [[{ extra = "legacy-gpu" }, { extra = "modern-gpu" }]]
 
 [tool.uv.sources]
-laser-learning-environment = { git = "https://github.com/yamoling/lle.git", branch = "generator" }
+laser-learning-environment = { git = "https://github.com/yamoling/lle.git", branch = "kvan0005_master_thesis" }
 smacv2 = { git = "https://github.com/oxwhirl/smacv2.git" }
 smac = { git = "https://github.com/oxwhirl/smac.git" }
 pysc2 = { git = "https://github.com/google-deepmind/pysc2.git", rev = "0df53d3" }
