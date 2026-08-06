@@ -25,15 +25,15 @@ def from_env(
     network_class = registry.get(config)
     if network_class is not None:
         return network_class.from_env(env, duelling=duelling, noisy=noisy, independent=independent, **init_kwargs)
-    err_msg = "\n".join([f" - Shape Len: {s}, Recurrent: {r}" for s, r in registry.keys()])
+    err_msg = "\n".join([f" - Shape Len: {s}, Recurrent: {r}" for s, r in registry])
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")
 
 
 __all__ = [
-    "MAVENQnetwork",
-    "QMLP",
     "QCNN",
-    "QRNN",
     "QCRNN",
+    "QMLP",
+    "QRNN",
+    "MAVENQnetwork",
     "from_env",
 ]

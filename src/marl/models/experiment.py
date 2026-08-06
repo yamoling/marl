@@ -214,7 +214,9 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         return {
             "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
             "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
-            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
+            "Training data": stats.compute_experiment_results(
+                [run.training_data for run in runs], aggregate_by, granularity
+            ),
         }
 
     def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
