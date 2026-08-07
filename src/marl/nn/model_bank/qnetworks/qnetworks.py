@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Sequence
 
 import torch
 from marlenv import DiscreteMARLEnv
@@ -20,7 +20,9 @@ class QCNN(QNetwork):
     def __post_init__(self):
         super().__post_init__()
         assert len(self.obs_shape) == 3
-        self.cnn = CNN(self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation)
+        self.cnn = CNN(
+            self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation
+        )
         if self.noisy:
             self.noisy_layer = NoisyLinear(self.mlp_sizes[-1], self.output_size)
             self.mlp = MySequential(
@@ -106,7 +108,9 @@ class QMLP(QNetwork):
         duelling: bool = False,
         **kwargs,
     ):
-        return super().from_env(env, activation=activation, hidden_size=hidden_sizes, noisy=noisy, duelling=duelling, **kwargs)
+        return super().from_env(
+            env, activation=activation, hidden_sizes=hidden_sizes, noisy=noisy, duelling=duelling, **kwargs
+        )
 
 
 @dataclass
@@ -151,7 +155,9 @@ class QCRNN(RecurrentQNetwork):
     def __post_init__(self):
         super().__post_init__()
         assert len(self.obs_shape) == 3
-        self.cnn = CNN(self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation)
+        self.cnn = CNN(
+            self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation
+        )
         self.rnn = RNN(
             self.output_shape,
             self.cnn.output_size,

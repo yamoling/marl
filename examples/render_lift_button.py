@@ -19,7 +19,7 @@ from marl.env import LLEConfig
 from marl.runners import seeded_rollout
 
 # MAP_PATH = 2
-MAP_PATH = "./lift.toml"
+MAP_PATH = "./lift2.toml"
 
 OUTPUT_PATH = "lift_button_rollout.gif"
 
