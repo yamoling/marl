@@ -71,6 +71,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
+ignore = ["LOG015"]
 
 [tool.uv]
 # Default dependency groups: modern-gpu provides latest PyTorch, dev provides development tools
