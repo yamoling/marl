@@ -21,9 +21,11 @@ from tuning import Algo
 
 LOGDIR_PREFIX = "canonical-"
 POOL_DIRS = (
+    Path("layouts/canonicals/asymmetric"),
     Path("layouts/canonicals/convergent-2"),
     Path("layouts/canonicals/divergent-2"),
-    Path("layouts/canonicals/asymmetric"),
+    Path("layouts/canonicals/interdependent-2"),
+    Path("layouts/canonicals/sequential-2"),
 )
 
 
