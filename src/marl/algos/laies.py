@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from marl.models import NN, Batch, EpisodeMemory
 from marl.nn import mixers
 
-from .qmix import QMix
+from .dqn import DQN
 
 
 @dataclass(unsafe_hash=True)
@@ -79,7 +79,7 @@ class ExternalStateTransitionModel(NN):
 
 
 @dataclass(unsafe_hash=True)
-class LAIES(QMix):
+class LAIES(DQN):
     """QMIX with Lazy Agents Avoidance through Influencing External States.
 
     `external_state_indices` identifies the flattened global-state features that
@@ -105,8 +105,6 @@ class LAIES(QMix):
 
         @ai-generated
         """
-        if not isinstance(self.mixer, mixers.QMix):
-            raise TypeError("LAIES requires a QMIX mixer")
         if self.mixer.n_objectives != 1:
             raise ValueError("LAIES currently supports only scalar rewards")
         if not self.external_state_indices:

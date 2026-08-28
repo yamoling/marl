@@ -20,12 +20,18 @@ class Arguments(tap.TypedArgs):
     seed: int = tap.arg(default=0, help="The seed for the first run, subsequent ones are incremented by 1")
     n_tests: int = tap.arg(default=1, help="Number of tests to run")
     test_interval: int = tap.arg(default=5_000)
-    device: DeviceLike = tap.arg("--device", default="auto", help='Device to use ("auto", "cpu", "cuda:<gpu_id>", or int device index)')
+    device: DeviceLike = tap.arg(
+        "--device", default="auto", help='Device to use ("auto", "cpu", "cuda:<gpu_id>", or int device index)'
+    )
     gpu_strategy: Literal["scatter", "group"] = tap.arg(default="group")
     render: bool = tap.arg(default=False, help="Render the tests")
     disabled_devices: list[int] = tap.arg(default=[], help="Disabled GPU devices", nargs="*")
-    save_weights: bool = tap.arg("--save-weights", default=False, help="Whether to save the models' weights at each test interval")
-    no_save_actions: bool = tap.arg("--no-save-actions", default=False, help="Disable saving test actions at each test interval.")
+    save_weights: bool = tap.arg(
+        "--save-weights", default=False, help="Whether to save the models' weights at each test interval"
+    )
+    no_save_actions: bool = tap.arg(
+        "--no-save-actions", default=False, help="Disable saving test actions at each test interval."
+    )
     quiet: bool = tap.arg(default=False, help="Quiet mode disables progressbars and console logs.")
 
     @property
@@ -68,4 +74,6 @@ if __name__ == "__main__":
     try:
         tap.Parser(Arguments).bind(main).run()
     except Exception as e:
-        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)
+        logging.error(
+            f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
+        )

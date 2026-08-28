@@ -117,7 +117,7 @@ class ICM(IRModule):
             case ((size,), (n_extras,)):  # Linear
                 nn = model_bank.generic.MLP(output_shape, size, n_extras)
             case ((_, _, _) as dimensions, (n_extras,)):  # CNN
-                nn = model_bank.CNN(output_shape, dimensions, n_extras)
+                nn = model_bank.CNN(dimensions, output_activation=None)
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
         return ICM(nn, env.n_agents, env.n_actions, n_features=n_features)

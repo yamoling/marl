@@ -72,7 +72,7 @@ For parallel execution, set `n_jobs`, `gpu_strategy` (`"group"` or `"scatter"`),
 
 All relative log directory names are rooted under `logs/`:
 
-| `logdir` value          | Result                           | Existing directory behavior                                                                                                      |
+| `logdir` value          | Result                           | Existing directory behaviour                                                                                                     |
 | ----------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | `"baseline"`            | `logs/baseline`                  | Raises `FileExistsError` — experiment directories are unique.                                                                    |
 | `Path("logs/baseline")` | `logs/baseline`                  | Raises `FileExistsError`.                                                                                                        |
@@ -153,5 +153,5 @@ run_zero = experiment.get_run(0)
 
 - `save_weights=True` and `save_actions=True` are the defaults for `Experiment.run`. Disable either only when storage costs outweigh checkpointing or replay needs.
 - Test episodes are deterministically seeded by the runner, making per-step evaluation comparable across runs.
-- To replay stored evaluation behavior, use `experiment.replay_episode(run_seed, time_step, test_num)` when saved actions and/or checkpoints are available.
+- To replay stored evaluation behaviour, use `experiment.replay_episode(run_seed, time_step, test_num)` when saved actions and/or checkpoints are available.
 - Do not delete a named experiment merely to recreate it. The uniqueness error protects its provenance; choose a new name or deliberately use only the disposable `tmp`/`test` names.

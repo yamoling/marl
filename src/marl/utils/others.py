@@ -20,10 +20,7 @@ def seed[T: Space](seed: int, *envs: MARLEnv[T]):
         env.seed(seed)
 
 
-T = TypeVar("T")
-
-
-def defaults_to(value: T | None, default: Callable[[], T]) -> T:
+def defaults_to[T](value: T | None, default: Callable[[], T]) -> T:
     """
     Shortcut to retrieve a default value if the given one is None.
     """
