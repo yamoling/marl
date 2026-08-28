@@ -12,6 +12,7 @@ from lle import World
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from optuna.trial import FixedTrial
+import tuning
 from tuning import Algo, make_trainer
 
 import marl
@@ -123,7 +124,8 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
         train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
         test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
         params = load_best_params(args, algo, spec.study_map_name)
-        trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env)
+        tuning_args = tuning.Args(pool_dirs=[spec.path], n_steps=args.n_steps)
+        trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, tuning_args)
         print(params)
         exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
         logging.info("Created experiment in %s", exp.logdir)
