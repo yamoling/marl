@@ -97,6 +97,20 @@ class BMMLayer(torch.nn.Module):
         super().__init__()
         self.weight = torch.nn.Parameter(torch.empty(n_agents, in_features, out_features))
         self.bias = torch.nn.Parameter(torch.empty(n_agents, 1, out_features))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        """
+        Initialise the weights and biases like `torch.nn.Linear` does, i.e. with
+        `kaiming_uniform_(a=sqrt(5))`, which amounts to a uniform distribution over
+        `[-1/sqrt(fan_in), 1/sqrt(fan_in)]`.
+
+        The bound is computed explicitly because `kaiming_uniform_` would infer `fan_in` from the
+        wrong dimensions of the batched (n_agents, in_features, out_features) weight.
+        """
+        bound = 1 / math.sqrt(self.in_features) if self.in_features > 0 else 0.0
+        torch.nn.init.uniform_(self.weight, -bound, bound)
+        torch.nn.init.uniform_(self.bias, -bound, bound)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.bmm(x, self.weight) + self.bias
@@ -105,7 +119,14 @@ class BMMLayer(torch.nn.Module):
 class ILinear(torch.nn.Module):
     """Independent (agent-wise) Linear layer implemented as a batched matrix multiplication."""
 
-    def __init__(self, n_agents: int, in_features: int, out_features: int, transpose_in: bool = False, transpose_out: bool = False):
+    def __init__(
+        self,
+        n_agents: int,
+        in_features: int,
+        out_features: int,
+        transpose_in: bool = False,
+        transpose_out: bool = False,
+    ):
         super().__init__()
         self.nn = torch.nn.Sequential()
         if transpose_in:

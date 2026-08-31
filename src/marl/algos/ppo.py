@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -70,6 +70,18 @@ class PPO(Trainer):
             params.append({"params": self.mixer.parameters(), "lr": lr_critic, "name": "mixer parameters"})
         return params
 
+    def add_intrinsic_rewards(self, batch: Batch, time_step: int) -> dict[str, Any]:
+        """
+        Add the intrinsic rewards to the batch rewards (in place) and update the intrinsic reward module.
+
+        # Returns
+            dict[str, Any]: intrinsic-reward metrics to log.
+        """
+        if self.ir_module is None:
+            return {}
+        batch.rewards = batch.rewards + self.ir_module.compute(batch)
+        return self.ir_module.update(batch, time_step)
+
     def _compute_training_data(self, batch: Batch):
         """Compute the returns, advantages and action log_probs according to the current policy"""
         values = self.critic.value(batch.obs, batch.extras)
@@ -96,8 +108,7 @@ class PPO(Trainer):
         self.c2.update(step_num)
         if self.mixer is None:
             batch = batch.for_individual_learners()
-        if self.ir_module is not None:
-            batch.rewards = batch.rewards + self.ir_module.compute(batch)
+        ir_logs = self.add_intrinsic_rewards(batch, step_num)
         with torch.no_grad():
             old_dist = self.actor.policy(batch.obs, batch.extras, available_actions=batch.available_actions)
             old_log_probs = old_dist.log_prob(batch.actions)
@@ -186,6 +197,7 @@ class PPO(Trainer):
             log_lists["ratios"].append(ratio.detach().cpu().numpy())
             log_lists["entropies"].append(entropy.detach().cpu().numpy())
         return {
+            **ir_logs,
             "early_stopped": early_stopped,
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
