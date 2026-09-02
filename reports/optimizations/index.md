@@ -41,7 +41,7 @@ each optimization, so they compound (later baselines already include earlier gai
 | 4. Foreach soft target update | `79d2e585` | +3.0% | – | – |
 | 2. PPO minibatches by device indexing | `58f7bb5f` | – | +14.3% | +6.8% |
 | 3. Single-pass `TransitionBatch` packing | `609494a1` | +4.7% | – | – |
-| 8. Pinned staging for action selection | `959eb444` | +0.8% | +2.1% | +1.7% |
+| 8. Pinned staging for action selection | `a17602d2` | +0.8% | +2.1% | +1.7% |
 
 Reference throughput before and after the campaign (warm GPU, same benchmark): VDN 380 → ~405 steps/s, MAPPO 282 → ~355 steps/s,
 IPPO 295 → ~355 steps/s, i.e. roughly +7% for VDN and +20–25% for the PPO variants. These end-to-end figures come from the baseline
