@@ -1,5 +1,6 @@
 from typing import Optional
 
+import numpy as np
 import torch
 from marlenv import Transition
 from marlenv.catalog import DiscreteMockEnv
@@ -205,3 +206,43 @@ def test_transition_batch_for_individual_learners_order_independent_of_minibatch
     assert torch.equal(minibatch_from_parent.rewards, minibatch_then_expanded.rewards)
     assert torch.equal(minibatch_from_parent.dones, minibatch_then_expanded.dones)
     assert torch.equal(minibatch_from_parent.masks, minibatch_then_expanded.masks)
+
+
+def test_transition_batch_single_pass_packing_matches_reference():
+    """The single-pass-packed fields (`TransitionBatch._pack`) must match the values, dtypes and
+    shapes of the reference per-field computation (`np.array([t.<field> for t in transitions])` then
+    `torch.from_numpy`), which is how each field used to be computed independently.
+
+    @ai-generated
+    """
+    batch = _make_batch(16, step_reward=1.5)
+    transitions = batch.transitions
+
+    fresh = marl.models.batch.TransitionBatch(transitions)
+
+    reference = {
+        "obs": torch.from_numpy(np.array([t.obs.data for t in transitions], dtype=np.float32)),
+        "next_obs": torch.from_numpy(np.array([t.next_obs.data for t in transitions], dtype=np.float32)),
+        "extras": torch.from_numpy(np.array([t.obs.extras for t in transitions], dtype=np.float32)),
+        "next_extras": torch.from_numpy(np.array([t.next_obs.extras for t in transitions], dtype=np.float32)),
+        "actions": torch.from_numpy(np.array([t.action for t in transitions])),
+        "rewards": torch.from_numpy(np.array([t.reward for t in transitions], dtype=np.float32)).squeeze(-1),
+        "available_actions": torch.from_numpy(np.array([t.obs.available_actions for t in transitions], dtype=bool)),
+        "next_available_actions": torch.from_numpy(
+            np.array([t.next_obs.available_actions for t in transitions], dtype=bool)
+        ),
+    }
+    np_dones = np.array([t.done for t in transitions], dtype=bool)
+    dones = torch.from_numpy(np_dones)
+    if reference["rewards"].dim() > 1:
+        dones = dones.unsqueeze(-1).expand_as(reference["rewards"])
+    reference["dones"] = dones
+
+    for field, expected in reference.items():
+        actual = getattr(fresh, field)
+        assert actual.dtype == expected.dtype, f"Mismatch dtype for field {field!r}"
+        assert actual.shape == expected.shape, f"Mismatch shape for field {field!r}"
+        assert torch.equal(actual, expected), f"Mismatch values for field {field!r}"
+
+    # `masks` is allocated directly on the batch's device rather than moved after the fact.
+    assert torch.equal(fresh.masks, torch.ones(len(transitions)))

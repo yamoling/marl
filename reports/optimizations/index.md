@@ -22,7 +22,7 @@ default is 6 alternations per algorithm to reduce the noise further.
 |--:|---|---|---|
 | 1 | [PPO metrics aggregated on device](01-ppo-metrics-on-device.md) | MAPPO, IPPO | discarded (no effect) |
 | 2 | [PPO minibatches by device indexing](02-ppo-minibatch-device-indexing.md) | MAPPO, IPPO | kept: MAPPO +14.3%, IPPO +6.8% |
-| 3 | [Single-pass, pinned `TransitionBatch` packing](03-transition-batch-single-pass.md) | VDN, MAPPO, IPPO | pending |
+| 3 | [Single-pass `TransitionBatch` packing](03-transition-batch-single-pass.md) | VDN, MAPPO, IPPO | kept (unpinned): VDN +4.7%, PPO unchanged |
 | 4 | [Foreach soft target update](04-soft-update-foreach.md) | VDN (and all DQN variants) | kept: VDN +2.8% / +3.3% in two paired runs |
 | 5 | [Fused Adam/AdamW on CUDA](05-fused-adam.md) | VDN, MAPPO, IPPO | kept: VDN +2.8%, MAPPO +6.9%, IPPO +4.1% |
 | 6 | [GAE and returns without per-step kernels](06-ppo-gae-vectorization.md) | MAPPO, IPPO | pending |
