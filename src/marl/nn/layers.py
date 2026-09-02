@@ -95,6 +95,7 @@ class TransposeLayer(torch.nn.Module):
 class BMMLayer(torch.nn.Module):
     def __init__(self, n_agents: int, in_features: int, out_features: int):
         super().__init__()
+        self.in_features = in_features
         self.weight = torch.nn.Parameter(torch.empty(n_agents, in_features, out_features))
         self.bias = torch.nn.Parameter(torch.empty(n_agents, 1, out_features))
         self.reset_parameters()

@@ -96,6 +96,7 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | DDPG | ✗ | ✗ | Continuous control |
 | Option-Critic | ✗ | ? | Hierarchical RL |
 | RND | ✓ | ✓ | Random Network Distillation |
+| Social Influence | ✗ | ✓ | Causal influence intrinsic reward with a Model of Other Agents (on top of IPPO/MAPPO) |
 | ICM | ✓ | ? | Intrinsic Curiosity Module |
 | HAVEN | ✗ | ✗ | Hierarchical MARL with intrinsic motivation |
 | REINFORCE | ✗ | ✓ | Policy gradient method |

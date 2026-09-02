@@ -2,7 +2,6 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import numpy.typing as npt
 
 from marl.models import Action, Agent
 
@@ -73,3 +72,7 @@ class SimpleReplayAgent(ReplayAgent):
 
     def choose_action(self, observation, *, with_details=False):
         return self.agent.choose_action(observation, with_details=with_details)
+
+    def set_testing(self):
+        self.agent.set_testing()
+        return super().set_testing()

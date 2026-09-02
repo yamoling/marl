@@ -1,6 +1,6 @@
 from .ddpg import DDPG
 from .dqn import DQN
-from .intrinsic_reward import RND
+from .intrinsic_reward import RND, ModelOfOtherAgents, SocialInfluence
 from .laies import LAIES
 from .maven import MAVEN
 from .no_train import NoTrain
@@ -24,12 +24,14 @@ __all__ = [
     "RND",
     "VDN",
     "HardUpdate",
+    "ModelOfOtherAgents",
     "NoTrain",
     "OptionCritic",
     "QLearning",
     "QMix",
     "QPlex",
     "Reinforce",
+    "SocialInfluence",
     "SoftUpdate",
     "TargetParametersUpdater",
     "intrinsic_reward",
