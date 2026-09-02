@@ -25,11 +25,43 @@ default is 6 alternations per algorithm to reduce the noise further.
 | 3 | [Single-pass `TransitionBatch` packing](03-transition-batch-single-pass.md) | VDN, MAPPO, IPPO | kept (unpinned): VDN +4.7%, PPO unchanged |
 | 4 | [Foreach soft target update](04-soft-update-foreach.md) | VDN (and all DQN variants) | kept: VDN +2.8% / +3.3% in two paired runs |
 | 5 | [Fused Adam/AdamW on CUDA](05-fused-adam.md) | VDN, MAPPO, IPPO | kept: VDN +2.8%, MAPPO +6.9%, IPPO +4.1% |
-| 6 | [GAE and returns without per-step kernels](06-ppo-gae-vectorization.md) | MAPPO, IPPO | pending |
-| 7 | [Deferred DQN metric synchronization](07-dqn-deferred-sync.md) | VDN | pending |
-| 8 | [Single pinned transfer for per-step action selection](08-action-selection-transfer.md) | all | pending |
-| 9 | [Channels-last CNN](09-channels-last.md) | all (low priority) | pending |
+| 6 | [GAE and returns without per-step kernels](06-ppo-gae-vectorization.md) | MAPPO, IPPO | discarded (MAPPO -0.3%, IPPO +2.5%) |
+| 7 | [Deferred DQN metric synchronization](07-dqn-deferred-sync.md) | VDN | discarded (no effect, VDN -0.9%) |
+| 8 | [Single pinned transfer for per-step action selection](08-action-selection-transfer.md) | all | discarded (no effect) |
+| 9 | [Channels-last CNN](09-channels-last.md) | all (low priority) | discarded (regression -1.4% to -2.3%) |
 
 ## Summary of results
 
-Filled in as optimizations are evaluated.
+Four optimizations were kept and committed, five were discarded. Steps/s changes are paired A/B means against the commit preceding
+each optimization, so they compound (later baselines already include earlier gains).
+
+| Optimization | Commit | VDN | MAPPO | IPPO |
+|---|---|---:|---:|---:|
+| 5. Fused Adam/AdamW on CUDA | `8e00cad0` | +2.8% | +6.9% | +4.1% |
+| 4. Foreach soft target update | `79d2e585` | +3.0% | – | – |
+| 2. PPO minibatches by device indexing | `58f7bb5f` | – | +14.3% | +6.8% |
+| 3. Single-pass `TransitionBatch` packing | `609494a1` | +4.7% | – | – |
+
+Reference throughput before and after the campaign (warm GPU, same benchmark): VDN 380 → ~405 steps/s, MAPPO 282 → ~355 steps/s,
+IPPO 295 → ~355 steps/s, i.e. roughly +7% for VDN and +20–25% for the PPO variants. These end-to-end figures come from the baseline
+columns of successive A/B runs and carry the same ±3–5% drift as the individual measurements.
+
+Discarded: 1 (PPO metrics on device), 6 (GAE on host), 7 (deferred DQN sync), 8 (pinned per-step transfers) had no measurable effect;
+9 (channels-last) regressed by 1–2%.
+
+### Lessons
+
+- The training update is GPU-bound for these small networks. Removing host-side synchronization (1, 7) or Python overhead does not
+  increase throughput; only changes that remove GPU kernels or host-to-device copies do (2, 3, 4, 5).
+- Single-run throughput comparisons are unreliable on this GPU (identical code varied by up to 13%). Use the paired A/B mode of the
+  benchmark script with at least six alternations.
+- Remaining large levers are structural: vectorized environments to batch action selection (still ~20% of host time), and compiling
+  the whole PPO epoch (forward, backward, clipping, optimizer) as one graph to cut kernel launches further.
+
+### Reproducing an evaluation
+
+```bash
+git worktree add /tmp/marl-baseline HEAD            # committed baseline
+# ... edit the working tree ...
+uv run python .agents/experiments/optimizations/bench.py --ab <label> --algos vdn mappo ippo
+```
