@@ -55,6 +55,37 @@ class TestSoftUpdate:
         updater = SoftUpdate(tau=0.1)
         assert updater.update(0) == {}
 
+    def test_matches_reference_formula_over_several_updates_with_varied_shapes(self):
+        """
+        Compare the foreach-based SoftUpdate.update against the previous elementwise formula
+        `(1 - tau) * target + tau * param`, applied independently to a set of reference tensors
+        with different shapes, after several updates with random parameters.
+
+        @ai-generated
+        """
+        torch.manual_seed(0)
+        tau = 0.3
+        shapes = [(1,), (3,), (2, 4), (5, 5, 2)]
+
+        params = [torch.nn.Parameter(torch.randn(shape)) for shape in shapes]
+        targets = [torch.nn.Parameter(torch.randn(shape)) for shape in shapes]
+        reference_targets = [t.data.clone() for t in targets]
+
+        updater = SoftUpdate(tau=tau)
+        updater.add_parameters(params, targets)
+
+        for t in range(1, 6):
+            # Randomize parameters between updates to exercise a non-trivial trajectory.
+            for param in params:
+                param.data = torch.randn_like(param.data)
+            updater.update(t)
+
+            for ref_target, param in zip(reference_targets, params):
+                ref_target.copy_((1 - tau) * ref_target + tau * param.data)
+
+        for target, ref_target in zip(targets, reference_targets):
+            assert torch.allclose(target.data, ref_target, atol=1e-6)
+
 
 class TestHardUpdate:
     def test_rejects_non_positive_period(self):

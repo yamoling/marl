@@ -45,11 +45,23 @@ class HardUpdate(TargetParametersUpdater):
         assert self.update_period > 0, "Update period must be positive"
         self._update_num = 0
 
+    @torch.no_grad()
     def update(self, time_step: int) -> dict[str, float]:
+        """
+        Copy the current parameters into the target parameters every `update_period` calls.
+
+        Uses `torch._foreach_copy_` to copy all parameter tensors in a single fused op instead of
+        looping in Python, falling back to a per-tensor `copy_` if the foreach variant is unavailable.
+
+        @ai-generated
+        """
         self._update_num += 1
         if self._update_num % self.update_period == 0:
-            for param, target in zip(self._parameters, self._target_params):
-                target.data.copy_(param.data, non_blocking=True)
+            try:
+                torch._foreach_copy_(self._target_params, self._parameters)
+            except (RuntimeError, NotImplementedError):
+                for param, target in zip(self._parameters, self._target_params):
+                    target.data.copy_(param.data, non_blocking=True)
         return {}
 
     def __hash__(self):
@@ -64,10 +76,23 @@ class SoftUpdate(TargetParametersUpdater):
         super().__post_init__()
         assert 0 < self.tau < 1, "Soft update ratio must be between 0 and 1"
 
+    @torch.no_grad()
     def update(self, time_step: int) -> dict[str, float]:
-        for param, target in zip(self._parameters, self._target_params):
-            new_value = (1 - self.tau) * target.data + self.tau * param.data
-            target.data.copy_(new_value, non_blocking=True)
+        """
+        Interpolate the target parameters towards the current parameters by a factor of `tau`.
+
+        Uses a single fused `torch._foreach_lerp_` call, equivalent to
+        `(1 - tau) * target + tau * param` for every tensor, instead of allocating temporaries and
+        looping in Python per parameter. Falls back to a per-tensor `lerp_` loop if the foreach
+        variant is unavailable or fails for the given device/dtype combination.
+
+        @ai-generated
+        """
+        try:
+            torch._foreach_lerp_(self._target_params, self._parameters, self.tau)
+        except (RuntimeError, NotImplementedError):
+            for param, target in zip(self._parameters, self._target_params):
+                target.data.lerp_(param.data, self.tau)
         return {}
 
     def __hash__(self):
