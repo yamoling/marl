@@ -118,7 +118,9 @@ def main() -> int:
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
         raise ValueError(f"{experiment_path} must contain a numeric n_steps value") from error
 
-    train_files = sorted(experiment_dir.glob("run-*/train.csv"))
+    train_files = sorted(
+        experiment_dir.glob("run-*/train.csv"), key=lambda path: int(path.parent.name.removeprefix("run-"))
+    )
     if not train_files:
         raise FileNotFoundError(f"No run-*/train.csv files found in {experiment_dir}")
 

@@ -104,7 +104,7 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
         **agent_status,
         "cooperative-trajectory": profile.is_cooperative,
         "asymmetric-trajectory": profile.is_asymmetric,
-        "chained-trajectory": profile.is_chained(2),
+        "chained-trajectory": profile.is_sequential(2),
         "convergent-trajectory": profile.is_convergent(),
         "divergent-trajectory": profile.is_divergent(),
         "interdependent-trajectory": profile.is_interdependent(2),
