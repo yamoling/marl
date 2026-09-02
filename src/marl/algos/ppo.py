@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import numpy as np
 import torch
@@ -52,14 +52,34 @@ class PPO(Trainer):
         self._parameters = [*self.actor.parameters(), *self.critic.parameters()]
         if self.mixer is not None:
             self._parameters += self.mixer.parameters()
-        param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
-        self._optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
+        self._optimizer = self._make_optimizer()
 
     @property
     def name(self):
         if self.mixer is None:
             return "IPPO"
         return f"MAPPO-{self.mixer.name}"
+
+    def to(self, device: torch.device) -> Self:
+        """
+        Send the networks to the given device and rebuild the optimizer so that it can use the fused
+        implementation on CUDA. `Module.to` moves parameters in place, so the parameter objects referenced
+        by the rebuilt optimizer are identical to the ones already updated in-place before this call.
+
+        @ai-generated
+        """
+        super().to(device)
+        self._optimizer = self._make_optimizer(fused=device.type == "cuda")
+        return self
+
+    def _make_optimizer(self, fused: bool = False):
+        """
+        Build the AdamW optimizer over the actor, critic and mixer parameter groups.
+
+        @ai-generated
+        """
+        param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
+        return torch.optim.AdamW(param_groups, eps=1e-5, fused=fused)
 
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [

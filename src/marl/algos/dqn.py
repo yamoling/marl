@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal
+from typing import Literal, Self
 
 import torch
 from marlenv import Episode, Observation, State, Transition
@@ -59,11 +59,33 @@ class DQN[M: (Mixer | None)](Trainer):
         if self.mixer is not None:
             assert self.target_mixer is not None
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
+        self.optimiser = self._make_optimiser()
+
+    def to(self, device: torch.device) -> Self:
+        """
+        Send the networks to the given device and rebuild the optimiser so that it can use the fused
+        implementation on CUDA. `Module.to` moves parameters in place, so the parameter objects referenced
+        by `self.target_updater.parameters` (and by the rebuilt optimiser) are identical to the ones already
+        updated in-place before this call.
+
+        @ai-generated
+        """
+        super().to(device)
+        self.optimiser = self._make_optimiser(fused=device.type == "cuda")
+        return self
+
+    def _make_optimiser(self, fused: bool = False):
+        """
+        Build the optimiser over the online network (and mixer) parameters. `fused` only applies to Adam and
+        requires the parameters to live on CUDA.
+
+        @ai-generated
+        """
         match self.optimiser_type:
             case "adam":
-                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=self.lr)
+                return torch.optim.Adam(self.target_updater.parameters, lr=self.lr, fused=fused)
             case "rmsprop":
-                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
+                return torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
@@ -134,14 +156,18 @@ class DQN[M: (Mixer | None)](Trainer):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
-    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False) -> dict[str, torch.Tensor]:
+    def get_mixing_kwargs(
+        self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False
+    ) -> dict[str, torch.Tensor]:
         return {}
 
     def _compute_qvalues(self, batch: Batch):
         all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
         qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues))
+            qvalues = self.mixer.forward(
+                qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues)
+            )
         return all_qvalues, qvalues
 
     def _compute_td_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch):
@@ -165,7 +191,9 @@ class DQN[M: (Mixer | None)](Trainer):
         self.optimiser.zero_grad()
         td_loss.backward()
         if self.grad_norm_clipping is not None:
-            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(
+                self.target_updater.parameters, self.grad_norm_clipping
+            ).item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
         return logs
@@ -202,7 +230,11 @@ class DQN[M: (Mixer | None)](Trainer):
                 if self.mixer is None:
                     return float(max_qvalues.mean().item())
                 value = self.mixer.forward(
-                    max_qvalues, state_data, state_extras, all_qvalues=qvalues, one_hot_actions=torch.zeros_like(qvalues)
+                    max_qvalues,
+                    state_data,
+                    state_extras,
+                    all_qvalues=qvalues,
+                    one_hot_actions=torch.zeros_like(qvalues),
                 )
                 return float(value.item())
         except Exception:
