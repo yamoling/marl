@@ -96,7 +96,7 @@ class QNetwork(NN):
 
         class ActorFromQNet(CategoricalActor):
             def __init__(self, qnet: QNetwork):
-                super().__init__(self.n_actions, self.obs_shape, self.extras_shape)
+                super().__init__(qnet.n_actions, qnet.obs_shape, qnet.extras_shape)
                 self.qnet = qnet
 
             def __hash__(self):

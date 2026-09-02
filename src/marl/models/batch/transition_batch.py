@@ -50,15 +50,6 @@ class TransitionBatch(Batch):
     def extend(self, data: list[Transition]) -> Batch:
         return TransitionBatch(self.transitions + data, self.device)
 
-    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
-        if isinstance(next_value, (float, int)):
-            next_value = torch.full_like(self.rewards[0], next_value)
-        returns = [next_value] * self.size
-        for t in range(self.size - 2, -1, -1):
-            next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
-            returns[t] = next_value
-        return torch.stack(returns)
-
     @cached_property
     def obs(self):
         return torch.from_numpy(np.array([t.obs.data for t in self.transitions], dtype=np.float32)).to(self.device)

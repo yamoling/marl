@@ -20,9 +20,8 @@ from typing import Literal
 import pytest
 from marlenv.catalog import DiscreteMockEnv
 
-from marl import Experiment, training
+from marl import Experiment, algos
 from marl.env import EnvConfig
-from marl.models import TransitionMemory
 from marl.nn.model_bank import qnetworks
 from marl.utils.serialization import DISCRIMINATOR_KEY, Serializable
 
@@ -90,9 +89,9 @@ class TestFlatDict:
         assert "label" in d
 
     def test_to_dict_excludes_non_init_state(self, atom):
-        """Only fields with init=True should appear (besides the discriminator)."""
+        """Only fields with init=True (plus the discriminator and the `name` property) should appear."""
         d = atom.to_dict()
-        keys = set(d.keys()) - {DISCRIMINATOR_KEY}
+        keys = set(d.keys()) - {DISCRIMINATOR_KEY, "name"}
         assert keys == {"x", "y", "label"}
 
     def test_to_dict_values_are_correct(self, atom):
@@ -370,14 +369,13 @@ def _make_dqn(*, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser
     from marl import policy
     from marl.algos.dqn import DQN
     from marl.algos.qtarget_updater import SoftUpdate
-    from marl.models import TransitionMemory
     from marl.nn.model_bank import qnetworks
 
     env = DiscreteMockEnv()
     return DQN(
         qnetwork=qnetworks.from_env(env),
         train_policy=policy.ArgMax(),
-        memory=TransitionMemory(memory_size),
+        memory_size=memory_size,
         mixer=None,
         lr=lr,
         batch_size=batch_size,
@@ -420,13 +418,8 @@ class TestDQNToDict:
         assert "obs_shape" in qd
         assert "hidden_sizes" in qd
 
-    def test_memory_serialized_with_own_discriminator(self, dqn):
-        d = dqn.to_dict()
-        assert isinstance(d["memory"], dict)
-        assert d["memory"][DISCRIMINATOR_KEY] == "TransitionMemory"
-
-    def test_memory_contains_max_size(self, dqn):
-        assert dqn.to_dict()["memory"]["max_size"] == 5_000
+    def test_memory_size_is_present(self, dqn):
+        assert dqn.to_dict()["memory_size"] == 5_000
 
     def test_target_updater_serialized_as_soft_update(self, dqn):
         d = dqn.to_dict()
@@ -528,14 +521,13 @@ class TestDQNDictRoundTrip:
         from marl import policy
         from marl.algos.dqn import DQN
         from marl.algos.qtarget_updater import HardUpdate
-        from marl.models import TransitionMemory
         from marl.nn.model_bank import qnetworks
 
         env = DiscreteMockEnv()
         dqn = DQN(
             qnetwork=qnetworks.from_env(env),
             train_policy=policy.ArgMax(),
-            memory=TransitionMemory(1_000),
+            memory_size=1_000,
             mixer=None,
             target_updater=HardUpdate(update_period=500),
         )
@@ -645,10 +637,20 @@ class TestDQNFileRoundTrip:
 
 
 def test_experiment_serialization():
+    from datetime import datetime
+
     env = EnvConfig.from_any(DiscreteMockEnv())
     exp = Experiment(
-        env,
-        training.DQN(qnetworks.from_env(env), TransitionMemory(50000), None),
+        n_steps=1_000_000,
+        logdir="logs/test-experiment-serialization",
+        loggers=("csv",),
+        creation_timestamp=datetime.now(),
+        trainer=algos.DQN(qnetworks.from_env(env), memory_size=50000, mixer=None),
+        env=env,
+        test_env=env,
     )
     json = exp.to_json()
-    restores = Experiment.from_json(json)
+    restored = Experiment.from_json(json)
+    assert isinstance(restored, Experiment)
+    assert restored.n_steps == exp.n_steps
+    assert type(restored.trainer).__name__ == "DQN"

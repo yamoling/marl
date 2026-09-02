@@ -131,11 +131,11 @@ class CategoricalActor(Actor[torch.distributions.Categorical]):
         class DiscreteOneHotActor(Actor[torch.distributions.OneHotCategorical]):
             def __init__(self, actor: CategoricalActor):
                 super().__init__(
-                    self.n_actions,
-                    self.obs_shape,
-                    self.extras_shape,
-                    independent=self.independent,
-                    n_agents=self.n_agents,
+                    actor.n_actions,
+                    actor.obs_shape,
+                    actor.extras_shape,
+                    independent=actor.independent,
+                    n_agents=actor.n_agents,
                 )
                 self.actor = actor
 

@@ -830,9 +830,9 @@ class TestRealClasses:
         call = trial.single_call("tau")
         assert call["method"] == "float"
         assert call["log"] is True
-        assert call["low"] == pytest.approx(1e-3)
-        assert call["high"] == pytest.approx(0.05)
-        assert 1e-3 <= result.tau <= 0.05
+        assert call["low"] == pytest.approx(1e-4)
+        assert call["high"] == pytest.approx(1e-1)
+        assert 1e-4 <= result.tau <= 1e-1
 
     def test_suggest_hard_update(self):
         from marl.algos.qtarget_updater import HardUpdate
@@ -871,7 +871,7 @@ class TestRealClasses:
             trial = study.ask()
             result = suggest(SoftUpdate, trial)
             study.tell(trial, result.tau)
-            assert 1e-3 <= result.tau <= 0.05
+            assert 1e-4 <= result.tau <= 1e-1
 
     def test_hard_update_period_bounds_with_real_optuna(self):
         import optuna
@@ -896,7 +896,7 @@ class TestDQNIntegration:
     """
     Full integration test: suggest() on DQN with real Optuna trials.
 
-    env-dependent fields (qnetwork, memory, mixer, train_policy, test_policy)
+    env-dependent fields (qnetwork, memory_size, mixer, train_policy, test_policy)
     are passed as overrides.  All other fields are auto-suggested.
     """
 
@@ -913,7 +913,6 @@ class TestDQNIntegration:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         from marl import policy
         from marl.algos.dqn import DQN
-        from marl.models.replay_memory import TransitionMemory
         from marl.nn.model_bank import qnetworks
 
         study = optuna.create_study()
@@ -922,13 +921,16 @@ class TestDQNIntegration:
             DQN,
             trial,
             qnetwork=qnetworks.from_env(env),
-            memory=suggest(TransitionMemory, trial),
+            memory_size=50_000,
             mixer=None,
             train_policy=policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
             # test_policy is overridden to avoid random failure from Policy
             # auto-collection (some concrete Policy subclasses such as
             # EpsilonGreedy require constructor args not available here).
             test_policy=policy.ArgMax(),
+            # vbe requires a QNetwork of its own (`rqf`) with no tuning() metadata and
+            # no default, so it cannot be auto-suggested without further overrides.
+            vbe=None,
         )
         return trainer, trial
 
