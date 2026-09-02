@@ -18,6 +18,7 @@ class Batch(ABC):
             device = torch.device("cpu")
         self.device = device
         self.importance_sampling_weights: Optional[torch.Tensor] = None
+        self._individual_learners_applied = False
 
     @abstractmethod
     def extend(self, data) -> Self:
@@ -26,12 +27,27 @@ class Batch(ABC):
         """
 
     def for_individual_learners(self) -> "Batch":
-        """Reshape rewards, dones such that each agent has its own (identical) signal."""
+        """
+        Reshape rewards, dones such that each agent has its own (identical) signal.
+
+        Idempotent: a batch that was already expanded (either directly, or by inheriting already-expanded
+        tensors from a parent batch through `get_minibatch`) is returned unchanged instead of being expanded
+        a second time.
+
+        @ai-generated
+        """
+        if self._individual_learners_applied:
+            return self
+        self._individual_learners_applied = True
         if (
             self.reward_size > 1
         ):  # Need to consider this case, because multiple rewards should be at the end and dones/masks are expanded when called (so rewards needs to be as is until then)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])
-            self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape[:-1], self.n_agents, self.masks.shape[-1])
+            self.dones = self.dones.repeat_interleave(self.n_agents).view(
+                *self.dones.shape[:-1], self.n_agents, self.dones.shape[-1]
+            )
+            self.masks = self.masks.repeat_interleave(self.n_agents).view(
+                *self.masks.shape[:-1], self.n_agents, self.masks.shape[-1]
+            )
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(
                 *self.rewards.shape[:-1], self.n_agents, self.rewards.shape[-1]
             )

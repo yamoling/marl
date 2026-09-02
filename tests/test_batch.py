@@ -130,3 +130,78 @@ def test_gae1_is_mc():
     mc = batch.compute_mc_advantages(GAMMA, all_values, normalize=False)
 
     assert torch.allclose(gae_1, mc)
+
+
+def test_transition_batch_get_minibatch_matches_fresh_batch():
+    """The device-indexing fast path of `get_minibatch` must produce the same tensors as building
+    a fresh `TransitionBatch` from the corresponding subset of transitions."""
+    batch = _make_batch(20, step_reward=1.5)
+    indices = [1, 3, 4, 7, 12, 19]
+
+    # Force materialization of every field on the parent batch, as `PPO.train` does before entering
+    # the epoch loop.
+    for field in (
+        "obs",
+        "next_obs",
+        "extras",
+        "next_extras",
+        "actions",
+        "rewards",
+        "dones",
+        "available_actions",
+        "masks",
+    ):
+        getattr(batch, field)
+
+    minibatch = batch.get_minibatch(indices)
+    expected = marl.models.batch.TransitionBatch([batch.transitions[i] for i in indices])
+
+    assert minibatch.size == expected.size
+    for field in (
+        "obs",
+        "next_obs",
+        "extras",
+        "next_extras",
+        "actions",
+        "rewards",
+        "dones",
+        "available_actions",
+        "masks",
+    ):
+        actual_value = getattr(minibatch, field)
+        expected_value = getattr(expected, field)
+        assert torch.equal(actual_value, expected_value), f"Mismatch for field {field!r}"
+
+
+def test_transition_batch_get_minibatch_unmaterialized_field_still_lazy():
+    """Fields never accessed on the parent batch must still be computable (lazily) on the minibatch."""
+    batch = _make_batch(20, step_reward=1.5)
+    indices = [0, 5, 10]
+
+    minibatch = batch.get_minibatch(indices)
+    expected = marl.models.batch.TransitionBatch([batch.transitions[i] for i in indices])
+
+    assert torch.equal(minibatch.states, expected.states)
+    assert torch.equal(minibatch.next_states, expected.next_states)
+
+
+def test_transition_batch_for_individual_learners_order_independent_of_minibatching():
+    """Applying `for_individual_learners` before or after `get_minibatch` must give the same result,
+    and applying it twice on the resulting minibatch (as `PPO.train` does) must be a no-op."""
+    indices = [2, 6, 9, 15]
+
+    # Order 1: expand on the parent, then slice. Simulate PPO calling `for_individual_learners` again on
+    # the resulting minibatch: it must be a no-op since the tensors are already agent-wise.
+    parent_first = _make_batch(20, step_reward=1.5)
+    parent_first.for_individual_learners()
+    minibatch_from_parent = parent_first.get_minibatch(indices)
+    minibatch_from_parent.for_individual_learners()
+
+    # Order 2: slice first (from an equivalent, not-yet-expanded batch), then expand on the child only.
+    batch = _make_batch(20, step_reward=1.5)
+    minibatch_then_expanded = batch.get_minibatch(indices)
+    minibatch_then_expanded.for_individual_learners()
+
+    assert torch.equal(minibatch_from_parent.rewards, minibatch_then_expanded.rewards)
+    assert torch.equal(minibatch_from_parent.dones, minibatch_then_expanded.dones)
+    assert torch.equal(minibatch_from_parent.masks, minibatch_then_expanded.masks)

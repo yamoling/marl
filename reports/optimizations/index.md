@@ -11,12 +11,17 @@ first run after a cold start (fresh inductor cache, idle GPU clocks) is 3–6% s
 used as a reference. Run-to-run noise on a warm GPU is about ±2%, so anything within that band is treated as "no effect" and discarded;
 borderline gains are re-measured before a decision.
 
+Because single-shot comparisons against a stored baseline proved unreliable (identical code differed by up to 13% between runs),
+optimizations 5 onwards are evaluated with the paired A/B mode of the benchmark script (`--ab`), which alternates a git worktree of the
+committed baseline and the working tree in the same session. Optimizations 4 and 5 used 3 alternations; from optimization 2 onwards the
+default is 6 alternations per algorithm to reduce the noise further.
+
 ## Table of contents
 
 | # | Optimization | Targets | Status |
 |--:|---|---|---|
 | 1 | [PPO metrics aggregated on device](01-ppo-metrics-on-device.md) | MAPPO, IPPO | discarded (no effect) |
-| 2 | [PPO minibatches by device indexing](02-ppo-minibatch-device-indexing.md) | MAPPO, IPPO | pending |
+| 2 | [PPO minibatches by device indexing](02-ppo-minibatch-device-indexing.md) | MAPPO, IPPO | kept: MAPPO +14.3%, IPPO +6.8% |
 | 3 | [Single-pass, pinned `TransitionBatch` packing](03-transition-batch-single-pass.md) | VDN, MAPPO, IPPO | pending |
 | 4 | [Foreach soft target update](04-soft-update-foreach.md) | VDN (and all DQN variants) | kept: VDN +2.8% / +3.3% in two paired runs |
 | 5 | [Fused Adam/AdamW on CUDA](05-fused-adam.md) | VDN, MAPPO, IPPO | kept: VDN +2.8%, MAPPO +6.9%, IPPO +4.1% |

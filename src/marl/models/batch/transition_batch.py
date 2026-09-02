@@ -41,11 +41,47 @@ class TransitionBatch(Batch):
         return res
 
     def get_minibatch(self, indices_or_size):
+        """
+        Return a minibatch built by index-selecting this batch's already materialized device tensors,
+        instead of rebuilding a `TransitionBatch` from the raw `Transition` objects (which would re-run
+        `np.array`/`torch.from_numpy` and a host-to-device copy for every field, every time this method is
+        called).
+
+        @ai-generated
+        """
         if isinstance(indices_or_size, int):
             indices = np.random.choice(self.size, indices_or_size, replace=False)
         else:
             indices = indices_or_size
-        return TransitionBatch([self.transitions[i] for i in indices], self.device)
+        index_tensor = torch.as_tensor(indices, dtype=torch.long, device=self.device)
+        return self._index_select(index_tensor)
+
+    def _index_select(self, index_tensor: torch.Tensor) -> "TransitionBatch":
+        """
+        Build a child `TransitionBatch` out of index-selections of this batch's already materialized
+        tensors (both `__dict__` cached-property values and the `_cache` dict used by `__getitem__`).
+
+        Fields that were never materialized on this (parent) batch are left untouched: the child keeps a
+        sliced `transitions` list, so those fields still work lazily (computed from the small minibatch of
+        transitions the first time they are accessed), they are simply not pre-indexed here.
+
+        @ai-generated
+        """
+        index_list = index_tensor.tolist()
+        child = TransitionBatch.__new__(TransitionBatch)
+        child.transitions = [self.transitions[i] for i in index_list]
+        Batch.__init__(child, len(child.transitions), self.n_agents, self.device)
+        child._cache = {}
+        child._individual_learners_applied = self._individual_learners_applied
+        for key, value in self.__dict__.items():
+            if key == "transitions":
+                continue
+            if isinstance(value, torch.Tensor) and value.shape[:1] == (self.size,):
+                child.__dict__[key] = value[index_tensor]
+        for key, value in self._cache.items():
+            if isinstance(value, torch.Tensor) and value.shape[:1] == (self.size,):
+                child._cache[key] = value[index_tensor]
+        return child
 
     def extend(self, data: list[Transition]) -> Batch:
         return TransitionBatch(self.transitions + data, self.device)
@@ -64,7 +100,9 @@ class TransitionBatch(Batch):
 
     @cached_property
     def next_extras(self):
-        return torch.from_numpy(np.array([t.next_obs.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.next_obs.extras for t in self.transitions], dtype=np.float32)).to(
+            self.device
+        )
 
     @cached_property
     def actions(self):
@@ -89,11 +127,15 @@ class TransitionBatch(Batch):
 
     @cached_property
     def available_actions(self):
-        return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.bool)).to(self.device)
+        return torch.from_numpy(np.array([t.obs.available_actions for t in self.transitions], dtype=np.bool)).to(
+            self.device
+        )
 
     @cached_property
     def next_available_actions(self):
-        return torch.from_numpy(np.array([t.next_obs.available_actions for t in self.transitions], dtype=np.bool)).to(self.device)
+        return torch.from_numpy(np.array([t.next_obs.available_actions for t in self.transitions], dtype=np.bool)).to(
+            self.device
+        )
 
     @cached_property
     def states(self):
@@ -105,11 +147,15 @@ class TransitionBatch(Batch):
 
     @cached_property
     def next_states(self):
-        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(
+            self.device
+        )
 
     @cached_property
     def next_states_extras(self):
-        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(
+            self.device
+        )
 
     @cached_property
     def masks(self):
