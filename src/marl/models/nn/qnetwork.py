@@ -6,6 +6,7 @@ import torch
 from marlenv import DiscreteMARLEnv, Observation
 
 from marl.env import EnvConfig
+from marl.utils import PinnedStagingBuffer
 
 from .nn import NN, RecurrentNN
 
@@ -48,6 +49,8 @@ class QNetwork(NN):
             self.action_dim = -2
         if self.duelling and self.n_objectives != 1:
             raise NotImplementedError("Multi-objective is currently not supported with duelling DQN.")
+        self._obs_stager = PinnedStagingBuffer()
+        self._extras_stager = PinnedStagingBuffer()
 
     def _get_qvalues(self, outputs: torch.Tensor):
         if not self.duelling:
@@ -73,8 +76,19 @@ class QNetwork(NN):
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
         Compute the Q-values (one per agent, per action and per objective).
+
+        On CUDA, the observation is staged through reusable pinned host buffers
+        (`PinnedStagingBuffer`) and transferred with non-blocking copies instead of the default
+        pageable `Observation.as_tensors` transfer. CPU behaviour is unchanged.
+
+        @ai-generated
         """
-        obs_tensor, extra_tensor = obs.as_tensors(self.device)
+        device = self.device
+        if device.type == "cuda":
+            obs_tensor = self._obs_stager.to(obs.data, device)
+            extra_tensor = self._extras_stager.to(obs.extras, device)
+        else:
+            obs_tensor, extra_tensor = obs.as_tensors(device)
         outputs = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         qvalues = self._get_qvalues(outputs)
         return qvalues.squeeze(0)

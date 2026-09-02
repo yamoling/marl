@@ -7,6 +7,7 @@ import torch
 from marlenv.models import Observation
 
 from marl.models import Action, Agent
+from marl.utils import PinnedStagingBuffer
 
 if TYPE_CHECKING:
     from marl.models import Actor
@@ -16,10 +17,31 @@ class SimpleAgent[T: torch.distributions.Distribution](Agent):
     def __init__(self, actor: Actor[T]):
         super().__init__()
         self.actor = actor
+        self._data_stager = PinnedStagingBuffer()
+        self._extras_stager = PinnedStagingBuffer()
+        self._available_actions_stager = PinnedStagingBuffer()
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
+        """
+        Select an action from the observation.
+
+        On CUDA, the observation fields are staged through reusable pinned host buffers
+        (`PinnedStagingBuffer`) and transferred with non-blocking copies instead of the default
+        per-field pageable `Observation.as_tensors` transfer. CPU behaviour is unchanged.
+
+        @ai-generated
+        """
         with torch.no_grad():
-            obs_data, obs_extras, available_actions = observation.as_tensors(self._device, batch_dim=True, actions=True)
+            if self._device.type == "cuda":
+                obs_data = self._data_stager.to(observation.data, self._device).unsqueeze(0)
+                obs_extras = self._extras_stager.to(observation.extras, self._device).unsqueeze(0)
+                available_actions = self._available_actions_stager.to(
+                    observation.available_actions, self._device
+                ).unsqueeze(0)
+            else:
+                obs_data, obs_extras, available_actions = observation.as_tensors(
+                    self._device, batch_dim=True, actions=True
+                )
             distribution = self.actor.policy(obs_data, obs_extras, available_actions=available_actions)
         actions = distribution.sample().squeeze(0).numpy(force=True)
         if with_details:

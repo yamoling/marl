@@ -50,4 +50,10 @@ kernel launches of the compiled network and the synchronizing device-to-host rea
 host-to-device copies, so replacing pageable copies with pinned ones is not measurable. A real reduction requires batching several
 environments per forward pass (vectorized runner), which is out of scope here.
 
-**Decision:** discarded (no effect). The change was reverted.
+**Decision:** kept (committed), on the user's call, even though the measurement is within noise. The change is self-contained and
+cannot be slower in principle: it replaces two or three pageable copies per step by one pinned non-blocking copy each, and the CPU
+path is untouched. It also puts the staging machinery in place for a future vectorized runner, where several observations would be
+packed into one buffer and the transfer would actually become measurable.
+
+Verified after restoring the change: 471 tests pass, and a 300-step CUDA run of VDN and IPPO completes normally through both the
+`QNetwork.qvalues` and `SimpleAgent.choose_action` staging paths.
