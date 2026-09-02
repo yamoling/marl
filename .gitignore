@@ -213,7 +213,7 @@ plots/
 maps/
 prompt.md
 .agents/scratches
-
+.agents/experiments
 # Cloud sync cache
 .sync_cache.json
 .nextcloud-sync-cache.json
