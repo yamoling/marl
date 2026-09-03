@@ -1,3 +1,4 @@
+from .acer import ACER
 from .ddpg import DDPG
 from .dqn import DQN
 from .intrinsic_reward import RND, ModelOfOtherAgents, SocialInfluence
@@ -15,6 +16,7 @@ from .reinforce import Reinforce
 from .vdn import VDN
 
 __all__ = [
+    "ACER",
     "DDPG",
     "DQN",
     "LAIES",

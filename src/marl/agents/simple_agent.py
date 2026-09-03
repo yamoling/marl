@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -14,9 +13,12 @@ if TYPE_CHECKING:
 
 
 class SimpleAgent[T: torch.distributions.Distribution](Agent):
-    def __init__(self, actor: Actor[T]):
+    def __init__(self, actor: Actor[T], record_probabilities: bool = False):
         super().__init__()
         self.actor = actor
+        self.record_probabilities = record_probabilities
+        """Whether to always return the probabilities of the behaviour policy while training. Off-policy
+        actor-critic algorithms such as ACER need them to compute their importance sampling weights."""
         self._data_stager = PinnedStagingBuffer()
         self._extras_stager = PinnedStagingBuffer()
         self._available_actions_stager = PinnedStagingBuffer()
@@ -29,8 +31,12 @@ class SimpleAgent[T: torch.distributions.Distribution](Agent):
         (`PinnedStagingBuffer`) and transferred with non-blocking copies instead of the default
         per-field pageable `Observation.as_tensors` transfer. CPU behaviour is unchanged.
 
+        When `record_probabilities` is set, the details (and thus the probabilities of the behaviour
+        policy) are always computed while training, such that they are stored in the transitions.
+
         @ai-generated
         """
+        with_details = with_details or (self.record_probabilities and self.is_training)
         with torch.no_grad():
             if self._device.type == "cuda":
                 obs_data = self._data_stager.to(observation.data, self._device).unsqueeze(0)
