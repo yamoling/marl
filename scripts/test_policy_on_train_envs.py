@@ -65,6 +65,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Shuffle the order of the runs before evaluating.",
     )
+    parser.add_argument(
+        "--device",
+        choices=["gpu", "cpu"],
+        default="gpu",
+        help="Device to evaluate on: 'gpu' (default, current behaviour) or 'cpu'.",
+    )
     return parser.parse_args()
 
 
@@ -73,6 +79,7 @@ class Task:
     runpath: Path
     train_steps: list[int]
     test_steps: list[int]
+    device: str = "gpu"
 
     def all_steps(self) -> list[int]:
         return list(set(self.train_steps + self.test_steps))
@@ -119,7 +126,12 @@ def process_task(task: Task) -> tuple[list[dict[str, Any]], list[dict[str, Any]]
     test_logs: list[dict[str, Any]] = []
     try:
         run = marl.Run.load(task.runpath)
-        device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
+        if task.device == "cpu":
+            device = torch.device("cpu")
+        else:
+            device = torch.device(
+                f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu"
+            )
         print(f"Processing {task.runpath} on {device}")
         agent = run.make_agent().to(device)
         train_env, test_env = None, None
@@ -165,6 +177,7 @@ def collect_tasks(
     overwrite: bool,
     seed: int | None = None,
     checkpoint_steps: bool = False,
+    device: str = "gpu",
 ):
     exp = marl.Experiment.load(logdir)
     if seed is not None:
@@ -177,8 +190,6 @@ def collect_tasks(
     tasks = list[Task]()
     for run in runs:
         discovered_steps = discover_checkpoint_steps(run.runpath)
-        if len(discovered_steps) == 0:
-            raise FileNotFoundError(f"No checkpoint directories found in: {run.runpath / 'test'}")
         timesteps = discovered_steps if checkpoint_steps else discovered_steps[-1:]
         if overwrite:
             missing_train = timesteps
@@ -189,7 +200,9 @@ def collect_tasks(
             missing_test = gather_missing_time_steps(run.runpath / "test-policy-on-test-envs.csv", timesteps)
             if len(missing_train) == 0 and len(missing_test) == 0:
                 continue
-        tasks.append(Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test)))
+        tasks.append(
+            Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test), device=device)
+        )
     return tasks
 
 
@@ -219,11 +232,12 @@ def process_logdirs(
     overwrite: bool,
     checkpoint_steps: bool,
     dry_run: bool,
+    device: str = "gpu",
 ):
     tasks = [
         t
         for logdir in paths
-        for t in collect_tasks(logdir, overwrite=overwrite, seed=seed, checkpoint_steps=checkpoint_steps)
+        for t in collect_tasks(logdir, overwrite=overwrite, seed=seed, checkpoint_steps=checkpoint_steps, device=device)
     ]
     print(f"Found {len(tasks)} tasks to run")
     if shuffle:
@@ -275,6 +289,7 @@ def main():
         args.overwrite,
         args.checkpoint_steps,
         args.dry_run,
+        args.device,
     )
 
 
