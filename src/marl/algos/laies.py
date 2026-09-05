@@ -1,7 +1,9 @@
+from collections import deque
 from dataclasses import KW_ONLY, dataclass, field
 
 import torch
 import torch.nn.functional as F
+from marlenv import Episode
 
 from marl.models import NN, Batch, EpisodeMemory
 from marl.nn import mixers
@@ -99,6 +101,8 @@ class LAIES(DQN):
     estm_lr: float = 3e-4
     estm_updates: int = 1
     intrinsic_reward_clip: float | None = 1.0
+    intrinsic_anneal_steps: int = 0
+    intrinsic_anneal_window: int = 32
 
     def __post_init__(self):
         """Initialize QMIX and its external-state transition model.
@@ -126,6 +130,9 @@ class LAIES(DQN):
             hidden_size=self.estm_hidden_size,
         )
         self.estm_optimiser = torch.optim.Adam(self.estm.parameters(), lr=self.estm_lr)
+        self._recent_returns = deque[float](maxlen=self.intrinsic_anneal_window)
+        self._anneal_start = None
+        self._anneal_scale = 1.0
 
     @property
     def name(self):
@@ -133,6 +140,26 @@ class LAIES(DQN):
 
     def _external_states(self, states: torch.Tensor):
         return states[..., self.external_state_indices]
+
+    def update_episode(self, episode: Episode, episode_num: int, time_step: int):
+        """Track the extrinsic return in order to anneal the intrinsic rewards, then run the DQN update.
+
+        The paper anneals the intrinsic rewards once the mean extrinsic return becomes positive, i.e. once
+        the team wins more often than it loses. `intrinsic_anneal_steps` is the duration of that linear
+        decay; annealing is disabled when it is left at 0.
+
+        @ai-generated
+        """
+        if self.intrinsic_anneal_steps > 0:
+            self._recent_returns.append(sum(episode.score))
+            is_full = len(self._recent_returns) == self._recent_returns.maxlen
+            mean_return = sum(self._recent_returns) / max(len(self._recent_returns), 1)
+            if self._anneal_start is None and is_full and mean_return > 0:
+                self._anneal_start = time_step
+            if self._anneal_start is not None:
+                progress = (time_step - self._anneal_start) / self.intrinsic_anneal_steps
+                self._anneal_scale = max(0.0, 1.0 - progress)
+        return super().update_episode(episode, episode_num, time_step)
 
     def _train_estm(self, batch: Batch):
         """Fit the ESTM to observed external-state transitions.
@@ -204,6 +231,7 @@ class LAIES(DQN):
             intrinsic = self.beta_idi * individual + self.beta_cdi * collaborative
             if self.intrinsic_reward_clip is not None:
                 intrinsic = intrinsic.clamp(max=self.intrinsic_reward_clip)
+            intrinsic = intrinsic * self._anneal_scale
         return intrinsic, individual, collaborative
 
     def train(self, time_step: int, batch: Batch):
@@ -221,4 +249,5 @@ class LAIES(DQN):
             "idi": ((individual * batch.masks).sum() / mask_sum).item(),
             "cdi": ((collaborative * batch.masks).sum() / mask_sum).item(),
             "intrinsic-reward": ((intrinsic * batch.masks).sum() / mask_sum).item(),
+            "intrinsic-scale": self._anneal_scale,
         }

@@ -218,3 +218,6 @@ prompt.md
 .sync_cache.json
 .nextcloud-sync-cache.json
 layouts
+
+.agents/handoffs
+.agents/reports

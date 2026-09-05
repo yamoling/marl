@@ -30,7 +30,20 @@ class ACER(Trainer):
      - truncated importance sampling with bias correction for the policy gradient;
      - the efficient trust region update based on a running average policy network.
 
-    The continuous variant of the paper (Section 5, stochastic duelling networks) is not implemented.
+    ## Divergences from the paper
+     - The continuous variant (Section 5, stochastic duelling networks) is not implemented.
+     - The paper trains 16 asynchronous actor-learners that each own a replay memory of 50,000 frames
+       and update every `k = 20` steps. Here a single learner updates on whole trajectories, and
+       `memory_size` is expressed in episodes rather than in frames.
+     - The Retrace trace is always Retrace(λ=1), as in Equation (5); `retrace_threshold` only controls
+       the truncation `c` of the trace (0 recovers a one-step target, +inf an uncorrected Q(λ)).
+     - The entropy bonus is added to the loss *after* the trust region projection of Section 3.3,
+       whereas the paper projects the gradient of the regularized objective. The realized KL
+       divergence with the average policy can therefore slightly exceed `trust_region_delta`.
+     - The agent-wise terms of the loss (the policy gradient and the entropy bonus) are normalised by
+       the number of agent time steps and the critic loss by the number of joint time steps, so that
+       the effective actor learning rate does not depend on the number of agents nor on whether a
+       mixer is used. This has no counterpart in the single-agent paper.
 
     ## Multi-agent extension
     Just like `PPO` is either IPPO (no mixer) or MAPPO (with a mixer), `ACER` is either fully
@@ -224,8 +237,16 @@ class ACER(Trainer):
                 ir_logs = self.ir_module.update(batch, time_step)
         actions = batch.actions.unsqueeze(-1)  # (T, B, A, 1)
         masks = batch.masks  # (T, B) with a mixer, (T, B, A) without
-        agent_masks = masks if masks.dim() == batch.actions.dim() else masks.unsqueeze(-1)
+        if masks.dim() == batch.actions.dim():
+            agent_masks = masks
+        else:
+            # With a mixer, the masks are joint: expand them over the agents so that the agent-wise
+            # terms of the loss are normalised by the number of agent time steps in both cases.
+            agent_masks = masks.unsqueeze(-1).expand_as(batch.actions)
         n_items = batch.n_items
+        """Number of (joint) time steps in the batch, i.e. the normaliser of the critic loss."""
+        n_agent_items = agent_masks.sum()
+        """Number of agent time steps in the batch, i.e. the normaliser of the actor and entropy losses."""
 
         # Behaviour policy µ(.|x) of every agent, as recorded when the episode was collected.
         mu = batch["action_probabilities"]  # (T, B, A, n_actions)
@@ -272,16 +293,16 @@ class ACER(Trainer):
 
         if self.trust_region:
             actor_loss, kl_divergence, trust_factor = self._trust_region_loss(
-                batch, probs, objective, agent_masks, n_items
+                batch, probs, objective, agent_masks, n_agent_items
             )
         else:
-            actor_loss = -objective / n_items
+            actor_loss = -objective / n_agent_items
             with torch.no_grad():
                 kl_divergence = self._kl_divergence(batch, probs, agent_masks)
             trust_factor = 0.0
 
         entropy = -torch.sum(probs * log_probs, dim=-1)
-        entropy_loss = -torch.sum(entropy * agent_masks) / n_items
+        entropy_loss = -torch.sum(entropy * agent_masks) / n_agent_items
         td_error = q_ret - q_total
         critic_loss = 0.5 * torch.sum(td_error**2 * masks) / n_items
         loss = actor_loss + self.critic_coef * critic_loss + self.entropy_coef * entropy_loss
@@ -296,7 +317,7 @@ class ACER(Trainer):
             "loss": loss.item(),
             "kl-divergence": kl_divergence,
             "trust-factor": trust_factor,
-            "mean-importance-weight": torch.sum(ratios * agent_masks).item() / n_items.item(),
+            "mean-importance-weight": torch.sum(ratios * agent_masks).item() / n_agent_items.item(),
             "mean-q-ret": torch.sum(q_ret * masks).item() / n_items.item(),
         }
         if self.grad_norm_clipping is not None:
@@ -407,7 +428,7 @@ class ACER(Trainer):
         probs: torch.Tensor,
         objective: torch.Tensor,
         agent_masks: torch.Tensor,
-        n_items: torch.Tensor,
+        n_agent_items: torch.Tensor,
     ):
         """
         Efficient trust region policy update (Section 3.3 of the paper).
@@ -436,7 +457,7 @@ class ACER(Trainer):
                 torch.zeros_like(k_dot_k),
             )
             z = g - factor.unsqueeze(-1) * k
-        loss = -torch.sum(torch.sum(probs * z, dim=-1) * agent_masks) / n_items
+        loss = -torch.sum(torch.sum(probs * z, dim=-1) * agent_masks) / n_agent_items
         kl_divergence = (torch.sum(kl * agent_masks) / agent_masks.sum()).item()
         trust_factor = (torch.sum(factor * agent_masks) / agent_masks.sum()).item()
         return loss, kl_divergence, trust_factor
