@@ -3,6 +3,7 @@ from .ddpg import DDPG
 from .dqn import DQN
 from .intrinsic_reward import RND, ModelOfOtherAgents, SocialInfluence
 from .laies import LAIES
+from .lan import LAN
 from .maven import MAVEN
 from .no_train import NoTrain
 from .option_critic import OptionCritic
@@ -20,6 +21,7 @@ __all__ = [
     "DDPG",
     "DQN",
     "LAIES",
+    "LAN",
     "MAVEN",
     "PPO",
     "PPOC",
