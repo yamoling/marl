@@ -525,18 +525,15 @@ def test_qplex_target_actions_follow_online_argmax_in_double_q(monkeypatch):
 def test_dqn_uses_nstep_discount():
     from marl.models.replay_memory.nstep_memory import NStepMemory
 
-    env, batch = make_batch(4)
+    env, batch = make_batch(6)
     memory = NStepMemory(10, 3, 0.5)
-    for i, t in enumerate(batch.transitions[:3]):
-        if i == 2:
-            t.done = True
+    for t in batch.transitions:
         memory.add(t)
     trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), gamma=0.5, double_qlearning=False)
-    trainer.qtarget.batch_qvalues = lambda *args, **kwargs: torch.full((2, 2, 3), 8.0)
+    trainer.qtarget.batch_qvalues = lambda *args, **kwargs: torch.full((4, 2, 3), 8.0)
     batch = memory.get_batch([0, 1, 2])
-
-    targets = trainer._compute_qtargets(memory.sample(1).for_individual_learners())
-    torch.testing.assert_close(targets, torch.full((1, 2), 2.75))
+    targets = trainer._compute_qtargets(batch.for_individual_learners())
+    torch.testing.assert_close(targets, torch.full((3, 2), 2.75))
 
 
 def test_multiobjective_dqn_preserves_rewards_and_selects_one_joint_action():

@@ -158,6 +158,9 @@ class DQN[M: (Mixer | None)](Trainer):
             )
         assert batch.rewards.shape == next_values.shape == batch.not_dones.shape == batch.masks.shape
         gamma = batch.gamma if batch.gamma is not None else self.gamma
+        if isinstance(gamma, torch.Tensor):
+            while gamma.ndim < next_values.ndim:
+                gamma = gamma.unsqueeze(-1)
         return batch.rewards + gamma * next_values.masked_fill(batch.dones | batch.masked_indices, 0)
 
     def _prepare_batch(self, batch: Batch):

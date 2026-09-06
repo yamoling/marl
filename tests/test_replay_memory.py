@@ -173,7 +173,7 @@ class TestNStepMemory:
             memory.add(transition)
 
         batch = memory.as_batch()
-        expected = torch.tensor([gamma**3, gamma**3, gamma**2, gamma])
+        expected = torch.tensor([gamma**3, gamma**3, gamma**2, gamma], dtype=torch.float32)
         torch.testing.assert_close(batch["n-step-gamma"], expected)
         torch.testing.assert_close(batch.gamma, expected)
 

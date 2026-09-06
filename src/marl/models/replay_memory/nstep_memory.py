@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
 
+import torch
 from marlenv import Transition
 
 from marl.models.batch import TransitionBatch
@@ -19,7 +20,6 @@ class NStepMemory(TransitionMemory):
     def __post_init__(self) -> None:
         super().__post_init__()
         self._pending = deque[Transition]()
-        self._episode = list[Transition]()
 
     def add(self, item: Transition):
         """Finalize n-step transitions and flush shortened tails at episode ends. @ai-generated"""
@@ -31,16 +31,9 @@ class NStepMemory(TransitionMemory):
             # Flush
             while len(self._pending) > 0:
                 self._finalize()
-            # For each transition of the episode, adjust the gamma value
-            ep_length = len(self._episode)
-            for i, transition in enumerate(self._episode):
-                # Most transitions have self.gamma**n, but the exponent of the last ones must be capped
-                exponent = min(self.n, ep_length - i - 1)
-                transition["n-step-gamma"] = self.gamma**exponent
-            self._episode.clear()
 
     def _finalize(self):
-        """Store a transition with its accumulated reward and n-step successor."""
+        """Store a transition with its accumulated reward, successor and bootstrap discount. @ai-generated"""
         first = deepcopy(self._pending[0])
         for i, transition in enumerate(self._pending):
             if i > 0:
@@ -50,12 +43,13 @@ class NStepMemory(TransitionMemory):
         first.next_state = last.next_state
         first.done = last.done
         first.truncated = last.truncated
+        first["n-step-gamma"] = self.gamma ** len(self._pending)
         super().add(first)
-        self._episode.append(self._pending.popleft())
+        self._pending.popleft()
 
     def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
         batch = super().make_batch(items)
-        batch.gamma = batch["n-step-gamma"]
+        batch.gamma = batch["n-step-gamma"].to(torch.float32)
         return batch
 
     def add_transition(self, transition: Transition):

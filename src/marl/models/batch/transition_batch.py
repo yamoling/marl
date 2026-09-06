@@ -52,7 +52,7 @@ class TransitionBatch(Batch):
     def __getitem__(self, key: str):
         if key in self._cache:
             return self._cache[key]
-        items = np.array([t[key] for t in self.transitions])
+        items = np.array([t[key] for t in self.transitions], dtype=np.float32)
         res = torch.from_numpy(items).to(self.device)
         self._cache[key] = res
         return res
