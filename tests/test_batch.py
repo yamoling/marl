@@ -209,7 +209,7 @@ def test_transition_batch_for_individual_learners_order_independent_of_minibatch
 
 
 def test_transition_batch_single_pass_packing_matches_reference():
-    """The single-pass-packed fields (`TransitionBatch._pack`) must match the values, dtypes and
+    """The constructor's tensors must match the values, dtypes and
     shapes of the reference per-field computation (`np.array([t.<field> for t in transitions])` then
     `torch.from_numpy`), which is how each field used to be computed independently.
 
@@ -246,3 +246,44 @@ def test_transition_batch_single_pass_packing_matches_reference():
 
     # `masks` is allocated directly on the batch's device rather than moved after the fact.
     assert torch.equal(fresh.masks, torch.ones(len(transitions)))
+
+
+def test_transition_batch_tensors_are_snapshots_at_construction():
+    batch = _make_batch(4)
+    batch.transitions[0].reward = np.array([9.0], dtype=np.float32)
+    assert batch.rewards[0] == 1.0
+
+
+def test_transition_minibatch_preserves_modified_tensors_and_metadata(monkeypatch):
+    batch = _make_batch(4)
+    batch.gamma = torch.tensor([0.8, 0.9, 0.95, 0.99])
+    batch.for_individual_learners()
+    batch.rewards = batch.rewards + 10
+    batch.states = batch.states + 20
+    batch.importance_sampling_weights = torch.arange(4, dtype=torch.float32)
+    batch._cache["custom"] = torch.arange(4, dtype=torch.float32)
+
+    def unexpected_constructor(*args, **kwargs):
+        raise AssertionError("Minibatching must reuse the parent's tensors")
+
+    monkeypatch.setattr(marl.models.batch.TransitionBatch, "__init__", unexpected_constructor)
+    indices = [3, 1, 1]
+    child = batch.get_minibatch(indices)
+    assert child.gamma is batch.gamma
+    assert child.device == batch.device
+    assert child.reward_size == 1
+    torch.testing.assert_close(child.rewards, batch.rewards[indices])
+    torch.testing.assert_close(child.states, batch.states[indices])
+    torch.testing.assert_close(child.importance_sampling_weights, batch.importance_sampling_weights[indices])
+    torch.testing.assert_close(child["custom"], batch["custom"][indices])
+    torch.testing.assert_close(child.masks, batch.masks[indices])
+
+
+def test_transition_batch_extend_preserves_metadata():
+    batch = _make_batch(4)
+    batch.gamma = torch.tensor(0.95)
+    extended = batch.extend(batch.transitions[:2])
+    assert extended.gamma is batch.gamma
+    assert extended.device == batch.device
+    assert extended.size == 6
+    torch.testing.assert_close(extended.rewards, torch.ones(6))

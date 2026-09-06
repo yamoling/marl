@@ -540,6 +540,7 @@ def test_multiobjective_dqn_preserves_rewards_and_selects_one_joint_action():
     env, batch = make_batch()
     for transition in batch.transitions:
         transition.reward = np.array([1.0, 2.0], dtype=np.float32)
+    batch = TransitionBatch(batch.transitions)
     network = qnetworks.from_env(env, hidden_sizes=(8,), n_objectives=2, duelling=False)
     trainer = DQN(network, double_qlearning=False, gamma=0.5)
     batch = batch.for_individual_learners()

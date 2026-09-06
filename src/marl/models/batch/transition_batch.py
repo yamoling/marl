@@ -6,20 +6,6 @@ from marlenv import Transition
 
 from .batch import Batch
 
-# Fields that are packed in a single pass over the transitions in `_pack` (see there). Keep this in
-# sync with the fields filled by `_pack`.
-_PACKED_FIELDS = (
-    "obs",
-    "next_obs",
-    "extras",
-    "next_extras",
-    "actions",
-    "rewards",
-    "dones",
-    "available_actions",
-    "next_available_actions",
-)
-
 
 class TransitionBatch(Batch):
     def __init__(
@@ -31,7 +17,123 @@ class TransitionBatch(Batch):
         super().__init__(len(transitions), transitions[0].n_agents, gamma, device)
         self.transitions = transitions
         self._cache = dict[str, torch.Tensor]()
-        self._packed = False
+        n = self.size
+        t0 = transitions[0]
+        obs_shape = t0.obs.data.shape
+        extras_shape = t0.obs.extras.shape
+        first_action = np.asarray(t0.action)
+        action_shape = first_action.shape
+        action_dtype = first_action.dtype
+        reward_shape = t0.reward.shape
+        avail_shape = t0.obs.available_actions.shape
+
+        np_obs = np.empty((n, *obs_shape), dtype=np.float32)
+        np_next_obs = np.empty((n, *obs_shape), dtype=np.float32)
+        np_extras = np.empty((n, *extras_shape), dtype=np.float32)
+        np_next_extras = np.empty((n, *extras_shape), dtype=np.float32)
+        np_actions = np.empty((n, *action_shape), dtype=action_dtype)
+        np_rewards = np.empty((n, *reward_shape), dtype=np.float32)
+        np_dones = np.empty((n,), dtype=bool)
+        np_available_actions = np.empty((n, *avail_shape), dtype=bool)
+        np_next_available_actions = np.empty((n, *avail_shape), dtype=bool)
+
+        for i, t in enumerate(transitions):
+            np_obs[i] = t.obs.data
+            np_next_obs[i] = t.next_obs.data
+            np_extras[i] = t.obs.extras
+            np_next_extras[i] = t.next_obs.extras
+            np_actions[i] = t.action
+            np_rewards[i] = t.reward
+            np_dones[i] = t.done
+            np_available_actions[i] = t.obs.available_actions
+            np_next_available_actions[i] = t.next_obs.available_actions
+
+        def to_tensor(array: np.ndarray) -> torch.Tensor:
+            return torch.from_numpy(array).to(self.device, non_blocking=True)
+
+        self.obs = to_tensor(np_obs)
+        self.next_obs = to_tensor(np_next_obs)
+        self.extras = to_tensor(np_extras)
+        self.next_extras = to_tensor(np_next_extras)
+        self.actions = to_tensor(np_actions)
+        self.rewards = to_tensor(np_rewards).squeeze(-1)
+        self.dones = to_tensor(np_dones)
+        if self.reward_size > 1:
+            self.dones = self.dones.unsqueeze(-1).expand_as(self.rewards)
+        self.available_actions = to_tensor(np_available_actions)
+        self.next_available_actions = to_tensor(np_next_available_actions)
+
+    @property
+    def obs(self) -> torch.Tensor:
+        return self._obs
+
+    @obs.setter
+    def obs(self, value: torch.Tensor) -> None:
+        self._obs = value
+
+    @property
+    def next_obs(self) -> torch.Tensor:
+        return self._next_obs
+
+    @next_obs.setter
+    def next_obs(self, value: torch.Tensor) -> None:
+        self._next_obs = value
+
+    @property
+    def extras(self) -> torch.Tensor:
+        return self._extras
+
+    @extras.setter
+    def extras(self, value: torch.Tensor) -> None:
+        self._extras = value
+
+    @property
+    def next_extras(self) -> torch.Tensor:
+        return self._next_extras
+
+    @next_extras.setter
+    def next_extras(self, value: torch.Tensor) -> None:
+        self._next_extras = value
+
+    @property
+    def actions(self) -> torch.Tensor:
+        return self._actions
+
+    @actions.setter
+    def actions(self, value: torch.Tensor) -> None:
+        self._actions = value
+
+    @property
+    def rewards(self) -> torch.Tensor:
+        return self._rewards
+
+    @rewards.setter
+    def rewards(self, value: torch.Tensor) -> None:
+        self._rewards = value
+
+    @property
+    def dones(self) -> torch.Tensor:
+        return self._dones
+
+    @dones.setter
+    def dones(self, value: torch.Tensor) -> None:
+        self._dones = value
+
+    @property
+    def available_actions(self) -> torch.Tensor:
+        return self._available_actions
+
+    @available_actions.setter
+    def available_actions(self, value: torch.Tensor) -> None:
+        self._available_actions = value
+
+    @property
+    def next_available_actions(self) -> torch.Tensor:
+        return self._next_available_actions
+
+    @next_available_actions.setter
+    def next_available_actions(self, value: torch.Tensor) -> None:
+        self._next_available_actions = value
 
     @cached_property
     def reward_size(self):
@@ -75,160 +177,29 @@ class TransitionBatch(Batch):
 
     def _index_select(self, index_tensor: torch.Tensor) -> "TransitionBatch":
         """
-        Build a child `TransitionBatch` out of index-selections of this batch's already materialized
-        tensors (both `__dict__` cached-property values and the `_cache` dict used by `__getitem__`).
-
-        Fields that were never materialized on this (parent) batch are left untouched: the child keeps a
-        sliced `transitions` list, so those fields still work lazily (computed from the small minibatch of
-        transitions the first time they are accessed), they are simply not pre-indexed here.
+        Slice materialized tensors without rerunning the constructor. Uncached fields stay lazy.
 
         @ai-generated
         """
         index_list = index_tensor.tolist()
         child = TransitionBatch.__new__(TransitionBatch)
         child.transitions = [self.transitions[i] for i in index_list]
-        Batch.__init__(child, len(child.transitions), self.n_agents, self.device)
+        Batch.__init__(child, len(child.transitions), self.n_agents, gamma=self.gamma, device=self.device)
         child._cache = {}
+        child.reward_size = self.reward_size
         child._individual_learners_applied = self._individual_learners_applied
-        for key, value in self.__dict__.items():
-            if key == "transitions":
+        for key, value in vars(self).items():
+            if key == "gamma":
                 continue
             if isinstance(value, torch.Tensor) and value.shape[:1] == (self.size,):
-                child.__dict__[key] = value[index_tensor]
+                setattr(child, key, value[index_tensor])
         for key, value in self._cache.items():
             if isinstance(value, torch.Tensor) and value.shape[:1] == (self.size,):
                 child._cache[key] = value[index_tensor]
-        # If every single-pass-packed field was already materialized on the parent (and therefore
-        # copied above), the child is already fully packed and must not repack from its (sliced)
-        # transitions. Otherwise, leave it lazy: missing fields will be packed on first access.
-        child._packed = all(name in child.__dict__ for name in _PACKED_FIELDS)
         return child
 
     def extend(self, data: list[Transition]) -> Batch:
-        return TransitionBatch(self.transitions + data, self.device)
-
-    def _pack(self):
-        """
-        Materialize the fields that are always needed by trainers (`obs`, `next_obs`, `extras`,
-        `next_extras`, `actions`, `rewards`, `dones`, `available_actions`, `next_available_actions`)
-        in a single pass over `self.transitions`, instead of one independent `np.array(...)` list
-        comprehension per field.
-
-        Pre-allocated NumPy arrays are filled in one `for` loop, then each field is transferred to
-        `self.device` with a single transfer. When the target device is CUDA, the host tensor is
-        pinned first (if `_PIN_MEMORY`) and copied asynchronously (`non_blocking=True`).
-
-        This is triggered lazily, either by `to()` (once the final device is known) or by the first
-        access of any of the packed fields (through their `cached_property` getters below), and stores
-        results directly in `self.__dict__` so that the corresponding `cached_property` never runs its
-        own body.
-
-        @ai-generated
-        """
-        if self._packed:
-            return
-        self._packed = True
-
-        transitions = self.transitions
-        n = self.size
-        t0 = transitions[0]
-        obs_shape = t0.obs.data.shape
-        extras_shape = t0.obs.extras.shape
-        action_shape = t0.action.shape
-        action_dtype = t0.action.dtype
-        reward_shape = t0.reward.shape
-        avail_shape = t0.obs.available_actions.shape
-
-        np_obs = np.empty((n, *obs_shape), dtype=np.float32)
-        np_next_obs = np.empty((n, *obs_shape), dtype=np.float32)
-        np_extras = np.empty((n, *extras_shape), dtype=np.float32)
-        np_next_extras = np.empty((n, *extras_shape), dtype=np.float32)
-        np_actions = np.empty((n, *action_shape), dtype=action_dtype)
-        np_rewards = np.empty((n, *reward_shape), dtype=np.float32)
-        np_dones = np.empty((n,), dtype=bool)
-        np_available_actions = np.empty((n, *avail_shape), dtype=bool)
-        np_next_available_actions = np.empty((n, *avail_shape), dtype=bool)
-
-        for i, t in enumerate(transitions):
-            np_obs[i] = t.obs.data
-            np_next_obs[i] = t.next_obs.data
-            np_extras[i] = t.obs.extras
-            np_next_extras[i] = t.next_obs.extras
-            np_actions[i] = t.action
-            np_rewards[i] = t.reward
-            np_dones[i] = t.done
-            np_available_actions[i] = t.obs.available_actions
-            np_next_available_actions[i] = t.next_obs.available_actions
-
-        device = self.device
-        use_cuda = device.type == "cuda"
-
-        def to_tensor(array: np.ndarray) -> torch.Tensor:
-            tensor = torch.from_numpy(array)
-            if use_cuda:
-                tensor = tensor.to(device, non_blocking=True)
-            elif device != tensor.device:
-                tensor = tensor.to(device)
-            return tensor
-
-        self.__dict__["obs"] = to_tensor(np_obs)
-        self.__dict__["next_obs"] = to_tensor(np_next_obs)
-        self.__dict__["extras"] = to_tensor(np_extras)
-        self.__dict__["next_extras"] = to_tensor(np_next_extras)
-        self.__dict__["actions"] = to_tensor(np_actions)
-        # If the reward has only one dimension, we squeeze it
-        self.__dict__["rewards"] = to_tensor(np_rewards).squeeze(-1)
-        dones = to_tensor(np_dones)
-        if self.reward_size > 1:
-            dones = dones.unsqueeze(-1).expand_as(self.rewards)
-        self.__dict__["dones"] = dones
-        self.__dict__["available_actions"] = to_tensor(np_available_actions)
-        self.__dict__["next_available_actions"] = to_tensor(np_next_available_actions)
-
-    @cached_property
-    def obs(self):
-        self._pack()
-        return self.__dict__["obs"]
-
-    @cached_property
-    def next_obs(self):
-        self._pack()
-        return self.__dict__["next_obs"]
-
-    @cached_property
-    def extras(self):
-        self._pack()
-        return self.__dict__["extras"]
-
-    @cached_property
-    def next_extras(self):
-        self._pack()
-        return self.__dict__["next_extras"]
-
-    @cached_property
-    def actions(self):
-        self._pack()
-        return self.__dict__["actions"]
-
-    @cached_property
-    def rewards(self):
-        self._pack()
-        return self.__dict__["rewards"]
-
-    @cached_property
-    def dones(self) -> torch.Tensor:
-        self._pack()
-        return self.__dict__["dones"]
-
-    @cached_property
-    def available_actions(self):
-        self._pack()
-        return self.__dict__["available_actions"]
-
-    @cached_property
-    def next_available_actions(self):
-        self._pack()
-        return self.__dict__["next_available_actions"]
+        return TransitionBatch(self.transitions + data, gamma=self.gamma, device=self.device)
 
     @cached_property
     def states(self):

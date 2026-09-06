@@ -250,25 +250,41 @@ class Batch(ABC):
         first_states = self.states[0].unsqueeze(0)
         return torch.cat([first_states, self.next_states])
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def obs(self) -> torch.Tensor:
-        """Observations"""
+        """Observations."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @obs.setter
+    @abstractmethod
+    def obs(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_obs(self) -> torch.Tensor:
-        """Next observations"""
+        """Next observations."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @next_obs.setter
+    @abstractmethod
+    def next_obs(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def extras(self) -> torch.Tensor:
-        """Extra information"""
+        """Extra information."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @extras.setter
+    @abstractmethod
+    def extras(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_extras(self) -> torch.Tensor:
-        """Next extra information"""
+        """Next extra information."""
+
+    @next_extras.setter
+    @abstractmethod
+    def next_extras(self, value: torch.Tensor) -> None: ...
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -280,15 +296,23 @@ class Batch(ABC):
     def next_states_extras(self) -> torch.Tensor:
         """Next state extra information"""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def available_actions(self) -> torch.Tensor:
-        """Available actions"""
+        """Available actions."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @available_actions.setter
+    @abstractmethod
+    def available_actions(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_available_actions(self) -> torch.Tensor:
-        """Next available actions"""
+        """Available actions in the next observations."""
+
+    @next_available_actions.setter
+    @abstractmethod
+    def next_available_actions(self, value: torch.Tensor) -> None: ...
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -300,25 +324,37 @@ class Batch(ABC):
     def next_states(self) -> torch.Tensor:
         """Next environment states"""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def actions(self) -> torch.Tensor:
-        """Actions"""
+        """Actions."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @actions.setter
+    @abstractmethod
+    def actions(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def rewards(self) -> torch.Tensor:
-        """Rewards"""
+        """Rewards."""
+
+    @rewards.setter
+    @abstractmethod
+    def rewards(self, value: torch.Tensor) -> None: ...
 
     @cached_property
     def masked_rewards(self):
         """Rewards masked by the masks"""
         return self.rewards * self.masks
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def dones(self) -> torch.Tensor:
-        """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
+        """Whether transitions lead to terminal states."""
+
+    @dones.setter
+    @abstractmethod
+    def dones(self, value: torch.Tensor) -> None: ...
 
     @property
     def not_dones(self) -> torch.Tensor:
