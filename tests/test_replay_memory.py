@@ -153,6 +153,30 @@ class TestNStepMemory:
         stored = memory[0]
         assert stored.reward.item() == pytest.approx(expected)
 
+    def test_completed_n_step_transition_exposes_gamma_in_batch(self):
+        gamma = 0.5
+        n = 3
+        memory = NStepMemory(100, n=n, gamma=gamma)
+        for transition in _make_transitions(n, end_game=1000):
+            memory.add(transition)
+
+        batch = memory.as_batch()
+        expected = torch.tensor([gamma**n])
+        torch.testing.assert_close(batch["n-step-gamma"], expected)
+        torch.testing.assert_close(batch.gamma, expected)
+
+    def test_terminal_tail_exposes_shortened_n_step_gammas_in_batch(self):
+        gamma = 0.5
+        n = 3
+        memory = NStepMemory(100, n=n, gamma=gamma)
+        for transition in _make_transitions(4, end_game=4):
+            memory.add(transition)
+
+        batch = memory.as_batch()
+        expected = torch.tensor([gamma**3, gamma**3, gamma**2, gamma])
+        torch.testing.assert_close(batch["n-step-gamma"], expected)
+        torch.testing.assert_close(batch.gamma, expected)
+
     def test_terminal_transition_updates_next_obs_of_previous_steps(self):
         n = 3
         memory = NStepMemory(100, n=n, gamma=0.9)

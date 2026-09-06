@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Optional
 
 import numpy as np
 import torch
@@ -9,8 +8,14 @@ from .batch import Batch
 
 
 class EpisodeBatch(Batch):
-    def __init__(self, episodes: list[Episode], device: Optional[torch.device] = None, pad_episodes: bool = True):
-        super().__init__(len(episodes), episodes[0].n_agents, device)
+    def __init__(
+        self,
+        episodes: list[Episode],
+        gamma: torch.Tensor | None = None,
+        device: torch.device | None = None,
+        pad_episodes: bool = True,
+    ):
+        super().__init__(len(episodes), episodes[0].n_agents, gamma, device)
         self._max_episode_len = max(len(e) for e in episodes)
         self._base_episodes = episodes
         if pad_episodes:
@@ -41,7 +46,7 @@ class EpisodeBatch(Batch):
                 indices = np.random.choice(self.size, minibatch_size, replace=False)
             case indices:
                 pass
-        return EpisodeBatch([self.episodes[i] for i in indices], self.device)
+        return EpisodeBatch([self.episodes[i] for i in indices], self.gamma, self.device)
 
     def get_minibatch(self, indices_or_size) -> Batch:
         match indices_or_size:
@@ -51,10 +56,10 @@ class EpisodeBatch(Batch):
                 pass
             case _:
                 raise ValueError(f"Invalid minibatch size {indices_or_size}")
-        return EpisodeBatch([self.episodes[i] for i in indices], self.device, pad_episodes=False)
+        return EpisodeBatch([self.episodes[i] for i in indices], self.gamma, self.device, pad_episodes=False)
 
     def extend(self, data: list[Episode]) -> Batch:
-        return EpisodeBatch(self.episodes + data, self.device)
+        return EpisodeBatch(self.episodes + data, self.gamma, self.device)
 
     def multi_objective(self):
         raise NotImplementedError()

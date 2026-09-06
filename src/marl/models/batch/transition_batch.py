@@ -1,5 +1,4 @@
 from functools import cached_property
-from typing import Optional
 
 import numpy as np
 import torch
@@ -21,18 +20,16 @@ _PACKED_FIELDS = (
     "next_available_actions",
 )
 
-# Pinning a freshly allocated host tensor before the H->D copy has its own cost. Benchmarked against
-# the unpinned variant (see reports/optimizations/03-transition-batch-single-pass.md); keep whichever
-# is faster.
-_PIN_MEMORY = False
-
 
 class TransitionBatch(Batch):
-    def __init__(self, transitions: list[Transition], device: Optional[torch.device] = None):
+    def __init__(
+        self,
+        transitions: list[Transition],
+        gamma: torch.Tensor | None = None,
+        device: torch.device | None = None,
+    ):
+        super().__init__(len(transitions), transitions[0].n_agents, gamma, device)
         self.transitions = transitions
-        # self.is_continuous = np.issubdtype(transitions[0].action.dtype, np.floating)
-        # self.is_discrete = not self.is_continuous
-        super().__init__(len(transitions), transitions[0].n_agents, device)
         self._cache = dict[str, torch.Tensor]()
         self._packed = False
 
@@ -169,8 +166,6 @@ class TransitionBatch(Batch):
         def to_tensor(array: np.ndarray) -> torch.Tensor:
             tensor = torch.from_numpy(array)
             if use_cuda:
-                if _PIN_MEMORY:
-                    tensor = tensor.pin_memory()
                 tensor = tensor.to(device, non_blocking=True)
             elif device != tensor.device:
                 tensor = tensor.to(device)

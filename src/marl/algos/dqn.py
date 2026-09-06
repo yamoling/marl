@@ -1,15 +1,14 @@
-import logging
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 
 import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
 from marl.models import Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
-from marl.models.batch import EpisodeBatch, TransitionBatch
+from marl.models.batch import EpisodeBatch
 from marl.utils.tuning import tuning
 
 from .optimism import VBE
@@ -150,7 +149,7 @@ class DQN[M: (Mixer | None)](Trainer):
         else:
             next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
-            mixing_kwargs = self.get_mixing_kwargs(batch, next_qvalues, is_next=True)
+            mixing_kwargs = self.get_mixing_kwargs(batch, next_qvalues, is_next=True, actions=indices.squeeze(-1))
             next_values = self.target_mixer.forward(
                 next_values,
                 batch.next_states,
@@ -158,7 +157,8 @@ class DQN[M: (Mixer | None)](Trainer):
                 **mixing_kwargs,
             )
         assert batch.rewards.shape == next_values.shape == batch.not_dones.shape == batch.masks.shape
-        return batch.rewards + self.gamma * next_values.masked_fill(batch.dones | batch.masked_indices, 0)
+        gamma = batch.gamma if batch.gamma is not None else self.gamma
+        return batch.rewards + gamma * next_values.masked_fill(batch.dones | batch.masked_indices, 0)
 
     def _prepare_batch(self, batch: Batch):
         logs = dict[str, float]()
@@ -173,7 +173,11 @@ class DQN[M: (Mixer | None)](Trainer):
         return batch, logs
 
     def get_mixing_kwargs(
-        self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False
+        self,
+        batch: Batch,
+        all_qvalues: torch.Tensor,
+        is_next: bool = False,
+        actions: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         return {}
 
@@ -189,7 +193,10 @@ class DQN[M: (Mixer | None)](Trainer):
             qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
             qvalues = self.mixer.forward(
-                qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues)
+                qvalues,
+                batch.states,
+                batch.states_extras,
+                **self.get_mixing_kwargs(batch, all_qvalues, actions=batch.actions),
             )
         return all_qvalues, qvalues
 
@@ -259,7 +266,9 @@ class DQN[M: (Mixer | None)](Trainer):
                 max_qvalues,
                 state_data,
                 state_extras,
-                all_qvalues=qvalues,
-                one_hot_actions=torch.zeros_like(qvalues),
+                **self.get_value_mixing_kwargs(qvalues),
             )
             return float(value.item())
+
+    def get_value_mixing_kwargs(self, all_qvalues: torch.Tensor) -> dict[str, torch.Tensor]:
+        return {}

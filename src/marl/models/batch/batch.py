@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from functools import cached_property
-from typing import Iterable, Optional, Self, overload
+from typing import Self, overload
 
 import torch
 
@@ -10,15 +11,16 @@ class Batch(ABC):
     Lazy loaded batch for training.
     """
 
-    def __init__(self, size: int, n_agents: int, device: Optional[torch.device] = None):
+    def __init__(self, size: int, n_agents: int, gamma: torch.Tensor | None, device: torch.device | None = None):
         super().__init__()
         self.size = size
         self.n_agents = n_agents
         if device is None:
             device = torch.device("cpu")
         self.device = device
-        self.importance_sampling_weights: Optional[torch.Tensor] = None
+        self.importance_sampling_weights: torch.Tensor | None = None
         self._individual_learners_applied = False
+        self.gamma = gamma
 
     @abstractmethod
     def extend(self, data) -> Self:
@@ -33,8 +35,6 @@ class Batch(ABC):
         Idempotent: a batch that was already expanded (either directly, or by inheriting already-expanded
         tensors from a parent batch through `get_minibatch`) is returned unchanged instead of being expanded
         a second time.
-
-        @ai-generated
         """
         if self._individual_learners_applied:
             return self

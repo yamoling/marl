@@ -68,7 +68,7 @@ def _train_episode[A](
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
         action = agent.choose_action(obs)
         step = env.step(action)
-        if time_step >= run.n_steps:
+        if time_step + 1 >= run.n_steps:
             step.truncated = True
         transition = Transition.from_step(obs, state, action.action, step, **action.details)
         training_metrics = trainer.update_step(transition, time_step)

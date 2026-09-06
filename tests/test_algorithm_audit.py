@@ -254,7 +254,7 @@ def test_ppoc_critic_returns_do_not_depend_on_advantage_normalization():
     torch.testing.assert_close(actual, expected)
 
 
-def test_nstep_finalizes_successor_discount_and_terminal_tail():
+def test_nstep_finalizes_successor_and_terminal_tail():
     from marl.models.replay_memory.nstep_memory import NStepMemory
 
     _, batch = make_batch(4)
@@ -266,7 +266,6 @@ def test_nstep_finalizes_successor_discount_and_terminal_tail():
     np.testing.assert_array_equal(first.next_state.data, batch.transitions[2].next_state.data)
     np.testing.assert_array_equal(first.next_obs.data, batch.transitions[2].next_obs.data)
     assert first.reward.item() == 1.75
-    assert first["bootstrap_discount"] == 0.125
     memory.add_transition(batch.transitions[3])
     assert len(memory) == 4
     assert all(memory[i].done for i in range(1, 4))
@@ -528,10 +527,14 @@ def test_dqn_uses_nstep_discount():
 
     env, batch = make_batch(4)
     memory = NStepMemory(10, 3, 0.5)
-    for t in batch.transitions[:3]:
+    for i, t in enumerate(batch.transitions[:3]):
+        if i == 2:
+            t.done = True
         memory.add(t)
     trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), gamma=0.5, double_qlearning=False)
     trainer.qtarget.batch_qvalues = lambda *args, **kwargs: torch.full((2, 2, 3), 8.0)
+    batch = memory.get_batch([0, 1, 2])
+
     targets = trainer._compute_qtargets(memory.sample(1).for_individual_learners())
     torch.testing.assert_close(targets, torch.full((1, 2), 2.75))
 

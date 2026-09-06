@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal, Self
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -90,7 +90,7 @@ class PPO(Trainer):
 
     def _compute_training_data(self, batch: Batch):
         """Compute targets with matching next observations and extras. @ai-generated"""
-        if self.critic.is_recurrent:
+        if getattr(self.critic, "is_recurrent", False):
             all_values = self.critic.value(batch.all_obs, batch.all_extras)
             values, next_values = all_values[:-1].clone(), all_values[1:].clone()
         else:
