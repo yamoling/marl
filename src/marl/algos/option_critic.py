@@ -32,10 +32,13 @@ class OptionCritic(Trainer):
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
 
     def __post_init__(self, memory_size: int, q_updater: TargetParametersUpdater | None):
-        super().__init__()
+        super().__post_init__()
         self.target_oc = deepcopy(self.oc)
         self.target_mixer = deepcopy(self.mixer)
-        self.optim = torch.optim.Adam(self.oc.parameters(), lr=self.lr)
+        parameters = list(self.oc.parameters())
+        if self.mixer is not None:
+            parameters.extend(self.mixer.parameters())
+        self.optim = torch.optim.Adam(parameters, lr=self.lr)
         self.memory = TransitionMemory(memory_size)
         if q_updater is None:
             q_updater = HardUpdate(200)
@@ -115,7 +118,9 @@ class OptionCritic(Trainer):
             # Apply mixer if present
             if self.target_mixer is not None and self.mixer is not None:
                 q_options = self.mixer.forward(q_options, batch.states, batch.states_extras)
-                next_q_options_continued = self.target_mixer.forward(next_q_options_continued, batch.next_states, batch.next_states_extras)
+                next_q_options_continued = self.target_mixer.forward(
+                    next_q_options_continued, batch.next_states, batch.next_states_extras
+                )
                 next_q_max = self.target_mixer.forward(next_q_max, batch.next_states, batch.next_states_extras)
                 next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
 

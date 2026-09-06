@@ -54,7 +54,7 @@ class PPOC(Trainer):
         entropy_c2: Schedule | float,
         q_updater: TargetParametersUpdater | None,
     ):
-        super().__init__()
+        super().__post_init__()
         self.batch_size, self.train_on = self.train_interval
         assert self.minibatch_size <= self.batch_size
 
@@ -78,7 +78,7 @@ class PPOC(Trainer):
             entropy_c2 = Schedule.constant(entropy_c2)
         self.c2 = entropy_c2
 
-        if self.train_on == "transition":
+        if self.train_on == "step":
             self.memory = TransitionMemory(self.batch_size)
         else:
             self.memory = EpisodeMemory(self.batch_size)
@@ -101,6 +101,7 @@ class PPOC(Trainer):
         return self.oc.n_options
 
     def _compute_training_data(self, batch: Batch):
+        """Build value targets before normalizing actor advantages. @ai-generated"""
         options = batch["options"].unsqueeze(-1)
         with torch.no_grad():
             # Values computations
@@ -114,12 +115,15 @@ class PPOC(Trainer):
                 next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
-        advantages = batch.compute_gae(self.gamma, values, next_values, trace_decay=self.gae_lambda, normalize=self.normalize_advantages)
+        advantages = batch.compute_gae(self.gamma, values, next_values, trace_decay=self.gae_lambda, normalize=False)
         advantages[batch.masked_indices] = 0.0
         returns = advantages + values
+        if self.normalize_advantages:
+            advantages = batch._normalize(advantages).masked_fill(batch.masked_indices, 0)
         return returns, advantages
 
     def train(self, batch: Batch, step_num: int) -> dict[str, float]:
+        """Visit each trajectory per epoch and keep padding out of policy statistics. @ai-generated"""
         self.c1.update(step_num)
         self.c2.update(step_num)
 
@@ -137,9 +141,16 @@ class PPOC(Trainer):
 
         log_lists = defaultdict(list)
         e = 0
-        for e in range(self.n_epochs):
+        epoch_indices = (np.random.permutation(batch.size) for _ in range(self.n_epochs))
+        minibatches = (
+            indices[start : start + self.minibatch_size]
+            for indices in epoch_indices
+            for start in range(0, batch.size, self.minibatch_size)
+        )
+        early_stopped = False
+        for e, indices in enumerate(minibatches):
             # Minibatch setup
-            minibatch, indices = self._minibatch_setup(batch)
+            minibatch, indices = self._minibatch_setup(batch, indices)
             mini_options = minibatch["options"].unsqueeze(-1)
             actor_loss, entropy_loss, log_ratio, ratio = self._compute_actor_loss(
                 minibatch,
@@ -153,6 +164,7 @@ class PPOC(Trainer):
             # KL divergence early stopping, cf Stable baselines implementation
             # https://github.com/DLR-RM/stable-baselines3/blob/08d984c3ee30093ea37409cf29cfb7efdd4bdcfd/stable_baselines3/ppo/ppo.py#L267
             if self.early_stopping_kl is not None and approx_kl_div > 1.5 * self.early_stopping_kl:
+                early_stopped = True
                 break
 
             critic_loss = self._compute_critic_loss(minibatch, returns[*indices], mini_options)
@@ -173,11 +185,14 @@ class PPOC(Trainer):
             log_lists["loss"].append(loss.item())
             log_lists["ratio"].append(ratio.numpy(force=True))
 
+        log_lists = {
+            key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()
+        }
         logs = {
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
             "n_epochs": e,
-            "early-stopped": e == self.n_epochs - 1,
+            "early-stopped": early_stopped,
             **self.option_train_policy.update(step_num),
             **self.target_updater.update(step_num),
             **{f"ppoc/mean-{key}": np.mean(values) for key, values in log_lists.items()},
@@ -186,8 +201,10 @@ class PPOC(Trainer):
         }
         return logs
 
-    def _minibatch_setup(self, batch: Batch):
-        indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
+    def _minibatch_setup(self, batch: Batch, indices=None):
+        """Select a supplied epoch slice or a random minibatch. @ai-generated"""
+        if indices is None:
+            indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
         minibatch = batch.get_minibatch(indices).to(self.device)
         if self.mixer is None:
             minibatch = minibatch.for_individual_learners()
@@ -198,10 +215,11 @@ class PPOC(Trainer):
         return minibatch, indices
 
     def _compute_critic_loss(self, minibatch: Batch, mini_returns: torch.Tensor, mini_options: torch.Tensor):
+        """Train the online option critic and online mixer. @ai-generated"""
         q_options = self.oc.compute_q_options(minibatch.obs, minibatch.extras)
         mini_values = torch.gather(q_options, dim=-1, index=mini_options).squeeze(-1)
-        if self.target_mixer is not None:
-            mini_values = self.target_mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
+        if self.mixer is not None:
+            mini_values = self.mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
         td_error = (mini_values - mini_returns) * minibatch.masks
         critic_loss = torch.sum(td_error**2) / minibatch.n_items
         return critic_loss
@@ -213,6 +231,7 @@ class PPOC(Trainer):
         mini_advantages: torch.Tensor,
         mini_old_log_probs: torch.Tensor,
     ):
+        """Mask padded policy and entropy terms for both joint and individual critics. @ai-generated"""
         mini_dist = self.oc.policy(minibatch.obs, minibatch.extras, minibatch.available_actions, mini_options)
         mini_log_probs = mini_dist.log_prob(minibatch.actions)
 
@@ -221,26 +240,38 @@ class PPOC(Trainer):
         surrogate1 = ratio * mini_advantages
         surrogate2 = torch.clamp(ratio, self._ratio_min, self._ratio_max) * mini_advantages
         l_clip = torch.min(surrogate1, surrogate2)
-        actor_loss = -torch.sum(l_clip) / minibatch.n_items
-        entropy_loss = -mini_dist.entropy().sum() / minibatch.n_items
+        masks = minibatch.masks
+        if masks.ndim < l_clip.ndim:
+            masks = masks.unsqueeze(-1)
+        actor_loss = -torch.sum(l_clip * masks) / minibatch.n_items
+        entropy_loss = -(mini_dist.entropy() * masks).sum() / minibatch.n_items
         return actor_loss, entropy_loss, log_ratio, ratio
 
     def _compute_termination_loss(self, minibatch: Batch, mini_options: torch.Tensor):
-        next_termination_probs = self.oc.termination_probability(minibatch.next_obs, minibatch.next_extras, mini_options)
+        """Average valid termination gradients without duplicating the agent axis. @ai-generated"""
+        next_termination_probs = self.oc.termination_probability(
+            minibatch.next_obs, minibatch.next_extras, mini_options
+        )
         with torch.no_grad():
             next_q_options = self.target_oc.compute_q_options(minibatch.next_obs, minibatch.next_extras)
             next_q_max = next_q_options.max(dim=-1).values
             next_q_current = torch.gather(next_q_options, dim=-1, index=mini_options).squeeze(-1)
             if self.target_mixer is not None:
                 next_q_max = self.target_mixer.forward(next_q_max, minibatch.next_states, minibatch.next_states_extras)
-                next_q_current = self.target_mixer.forward(next_q_current, minibatch.next_states, minibatch.next_states_extras)
+                next_q_current = self.target_mixer.forward(
+                    next_q_current, minibatch.next_states, minibatch.next_states_extras
+                )
             next_advantage = next_q_current - next_q_max
             if self.target_mixer is not None:
-                next_advantage = next_advantage.repeat_interleave(self.n_agents).view(minibatch.size, self.n_agents)
+                next_advantage = next_advantage.unsqueeze(-1)
 
-        termination_mask = minibatch.not_dones.repeat_interleave(self.n_agents).view(minibatch.size, self.n_agents)
-        termination_loss = torch.sum(next_termination_probs * (next_advantage + self.termination_reg) * termination_mask)
-        return termination_loss
+        termination_mask = minibatch.not_dones * minibatch.masks
+        if termination_mask.ndim < next_termination_probs.ndim:
+            termination_mask = termination_mask.unsqueeze(-1)
+        termination_loss = torch.sum(
+            next_termination_probs * (next_advantage + self.termination_reg) * termination_mask
+        )
+        return termination_loss / minibatch.n_items
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
         if not isinstance(self.memory, TransitionMemory):

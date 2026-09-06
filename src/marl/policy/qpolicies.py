@@ -61,8 +61,9 @@ class EpsilonGreedy(Policy):
         return cls(schedule.ConstantSchedule(start_value=eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray | None = None) -> np.ndarray:
+        """Sample epsilon-greedy actions without mutating supplied utilities. @ai-generated"""
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
+            qvalues = np.where(available_actions, qvalues, -np.inf)
         else:
             available_actions = np.full_like(qvalues, True)
         chosen_actions = qvalues.argmax(axis=-1)
@@ -99,8 +100,9 @@ class ArgMax(Policy):
     """Exploiting the strategy"""
 
     def get_action(self, qvalues: np.ndarray, available_actions: npt.NDArray[np.float32] | None = None) -> np.ndarray:
+        """Select legal greedy actions without mutating supplied utilities. @ai-generated"""
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
+            qvalues = np.where(available_actions, qvalues, -np.inf)
         return qvalues.argmax(-1)
 
     def update(self, time_step: int):

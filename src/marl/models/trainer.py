@@ -110,13 +110,19 @@ class Trainer(Serializable):
         return [nn for nn in self.__dict__.values() if isinstance(nn, NN)]
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
-        """Randomize the parameters of all the neural networks in the trainer."""
+        """Randomize networks, then synchronize registered target parameters. @ai-generated"""
+        from marl.algos.qtarget_updater import TargetParametersUpdater
 
         for nn in self.networks():
             if isinstance(nn, NN):
                 nn.randomize(method)
             else:
                 randomize(torch.nn.init.xavier_uniform_, nn)
+        with torch.no_grad():
+            for updater in self.__dict__.values():
+                if isinstance(updater, TargetParametersUpdater):
+                    for online, target in zip(updater.parameters, updater.target_parameters, strict=True):
+                        target.copy_(online)
 
     def to(self, device: torch.device) -> Self:
         """Send the networks to the given device."""

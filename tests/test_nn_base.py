@@ -94,15 +94,15 @@ class TestRecurrentNN:
 
     def test_forward_populates_hidden_state(self):
         rnn = self._make_rnn()
-        obs = torch.randn(3, 2, 5, 6)
-        extras = torch.randn(3, 2, 5, 0)
+        obs = torch.randn(1, 5, 6)
+        extras = torch.randn(1, 5, 0)
         rnn.forward(obs, extras)
         assert rnn._hidden_states is not None
 
     def test_switching_to_eval_saves_and_clears_hidden_state(self):
         rnn = self._make_rnn()
-        obs = torch.randn(3, 2, 5, 6)
-        extras = torch.randn(3, 2, 5, 0)
+        obs = torch.randn(1, 5, 6)
+        extras = torch.randn(1, 5, 0)
         rnn.forward(obs, extras)
         hidden_before = rnn._hidden_states
         rnn.eval()
@@ -111,8 +111,8 @@ class TestRecurrentNN:
 
     def test_switching_back_to_train_restores_hidden_state(self):
         rnn = self._make_rnn()
-        obs = torch.randn(3, 2, 5, 6)
-        extras = torch.randn(3, 2, 5, 0)
+        obs = torch.randn(1, 5, 6)
+        extras = torch.randn(1, 5, 0)
         rnn.forward(obs, extras)
         hidden_before = rnn._hidden_states
         rnn.eval()

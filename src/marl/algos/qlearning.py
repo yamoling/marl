@@ -19,22 +19,22 @@ class QLearning(Trainer):
     default_qvalue: float = 1.0
 
     def __post_init__(self):
-        super().__init__()
+        super().__post_init__()
         self._qtable = defaultdict(self._init_qvalue)
 
     def _init_qvalue(self):  # -> npt.NDArray[np.float32]:
         return np.full((self.n_agents, self.n_actions), self.default_qvalue, dtype=np.float32)
 
     def update_step(self, transition: Transition, time_step: int):
-        actions = np.array([transition.action])
-        actions = actions[:, np.newaxis]
-        qvalues = np.take_along_axis(self._qtable[transition.obs], actions).squeeze(-1)
-        next_values = self._qtable[transition.next_obs].max(axis=-1)
-        target_qvalues = transition.reward.item() + self.gamma * next_values
-        new_qvalues = (1 - self.lr) * qvalues + self.lr * target_qvalues
+        """Update chosen actions using legal successors and true terminal masking. @ai-generated"""
+        actions = np.asarray(transition.action).reshape(self.n_agents)
+        agents = np.arange(self.n_agents)
         qmatrix = self._qtable[transition.obs]
-        for i, (a, newq) in enumerate(zip(actions, new_qvalues, strict=True)):
-            qmatrix[i][a] = newq
+        target = np.full(self.n_agents, transition.reward.item(), dtype=np.float32)
+        if not transition.done:
+            next_qvalues = np.where(transition.next_obs.available_actions, self._qtable[transition.next_obs], -np.inf)
+            target += self.gamma * next_qvalues.max(axis=-1)
+        qmatrix[agents, actions] += self.lr * (target - qmatrix[agents, actions])
         return {}
 
     def save(self, directory: Path):
@@ -45,9 +45,12 @@ class QLearning(Trainer):
             pickle.dump(self, f)
 
     def load(self, directory: Path):
+        """Load current checkpoints, retaining the legacy filename fallback. @ai-generated"""
         import os
 
-        file = os.path.join(directory, "qtable.pkl")
+        file = os.path.join(directory, "qlearning.pkl")
+        if not os.path.exists(file):
+            file = os.path.join(directory, "qtable.pkl")
         with open(file, "rb") as f:
             loaded: QLearning = pickle.load(f)
         self._qtable = loaded._qtable

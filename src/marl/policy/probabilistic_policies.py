@@ -12,8 +12,9 @@ class CategoricalPolicy(Policy):
     """Categorical distribution policy"""
 
     def get_action(self, qvalues, available_actions=None):
+        """Sample legal actions without mutating supplied logits. @ai-generated"""
         if available_actions is not None:
-            qvalues[available_actions == 0] = -np.inf
+            qvalues = np.where(available_actions, qvalues, -np.inf)
         qvalues = torch.from_numpy(qvalues)
         dist = torch.distributions.Categorical(logits=qvalues)
         actions = dist.sample()

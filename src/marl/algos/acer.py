@@ -138,13 +138,15 @@ class ACER(Trainer):
 
     def to(self, device: torch.device) -> Self:
         """
-        Send the networks to the given device and rebuild the optimizer so that it can use the fused
-        implementation on CUDA.
+        Move networks and optimizer moments while enabling fused AdamW on CUDA.
 
         @ai-generated
         """
+        state = self._optimizer.state_dict()
         super().to(device)
-        self._optimizer = self._make_optimizer(fused=device.type == "cuda")
+        for group in state["param_groups"]:
+            group["fused"] = device.type == "cuda"
+        self._optimizer.load_state_dict(state)
         return self
 
     def randomize(self, method: Literal["xavier", "orthogonal"] = "xavier"):
@@ -232,7 +234,10 @@ class ACER(Trainer):
             batch = individual_batch
         ir_logs = dict[str, float]()
         if self.ir_module is not None:
-            batch.rewards = batch.rewards + self.ir_module.compute(batch)
+            intrinsic = self.ir_module.compute(batch)
+            while intrinsic.ndim < batch.rewards.ndim:
+                intrinsic = intrinsic.unsqueeze(-1)
+            batch.rewards = batch.rewards + intrinsic
             if on_policy:
                 ir_logs = self.ir_module.update(batch, time_step)
         actions = batch.actions.unsqueeze(-1)  # (T, B, A, 1)
@@ -341,6 +346,14 @@ class ACER(Trainer):
         else:
             obs, extras, available = batch.obs, batch.extras, batch.available_actions
         n_steps, n_episodes = obs.shape[:2]
+        if actor.is_recurrent:
+            if next_obs:
+                logits = actor.forward(batch.all_obs, batch.all_extras, available_actions=batch.all_available_actions)[
+                    1:
+                ]
+            else:
+                logits = actor.forward(obs, extras, available_actions=available)
+            return torch.softmax(logits, dim=-1)
         logits = actor.forward(
             obs.flatten(0, 1),
             extras.flatten(0, 1),
@@ -356,6 +369,8 @@ class ACER(Trainer):
         @ai-generated
         """
         n_steps, n_episodes = obs.shape[:2]
+        if self.critic.is_recurrent:
+            return self.critic.batch_qvalues(obs, extras)
         qvalues = self.critic.batch_qvalues(obs.flatten(0, 1), extras.flatten(0, 1))
         return qvalues.unflatten(0, (n_steps, n_episodes))
 
@@ -366,7 +381,10 @@ class ACER(Trainer):
         @ai-generated
         """
         next_probs = self._probabilities(self.actor, batch, next_obs=True)
-        next_qvalues = self._qvalues(batch.next_obs, batch.next_extras)
+        if self.critic.is_recurrent:
+            next_qvalues = self._qvalues(batch.all_obs, batch.all_extras)[1:]
+        else:
+            next_qvalues = self._qvalues(batch.next_obs, batch.next_extras)
         next_values = torch.sum(next_probs * next_qvalues, dim=-1)
         if self.mixer is not None:
             next_values = self.mixer.forward(next_values, batch.next_states, batch.next_states_extras)

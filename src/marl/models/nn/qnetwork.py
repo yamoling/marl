@@ -116,13 +116,22 @@ class QNetwork(NN):
             def __hash__(self):
                 return hash(self.name)
 
-            def logits(
-                self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None
+            def forward(
+                self,
+                obs: torch.Tensor,
+                extras: torch.Tensor,
+                *,
+                available_actions: torch.Tensor | None = None,
+                **kwargs,
             ) -> torch.Tensor:
-                logits = self.qnet.batch_qvalues(obs, extras)
+                """Adapt Q utilities to the categorical actor forward interface. @ai-generated"""
+                logits = self.qnet.batch_qvalues(obs, extras, **kwargs)
                 if available_actions is not None:
                     logits = logits.masked_fill(~available_actions, -torch.inf)
                 return logits
+
+            def logits(self, obs, extras, available_actions=None):
+                return self.forward(obs, extras, available_actions=available_actions)
 
         return ActorFromQNet(self)
 
@@ -155,15 +164,20 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         RecurrentNN.__post_init__(self)
 
     def batch_qvalues(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs
+        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs
     ) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
-        In this case, the RNN considers hidden states=None.
+        In this case, every nested RNN starts from reset and its acting history is restored.
+        @ai-generated
         """
-        saved_hidden_states = self._hidden_states
-        self.reset_hidden_states()
-        qvalues = super().batch_qvalues(obs, extras, masks=masks, **kwargs)
-        self._hidden_states = saved_hidden_states
-        return qvalues
+        recurrent = [module for module in self.modules() if isinstance(module, RecurrentNN)]
+        saved = [module._hidden_states for module in recurrent]
+        try:
+            for module in recurrent:
+                module._hidden_states = None
+            return super().batch_qvalues(obs, extras, masks=masks, **kwargs)
+        finally:
+            for module, hidden in zip(recurrent, saved, strict=True):
+                module._hidden_states = hidden

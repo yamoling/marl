@@ -76,6 +76,7 @@ class CategoricalLinearActor(CategoricalActor):
         return id(self)
 
 
+@dataclass
 class CategoricalRecurrentActor(CategoricalActor, RecurrentNN):
     """Categorical Recurrent Actor"""
 

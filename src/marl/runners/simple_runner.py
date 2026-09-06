@@ -32,11 +32,12 @@ def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests
             agent = trainer.make_agent().to(device)
             marl.seed(run.seed, env, test_env)
             trainer.randomize()
-            agent.randomize()
 
             episode_num, time_step = 0, 0
             while time_step < run.n_steps:
-                episode = _train_episode(env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run)
+                episode = _train_episode(
+                    env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run
+                )
                 episode_num += 1
                 time_step += len(episode)
                 pbar.update(len(episode))
@@ -58,6 +59,7 @@ def _train_episode[A](
     quiet: bool,
     run: Run,
 ):
+    """Collect at most the remaining run budget, retaining truncation semantics. @ai-generated"""
     obs, state = env.reset()
     agent.new_episode()
     episode = Episode.new(obs, state, metrics={"episode_num": episode_num})
@@ -66,7 +68,7 @@ def _train_episode[A](
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
         action = agent.choose_action(obs)
         step = env.step(action)
-        if time_step == run.n_steps:
+        if time_step >= run.n_steps:
             step.truncated = True
         transition = Transition.from_step(obs, state, action.action, step, **action.details)
         training_metrics = trainer.update_step(transition, time_step)

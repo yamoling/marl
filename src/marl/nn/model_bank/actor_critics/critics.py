@@ -19,8 +19,8 @@ def from_env(env: MARLEnv | EnvConfig, *, independent: bool = True, recurrent: b
         # (obs shape rank, discrete action space, recurrent)
         (3, True, False): ConvCritic,
         (1, True, False): LinearCritic,
-        (3, True, True): RecurrentCritic,
-        (1, True, True): RecurrentConvCritic,
+        (3, True, True): RecurrentConvCritic,
+        (1, True, True): RecurrentCritic,
     }
     config = (len(env.observation_shape), env.action_space.is_discrete, recurrent)
     network_class = registry.get(config)
@@ -152,7 +152,7 @@ class RecurrentConvCritic(Critic, RecurrentNN):
             hidden_activation=self.activation,
         )
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None, **kwargs):
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs):
         x = self.cnn.forward(obs)
         return self.rnn.forward(x, extras, masks=masks, **kwargs).squeeze(-1)
 

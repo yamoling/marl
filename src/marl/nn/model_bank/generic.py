@@ -40,8 +40,10 @@ class MLP(NN):
             else:
                 layer = torch.nn.Linear(in_size, out_size)
             self.nn.append(layer)
-            if i < len(self.layer_sizes) - 2 or self.output_activation is not None:
+            if i < len(self.layer_sizes) - 2:
                 self.nn.append(get_activation(self.hidden_activation))
+            elif self.output_activation is not None:
+                self.nn.append(get_activation(self.output_activation))
 
     @property
     def output_size(self):
@@ -149,7 +151,10 @@ class RNN(RecurrentNN):
     def forward(
         self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs
     ) -> torch.Tensor:
+        """Unroll episode batches from reset without replacing the acting history. @ai-generated"""
         self.gru.flatten_parameters()
+        batched_episodes = obs.ndim >= 4
+        hidden = None if batched_episodes else self._hidden_states
         assert len(obs.shape) >= 3, "The observation should have at least shape (ep_length, batch_size, obs_size)"
         # During batch training, the input has shape (episodes_length, batch_size, n_agents, obs_size).
         # This shape is not supported by the GRU layer, so we merge the batch_size and n_agents dimensions
@@ -160,13 +165,17 @@ class RNN(RecurrentNN):
         x = torch.concat((obs, extras), dim=-1)
         x = self.head.forward(x)
         if masks is not None:
+            while masks.ndim > 2:
+                masks = masks[..., 0]
             episodes_lengths = masks.long().sum(0).cpu()
             episodes_lengths = episodes_lengths.repeat_interleave(n_agents)
             packed = torch.nn.utils.rnn.pack_padded_sequence(x, episodes_lengths, enforce_sorted=False)
-            packed, self._hidden_states = self.gru.forward(packed, self._hidden_states)
-            x, _ = torch.nn.utils.rnn.pad_packed_sequence(packed)
+            packed, hidden = self.gru.forward(packed, hidden)
+            x, _ = torch.nn.utils.rnn.pad_packed_sequence(packed, total_length=episode_length)
         else:
-            x, self._hidden_states = self.gru.forward(x, self._hidden_states)
+            x, hidden = self.gru.forward(x, hidden)
+        if not batched_episodes:
+            self._hidden_states = hidden
         x = self.tail.forward(x)
         # Restore the original shape of the batch
         x = x.view(episode_length, *batch_size, n_agents, self.output_size)

@@ -15,10 +15,10 @@ class QPlex(DQN[mixers.QPlex]):
         assert isinstance(self.mixer, mixers.QPlex), "QPlex training requires a QPlex mixer"
 
     def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False):
+        """Supply utilities and legality; DQN supplies its selected target action."""
         kwargs = super().get_mixing_kwargs(batch, all_qvalues, is_next)
         if is_next:
             qplex_args = {"all_qvalues": all_qvalues, "available_actions": batch.next_available_actions}
-            raise NotImplementedError("TODO: check how to implemebt the next_one_hot_acitons")
         else:
             qplex_args = {
                 "all_qvalues": all_qvalues,

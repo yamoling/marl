@@ -132,12 +132,12 @@ class TestEpisodeMemory:
 
 
 class TestNStepMemory:
-    def test_length_is_reduced_by_n_before_episode_end(self):
+    def test_length_excludes_only_incomplete_returns_before_episode_end(self):
         memory = NStepMemory(100, n=3, gamma=0.9)
         for t in _make_transitions(5, end_game=1000):
             memory.add(t)
-        # 5 transitions added, none terminal: the last n=3 are held back.
-        assert len(memory) == 5 - 3
+        # An n-step return is complete after n rewards: only n-1 items remain pending.
+        assert len(memory) == 5 - 3 + 1
 
     def test_n_step_return_matches_manual_computation(self):
         gamma = 0.9
@@ -146,8 +146,8 @@ class TestNStepMemory:
         transitions = _make_transitions(n, end_game=1000, reward_step=1.0)
         for t in transitions:
             memory.add(t)
-        # Not yet terminal, so nothing should have been finalised: len == 0.
-        assert len(memory) == 0
+        # Exactly n rewards complete the first non-terminal n-step return.
+        assert len(memory) == 1
         # Manually recompute the n-step discounted reward for the first transition.
         expected = sum(gamma**i * transitions[i].reward.item() for i in range(n))
         stored = memory[0]

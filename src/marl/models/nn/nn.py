@@ -102,7 +102,8 @@ class RecurrentNN(NN):
         self._hidden_states = None
 
     def train(self, mode: bool = True):
-        if not mode:
+        """Save and restore recurrent history only when the mode changes. @ai-generated"""
+        if not mode and self.training:
             # Set test mode: save training hidden states
             self._saved_hidden_states = self._hidden_states
             self.reset_hidden_states()

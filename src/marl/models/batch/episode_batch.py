@@ -135,7 +135,11 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def rewards(self):
-        rewards = torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
+        rewards = (
+            torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32))
+            .transpose(1, 0)
+            .to(self.device)
+        )
         return rewards.squeeze(-1)
 
     @cached_property
@@ -147,3 +151,9 @@ class EpisodeBatch(Batch):
     def masks(self):
         masks = torch.from_numpy(np.array([e.mask for e in self.episodes], dtype=np.float32)).to(self.device)
         return masks.squeeze(-1).transpose(0, 1)
+
+    @property
+    def episode_ends(self):
+        """Mark the final valid step of each trajectory, including time limits. @ai-generated"""
+        next_masks = torch.cat((self.masks[1:], torch.zeros_like(self.masks[:1])))
+        return self.dones | (next_masks == 0)

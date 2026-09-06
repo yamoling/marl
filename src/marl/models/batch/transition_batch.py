@@ -257,7 +257,15 @@ class TransitionBatch(Batch):
 
     @cached_property
     def masks(self):
-        return torch.ones(self.size, device=self.device)
+        """Validity per transition and objective, before individual expansion. @ai-generated"""
+        shape = (self.size, self.reward_size) if self.reward_size > 1 else (self.size,)
+        return torch.ones(shape, device=self.device)
+
+    @property
+    def episode_ends(self):
+        """Stop temporal traces at either termination or truncation. @ai-generated"""
+        ends = torch.tensor([t.is_terminal for t in self.transitions], dtype=torch.bool, device=self.device)
+        return ends.reshape(self.size, *(1 for _ in self.dones.shape[1:])).expand_as(self.dones)
 
     @cached_property
     def probs(self):

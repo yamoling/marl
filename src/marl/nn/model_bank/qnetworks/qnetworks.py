@@ -79,7 +79,7 @@ class QMLP(QNetwork):
                     independent=self.independent,
                     n_agents=self.n_agents,
                 ),
-                NoisyLinear(self.hidden_sizes[1], self.n_actions),
+                NoisyLinear(self.hidden_sizes[-1], self.output_size),
             )
         else:
             self.nn = MLP(
