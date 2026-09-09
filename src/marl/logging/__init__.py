@@ -19,10 +19,12 @@ TIMESTAMP_COL = "timestamp_sec"
 TICK_COL = "ticks"
 TickColumn = Literal["time_step", "timestamp_sec"]
 
+logger = logging.getLogger(__name__)
+
 
 @lru_cache
 def warn_once(msg: str):
-    logging.warning(msg)
+    logger.warning(msg)
 
 
 __all__ = [

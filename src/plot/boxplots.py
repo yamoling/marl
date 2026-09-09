@@ -10,6 +10,8 @@ from marl.logging import TIME_STEP_COL
 from ._setup import GlobalConfig, _setup
 from .utils import deslugify
 
+logger = logging.getLogger(__name__)
+
 
 def boxplot_at(
     experiments: Collection[LightExperiment],
@@ -51,7 +53,7 @@ def boxplot_at(
             # Remove "logs/" prefix
             labels.append(e.logdir[5:])
         except Exception:
-            logging.warning(f"An error occurred while processing {e.logdir} with {metric}. Skipping.")
+            logger.warning(f"An error occurred while processing {e.logdir} with {metric}. Skipping.")
 
     fig, ax = plt.subplots()
     ax.boxplot(results)

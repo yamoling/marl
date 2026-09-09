@@ -14,6 +14,8 @@ from marl.algos import DQN, PPO, VDN, QMix
 from marl.env import EnvConfig, LLEPool
 from marl.nn import mixers, model_bank
 
+logger = logging.getLogger(__name__)
+
 
 class Args(tap.TypedArgs):
     quiet: bool | None = tap.arg("--quiet", default=False)
@@ -78,7 +80,7 @@ def main(args: Args):
     trainer = args.trainer(train_env)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=args.logdir, n_steps=args.n_steps)
     # exp.run(args.n_seeds, gpu_strategy="scatter", disabled_gpus=range(6), n_jobs=8, n_tests=args.pool_size)
-    logging.info(f"Created experiment in {exp.logdir}")
+    logger.info(f"Created experiment in {exp.logdir}")
 
 
 if __name__ == "__main__":
@@ -92,6 +94,6 @@ if __name__ == "__main__":
     try:
         tap.Parser(Args).bind(main).run()
     except Exception as e:
-        logging.error(
+        logger.error(
             f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
         )

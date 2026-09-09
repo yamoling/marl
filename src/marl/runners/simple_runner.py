@@ -12,6 +12,8 @@ from tqdm import tqdm
 if TYPE_CHECKING:
     from marl import Agent, Run, Trainer
 
+logger = logging.getLogger(__name__)
+
 
 def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests: bool, device: torch.device):
     """
@@ -99,7 +101,7 @@ def _test_and_log[A](test_env: MARLEnv[A], agent: Agent, time_step: int, render:
                 avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / run.n_tests
             except TypeError:
                 pass
-        logging.info(avg_metrics)
+        logger.info(avg_metrics)
     run.logger.log_test_episodes(episodes, time_step, run.save_actions)
     agent.set_training()
 

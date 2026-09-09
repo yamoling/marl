@@ -12,6 +12,8 @@ import typed_argparse as tap
 
 from marl.utils import DeviceLike
 
+logger = logging.getLogger(__name__)
+
 
 class Arguments(tap.TypedArgs):
     logdir: str = tap.arg(positional=True, help="The experiment directory")
@@ -74,6 +76,6 @@ if __name__ == "__main__":
     try:
         tap.Parser(Arguments).bind(main).run()
     except Exception as e:
-        logging.error(
+        logger.error(
             f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True
         )

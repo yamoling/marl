@@ -4,9 +4,10 @@ import logging
 import multiprocessing as mp
 import signal
 import time
+from collections.abc import Collection
 from contextlib import contextmanager
 from multiprocessing.pool import AsyncResult, Pool
-from typing import TYPE_CHECKING, Collection, Literal
+from typing import TYPE_CHECKING, Literal
 
 import torch
 from marlenv import MARLEnv
@@ -21,6 +22,8 @@ from .simple_runner import simple_run
 if TYPE_CHECKING:
     from marl import Run
 
+logger = logging.getLogger(__name__)
+
 
 @contextmanager
 def ignore_sigint():
@@ -28,7 +31,7 @@ def ignore_sigint():
         original_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
     except ValueError:
         # signal.signal can only be called from the main thread. If we're not in the main thread, we can't ignore SIGINT, but we also don't want to crash, so we just yield without changing the signal handler.
-        logging.warning("Cannot ignore SIGINT in a non-main thread. SIGINT will not be ignored for this run.")
+        logger.warning("Cannot ignore SIGINT in a non-main thread. SIGINT will not be ignored for this run.")
         yield
         return
     try:
@@ -63,14 +66,14 @@ def parallel_run[E: MARLEnv, T: Trainer](
             devices = []
             if gpu_strategy == "scatter":
                 devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus)
-                logging.info(f"Preplanned device assignments for scatter strategy: {devices}")
+                logger.info(f"Preplanned device assignments for scatter strategy: {devices}")
             devices += [device] * (len(runs) - 1 - len(devices))
-            for run, device in zip(runs[1:], devices):
+            for run, dev in zip(runs[1:], devices):
                 handles.append(
                     submit(
                         pool,
                         run,
-                        device,
+                        dev,
                         True,
                         False,
                         estimated_gpu_memory,
@@ -86,14 +89,14 @@ def parallel_run[E: MARLEnv, T: Trainer](
                     try:
                         handle.get(timeout=1)
                     except Exception as e:
-                        logging.error(f"Error in one of the runs: {e}", exc_info=e)
+                        logger.error(f"Error in one of the runs: {e}", exc_info=e)
                     finally:
                         # Always remove completed handles (including failures)
                         # to avoid waiting forever on an already-failed run.
                         handles.pop(index)
                 time.sleep(1)
     except RuntimeError as e:
-        logging.error(f"RuntimeError in parallel_run: {e}", exc_info=e)
+        logger.error(f"RuntimeError in parallel_run: {e}", exc_info=e)
         if "__main__" in str(e):
             raise RuntimeError("""
 This error occurred while the ProcessPool tried to spawn processes and is likely caused by not protecting the entry point with if __name__ == '__main__'.
@@ -107,7 +110,7 @@ if __name__ == '__main__':
 
 def submit(
     pool: Pool,
-    run: "Run",
+    run: Run,
     device: Literal["cpu", "auto", "cuda"] | str | int | None,
     quiet: bool,
     render_tests: bool,
@@ -156,7 +159,7 @@ def _start_run(
             device = get_device("auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus)
         case other:
             raise ValueError(f"Invalid device_type: {other}")
-    logging.info(f"Selected device {device} for {run.rundir}")
+    logger.info(f"Selected device {device} for {run.rundir}")
     return simple_run(run, quiet, render_tests, device)
 
 
@@ -171,13 +174,11 @@ def _estimate_required_gpu_memory(ignored_pids: set[int], run_0_handle: AsyncRes
     while not run_0_handle.ready() and (max_observed is None or max_observed != prev_max_observed):
         time.sleep(poll_interval_s)
         prev_max_observed = max_observed
-        usage = get_gpu_usage_by_pid()
-        for pid, usage in usage.items():
-            if pid not in ignored_pids:
-                if max_observed is None or usage > max_observed:
-                    max_observed = usage
+        for pid, usage in get_gpu_usage_by_pid().items():
+            if pid not in ignored_pids and (max_observed is None or usage > max_observed):
+                max_observed = usage
 
     if max_observed is None:
         raise RuntimeError("Failed to estimate GPU memory usage of the first run.")
-    logging.info(f"Estimated GPU memory usage of a single run: {max_observed} MB")
+    logger.info(f"Estimated GPU memory usage of a single run: {max_observed} MB")
     return max_observed

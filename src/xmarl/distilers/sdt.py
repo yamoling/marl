@@ -13,6 +13,8 @@ from marlenv.models import Episode
 from marl.models.batch import Batch
 from xmarl.distilers.utils import abstract_observation, flatten_observation, get_agent_pos, get_fixed_features
 
+logger = logging.getLogger(__name__)
+
 EPS = 1e-6
 
 
@@ -78,7 +80,7 @@ class InnerNode(nn.Module):
     def cal_prob(self, x, path_prob):
         self.prob = self.forward(x)  # probability of selecting right node
         if torch.any(torch.isnan(self.prob)) or torch.any(torch.isinf(self.prob)):
-            logging.warning("prob: NaN or Inf detected!")
+            logger.warning("prob: NaN or Inf detected!")
         self.path_prob = path_prob
         left_leaf_accumulator = self.left.cal_prob(x, path_prob * (1 - self.prob))
         right_leaf_accumulator = self.right.cal_prob(x, path_prob * self.prob)
@@ -90,7 +92,7 @@ class InnerNode(nn.Module):
         """Recursively computes the penalty of each node"""
         penalty = (torch.sum(self.prob * self.path_prob) / torch.sum(self.path_prob).clamp(min=EPS), self.lmbda)
         if torch.any(torch.isnan(penalty[0])) or torch.any(torch.isinf(penalty[0])):
-            logging.warning("penalty[0]: NaN or Inf detected!")
+            logger.warning("penalty[0]: NaN or Inf detected!")
         if not self.left.leaf:
             left_penalty = self.left.get_penalty()  # type: ignore
             right_penalty = self.right.get_penalty()  # type: ignore
@@ -215,13 +217,13 @@ class SoftDecisionTree[B: Batch](nn.Module):
         max_Q = torch.zeros((self.batch_size, self.output_shape))
         for path_prob, Q in leaf_accumulator:
             if torch.any(torch.isnan(Q)) or torch.any(torch.isinf(Q)):
-                logging.warning("Q: NaN or Inf detected!")
+                logger.warning("Q: NaN or Inf detected!")
             log_Q = torch.log(Q.clamp(min=EPS))
             TQ = torch.bmm(
                 y.view(self.batch_size, 1, self.output_shape, torch.float32), log_Q.view(self.batch_size, self.output_shape, 1)
             ).view(-1, 1)
             if torch.any(torch.isnan(TQ)) or torch.any(torch.isinf(TQ)):
-                logging.warning("TQ: NaN or Inf detected!")
+                logger.warning("TQ: NaN or Inf detected!")
             loss += path_prob * TQ
             path_prob_numpy = path_prob.cpu().data.numpy().reshape(-1)
             for i in range(self.batch_size):
@@ -237,20 +239,20 @@ class SoftDecisionTree[B: Batch](nn.Module):
             penalty = penalty.clamp(EPS, 1 - EPS)  # Safeguard to not have penalty = 1 or 0
             C -= lmbda * 0.5 * (torch.log(penalty) + torch.log(1 - penalty))
             if torch.any(torch.isnan(C)) or torch.any(torch.isinf(C)):
-                logging.warning("C: NaN or Inf detected!")
+                logger.warning("C: NaN or Inf detected!")
             if torch.any(torch.isnan(penalty)) or torch.any(torch.isinf(penalty)):
-                logging.warning("penalty: NaN or Inf detected!")
+                logger.warning("penalty: NaN or Inf detected!")
 
         self.root.reset()  ##reset all stacked calculation
         if torch.any(torch.isnan(loss)) or torch.any(torch.isinf(loss)):
-            logging.warning("loss: NaN or Inf detected!")
+            logger.warning("loss: NaN or Inf detected!")
 
         return (-loss + C, max_Q)  # -log(loss) in paper, loss already in logspace here
 
     def train_(self, train_data, train_targets, epoch=0):
         """While the model outputs a distribution over actions, train_data should have the one-hot encoded action choice"""
         if self.agent_id is not None:
-            logging.warning(f"Training for agent {self.agent_id}")
+            logger.warning(f"Training for agent {self.agent_id}")
         self.train()
         self.define_extras(self.batch_size)
         train_log = []
@@ -279,12 +281,12 @@ class SoftDecisionTree[B: Batch](nn.Module):
             if batch_idx % self.log_interval == 0:
                 train_log.append((accuracy, loss.item()))
         train_log = np.array(train_log)
-        logging.info(f"Train accuracy for epoch {epoch}: {np.mean(train_log[:, 0])}\n ")
+        logger.info(f"Train accuracy for epoch {epoch}: {np.mean(train_log[:, 0])}\n ")
         return train_log
 
     def test_(self, train_data, train_targets, epoch=0, test=False):
         if self.agent_id is not None:
-            logging.info(f"\nTesting for agent {self.agent_id}")
+            logger.info(f"\nTesting for agent {self.agent_id}")
         self.eval()
 
         self.define_extras(self.batch_size)
@@ -309,7 +311,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
 
         total_data = batch_nb * self.batch_size
         accuracy = 100.0 * correct / total_data
-        logging.info(f"{'Validation' if not test else 'Test'} set Accuracy: {correct}/{total_data} ({accuracy:.4f}%)\n")
+        logger.info(f"{'Validation' if not test else 'Test'} set Accuracy: {correct}/{total_data} ({accuracy:.4f}%)\n")
         self.test_acc.append(accuracy)
 
         if accuracy > self.best_accuracy:
