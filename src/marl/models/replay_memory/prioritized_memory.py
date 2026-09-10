@@ -44,6 +44,7 @@ class PrioritizedMemory[T](ReplayMemory[T]):
         self.td_error_clipping = td_error_clipping
         self.multi_objective = multi_objective
         self.sampled_indices = list[int]()
+        self._next_index = 0
         match alpha:
             case float():
                 self.alpha = Schedule.constant(alpha)
@@ -60,15 +61,38 @@ class PrioritizedMemory[T](ReplayMemory[T]):
                 raise ValueError(f"beta must be a float or a Schedule, got {other}")
 
     def add(self, item: T):
+        """Advance the tree's physical ring slot alongside deque insertion. @ai-generated"""
         self.tree.add(self.max_priority)
         self.memory.add(item)
+        self._next_index = (self._next_index + 1) % self.max_size
+
+    def add_transition(self, transition):
+        if self.update_on_transitions:
+            self.add(transition)
+
+    def add_episode(self, episode):
+        if self.update_on_episodes:
+            self.add(episode)
+
+    def clear(self):
+        """Reset both the replay store and its priority index. @ai-generated"""
+        self.memory.clear()
+        self.tree = SumTree(self.max_size)
+        self._next_index = 0
+        self.sampled_indices = []
+        self.max_priority = self.eps
 
     def sample(self, batch_size: int):
+        """Map physical priority slots to logical deque indices after eviction. @ai-generated"""
         # Sample the indices from the sumtree, proportional to their priority
         self.sampled_indices, priorities = self.tree.sample(batch_size)
 
         # Retrieve batch corresponding to the indices from the wrapped memory
-        batch = self.memory.get_batch(self.sampled_indices)
+        if len(self) == self.max_size:
+            indices = [(i - self._next_index) % self.max_size for i in self.sampled_indices]
+        else:
+            indices = self.sampled_indices
+        batch = self.memory.get_batch(indices)
 
         # Then do the book-keeping to compute the importance sampling weights
         # Concretely, we define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
@@ -106,17 +130,23 @@ class PrioritizedMemory[T](ReplayMemory[T]):
         return self.memory[idx]
 
     def update(self, time_step: int, /, td_error: torch.Tensor | None = None, **kwargs) -> dict[str, float]:
+        """Use maximum absolute error per replay item across agents/time/objectives. @ai-generated"""
         if td_error is None:
-            raise ValueError("'td_error' keyword argument must be provided to update the priorities of the sampled transitions.")
+            raise ValueError(
+                "'td_error' keyword argument must be provided to update the priorities of the sampled transitions."
+            )
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)
-        self.beta.update()
-        self.alpha.update()
+        self.beta.update(time_step)
+        self.alpha.update(time_step)
         with torch.no_grad():
             td_error = torch.abs(td_error)
             if self.multi_objective:
                 td_error = torch.mean(td_error, dim=-1)
+            if self.update_on_episodes:
+                td_error = td_error.movedim(1, 0)
+            td_error = td_error.reshape(len(self.sampled_indices), -1).amax(dim=-1)
             # Clip the TD errors to avoid numerical instability (Section 4, second §)
             if self.td_error_clipping is not None:
                 td_error = torch.clip(td_error, max=self.td_error_clipping)
@@ -130,4 +160,4 @@ class PrioritizedMemory[T](ReplayMemory[T]):
         }
 
     def make_batch(self, items: Iterable[T]):
-        raise NotImplementedError("TODO: just move some code here to comply with the new ReplayMemory interface")
+        return self.memory.make_batch(items)

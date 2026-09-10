@@ -1,5 +1,6 @@
 from typing import Optional
 
+import numpy as np
 import torch
 from marlenv import Transition
 from marlenv.catalog import DiscreteMockEnv
@@ -130,3 +131,159 @@ def test_gae1_is_mc():
     mc = batch.compute_mc_advantages(GAMMA, all_values, normalize=False)
 
     assert torch.allclose(gae_1, mc)
+
+
+def test_transition_batch_get_minibatch_matches_fresh_batch():
+    """The device-indexing fast path of `get_minibatch` must produce the same tensors as building
+    a fresh `TransitionBatch` from the corresponding subset of transitions."""
+    batch = _make_batch(20, step_reward=1.5)
+    indices = [1, 3, 4, 7, 12, 19]
+
+    # Force materialization of every field on the parent batch, as `PPO.train` does before entering
+    # the epoch loop.
+    for field in (
+        "obs",
+        "next_obs",
+        "extras",
+        "next_extras",
+        "actions",
+        "rewards",
+        "dones",
+        "available_actions",
+        "masks",
+    ):
+        getattr(batch, field)
+
+    minibatch = batch.get_minibatch(indices)
+    expected = marl.models.batch.TransitionBatch([batch.transitions[i] for i in indices])
+
+    assert minibatch.size == expected.size
+    for field in (
+        "obs",
+        "next_obs",
+        "extras",
+        "next_extras",
+        "actions",
+        "rewards",
+        "dones",
+        "available_actions",
+        "masks",
+    ):
+        actual_value = getattr(minibatch, field)
+        expected_value = getattr(expected, field)
+        assert torch.equal(actual_value, expected_value), f"Mismatch for field {field!r}"
+
+
+def test_transition_batch_get_minibatch_unmaterialized_field_still_lazy():
+    """Fields never accessed on the parent batch must still be computable (lazily) on the minibatch."""
+    batch = _make_batch(20, step_reward=1.5)
+    indices = [0, 5, 10]
+
+    minibatch = batch.get_minibatch(indices)
+    expected = marl.models.batch.TransitionBatch([batch.transitions[i] for i in indices])
+
+    assert torch.equal(minibatch.states, expected.states)
+    assert torch.equal(minibatch.next_states, expected.next_states)
+
+
+def test_transition_batch_for_individual_learners_order_independent_of_minibatching():
+    """Applying `for_individual_learners` before or after `get_minibatch` must give the same result,
+    and applying it twice on the resulting minibatch (as `PPO.train` does) must be a no-op."""
+    indices = [2, 6, 9, 15]
+
+    # Order 1: expand on the parent, then slice. Simulate PPO calling `for_individual_learners` again on
+    # the resulting minibatch: it must be a no-op since the tensors are already agent-wise.
+    parent_first = _make_batch(20, step_reward=1.5)
+    parent_first.for_individual_learners()
+    minibatch_from_parent = parent_first.get_minibatch(indices)
+    minibatch_from_parent.for_individual_learners()
+
+    # Order 2: slice first (from an equivalent, not-yet-expanded batch), then expand on the child only.
+    batch = _make_batch(20, step_reward=1.5)
+    minibatch_then_expanded = batch.get_minibatch(indices)
+    minibatch_then_expanded.for_individual_learners()
+
+    assert torch.equal(minibatch_from_parent.rewards, minibatch_then_expanded.rewards)
+    assert torch.equal(minibatch_from_parent.dones, minibatch_then_expanded.dones)
+    assert torch.equal(minibatch_from_parent.masks, minibatch_then_expanded.masks)
+
+
+def test_transition_batch_single_pass_packing_matches_reference():
+    """The constructor's tensors must match the values, dtypes and
+    shapes of the reference per-field computation (`np.array([t.<field> for t in transitions])` then
+    `torch.from_numpy`), which is how each field used to be computed independently.
+
+    @ai-generated
+    """
+    batch = _make_batch(16, step_reward=1.5)
+    transitions = batch.transitions
+
+    fresh = marl.models.batch.TransitionBatch(transitions)
+
+    reference = {
+        "obs": torch.from_numpy(np.array([t.obs.data for t in transitions], dtype=np.float32)),
+        "next_obs": torch.from_numpy(np.array([t.next_obs.data for t in transitions], dtype=np.float32)),
+        "extras": torch.from_numpy(np.array([t.obs.extras for t in transitions], dtype=np.float32)),
+        "next_extras": torch.from_numpy(np.array([t.next_obs.extras for t in transitions], dtype=np.float32)),
+        "actions": torch.from_numpy(np.array([t.action for t in transitions])),
+        "rewards": torch.from_numpy(np.array([t.reward for t in transitions], dtype=np.float32)).squeeze(-1),
+        "available_actions": torch.from_numpy(np.array([t.obs.available_actions for t in transitions], dtype=bool)),
+        "next_available_actions": torch.from_numpy(
+            np.array([t.next_obs.available_actions for t in transitions], dtype=bool)
+        ),
+    }
+    np_dones = np.array([t.done for t in transitions], dtype=bool)
+    dones = torch.from_numpy(np_dones)
+    if reference["rewards"].dim() > 1:
+        dones = dones.unsqueeze(-1).expand_as(reference["rewards"])
+    reference["dones"] = dones
+
+    for field, expected in reference.items():
+        actual = getattr(fresh, field)
+        assert actual.dtype == expected.dtype, f"Mismatch dtype for field {field!r}"
+        assert actual.shape == expected.shape, f"Mismatch shape for field {field!r}"
+        assert torch.equal(actual, expected), f"Mismatch values for field {field!r}"
+
+    # `masks` is allocated directly on the batch's device rather than moved after the fact.
+    assert torch.equal(fresh.masks, torch.ones(len(transitions)))
+
+
+def test_transition_batch_tensors_are_snapshots_at_construction():
+    batch = _make_batch(4)
+    batch.transitions[0].reward = np.array([9.0], dtype=np.float32)
+    assert batch.rewards[0] == 1.0
+
+
+def test_transition_minibatch_preserves_modified_tensors_and_metadata(monkeypatch):
+    batch = _make_batch(4)
+    batch.gamma = torch.tensor([0.8, 0.9, 0.95, 0.99])
+    batch.for_individual_learners()
+    batch.rewards = batch.rewards + 10
+    batch.states = batch.states + 20
+    batch.importance_sampling_weights = torch.arange(4, dtype=torch.float32)
+    batch._cache["custom"] = torch.arange(4, dtype=torch.float32)
+
+    def unexpected_constructor(*args, **kwargs):
+        raise AssertionError("Minibatching must reuse the parent's tensors")
+
+    monkeypatch.setattr(marl.models.batch.TransitionBatch, "__init__", unexpected_constructor)
+    indices = [3, 1, 1]
+    child = batch.get_minibatch(indices)
+    assert child.gamma is batch.gamma
+    assert child.device == batch.device
+    assert child.reward_size == 1
+    torch.testing.assert_close(child.rewards, batch.rewards[indices])
+    torch.testing.assert_close(child.states, batch.states[indices])
+    torch.testing.assert_close(child.importance_sampling_weights, batch.importance_sampling_weights[indices])
+    torch.testing.assert_close(child["custom"], batch["custom"][indices])
+    torch.testing.assert_close(child.masks, batch.masks[indices])
+
+
+def test_transition_batch_extend_preserves_metadata():
+    batch = _make_batch(4)
+    batch.gamma = torch.tensor(0.95)
+    extended = batch.extend(batch.transitions[:2])
+    assert extended.gamma is batch.gamma
+    assert extended.device == batch.device
+    assert extended.size == 6
+    torch.testing.assert_close(extended.rewards, torch.ones(6))

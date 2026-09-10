@@ -12,6 +12,8 @@ from marl.logging import warn_once
 from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class QMix(StateMixer):
@@ -31,7 +33,7 @@ class QMix(StateMixer):
     def __post_init__(self):
         super().__post_init__()
         if self.n_objectives > 1:
-            logging.warning("QMIX should not work with multiple objective. See paper at https://openreview.net/pdf?id=NkRZaT2eAk")
+            logger.warning("QMIX should not work with multiple objective. See paper at https://openreview.net/pdf?id=NkRZaT2eAk")
         self.hyper_w_1 = nn.Sequential(
             nn.Linear(self.input_size, self.hypernet_embed_size),
             nn.ReLU(),

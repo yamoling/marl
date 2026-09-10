@@ -1,8 +1,7 @@
-from typing import TYPE_CHECKING, Collection, Literal
+from collections.abc import Collection
+from typing import TYPE_CHECKING, Literal
 
-import torch
-
-from marl.utils.gpu import get_device
+from marl.utils.gpu import DeviceLike, get_device
 
 from .simple_runner import simple_run
 
@@ -12,12 +11,12 @@ if TYPE_CHECKING:
 
 def sequential_run(
     runs: "Collection[Run]",
-    device: int | torch.device | str | Literal["auto", "cpu"] = "auto",
+    device: DeviceLike = "auto",
     gpu_strategy: Literal["scatter", "group"] = "group",
     quiet: bool = False,
     render_tests: bool = False,
     disabled_gpus: Collection[int] = (),
 ):
     for run in runs:
-        device = get_device(device, gpu_strategy, disabled_devices=disabled_gpus)
-        simple_run(run, quiet, render_tests, device)
+        d = get_device(device, gpu_strategy, disabled_devices=disabled_gpus)
+        simple_run(run, quiet, render_tests, d)

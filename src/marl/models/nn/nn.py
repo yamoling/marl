@@ -1,7 +1,8 @@
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 import torch
 from torch import Tensor
@@ -101,7 +102,8 @@ class RecurrentNN(NN):
         self._hidden_states = None
 
     def train(self, mode: bool = True):
-        if not mode:
+        """Save and restore recurrent history only when the mode changes. @ai-generated"""
+        if not mode and self.training:
             # Set test mode: save training hidden states
             self._saved_hidden_states = self._hidden_states
             self.reset_hidden_states()
@@ -114,7 +116,8 @@ class RecurrentNN(NN):
 
     def forward(self, *args, masks: torch.Tensor | None = None, **kwargs) -> Any:
         """
-        Forward the RNN in a (time, batch, *data) shape.
+        Forward the RNN in a (time, batch, *data) shape and return the output (not the hidden states). Hidden states are
+        managed internally and can be reset with reset_hidden_states().
 
         If time-step masks are provided, then inputs can be transrofmed into a PackedSequence for efficient
         GRU or LSTM forwarding.

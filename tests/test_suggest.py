@@ -206,7 +206,7 @@ class TestRuleChoices:
 
     def test_type_choices_restricts_abstract_subclass_search(self):
         """tuning(choices=[SubA]) on an abstract-typed field uses only SubA, not all subclasses."""
-        from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
         @dataclass
         class Wrapper(Serializable):
@@ -402,7 +402,7 @@ class TestRuleConcreteSerializable:
         assert "val" not in trial.registered_names()
 
     def test_concrete_field_produces_correct_instance_type(self):
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         @dataclass
         class Wrapper(Serializable):
@@ -503,7 +503,7 @@ class TestRuleAbstractSerializable:
 
     def test_abstract_target_updater_auto_collects_soft_and_hard(self):
         """Integration: TargetParametersUpdater is abstract, so HardUpdate and SoftUpdate are found."""
-        from marl.training.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 
         @dataclass
         class Wrapper(Serializable):
@@ -516,7 +516,7 @@ class TestRuleAbstractSerializable:
         assert result.updater.update_period == 300
 
     def test_abstract_updater_tau_is_suggested_when_soft_chosen(self):
-        from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
         @dataclass
         class Wrapper(Serializable):
@@ -644,12 +644,12 @@ class TestRuleDefaultSilent:
     def test_string_default_is_used_without_warning(self, caplog):
         @dataclass
         class C(Serializable):
-            name: str = "default"
+            abc: str = "default"
 
         with caplog.at_level(logging.WARNING, logger="marl.utils.tuning"):
             result = suggest(C, MockTrial())
 
-        assert result.name == "default"
+        assert result.abc == "default"
         assert caplog.text == ""
 
     def test_tuple_default_is_used_without_warning(self, caplog):
@@ -713,6 +713,29 @@ class TestRuleRequired:
         result = suggest(C, MockTrial(), required=3.14)
         assert result.required == pytest.approx(3.14)
 
+    def test_catch_all_satisfies_nested_required_field(self, caplog):
+        @dataclass
+        class Inner(Serializable):
+            n_agents: int
+
+        @dataclass
+        class Outer(Serializable):
+            inner: Inner = field(default_factory=lambda: Inner(n_agents=0))
+
+        with caplog.at_level(logging.WARNING, logger="marl.utils.tuning"):
+            result = suggest(Outer, MockTrial(), catch_all={"n_agents": 4})
+
+        assert result.inner.n_agents == 4
+        assert "catch_all" in caplog.text
+
+    def test_missing_catch_all_still_raises(self):
+        @dataclass
+        class C(Serializable):
+            required: float
+
+        with pytest.raises(ValueError, match="catch_all"):
+            suggest(C, MockTrial())
+
 
 # ===========================================================================
 # Dot-separated parameter naming
@@ -759,7 +782,7 @@ class TestParameterNaming:
         assert "l2.l3.z" in trial.registered_names()
 
     def test_abstract_type_uses_dot_type_suffix(self):
-        from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
         @dataclass
         class Wrapper(Serializable):
@@ -779,7 +802,7 @@ class TestParameterNaming:
 
     def test_abstract_subclass_fields_use_parent_field_as_prefix(self):
         """After choosing 'SoftUpdate' for 'updater', its 'tau' becomes 'updater.tau'."""
-        from marl.training.qtarget_updater import SoftUpdate, TargetParametersUpdater
+        from marl.algos.qtarget_updater import SoftUpdate, TargetParametersUpdater
 
         @dataclass
         class Wrapper(Serializable):
@@ -798,7 +821,7 @@ class TestParameterNaming:
 
 class TestRealClasses:
     def test_suggest_soft_update(self):
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         trial = MockTrial()
         result = suggest(SoftUpdate, trial)
@@ -807,12 +830,12 @@ class TestRealClasses:
         call = trial.single_call("tau")
         assert call["method"] == "float"
         assert call["log"] is True
-        assert call["low"] == pytest.approx(1e-3)
-        assert call["high"] == pytest.approx(0.05)
-        assert 1e-3 <= result.tau <= 0.05
+        assert call["low"] == pytest.approx(1e-4)
+        assert call["high"] == pytest.approx(1e-1)
+        assert 1e-4 <= result.tau <= 1e-1
 
     def test_suggest_hard_update(self):
-        from marl.training.qtarget_updater import HardUpdate
+        from marl.algos.qtarget_updater import HardUpdate
 
         trial = MockTrial()
         result = suggest(HardUpdate, trial)
@@ -841,20 +864,20 @@ class TestRealClasses:
         import optuna
 
         optuna.logging.set_verbosity(optuna.logging.WARNING)
-        from marl.training.qtarget_updater import SoftUpdate
+        from marl.algos.qtarget_updater import SoftUpdate
 
         study = optuna.create_study()
         for _ in range(5):
             trial = study.ask()
             result = suggest(SoftUpdate, trial)
             study.tell(trial, result.tau)
-            assert 1e-3 <= result.tau <= 0.05
+            assert 1e-4 <= result.tau <= 1e-1
 
     def test_hard_update_period_bounds_with_real_optuna(self):
         import optuna
 
         optuna.logging.set_verbosity(optuna.logging.WARNING)
-        from marl.training.qtarget_updater import HardUpdate
+        from marl.algos.qtarget_updater import HardUpdate
 
         study = optuna.create_study()
         for _ in range(5):
@@ -873,7 +896,7 @@ class TestDQNIntegration:
     """
     Full integration test: suggest() on DQN with real Optuna trials.
 
-    env-dependent fields (qnetwork, memory, mixer, train_policy, test_policy)
+    env-dependent fields (qnetwork, memory_size, mixer, train_policy, test_policy)
     are passed as overrides.  All other fields are auto-suggested.
     """
 
@@ -889,9 +912,8 @@ class TestDQNIntegration:
 
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         from marl import policy
-        from marl.models.replay_memory import TransitionMemory
+        from marl.algos.dqn import DQN
         from marl.nn.model_bank import qnetworks
-        from marl.training.dqn import DQN
 
         study = optuna.create_study()
         trial = study.ask()
@@ -899,18 +921,21 @@ class TestDQNIntegration:
             DQN,
             trial,
             qnetwork=qnetworks.from_env(env),
-            memory=suggest(TransitionMemory, trial),
+            memory_size=50_000,
             mixer=None,
             train_policy=policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
             # test_policy is overridden to avoid random failure from Policy
             # auto-collection (some concrete Policy subclasses such as
             # EpsilonGreedy require constructor args not available here).
             test_policy=policy.ArgMax(),
+            # vbe requires a QNetwork of its own (`rqf`) with no tuning() metadata and
+            # no default, so it cannot be auto-suggested without further overrides.
+            vbe=None,
         )
         return trainer, trial
 
     def test_result_is_dqn_instance(self, dqn_trial_result):
-        from marl.training.dqn import DQN
+        from marl.algos.dqn import DQN
 
         trainer, _ = dqn_trial_result
         assert isinstance(trainer, DQN)
@@ -936,7 +961,7 @@ class TestDQNIntegration:
         assert trainer.optimiser_type in ("adam", "rmsprop")
 
     def test_target_updater_is_soft_or_hard(self, dqn_trial_result):
-        from marl.training.qtarget_updater import HardUpdate, SoftUpdate
+        from marl.algos.qtarget_updater import HardUpdate, SoftUpdate
 
         trainer, _ = dqn_trial_result
         assert isinstance(trainer.target_updater, (SoftUpdate, HardUpdate))

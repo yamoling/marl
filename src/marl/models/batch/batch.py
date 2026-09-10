@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from functools import cached_property
-from typing import Iterable, Optional, Self, overload
+from typing import Self, overload
 
 import torch
 
@@ -10,14 +11,16 @@ class Batch(ABC):
     Lazy loaded batch for training.
     """
 
-    def __init__(self, size: int, n_agents: int, device: Optional[torch.device] = None):
+    def __init__(self, size: int, n_agents: int, gamma: torch.Tensor | None, device: torch.device | None = None):
         super().__init__()
         self.size = size
         self.n_agents = n_agents
         if device is None:
             device = torch.device("cpu")
         self.device = device
-        self.importance_sampling_weights: Optional[torch.Tensor] = None
+        self.importance_sampling_weights: torch.Tensor | None = None
+        self._individual_learners_applied = False
+        self.gamma = gamma
 
     @abstractmethod
     def extend(self, data) -> Self:
@@ -26,15 +29,22 @@ class Batch(ABC):
         """
 
     def for_individual_learners(self) -> "Batch":
-        """Reshape rewards, dones such that each agent has its own (identical) signal."""
+        """
+        Reshape rewards, dones such that each agent has its own (identical) signal.
+
+        Idempotent: a batch that was already expanded (either directly, or by inheriting already-expanded
+        tensors from a parent batch through `get_minibatch`) is returned unchanged instead of being expanded
+        a second time.
+        """
+        if self._individual_learners_applied:
+            return self
+        self._individual_learners_applied = True
         if (
             self.reward_size > 1
         ):  # Need to consider this case, because multiple rewards should be at the end and dones/masks are expanded when called (so rewards needs to be as is until then)
-            self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape[:-1], self.n_agents, self.dones.shape[-1])
-            self.masks = self.masks.repeat_interleave(self.n_agents).view(*self.masks.shape[:-1], self.n_agents, self.masks.shape[-1])
-            self.rewards = self.rewards.repeat_interleave(self.n_agents).view(
-                *self.rewards.shape[:-1], self.n_agents, self.rewards.shape[-1]
-            )
+            self.dones = self.dones.unsqueeze(-2).expand(*self.dones.shape[:-1], self.n_agents, self.reward_size)
+            self.masks = self.masks.unsqueeze(-2).expand(*self.masks.shape[:-1], self.n_agents, self.reward_size)
+            self.rewards = self.rewards.unsqueeze(-2).expand(*self.rewards.shape[:-1], self.n_agents, self.reward_size)
         else:
             self.rewards = self.rewards.repeat_interleave(self.n_agents).view(*self.rewards.shape, self.n_agents)
             self.dones = self.dones.repeat_interleave(self.n_agents).view(*self.dones.shape, self.n_agents)
@@ -58,17 +68,26 @@ class Batch(ABC):
         std = torch.sqrt(torch.sum(self.masks * (tensor - mean) ** 2) / self.n_items)
         return (tensor - mean) / (std + 1e-8)
 
-    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0):
+    def compute_mc_returns(
+        self, gamma: float, next_value: torch.Tensor | float = 0, *, next_values: torch.Tensor | None = None
+    ):
         """
         Compute the advantages using the Monte Carlo method, i.e. the discounted sum of rewards until the end of the episode.
+
+        `next_value` has the shape of one time slice, including episode and agent axes.
+        @ai-generated
         """
         if isinstance(next_value, (float, int)):
             next_value = torch.full_like(self.rewards[0], next_value)
-        elif len(next_value.shape) > 1:
-            next_value = next_value[-1]
         returns = torch.empty_like(self.rewards, dtype=torch.float32)
+        episode_ends, not_dones, masked = self.episode_ends, self.not_dones, self.masked_indices
         for t in range(self.dones.shape[0] - 1, -1, -1):
-            next_value = self.rewards[t] + gamma * next_value * self.not_dones[t]
+            if next_values is not None:
+                next_value = torch.where(episode_ends[t], next_values[t], next_value)
+            elif t < self.dones.shape[0] - 1:
+                next_value = next_value.masked_fill(episode_ends[t] & not_dones[t], 0)
+            next_value = self.rewards[t] + gamma * next_value * not_dones[t]
+            next_value = next_value.masked_fill(masked[t], 0)
             returns[t] = next_value
         return returns
 
@@ -130,6 +149,8 @@ class Batch(ABC):
         Compute Generalized Advantage Estimation (GAE).
         Paper: https://arxiv.org/pdf/1506.02438
 
+        Trace recursion stops at time limits and ignores padding. @ai-generated
+
         Notes:
             This method assumes that the items are adjacent in time.
             With `trace_decay=1.0`, this method is equivalent to the Monte Carlo estimate of advantages `self.compute_mc_advantages(...)`.
@@ -149,9 +170,11 @@ class Batch(ABC):
         # Transitions: torch.zeros(self.reward_size, dtype=torch.float32).to(device=self.device)
         # Episodes:  torch.zeros(self.size, dtype=torch.float32).to(device=self.device)
         advantages = torch.empty_like(self.rewards, dtype=torch.float32)
+        trace_continues, masked = ~self.episode_ends, self.masked_indices
         for t in range(self.dones.shape[0] - 1, -1, -1):
-            not_done = self.not_dones[t]
+            not_done = trace_continues[t]
             gae = deltas[t] + not_done * gamma * trace_decay * gae
+            gae = gae.masked_fill(masked[t], 0)
             advantages[t] = gae
         if normalize:
             advantages = self._normalize(advantages)
@@ -194,10 +217,8 @@ class Batch(ABC):
 
     @cached_property
     def one_hot_actions(self) -> torch.Tensor:
-        """One hot encoded actions"""
-        # Actions have a last dimension of size 1 that we have to remove
-        actions = self.actions.squeeze(-1)
-        one_hot = torch.nn.functional.one_hot(actions, self.n_actions)
+        """One hot encoded actions, preserving the agent dimension. @ai-generated"""
+        one_hot = torch.nn.functional.one_hot(self.actions, self.n_actions)
         return one_hot
 
     @cached_property
@@ -229,25 +250,41 @@ class Batch(ABC):
         first_states = self.states[0].unsqueeze(0)
         return torch.cat([first_states, self.next_states])
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def obs(self) -> torch.Tensor:
-        """Observations"""
+        """Observations."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @obs.setter
+    @abstractmethod
+    def obs(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_obs(self) -> torch.Tensor:
-        """Next observations"""
+        """Next observations."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @next_obs.setter
+    @abstractmethod
+    def next_obs(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def extras(self) -> torch.Tensor:
-        """Extra information"""
+        """Extra information."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @extras.setter
+    @abstractmethod
+    def extras(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_extras(self) -> torch.Tensor:
-        """Next extra information"""
+        """Next extra information."""
+
+    @next_extras.setter
+    @abstractmethod
+    def next_extras(self, value: torch.Tensor) -> None: ...
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -259,15 +296,23 @@ class Batch(ABC):
     def next_states_extras(self) -> torch.Tensor:
         """Next state extra information"""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def available_actions(self) -> torch.Tensor:
-        """Available actions"""
+        """Available actions."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @available_actions.setter
+    @abstractmethod
+    def available_actions(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def next_available_actions(self) -> torch.Tensor:
-        """Next available actions"""
+        """Available actions in the next observations."""
+
+    @next_available_actions.setter
+    @abstractmethod
+    def next_available_actions(self, value: torch.Tensor) -> None: ...
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property
@@ -279,30 +324,47 @@ class Batch(ABC):
     def next_states(self) -> torch.Tensor:
         """Next environment states"""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def actions(self) -> torch.Tensor:
-        """Actions"""
+        """Actions."""
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @actions.setter
+    @abstractmethod
+    def actions(self, value: torch.Tensor) -> None: ...
+
+    @property
+    @abstractmethod
     def rewards(self) -> torch.Tensor:
-        """Rewards"""
+        """Rewards."""
+
+    @rewards.setter
+    @abstractmethod
+    def rewards(self, value: torch.Tensor) -> None: ...
 
     @cached_property
     def masked_rewards(self):
         """Rewards masked by the masks"""
         return self.rewards * self.masks
 
-    @abstractmethod  # pyright: ignore[reportArgumentType]
-    @cached_property
+    @property
+    @abstractmethod
     def dones(self) -> torch.Tensor:
-        """Done masks. `True` is the corresponding transition lead to a terminal state, `False` otherwise."""
+        """Whether transitions lead to terminal states."""
+
+    @dones.setter
+    @abstractmethod
+    def dones(self, value: torch.Tensor) -> None: ...
 
     @property
     def not_dones(self) -> torch.Tensor:
         """Whether the corresponding transition lead to a non-terminal state. True for "continued" states, False for terminal states."""
         return ~self.dones
+
+    @property
+    def episode_ends(self) -> torch.Tensor:
+        """Trace boundaries include time limits; TD bootstrapping still uses dones. @ai-generated"""
+        return self.dones
 
     @abstractmethod  # pyright: ignore[reportArgumentType]
     @cached_property

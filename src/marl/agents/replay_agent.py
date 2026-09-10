@@ -2,9 +2,10 @@ import logging
 from pathlib import Path
 
 import numpy as np
-import numpy.typing as npt
 
 from marl.models import Action, Agent
+
+logger = logging.getLogger(__name__)
 
 
 class ReplayAgent(Agent):
@@ -43,7 +44,7 @@ class CombinedReplayAgent(ReplayAgent):
             msg = f"Agent restored from disk chose action ({agent_action.action})  which is different from the stored action ({saved_action.action}) at time step {self.current_step}."
             self.mismatch = True
             self.mismatch_details.append(msg)
-            logging.warning(msg)
+            logger.warning(msg)
             agent_action.action = saved_action.action
         return agent_action
 
@@ -73,3 +74,7 @@ class SimpleReplayAgent(ReplayAgent):
 
     def choose_action(self, observation, *, with_details=False):
         return self.agent.choose_action(observation, with_details=with_details)
+
+    def set_testing(self):
+        self.agent.set_testing()
+        return super().set_testing()

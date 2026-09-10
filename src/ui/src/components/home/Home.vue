@@ -2,54 +2,29 @@
     <div ref="workspaceRef" class="home-workspace" :style="workspaceStyle">
         <aside class="home-sidebar">
             <section class="panel-surface home-panel">
-                <div class="panel-header">
-                    <div class="panel-header-row">
-                        <h2>Experiments</h2>
-                        <span class="panel-subtitle">Select an experiment to load metrics</span>
-                    </div>
-                </div>
                 <ExperimentTable />
             </section>
 
-            <MetricsPanel
-                v-if="resultsStore.results.size > 0"
-                :metrics="metrics"
-                :metricsByCategory="metricsByCategory"
-                @change-selected-metrics="(m) => (selectedMetrics = m)"
-            />
+            <MetricsPanel v-if="resultsStore.results.size > 0" :metrics="metrics" :metricsByCategory="metricsByCategory"
+                @change-selected-metrics="(m) => (selectedMetrics = m)" />
         </aside>
 
-        <div
-            class="home-divider"
-            :class="{ 'home-divider--dragging': isDraggingDivider }"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize workspace panels"
-            tabindex="0"
-            @pointerdown="startDividerDrag"
-            @keydown.left.prevent="nudgeWorkspace(-1)"
-            @keydown.right.prevent="nudgeWorkspace(1)"
-        >
+        <div class="home-divider" :class="{ 'home-divider--dragging': isDraggingDivider }" role="separator"
+            aria-orientation="vertical" aria-label="Resize workspace panels" tabindex="0"
+            @pointerdown="startDividerDrag" @keydown.left.prevent="nudgeWorkspace(-1)"
+            @keydown.right.prevent="nudgeWorkspace(1)">
             <span class="home-divider-handle"></span>
         </div>
 
         <main class="home-main">
             <section v-if="resultsStore.results.size > 0" class="chart-grid">
-                <article
-                    class="panel-surface chart-card"
-                    v-for="[metricId, ds] in datasetPerLabel"
+                <article class="panel-surface chart-card" v-for="[metricId, ds] in datasetPerLabel"
                     :key="metricPlotId(metricId)"
-                    :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }"
-                >
-                    <Plotter
-                        :datasets="ds"
-                        :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
-                        :showLegend="true"
-                        :expanded="expandedPlotIds.has(metricPlotId(metricId))"
-                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))"
-                        @close="closeMetric(metricId)"
-                        @datapoint-clicked="onTestEpisodeClicked"
-                    />
+                    :class="{ 'chart-card--expanded': expandedPlotIds.has(metricPlotId(metricId)) }">
+                    <Plotter :datasets="ds" :title="extractMetricLabel(metricId).replaceAll('_', ' ')"
+                        :showLegend="true" :expanded="expandedPlotIds.has(metricPlotId(metricId))"
+                        @toggle-expanded="toggleFocusedPlot(metricPlotId(metricId))" @close="closeMetric(metricId)"
+                        @datapoint-clicked="onTestEpisodeClicked" />
                 </article>
             </section>
         </main>
@@ -57,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { Dataset } from "../../models/Results";
 import { MetricSelection } from "../../models/Metrics";
@@ -75,10 +50,8 @@ const expandedPlotIds = ref<Set<string>>(new Set());
 const workspaceSidebarPercent = ref(initWorkspaceSidebarPercent());
 const workspaceRef = ref<HTMLElement | null>(null);
 const isDraggingDivider = ref(false);
-const workspaceHeightPx = ref(initWorkspaceHeightPx());
 const workspaceStyle = computed(() => ({
     "--home-sidebar-width": `${workspaceSidebarPercent.value}%`,
-    "--home-workspace-height": `${workspaceHeightPx.value}px`,
 }));
 
 const metrics = computed(() => {
@@ -204,32 +177,6 @@ function nudgeWorkspace(delta: number) {
 function clampWorkspacePercent(value: number) {
     return Math.min(62, Math.max(24, Math.round(value)));
 }
-
-function initWorkspaceHeightPx() {
-    return Math.max(420, window.innerHeight - 190);
-}
-
-function updateWorkspaceHeight() {
-    const workspace = workspaceRef.value;
-    if (workspace == null) {
-        return;
-    }
-    const top = workspace.getBoundingClientRect().top;
-    const footer = document.querySelector("footer") as HTMLElement | null;
-    const footerHeight = footer?.offsetHeight ?? 0;
-    const nextHeight = Math.floor(window.innerHeight - top - footerHeight - 12);
-    workspaceHeightPx.value = Math.max(420, nextHeight);
-}
-
-onMounted(() => {
-    updateWorkspaceHeight();
-    window.addEventListener("resize", updateWorkspaceHeight);
-});
-
-onBeforeUnmount(() => {
-    isDraggingDivider.value = false;
-    window.removeEventListener("resize", updateWorkspaceHeight);
-});
 </script>
 
 <style scoped>
@@ -244,11 +191,15 @@ onBeforeUnmount(() => {
 
 .home-sidebar {
     min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 1rem;
     overflow-y: auto;
     padding-right: 0.2rem;
+}
+
+.home-sidebar>* {
+    flex: 0 0 auto;
 }
 
 .home-main {

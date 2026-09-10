@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING
 
@@ -10,8 +12,10 @@ from tqdm import tqdm
 if TYPE_CHECKING:
     from marl import Agent, Run, Trainer
 
+logger = logging.getLogger(__name__)
 
-def simple_run[E: MARLEnv, T: npt.ArrayLike](run: "Run[E, T]", quiet: bool, render_tests: bool, device: torch.device):
+
+def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests: bool, device: torch.device):
     """
     Boilerplate to run an RL experiment:
         - Seeding first
@@ -21,37 +25,43 @@ def simple_run[E: MARLEnv, T: npt.ArrayLike](run: "Run[E, T]", quiet: bool, rend
         - Log training and testing data
     """
     with tqdm(total=run.n_steps, desc="Training", unit="step", leave=True, disable=quiet) as pbar, run:
-        import marl
+        try:
+            import marl
 
-        env, test_env = run.env.make(), run.test_env.make()
-        trainer = run.trainer.to(device)
-        agent = trainer.make_agent().to(device)
-        marl.seed(run.seed, env, test_env)
-        trainer.randomize()
-        agent.randomize()
+            env, test_env = run.env.make(), run.test_env.make()
+            run.trainer.compile()
+            trainer = run.trainer.to(device)
+            agent = trainer.make_agent().to(device)
+            marl.seed(run.seed, env, test_env)
+            trainer.randomize()
 
-        episode_num, time_step = 0, 0
-        while time_step < run.n_steps:
-            episode = _train_episode(env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run)
-            episode_num += 1
-            time_step += len(episode)
-            pbar.update(len(episode))
-        # Test the final agent
-        if run.should_test_at(time_step):
-            _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
+            episode_num, time_step = 0, 0
+            while time_step < run.n_steps:
+                episode = _train_episode(
+                    env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run
+                )
+                episode_num += 1
+                time_step += len(episode)
+                pbar.update(len(episode))
+            # Test the final agent
+            if run.should_test_at(time_step):
+                _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
+        finally:
+            run.logger.close()
 
 
 def _train_episode[A](
     env: MARLEnv[A],
     test_env: MARLEnv[A],
-    agent: "Agent[A]",
-    trainer: "Trainer[A]",
+    agent: Agent,
+    trainer: Trainer,
     time_step: int,
     episode_num: int,
     render_tests: bool,
     quiet: bool,
-    run: "Run",
+    run: Run,
 ):
+    """Collect at most the remaining run budget, retaining truncation semantics. @ai-generated"""
     obs, state = env.reset()
     agent.new_episode()
     episode = Episode.new(obs, state, metrics={"episode_num": episode_num})
@@ -60,7 +70,7 @@ def _train_episode[A](
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
         action = agent.choose_action(obs)
         step = env.step(action)
-        if time_step == run.n_steps:
+        if time_step + 1 >= run.n_steps:
             step.truncated = True
         transition = Transition.from_step(obs, state, action.action, step, **action.details)
         training_metrics = trainer.update_step(transition, time_step)
@@ -75,7 +85,7 @@ def _train_episode[A](
     return episode
 
 
-def _test_and_log[A](test_env: MARLEnv[A], agent: "Agent[A]", time_step: int, render: bool, quiet: bool, run: "Run"):
+def _test_and_log[A](test_env: MARLEnv[A], agent: Agent, time_step: int, render: bool, quiet: bool, run: Run):
     if run.save_weights:
         run.logger.save_agent(agent, time_step)
     agent.set_testing()
@@ -91,18 +101,19 @@ def _test_and_log[A](test_env: MARLEnv[A], agent: "Agent[A]", time_step: int, re
                 avg_metrics[key] = sum([e.metrics[key] for e in episodes]) / run.n_tests
             except TypeError:
                 pass
-        logging.info(avg_metrics)
+        logger.info(avg_metrics)
     run.logger.log_test_episodes(episodes, time_step, run.save_actions)
     agent.set_training()
 
 
-def seeded_rollout[A](env: MARLEnv[A], agent: "Agent[A]", seed: int, render=False, compute_frames=False):
+def seeded_rollout[A](env: MARLEnv[A], agent: Agent, seed: int, render=False, compute_frames=False):
     agent.set_testing()
     env.seed(seed)
     agent.seed(seed)
 
     agent.new_episode()
     obs, state = env.reset()
+    # print(env.unwrapped.world.world_string)
     episode = Episode.new(obs, state)
     frames = list[npt.NDArray[np.uint8]]()
     action_details = []

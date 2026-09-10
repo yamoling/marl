@@ -6,10 +6,10 @@ from typing import Literal
 import torch
 from marlenv import Transition
 
+from marl.algos.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 from marl.models import TransitionMemory
 from marl.models.batch import Batch
 from marl.models.nn import Critic, IRModule
-from marl.training.qtarget_updater import HardUpdate, SoftUpdate, TargetParametersUpdater
 
 
 @dataclass
@@ -42,10 +42,11 @@ class ValuePotentialIntrinsicReward(IRModule):
         self.grad_norm_clipping = grad_norm_clipping
 
     def compute(self, batch: Batch) -> torch.Tensor:
+        """Use zero terminal potential in episodic shaping. @ai-generated"""
         with torch.no_grad():
             values = self.network.value(batch.states, batch.states_extras)
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
-        delta_potential = self.gamma * next_values - values
+        delta_potential = self.gamma * next_values * batch.not_dones - values
         return delta_potential
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
@@ -59,7 +60,7 @@ class ValuePotentialIntrinsicReward(IRModule):
         values = self.network.value(batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
-        targets = batch.rewards + self.gamma * next_values
+        targets = batch.rewards + self.gamma * next_values * batch.not_dones
         loss = torch.nn.functional.mse_loss(values, targets)
         self.optimizer.zero_grad()
         loss.backward()

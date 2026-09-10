@@ -53,18 +53,16 @@ class Qatten(StateMixer):
             self.key_extractors.append(nn.Linear(self.unit_dim, self.mixer_embedding_dim, bias=False))  # key
 
     def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs):
+        """Mix arbitrary leading batch dimensions using scalar attention values. @ai-generated"""
         dims = states.shape[:-1]
-        states = states.flatten(1)
-        states_extras = states_extras.flatten(1)
+        states = states.reshape(-1, self.state_size)
+        states_extras = states_extras.reshape(states.shape[0], self.state_extras_size)
         inputs = torch.cat([states, states_extras], dim=1)
         unit_states = states[:, : self.unit_dim * self.n_agents]  # get agent own features from state
         unit_states = unit_states.view(-1, self.n_agents, self.unit_dim)
 
-        # Computation of $q^h$ in Figure 1 (output of the "middle" dot product).
-        # We need a diagonal matrix of the qvalues to multiply with the attention weights. (cf original code
-        # that just does a simple multiplication with the qvalues, which is equivalent to a dot product with a
-        # diagonal matrix of the qvalues).
-        values = qvalues.view(-1, self.n_agents).diag_embed()
+        # Scalar values compute the weighted sum directly, avoiding an agent-by-agent diagonal matrix.
+        values = qvalues.reshape(-1, self.n_agents, 1)
         attentioned_qvalues = []
         for key_extractor, query_extractor in zip(self.key_extractors, self.query_extractors):
             keys = key_extractor(unit_states)  # shape (batch, n_agents, embed_dim)

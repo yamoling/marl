@@ -1,0 +1,177 @@
+import logging
+import os
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal, cast
+
+import dotenv
+import optuna
+import tuning
+import typed_argparse as tap
+from lle import World
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
+from optuna.trial import FixedTrial
+from tuning import Algo, make_trainer
+
+import marl
+from marl.env import LLEPool
+
+logger = logging.getLogger(__name__)
+
+SETTING = "cooperative"
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
+
+
+@dataclass(frozen=True)
+class PoolSpec:
+    path: Path
+    time_limit: int
+    study_map_name: str
+
+    @property
+    def map_name(self):
+        return self.path.name
+
+
+class Args(tap.TypedArgs):
+    pool_dir: Path = tap.arg(positional=True, help="Directory containing the pool of maps to train on.")
+    n_seeds: int = tap.arg("--n-seeds", default=10)
+    start_seed: int = tap.arg("--start-seed", default=0)
+    n_steps: int = tap.arg("--n-steps", default=1_000_000)
+    n_jobs: int = tap.arg("--n-jobs", default=8)
+    pool_size: int = tap.arg("--pool-size", default=500, help="Size of the training pool (positive integer).")
+    n_tests: int = tap.arg("--n-tests", help="Number of test maps (positive integer).")
+    disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
+    algos: list[Algo] = tap.arg(
+        "--algos", default=list(ALGOS), nargs="+", help="Algorithms to train (defaults to all algorithms)."
+    )
+    gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
+    study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
+    quiet: bool = tap.arg("--quiet", default=True)
+    dry_run: bool = tap.arg("--dry-run", default=False)
+    skip_existing: bool = tap.arg("--skip-existing", default=True)
+    test_interval: int = tap.arg("--test-interval", default=50_000)
+    logdir_prefix: str = tap.arg(
+        "--logdir-prefix", default="", help="Prefix prepended to the experiment log directory name."
+    )
+
+
+def parse_pool_spec(pool_dir: Path):
+    world = World.from_file(str(pool_dir / os.listdir(pool_dir)[0]))
+    grid_size = world.width
+    n_lasers = len(world.laser_sources)
+    laser_label = "laser" if n_lasers == 1 else "lasers"
+    study_map_name = f"{grid_size}x{grid_size}_agents{world.n_agents}_{laser_label}{n_lasers}"
+    return PoolSpec(path=pool_dir, time_limit=grid_size**2, study_map_name=study_map_name)
+
+
+def load_best_params(args: Args, algo: Algo, study_map_name: str):
+    storage = JournalStorage(JournalFileBackend(args.study_journal.as_posix()))
+    study_name = f"{algo.upper()}-{SETTING}-{study_map_name}"
+    print(study_name)
+    study = optuna.load_study(study_name=study_name, storage=storage)
+    complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
+    if not complete_trials:
+        raise RuntimeError(f"Study {study_name!r} has no complete trials.")
+    logger.info(f"Using best trial {study.best_trial.number} from {study_name} with value {study.best_value}")
+    return study.best_params
+
+
+def make_env(pool_dir: Path, pool_size: int, *, offset: int = 0, time_limit: int):
+    return LLEPool(pool_dir, pool_size, offset=offset, time_limit=time_limit, state_type="flattened")
+
+
+def experiment_logdir(spec: PoolSpec, algo: Algo, n_steps: int, pool_size: int, prefix: str = ""):
+    suffix = ""
+    in_millions = n_steps / 1_000_000
+    if in_millions.is_integer():
+        suffix = f"-{int(in_millions)}M"
+    else:
+        suffix = f"-{n_steps / 1_000_000:.1f}M"
+    in_thousands = pool_size / 1_000
+    if in_thousands.is_integer():
+        suffix += f"-{int(in_thousands)}k"
+    else:
+        suffix += f"-{pool_size / 1_000:.1f}k"
+    return Path("logs") / f"{prefix}{spec.map_name}-{algo}{suffix}"
+
+
+def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
+    logdir = experiment_logdir(spec, algo, args.n_steps, args.pool_size, args.logdir_prefix)
+    requested_seeds = range(args.start_seed, args.start_seed + args.n_seeds)
+    if logdir.exists():
+        exp = marl.Experiment.load(logdir)
+        completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in requested_seeds}
+        seeds = [seed for seed in requested_seeds if seed not in completed_seeds]
+        if args.dry_run:
+            logger.info(f"[exists] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
+            return
+        if len(seeds) == 0:
+            if args.skip_existing:
+                logger.info(
+                    f"Skipping existing experiment: {logdir} ({len(completed_seeds)}/{args.n_seeds} runs complete)"
+                )
+                return
+            raise FileExistsError(f"Experiment directory already exists: {logdir}")
+        logger.info(
+            f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}"
+        )
+    else:
+        seeds = list(requested_seeds)
+        if args.dry_run:
+            logger.info(f"[new] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
+            return
+        train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
+        test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
+        params = load_best_params(args, algo, spec.study_map_name)
+        tuning_args = tuning.Args(pool_dirs=[spec.path], n_steps=args.n_steps)
+        trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, tuning_args)
+        print(params)
+        exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
+        logger.info("Created experiment in %s", exp.logdir)
+    exp.run(
+        seeds=seeds,
+        save_weights=True,
+        save_actions=True,
+        test_interval=args.test_interval,
+        n_tests=args.n_tests,
+        n_jobs=args.n_jobs,
+        gpu_strategy=args.gpu_strategy,
+        disabled_gpus=args.disabled_gpus,
+        quiet=args.quiet,
+        limit_torch_threads=False,
+    )
+
+
+def main(args: Args):
+    if args.pool_size <= 0:
+        raise ValueError(f"--pool-size must be a positive integer, got {args.pool_size}")
+    if args.n_tests <= 0:
+        raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
+    spec = parse_pool_spec(args.pool_dir)
+    logger.info(f"Starting pool-500 sweep on {spec.map_name} with {len(args.algos)} algorithms.")
+
+    for algo in args.algos:
+        run_experiment(args, spec, algo)
+
+
+if __name__ == "__main__":
+    dotenv.load_dotenv()
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        handlers=[logging.FileHandler("train_pool500.log", mode="a"), logging.StreamHandler()],
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    try:
+        tap.Parser(Args).bind(main).run()
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:
+        logger.error(
+            f"An error occurred while starting the pool-500 sweep with command line '{sys.argv}'.\nError: {e}",
+            exc_info=True,
+        )
+        raise

@@ -2,8 +2,8 @@ from .action import Action
 from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
 from .dataset import Dataset, ExperimentResults
-from .experiment import Experiment
-from .nn import NN, Actor, ActorCritic, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
+from .experiment import Experiment, LightExperiment
+from .nn import NN, Actor, Critic, IRModule, Mixer, QNetwork, RecurrentNN, RecurrentQNetwork
 from .policy import Policy
 from .replay_episode import LightEpisodeSummary, ReplayEpisode
 from .replay_memory import (
@@ -14,7 +14,7 @@ from .replay_memory import (
     ReplayMemory,
     TransitionMemory,
 )
-from .run import Run
+from .run import LightRun, Run
 from .trainer import HierarchicalTrainer, Trainer
 
 __all__ = [
@@ -48,4 +48,6 @@ __all__ = [
     "HierarchicalAgent",
     "Dataset",
     "ExperimentResults",
+    "LightExperiment",
+    "LightRun",
 ]

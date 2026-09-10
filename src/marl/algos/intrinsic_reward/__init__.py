@@ -4,10 +4,13 @@ from .advantage_ir import AdvantageIntrinsicReward
 from .icm import ICM
 from .local_graph import IndividualLocalGraphTrainer
 from .random_network_distillation import RND
+from .social_influence import ModelOfOtherAgents, SocialInfluence
 
 __all__ = [
-    "RND",
-    "IndividualLocalGraphTrainer",
-    "AdvantageIntrinsicReward",
     "ICM",
+    "RND",
+    "AdvantageIntrinsicReward",
+    "IndividualLocalGraphTrainer",
+    "ModelOfOtherAgents",
+    "SocialInfluence",
 ]

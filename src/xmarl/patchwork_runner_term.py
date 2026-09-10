@@ -18,6 +18,8 @@ from textual.widgets import (
     Switch,
 )
 
+logger = logging.getLogger(__name__)
+
 from marl.models import Experiment
 from xmarl import AbstractActFrameViewer, ActFrameViewer, FilePickerScreen, FrameViewer, HeatmapActFrameViewer
 from xmarl.distilers.sdt import SoftDecisionTree
@@ -435,7 +437,7 @@ def main():
     try:
         Selector().run()
     except Exception as e:
-        logging.error(f"Error: {e}", file=sys.stderr)
+        logger.exception(f"Error: {e}")
         sys.exit(1)
 
 

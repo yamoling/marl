@@ -1,15 +1,18 @@
 import logging
 import os
 import shutil
+from collections.abc import Collection
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from signal import SIGINT
-from typing import Collection, Literal, overload
+from typing import Literal, overload
 
 import numpy as np
+import orjson
 import polars as pl
+import psutil
 import torch
 from marlenv import MARLEnv
 from polars import selectors as cs
@@ -17,67 +20,32 @@ from polars import selectors as cs
 from marl.env import EnvConfig
 from marl.logging import LoggerType, TickColumn
 from marl.models.trainer import Trainer
-from marl.utils import Serializable, stats
+from marl.utils import DeviceLike, Serializable, stats
 
 from .dataset import Dataset
-from .run import Run
+from .run import LightRun, Run
+
+logger = logging.getLogger(__name__)
 
 EXPERIMENT_FILENAME = "experiment.json"
 
 
 @dataclass
-class Experiment[E: MARLEnv, T: Trainer](Serializable):
-    env: EnvConfig[E]
-    trainer: T
-    n_steps: int = 1_000_000
-    logdir: str | Literal["auto", "test", "debug"] = "test"
-    """If `auto`, the logdir is a combination of trainer name and environment name. If `test` or `debug`, any pre-existing experiment with the same name is overwritten."""
-    test_env: EnvConfig[E] | None = None
-    """Environment configuration to test the trained agent against. Defaults to `self.env`."""
-    loggers: Collection[LoggerType] = field(default_factory=lambda: ["csv"])
-    creation_timestamp: datetime | None = None
+class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
+    """
+    An Experiment essentially defined by an environment and a trainer. Use `Experiment.create` or `Experiment.load` to create or load an experiment, and then call `Experiment.run` to run it.
+    """
 
-    def __post_init__(self):
-        if self.logdir == "auto":
-            self.logdir = Path("logs", f"{self.trainer.name}-{self.env.name}").as_posix()
-        if not self.logdir.startswith("logs"):
-            self.logdir = Path("logs", self.logdir).as_posix()
-        # Only create the timestamp the first time the experiment is created.
-        # The other times, the attribute will already be set by the deserializer.
-        is_new = self.creation_timestamp is None
-        if is_new:
-            if self.logpath.parts[-1].lower() in ("debug", "test", "tests"):
-                logging.info(f"Discarding pre-existing experiment {self.logpath}.")
-                self.delete()
-            if self.logpath.exists():
-                # Do not allow to overwrite an existing experiment
-                raise FileExistsError(f"Experiment directory {self.logpath} already exists.")
-            self.creation_timestamp = datetime.now()
-            self.save()
+    n_steps: int
+    logdir: str
+    loggers: Collection[LoggerType]
+    creation_timestamp: datetime
 
-    def create_runs(self, seeds: int | Collection[int], n_tests: int, test_interval: int, save_weights: bool, save_actions: bool):
-        if isinstance(seeds, int):
-            seeds = list(range(seeds))
-        if self.test_env is None:
-            self.test_env = self.env
-        runs = [
-            Run(
-                seed,
-                (self.logpath / f"run-{seed}").as_posix(),
-                self.trainer,
-                self.env,
-                self.test_env,
-                self.n_steps,
-                test_interval,
-                n_tests,
-                self.loggers,
-                save_weights,
-                save_actions,
-            )
-            for seed in seeds
-        ]
-        # Deepcopy to prevent modifying the original configs references
-        return deepcopy(runs)
+    @classmethod
+    def load(cls, logdir: Path | str):
+        """Load an experiment from a log directory."""
+        json_file = cls.json_file(logdir)
+        return cls.from_file(json_file, exact_type=True)
 
     @property
     def logpath(self):
@@ -87,48 +55,16 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     def experiment_file(self):
         return self.logpath / EXPERIMENT_FILENAME
 
-    def run(
-        self,
-        seeds: int | Collection[int] = 1,
-        gpu_strategy: Literal["scatter", "group"] = "group",
-        save_weights: bool = True,
-        save_actions: bool = True,
-        n_tests: int = 1,
-        test_interval: int = 5000,
-        *,
-        quiet: bool = False,
-        device: Literal["cpu", "auto"] | int = "auto",
-        render_tests: bool = False,
-        n_jobs: int | Literal["auto"] = "auto",
-        disabled_gpus: Collection[int] = (),
-    ):
-        """
-        Train the Agent on the environment according to the experiment parameters.
-
-        Parameters:
-        ---------
-        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
-        - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
-        """
-        from marl.runners import parallel_run, sequential_run
-
-        if n_jobs == "auto":
-            n_jobs = torch.cuda.device_count() - len(disabled_gpus)
-        if isinstance(seeds, int):
-            seeds = list(range(seeds))
-        runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
-        if n_jobs <= 1 or len(runs) <= 1:
-            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
-        return parallel_run(runs, n_jobs, device, gpu_strategy, render_tests, disabled_gpus, quiet)
-
     def replay_episode(self, run_seed: int, time_step: int, test_num: int, *, only_saved_actions: bool = False):
         """Replay the `test_num`th test episode at the `time_step`th test step from the `run_num`th run."""
         run = self.get_run(run_seed)
         assert run is not None
-        return run.replay_episode(time_step, test_num, only_saved_actions)
+        return run.to_full().replay_episode(time_step, test_num, only_saved_actions)
 
-    def move(self, new_logdir: Path):
+    def move(self, new_logdir: Path | str):
         """Move an experiment to a new directory."""
+        if not isinstance(new_logdir, Path):
+            new_logdir = Path(new_logdir)
         # Load the runs before moving the files, because we will not be able to load them after the move.
         runs = list(self.runs)
         # 1) move all files (with weights, logs, etc)
@@ -147,9 +83,9 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return logdir / EXPERIMENT_FILENAME
 
     @overload
-    def get_run(self, seed: int, /): ...
+    def get_run(self, seed: int, /) -> LightRun | None: ...
     @overload
-    def get_run(self, rundir: str, /): ...
+    def get_run(self, rundir: str, /) -> LightRun | None: ...
 
     def get_run(self, seed_or_rundir: str | int):
         seed = None
@@ -173,9 +109,12 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             if not rundir.is_dir():
                 continue
             try:
-                yield Run[E].load(rundir)
+                yield LightRun[E, T].load(rundir)
             except FileNotFoundError:
                 # Not a run directory
+                pass
+            except orjson.JSONDecodeError:
+                # TODO: create a recovery mechanism for corrupt runs
                 pass
 
     @staticmethod
@@ -185,11 +124,12 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return Experiment.json_file(logdir).exists()
 
     @classmethod
-    def find_experiment_directory(cls, subdir: str) -> str | None:
+    def find_experiment_directory(cls, subdir: Path) -> Path | None:
         """Find the experiment directory containing a given subdirectory."""
         if cls.is_experiment_directory(subdir):
             return subdir
-        parent = os.path.dirname(subdir)
+        # Root
+        parent = subdir.parent
         if parent == subdir:
             return None
         return cls.find_experiment_directory(parent)
@@ -200,28 +140,50 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return any(r.is_running for r in self.runs)
 
     def kill_runs(self):
-        """Kill all runs of an experiment."""
+        """Kill all active runs and their process-pool owner, if any.
+
+        Returns the run process PIDs that were signalled and the parent pool
+        PID, or ``None`` when no process pool was detected.
+        """
+        runs = list(self.runs)
+        active_runs = list[tuple[LightRun, int]]()
         ppids = set[int]()
-        n_killed = 0
-        for run in self.runs:
-            ppid = run.ppid
-            if ppid is not None:
-                ppids.add(ppid)
+        for run in runs:
+            pid = run.pid
+            if pid is None:
+                continue
+            active_runs.append((run, pid))
+            try:
+                ppid = psutil.Process(pid).ppid()
+            except psutil.NoSuchProcess:
+                continue
+            ppids.add(ppid)
+
+        # Identify pool owners before signalling workers: otherwise a fast
+        # worker shutdown can hide the pool's other children from this check.
+        pool_ppids = set[int]()
+        for ppid in ppids:
+            try:
+                if len(psutil.Process(ppid).children()) >= 2:
+                    pool_ppids.add(ppid)
+            except psutil.NoSuchProcess:
+                pass
+
+        killed_pids = list[int]()
+        for run, pid in active_runs:
             if run.kill():
-                n_killed += 1
-        # If there was one single parent, we assume it was a parallel_runner and kill it as well
-        if n_killed > 1 and len(ppids) == 1:
-            ppid = ppids.pop()
+                killed_pids.append(pid)
+
+        # A parallel runner owns multiple worker processes.  Signal that owner
+        # too; otherwise the pool can keep spawning/replacing workers after its
+        # currently active child has been interrupted.
+        parent_ppid = next(iter(pool_ppids), None)
+        for ppid in pool_ppids:
             try:
                 os.kill(ppid, SIGINT)
             except ProcessLookupError:
                 pass
-
-    @classmethod
-    def load(cls, logdir: Path | str):
-        """Load an experiment from a log directory."""
-        json_file = cls.json_file(logdir)
-        return cls.from_file(json_file)
+        return killed_pids, parent_ppid
 
     def save(self):
         self.to_file(self.experiment_file)
@@ -286,7 +248,9 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
         return {
             "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
             "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
-            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
+            "Training data": stats.compute_experiment_results(
+                [run.training_data for run in runs], aggregate_by, granularity
+            ),
         }
 
     def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
@@ -295,7 +259,7 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
     def get_train_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
         return stats.compute_experiment_results([run.train_metrics for run in self.runs], aggregate_by, granularity)
 
-    def get_training_data(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
+    def get_training_data_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
         return stats.compute_experiment_results([run.training_data for run in self.runs], aggregate_by, granularity)
 
     def copy(self, new_logdir: Path, copy_runs: bool = True):
@@ -309,3 +273,139 @@ class Experiment[E: MARLEnv, T: Trainer](Serializable):
             run.runpath.replace(new_rundir)
             # shutil.copytree(run.rundir, new_rundir)
         return new_exp
+
+
+@dataclass
+class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
+    trainer: T
+    env: EnvConfig[E]
+    test_env: EnvConfig[E]
+
+    @classmethod
+    def create(
+        cls,
+        env: EnvConfig[E],
+        trainer: T,
+        logdir: str | Literal["auto", "test", "tmp"] | Path = "tmp",
+        n_steps: int = 1_000_000,
+        test_env: EnvConfig[E] | None = None,
+        loggers: Collection[LoggerType] = ("csv",),
+    ):
+        """
+        Create a new experiment with the given parameters and save it to disk.
+
+        **Parameters:**
+        ----------
+        - `env`: The environment configuration to train the agent on.
+        - `trainer`: The trainer configuration to train the agent with.
+        - `logdir`: The directory to save the experiment in. If "auto", the logdir is a combination of trainer name and environment name. If "test" or "tmp", any pre-existing experiment with the same name is overwritten.
+        - `n_steps`: The number of training steps to run.
+        - `test_env`: Environment configuration to test the trained agent against. Defaults to `deepcopy(env)`.
+        - `loggers`: The loggers to use for the experiment.
+
+        **Raises:**
+        ------
+        - `FileExistsError`: If the logdir already exists.
+        """
+        if logdir == "auto":
+            logdir = Path("logs", f"{trainer.name}-{env.name}").as_posix()
+        else:
+            logdir = Path(logdir).as_posix()
+            if not logdir.startswith("logs"):
+                logdir = Path("logs", logdir).as_posix()
+        logpath = Path(logdir)
+        if logpath.parts[-1].lower() in ("test", "tmp"):
+            logger.info(f"Discarding pre-existing experiment {logdir}.")
+            shutil.rmtree(logpath, ignore_errors=True)
+        if logpath.exists():
+            # Do not allow to overwrite an existing experiment
+            raise FileExistsError(f"Experiment directory {logpath} already exists.")
+        if test_env is None:
+            test_env = deepcopy(env)
+        exp = Experiment(
+            n_steps,
+            logpath.as_posix(),
+            loggers,
+            datetime.now(),
+            trainer,
+            env,
+            test_env,
+        )
+        exp.save()
+        return exp
+
+    def create_runs(
+        self,
+        seeds: int | Collection[int],
+        n_tests: int,
+        test_interval: int,
+        save_weights: bool,
+        save_actions: bool,
+    ):
+        if isinstance(seeds, int):
+            seeds = list(range(seeds))
+        if self.test_env is None:
+            self.test_env = self.env
+        runs = [
+            Run.create(
+                seed,
+                (self.logpath / f"run-{seed}").as_posix(),
+                self.trainer,
+                self.env,
+                self.n_steps,
+                self.test_env,
+                test_interval=test_interval,
+                n_tests=n_tests,
+                loggers=self.loggers,
+                save_weights=save_weights,
+                save_actions=save_actions,
+            )
+            for seed in seeds
+        ]
+        # Deepcopy to prevent modifying the original configs references
+        return deepcopy(runs)
+
+    def run(
+        self,
+        seeds: int | Collection[int] = 1,
+        gpu_strategy: Literal["scatter", "group"] = "group",
+        save_weights: bool = True,
+        save_actions: bool = True,
+        n_tests: int = 1,
+        test_interval: int = 5000,
+        *,
+        quiet: bool = False,
+        device: DeviceLike = "auto",
+        render_tests: bool = False,
+        n_jobs: int | Literal["auto"] = "auto",
+        disabled_gpus: Collection[int] = (),
+        limit_torch_threads: bool = True,
+    ):
+        """
+        Train the Agent on the environment according to the experiment parameters.
+
+        Parameters:
+        ---------
+        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
+        - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
+        - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
+        """
+        from marl.runners import parallel_run, sequential_run
+
+        if n_jobs == "auto":
+            n_jobs = torch.cuda.device_count() - len(disabled_gpus)
+        if isinstance(seeds, int):
+            seeds = list(range(seeds))
+        runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
+        if n_jobs <= 1 or len(runs) <= 1:
+            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
+        return parallel_run(
+            runs,
+            n_jobs,
+            device,
+            gpu_strategy,
+            render_tests,
+            disabled_gpus,
+            quiet,
+            limit_torch_threads,
+        )

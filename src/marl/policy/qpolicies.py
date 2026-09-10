@@ -1,23 +1,24 @@
 import random
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
 
 import numpy as np
 import numpy.typing as npt
 
 from marl.models import Policy
-from marl.utils import schedule
+from marl.utils import schedule, tuning
 
 
 @dataclass
 class SoftmaxPolicy(Policy):
     """Softmax policy"""
 
-    tau: float
+    n_actions: int
+    _: KW_ONLY
+    tau: float = field(default=1.0, metadata=tuning(0.01, 100.0, log=True))
 
-    def __init__(self, n_actions: int, tau: float = 1.0):
-        super().__init__()
-        self.actions = np.arange(n_actions, dtype=np.int64)
-        self.tau = tau
+    def __post_init__(self):
+        super().__post_init__()
+        self.actions = np.arange(self.n_actions, dtype=np.int64)
 
     def get_action(
         self,
@@ -25,8 +26,10 @@ class SoftmaxPolicy(Policy):
         available_actions: npt.NDArray[np.float32] | None = None,
     ) -> npt.NDArray[np.int64]:
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
-        exp = np.exp(qvalues / self.tau)
+            qvalues = np.where(available_actions == 0.0, -np.inf, qvalues)
+        scaled = qvalues / self.tau
+        scaled = scaled - np.max(scaled, axis=-1, keepdims=True)
+        exp = np.exp(scaled)
         probs = exp / np.sum(exp, axis=-1, keepdims=True)
         chosen_actions = [np.random.choice(self.actions, p=agent_probs) for agent_probs in probs]
         return np.array(chosen_actions)
@@ -47,19 +50,20 @@ class EpsilonGreedy(Policy):
 
     @classmethod
     def linear(cls, start_eps: float, end_eps: float, n_steps: int):
-        return cls(schedule.LinearSchedule(start_eps, end_eps, n_steps))
+        return cls(schedule.LinearSchedule(start_value=start_eps, end_value=end_eps, n_steps=n_steps))
 
     @classmethod
     def exponential(cls, start_eps: float, end_eps: float, n_steps: int):
-        return cls(schedule.ExpSchedule(start_eps, end_eps, n_steps))
+        return cls(schedule.ExpSchedule(start_value=start_eps, end_value=end_eps, n_steps=n_steps))
 
     @classmethod
     def constant(cls, eps: float):
-        return cls(schedule.ConstantSchedule(eps))
+        return cls(schedule.ConstantSchedule(start_value=eps))
 
     def get_action(self, qvalues: np.ndarray, available_actions: np.ndarray | None = None) -> np.ndarray:
+        """Sample epsilon-greedy actions without mutating supplied utilities. @ai-generated"""
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
+            qvalues = np.where(available_actions, qvalues, -np.inf)
         else:
             available_actions = np.full_like(qvalues, True)
         chosen_actions = qvalues.argmax(axis=-1)
@@ -73,22 +77,22 @@ class EpsilonGreedy(Policy):
         self.epsilon.update(time_step)
         return {"epsilon": self.epsilon.value}
 
-    @classmethod
-    def from_dict(cls, d: dict):
-        d = d["epsilon"]
-        name = d.pop("name")
-        match name:
-            case "LinearSchedule":
-                epsilon = schedule.LinearSchedule(d["start_value"], d["end_value"], d["n_steps"])
-                return cls(epsilon=epsilon)
-            case "ExpSchedule":
-                epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
-                return cls(epsilon=epsilon)
-            case "ConstantSchedule":
-                epsilon = schedule.ConstantSchedule(d["start_value"])
-                return cls(epsilon=epsilon)
-            case other:
-                raise ValueError(f"Unknown policy type: {other}")
+    # @classmethod
+    # def from_dict(cls, d: dict):
+    #     d = d["epsilon"]
+    #     name = d.pop("name")
+    #     match name:
+    #         case "LinearSchedule":
+    #             epsilon = schedule.LinearSchedule(d["start_value"], d["end_value"], d["n_steps"])
+    #             return cls(epsilon=epsilon)
+    #         case "ExpSchedule":
+    #             epsilon = schedule.ExpSchedule(d["start_value"], d["min_value"], d["n_steps"])
+    #             return cls(epsilon=epsilon)
+    #         case "ConstantSchedule":
+    #             epsilon = schedule.ConstantSchedule(d["start_value"])
+    #             return cls(epsilon=epsilon)
+    #         case other:
+    #             raise ValueError(f"Unknown policy type: {other}")
 
 
 @dataclass
@@ -96,8 +100,9 @@ class ArgMax(Policy):
     """Exploiting the strategy"""
 
     def get_action(self, qvalues: np.ndarray, available_actions: npt.NDArray[np.float32] | None = None) -> np.ndarray:
+        """Select legal greedy actions without mutating supplied utilities. @ai-generated"""
         if available_actions is not None:
-            qvalues[available_actions == 0.0] = -np.inf
+            qvalues = np.where(available_actions, qvalues, -np.inf)
         return qvalues.argmax(-1)
 
     def update(self, time_step: int):

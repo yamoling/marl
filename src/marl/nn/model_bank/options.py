@@ -1,6 +1,6 @@
 import random
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from typing import Any, Callable, Literal, Sequence
 
 import torch
@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.distributions import Categorical
 from torch.nn import ModuleList
 
-from marl.models.nn import NN, Actor, DiscreteActor, QNetwork
+from marl.models.nn import NN, Actor, CategoricalActor, QNetwork
 from marl.models.nn.options import OptionCriticNetwork
 from marl.nn.model_bank.generic import CNN
 from marl.utils import Schedule
@@ -34,7 +34,9 @@ class CNNOptionCritic(OptionCriticNetwork):
         from marl.nn.model_bank.qnetworks import QCNN
 
         assert len(env.observation_shape) == 3
-        policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
+        policies = torch.nn.ModuleList(
+            [CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)]
+        )
         assert len(env.observation_shape) == 3
         terminations = CNN((n_options,), env.observation_shape, env.extras_size, output_activation="sigmoid")
         q_options = QCNN(n_options, env.observation_shape, env.extras_shape)
@@ -51,7 +53,9 @@ class CNNOptionCritic(OptionCriticNetwork):
         # Squeeze the last dimension introduced by the gathering
         return probs.squeeze(-1)
 
-    def policy(self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor):
+    def policy(
+        self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor
+    ):
         if not isinstance(options, Tensor):
             logits = [self.policies[option].forward(obs, extra) for option, obs, extra in zip(options, obs, extras)]
             logits = torch.stack(logits)
@@ -71,7 +75,7 @@ class CNNOptionCritic(OptionCriticNetwork):
 
 
 @dataclass
-class SimpleOptionCritic(Actor):
+class SimpleOptionCritic(Actor[torch.distributions.Categorical]):
     """
     Vanilla Option-Critic adapted for multi-agent. In this Option-Critic implementation, each agent has its own option.
 
@@ -79,17 +83,19 @@ class SimpleOptionCritic(Actor):
     """
 
     n_options: int
-    n_agents: int
-    options_policy: DiscreteActor
+    options_policy: CategoricalActor
     """The policy of one single option that is replicated (with different weights) for all options."""
     q_options: QNetwork
     options_termination: NN
+    _: KW_ONLY
     epsilon: Schedule = field(default_factory=lambda: Schedule.constant(0.1))
     temperature: float = 1.0
 
     def __post_init__(self):
         super().__post_init__()
-        self.policies = ModuleList([self.options_policy] + [deepcopy(self.options_policy) for p in range(self.n_options - 1)])
+        self.policies = ModuleList(
+            [self.options_policy] + [deepcopy(self.options_policy) for p in range(self.n_options - 1)]
+        )
         self.current_options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
         """The options currently selected by the agents."""
 
@@ -114,7 +120,8 @@ class SimpleOptionCritic(Actor):
     def compute_termination_probs(self, obs: Tensor, extras: Tensor) -> Tensor:
         return self.options_termination.forward(obs, extras)
 
-    def policy(self, obs: torch.Tensor, extras: Tensor, available_actions: Tensor):
+    def policy(self, obs: torch.Tensor, extras: Tensor, *, available_actions: Tensor | None = None, **kwargs):
+        assert available_actions is not None, "Available actions must be provided to compute the policy"
         logits = []
         obs, extras, available_actions = obs.squeeze(0), extras.squeeze(0), available_actions.squeeze(0)
         for agent_num, option in enumerate(self.current_options):

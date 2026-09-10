@@ -4,8 +4,17 @@
 
         <div v-else class="matrix-scroll">
             <div class="matrix-toolbar mb-2">
-                <button class="btn btn-sm btn-outline-secondary" type="button"
-                    @click="() => { isTransposed = !isTransposed }">Transpose</button>
+                <button
+                    class="btn btn-sm btn-outline-secondary"
+                    type="button"
+                    @click="
+                        () => {
+                            isTransposed = !isTransposed;
+                        }
+                    "
+                >
+                    Transpose
+                </button>
             </div>
 
             <table v-if="!isTransposed" class="table table-sm align-middle mb-0 matrix-table">
@@ -22,20 +31,32 @@
                         <th scope="row" class="action-name">
                             {{ props.episode.action_space.labels[i] }}
                         </th>
-                        <td v-for="(cell, j) in row" :key="j" class="matrix-cell" :class="{
-                            taken: cell.isTaken,
-                            unavailable: !cell.isAvailable,
-                        }">
+                        <td
+                            v-for="(cell, j) in row"
+                            :key="j"
+                            class="matrix-cell"
+                            :class="{
+                                taken: cell.isTaken,
+                                unavailable: !cell.isAvailable,
+                            }"
+                        >
                             <!-- <div class="score-bar" :style="scoreBarStyle(cell.value)"></div> -->
                             <div class="cell-indicators">
-                                <span v-if="cell.isTaken" class="status-dot selected-dot" title="Selected action"
-                                    aria-label="Selected action" />
-                                <span v-if="!cell.isAvailable" class="status-dot unavailable-dot"
-                                    title="Action unavailable" aria-label="Action unavailable" />
+                                <span
+                                    v-if="cell.isTaken"
+                                    class="status-dot selected-dot"
+                                    title="Selected action"
+                                    aria-label="Selected action"
+                                />
+                                <span
+                                    v-if="!cell.isAvailable"
+                                    class="status-dot unavailable-dot"
+                                    title="Action unavailable"
+                                    aria-label="Action unavailable"
+                                />
                             </div>
                             <div class="score-value-row">
-                                <span class="score-value">{{ (cell.value == null) ? "-" : cell.value.toFixed(3)
-                                    }}</span>
+                                <span class="score-value">{{ cell.value == null ? "-" : cell.value.toFixed(3) }}</span>
                             </div>
                         </td>
                     </tr>
@@ -56,19 +77,31 @@
                         <th scope="row" class="action-name">
                             {{ agentLabel(i) }}
                         </th>
-                        <td v-for="(cell, j) in row" :key="j" class="matrix-cell" :class="{
-                            taken: cell.isTaken,
-                            unavailable: !cell.isAvailable,
-                        }">
+                        <td
+                            v-for="(cell, j) in row"
+                            :key="j"
+                            class="matrix-cell"
+                            :class="{
+                                taken: cell.isTaken,
+                                unavailable: !cell.isAvailable,
+                            }"
+                        >
                             <div class="cell-indicators">
-                                <span v-if="cell.isTaken" class="status-dot selected-dot" title="Selected action"
-                                    aria-label="Selected action" />
-                                <span v-if="!cell.isAvailable" class="status-dot unavailable-dot"
-                                    title="Action unavailable" aria-label="Action unavailable" />
+                                <span
+                                    v-if="cell.isTaken"
+                                    class="status-dot selected-dot"
+                                    title="Selected action"
+                                    aria-label="Selected action"
+                                />
+                                <span
+                                    v-if="!cell.isAvailable"
+                                    class="status-dot unavailable-dot"
+                                    title="Action unavailable"
+                                    aria-label="Action unavailable"
+                                />
                             </div>
                             <div class="score-value-row">
-                                <span class="score-value">{{ (cell.value == null) ? "-" : cell.value.toFixed(3)
-                                    }}</span>
+                                <span class="score-value">{{ cell.value == null ? "-" : cell.value.toFixed(3) }}</span>
                             </div>
                         </td>
                     </tr>
@@ -99,7 +132,7 @@ type MatrixCell = {
     isAvailable: boolean;
 };
 
-type MatrixRow = MatrixCell[]
+type MatrixRow = MatrixCell[];
 
 const safeStep = computed(() => clampStep(props.currentStep));
 const isTransposed = ref(false);
@@ -116,39 +149,34 @@ const details = computed(() => {
     if (is2D(details)) {
         return details;
     }
-    return null
+    return Array.from({ length: nAgents }, () => Array.from({ length: nActions }, () => null));
 });
 
-
 const rows = computed(() => {
-    if (details.value == null) return [];
     const rows = [] as MatrixRow[];
     for (let action = 0; action < nActions; action++) {
-        const row = props.selectedAgents.map(agent => {
+        const row = props.selectedAgents.map((agent) => {
             return {
                 value: details.value![agent][action],
                 isTaken: props.episode.isTakenAt(action, agent, safeStep.value),
                 isAvailable: props.episode.isAvailableAt(action, agent, safeStep.value),
-            }
-        })
+            };
+        });
         rows.push(row);
     }
-    return rows
+    return rows;
 });
 
-const transposedRows = computed(() => props.selectedAgents.map(agent => rows.value.map(v => v[agent])));
-
+const transposedRows = computed(() => props.selectedAgents.map((agent) => rows.value.map((v) => v[agent])));
 
 function clampStep(step: number): number {
     const max = Math.max(0, props.episode.episode.actions.length - 1);
     return Math.max(0, Math.min(max, step));
 }
 
-
 function agentLabel(agent: number): string {
     return `Agent ${agent}`;
 }
-
 </script>
 
 <style scoped>
@@ -196,14 +224,15 @@ function agentLabel(agent: number): string {
 .matrix-cell.unavailable {
     border-color: color-mix(in srgb, var(--bs-danger) 55%, var(--bs-border-color));
     background:
-        repeating-linear-gradient(-45deg,
+        repeating-linear-gradient(
+            -45deg,
             color-mix(in srgb, var(--bs-danger) 10%, transparent) 0,
             color-mix(in srgb, var(--bs-danger) 10%, transparent) 6px,
             transparent 6px,
-            transparent 12px),
+            transparent 12px
+        ),
         color-mix(in srgb, var(--bs-body-bg) 88%, transparent);
 }
-
 
 .score-value-row {
     position: relative;

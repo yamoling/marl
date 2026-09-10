@@ -36,7 +36,7 @@ class MAVEN(HierarchicalTrainer):
     target_updater: TargetParametersUpdater = field(default_factory=lambda: HardUpdate(200))
     double_qlearning: bool = True
     test_policy: Policy = field(default_factory=policy.ArgMax)
-    memory: EpisodeMemory = field(default_factory=lambda: EpisodeMemory(5000))
+    memory_size: int = 5000
     batch_size: int = 16
     optimiser_type: Literal["adam", "rmsprop"] = "rmsprop"
     lr: float = 5e-4
@@ -81,8 +81,8 @@ class MAVEN(HierarchicalTrainer):
             mixer = QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size)
         self.worker_trainer = MITrainer(
             self.qnetwork,
-            self.memory,
             self.env,
+            memory_size=self.memory_size,
             mixer=mixer,
             train_policy=self.train_policy,
             train_interval=(self.train_interval[0], "episode"),

@@ -43,7 +43,7 @@ class RND(IRModule):
             case (size,):  # Linear
                 self.target = model_bank.MLP(self.output_shape, size, self.state_extra_size)
             case (_, _, _) as dimensions:  # CNN
-                self.target = model_bank.CNN(self.output_shape, dimensions, self.state_extra_size)
+                self.target = model_bank.QCNN(self.output_size, 1, dimensions, (self.state_extra_size,), duelling=False)
             case other:
                 raise ValueError(f"Unsupported (obs, extras) shape: {other}")
         self.nn_head = deepcopy(self.target)
@@ -65,12 +65,8 @@ class RND(IRModule):
         self._running_extras = RunningMeanStd((self.state_extra_size,))
 
     def compute(self, batch: Batch) -> torch.Tensor:
-        # Normalize the observations and extras
-        next_states = self._running_states.normalise(batch.next_states)
-        if batch.next_states_extras.numel() > 0:
-            next_states_extras = self._running_extras.normalise(batch.next_states_extras)
-        else:
-            next_states_extras = batch.next_states_extras
+        """Normalize valid state samples and intrinsic discounted returns. @ai-generated"""
+        next_states, next_states_extras, valid = self._normalise_inputs(batch, update=True)
         if not self._warmup_done:
             return torch.zeros_like(batch.rewards)
         # Compute the embedding and the squared error
@@ -82,12 +78,32 @@ class RND(IRModule):
                     raise RuntimeError(
                         "Normalising rewards only works with EpisodeBatch since there is no return to individual Transitions"
                     )
-                returns = batch.compute_returns(self.gamma)
-                self._running_returns.update(returns)
-                intrinsic_reward = intrinsic_reward / self._running_returns.std
+                discounted = torch.zeros_like(intrinsic_reward[0])
+                returns = torch.zeros_like(intrinsic_reward)
+                for t in range(intrinsic_reward.shape[0]):
+                    discounted = self.gamma * discounted + intrinsic_reward[t]
+                    returns[t] = discounted
+                self._running_returns.update(returns[valid].reshape(-1, 1))
+                intrinsic_reward = intrinsic_reward / self._running_returns.std.clamp_min(1e-8)
             # Book keeping
             intrinsic_reward = intrinsic_reward * self.ir_weight
-            return intrinsic_reward
+            return intrinsic_reward.masked_fill(~valid, 0)
+
+    def _normalise_inputs(self, batch: Batch, update: bool):
+        """Pool all valid leading batch dimensions without treating episodes as features. @ai-generated"""
+        states, extras = batch.next_states, batch.next_states_extras
+        valid = batch.masks.bool()
+        leading_ndim = states.ndim - len(self.state_shape)
+        while valid.ndim > leading_ndim:
+            valid = valid[..., 0]
+        if update and valid.any():
+            self._running_states.update(states[valid])
+            if extras.numel():
+                self._running_extras.update(extras[valid])
+        states = self._running_states.normalise(states, update=False)
+        if extras.numel():
+            extras = self._running_extras.normalise(extras, update=False)
+        return states, extras, valid
 
     def forward(self, next_states: torch.Tensor, next_states_extras: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
@@ -99,19 +115,21 @@ class RND(IRModule):
         return squared_error
 
     def update(self, batch: Batch, time_step: int):
+        """Subsample valid transitions and safely skip an empty predictor update. @ai-generated"""
         if time_step >= self.n_warmup_steps:
             self._warmup_done = True
         # Normalize the observations and extras
-        next_states = self._running_states.normalise(batch.next_states, update=False)
-        next_states_extras = self._running_extras.normalise(batch.next_states_extras, update=False)
+        next_states, next_states_extras, valid = self._normalise_inputs(batch, update=False)
         squared_error = self.forward(next_states, next_states_extras)
-        # Randomly mask some of the features and perform the optimization
-        masks = torch.rand_like(squared_error) < self.update_ratio
-        loss = torch.sum(squared_error * masks) / torch.sum(masks)
+        errors = squared_error.mean(dim=-1)
+        masks = (torch.rand_like(errors) < self.update_ratio) & valid.bool()
+        self.ir_weight.update(time_step)
+        if not masks.any():
+            return {"ir-loss": 0.0, "ir-weight": self.ir_weight.value}
+        loss = errors[masks].mean()
         self._optimizer.zero_grad()
         loss.backward()
         self._optimizer.step()
-        self.ir_weight.update(time_step)
         return {"ir-loss": loss.item(), "ir-weight": self.ir_weight.value}
 
     @classmethod

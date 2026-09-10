@@ -2,9 +2,9 @@
     <div class="device-picker">
         <div v-for="option in deviceOptions" :key="option.value" class="device-option"
             :class="{ 'is-selected': isSelected(option.value) }">
-            <input :type="multiple ? 'checkbox' : 'radio'" :id="`device-${option.value}`" :value="option.value"
-                :checked="isSelected(option.value)" class="form-check-input" @change="toggleDevice(option.value)" />
             <label :for="`device-${option.value}`" class="device-label">
+                <input :type="multiple ? 'checkbox' : 'radio'" :id="`device-${option.value}`" :value="option.value"
+                    :checked="isSelected(option.value)" class="form-check-input" @change="toggleDevice(option.value)" />
                 <span class="device-name">{{ option.label }}</span>
                 <span class="device-stress" :style="{ color: systemStore.stressColorFor(option.stress) }">
                     {{ systemStore.stressLabelFor(option.stress) }}

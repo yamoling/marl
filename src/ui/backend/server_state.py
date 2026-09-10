@@ -3,17 +3,20 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 from threading import Thread
+from typing import Literal, overload
 
 import orjson
 
-from marl.models import Experiment, ReplayEpisode
+from marl.models import Experiment, LightExperiment, ReplayEpisode
+
+logger = logging.getLogger(__name__)
 
 
 class ServerState:
     def __init__(self, logdir: str = "logs"):
-        self._light_experiments = dict[str, Experiment]()
-        self._experiments = dict[str, Experiment]()
+        self._experiments = dict[str, Experiment | LightExperiment]()
         self.last_accessed = dict[str, float]()
         self.logdir = logdir
         GarbageCollector(self).start()
@@ -23,15 +26,18 @@ class ServerState:
         for directory in os.listdir(self.logdir):
             directory = os.path.join(self.logdir, directory)
             try:
-                with open(Experiment.json_file(directory)) as f:
+                with open(LightExperiment.json_file(directory)) as f:
                     experiments.append(orjson.loads(f.read()))
             except (FileNotFoundError, NotADirectoryError):
                 # Not an experiment directory, ignore
                 pass
         return experiments
 
-    def load_experiment(self, logdir: str):
-        self._experiments[logdir] = Experiment.load(logdir)
+    def load_experiment(self, logdir: str, full: bool = False):
+        if full:
+            self._experiments[logdir] = Experiment.load(logdir)
+        else:
+            self._experiments[logdir] = LightExperiment.load(logdir)
 
     def new_runs(
         self,
@@ -39,10 +45,13 @@ class ServerState:
         n_runs: int,
         n_tests: int,
         seed: int,
+        n_jobs: int,
+        test_interval: int = 5000,
         device: str = "auto",
-        n_jobs: int | None = None,
         gpu_strategy: str = "group",
         disabled_devices: list[int] | None = None,
+        save_weights: bool = False,
+        save_actions: bool = True,
     ):
         if disabled_devices is None:
             disabled_devices = []
@@ -52,15 +61,20 @@ class ServerState:
             logdir,
             f"--n-runs={n_runs}",
             f"--n-tests={n_tests}",
+            f"--test-interval={test_interval}",
             f"--seed={seed}",
             f"--device={device}",
             f"--gpu-strategy={gpu_strategy}",
+            f"--n-jobs={n_jobs}",
         ]
-        if n_jobs is not None:
-            command.append(f"--n-jobs={n_jobs}")
-        if disabled_devices:
+        if save_weights:
+            command.append("--save-weights")
+        if not save_actions:
+            command.append("--no-save-actions")
+        if len(disabled_devices) > 0:
             command.extend(["--disabled-devices", *[str(device_id) for device_id in disabled_devices]])
-        logging.info("Starting new process with command: " + " ".join(command))
+        logger.info("Starting new process with command: " + " ".join(command))
+        print(" ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
         subprocess.Popen(
             command,
@@ -72,10 +86,10 @@ class ServerState:
         )
 
     def start_run(self, rundir: str, device: str = "auto"):
-        logdir = Experiment.find_experiment_directory(rundir)
+        logdir = Experiment.find_experiment_directory(Path(rundir))
         if logdir is None:
             raise FileNotFoundError(f"Could not find experiment for run {rundir}")
-
+        logdir = logdir.as_posix()
         experiment = self.get_experiment(logdir)
         target_run = None
         for run in experiment.runs:
@@ -87,16 +101,34 @@ class ServerState:
 
         if target_run.is_running or target_run.is_complete:
             return
-        self.new_runs(logdir, n_runs=1, n_tests=1, seed=target_run.seed, device=device)
+        self.new_runs(
+            logdir,
+            n_runs=1,
+            n_tests=1,
+            seed=target_run.seed,
+            test_interval=target_run.test_interval,
+            n_jobs=1,
+            device=device,
+            save_weights=target_run.save_weights,
+            save_actions=target_run.save_actions,
+        )
 
-    def get_experiment(self, logdir: str) -> Experiment:
+    @overload
+    def get_experiment(self, logdir: str | Path, full: Literal[False] = False) -> LightExperiment: ...
+
+    @overload
+    def get_experiment(self, logdir: str | Path, full: Literal[True]) -> Experiment: ...
+
+    def get_experiment(self, logdir: str | Path, full: bool = False):
+        if isinstance(logdir, Path):
+            logdir = logdir.as_posix()
         self.last_accessed[logdir] = time.time()
         if logdir not in self._experiments:
             self.load_experiment(logdir)
         return self._experiments[logdir]
 
     def stop_run(self, rundir: str):
-        logdir = Experiment.find_experiment_directory(rundir)
+        logdir = Experiment.find_experiment_directory(Path(rundir))
         if logdir is None:
             raise FileNotFoundError(f"Could not find experiment for run {rundir}")
         experiment = self.get_experiment(logdir)
@@ -106,25 +138,17 @@ class ServerState:
                 return
         raise FileNotFoundError(f"Could not find run {rundir}")
 
-    def unload_experiment(self, logdir: str) -> Experiment | None:
+    def unload_experiment(self, logdir: str):
         return self._experiments.pop(logdir, None)
 
     def replay_episode(self, rundir: str, time_step: int, test_num: int, only_saved_actions: bool) -> ReplayEpisode:
-        longest_match = ""
-        matching_experiment = None
-        for logdir, experiment in self._experiments.items():
-            if rundir.startswith(logdir) and len(logdir) > len(longest_match):
-                longest_match = logdir
-                matching_experiment = experiment
-        if matching_experiment is None:
-            # Try to find the correpsonding logdir and load the experiment
-            logdir = Experiment.find_experiment_directory(rundir)
-            if logdir is None:
-                raise ValueError(f"Rundir {rundir} does not seem to belong to an experiment.")
-            matching_experiment = Experiment.load(logdir)
-        run = matching_experiment.get_run(rundir)
+        logdir = Experiment.find_experiment_directory(Path(rundir))
+        if logdir is None:
+            raise FileNotFoundError(f"Could not find experiment for run {rundir}")
+        exp = self.get_experiment(logdir.as_posix(), full=True)
+        run = exp.get_run(rundir)
         assert run is not None
-        return run.replay_episode(time_step, test_num, only_saved_actions=only_saved_actions)
+        return exp.replay_episode(run.seed, time_step, test_num, only_saved_actions=only_saved_actions)
 
 
 class GarbageCollector(Thread):

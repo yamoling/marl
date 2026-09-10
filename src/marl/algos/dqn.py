@@ -1,13 +1,14 @@
-import logging
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
+from pathlib import Path
 from typing import Literal
 
 import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.models import Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
+from marl.models import Agent, Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
+from marl.models.batch import EpisodeBatch
 from marl.utils.tuning import tuning
 
 from .optimism import VBE
@@ -59,11 +60,39 @@ class DQN[M: (Mixer | None)](Trainer):
         if self.mixer is not None:
             assert self.target_mixer is not None
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
+        self.optimiser = self._make_optimiser()
+
+    def save(self, directory: Path):
+        """Store targets separately so they cannot overwrite online network files. @ai-generated"""
+        super().save(directory)
+        target_directory = directory / "dqn-targets"
+        target_directory.mkdir(exist_ok=True)
+        self.qtarget.save(target_directory)
+        if self.target_mixer is not None:
+            self.target_mixer.save(target_directory)
+        self.qnetwork.save(directory)
+        if self.mixer is not None:
+            self.mixer.save(directory)
+
+    def load(self, directory: Path):
+        """Load separate targets, or synchronize them when reading legacy checkpoints. @ai-generated"""
+        super().load(directory)
+        target_directory = directory / "dqn-targets"
+        if target_directory.exists():
+            self.qtarget.load(target_directory)
+            if self.target_mixer is not None:
+                self.target_mixer.load(target_directory)
+        else:
+            self.qtarget.load_state_dict(self.qnetwork.state_dict())
+            if self.mixer is not None and self.target_mixer is not None:
+                self.target_mixer.load_state_dict(self.mixer.state_dict())
+
+    def _make_optimiser(self, fused: bool = False):
         match self.optimiser_type:
             case "adam":
-                self.optimiser = torch.optim.Adam(self.target_updater.parameters, lr=self.lr)
+                return torch.optim.Adam(self.target_updater.parameters, lr=self.lr, fused=fused)
             case "rmsprop":
-                self.optimiser = torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
+                return torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
             case other:
                 raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
 
@@ -82,6 +111,10 @@ class DQN[M: (Mixer | None)](Trainer):
             name += f"-{self.vbe.name}"
         return name
 
+    @property
+    def n_actions(self):
+        return self.qnetwork.n_actions
+
     def _update(self, time_step: int) -> dict[str, float]:
         if not self.memory.can_sample(self.batch_size):
             return {}
@@ -97,6 +130,7 @@ class DQN[M: (Mixer | None)](Trainer):
         return logs
 
     def _compute_qtargets(self, batch: Batch):
+        """Bootstrap legal actions and pass the selected joint action to mixers. @ai-generated"""
         # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
         next_qvalues = self.qtarget.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
@@ -109,18 +143,29 @@ class DQN[M: (Mixer | None)](Trainer):
             self.qnetwork.train()
         else:
             qvalues_for_index = next_qvalues
-        qvalues_for_index[~batch.next_available_actions] = -torch.inf
+        if self.qnetwork.is_multi_objective:
+            qvalues_for_index = qvalues_for_index.sum(dim=-1)
+        qvalues_for_index = qvalues_for_index.masked_fill(~batch.next_available_actions, -torch.inf)
         indices = torch.argmax(qvalues_for_index, dim=-1, keepdim=True)
-        next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
+        if self.qnetwork.is_multi_objective:
+            objective_indices = indices.unsqueeze(-1).expand(*indices.shape, self.qnetwork.n_objectives)
+            next_values = torch.gather(next_qvalues, -2, objective_indices).squeeze(-2)
+        else:
+            next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
+            mixing_kwargs = self.get_mixing_kwargs(batch, next_qvalues, is_next=True, actions=indices.squeeze(-1))
             next_values = self.target_mixer.forward(
                 next_values,
                 batch.next_states,
                 batch.next_states_extras,
-                **self.get_mixing_kwargs(batch, next_qvalues, is_next=True),
+                **mixing_kwargs,
             )
         assert batch.rewards.shape == next_values.shape == batch.not_dones.shape == batch.masks.shape
-        return batch.rewards + self.gamma * next_values * batch.not_dones
+        gamma = batch.gamma if batch.gamma is not None else self.gamma
+        if isinstance(gamma, torch.Tensor):
+            while gamma.ndim < next_values.ndim:
+                gamma = gamma.unsqueeze(-1)
+        return batch.rewards + gamma * next_values.masked_fill(batch.dones | batch.masked_indices, 0)
 
     def _prepare_batch(self, batch: Batch):
         logs = dict[str, float]()
@@ -134,14 +179,32 @@ class DQN[M: (Mixer | None)](Trainer):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
-    def get_mixing_kwargs(self, batch: Batch, all_qvalues: torch.Tensor, is_next: bool = False) -> dict[str, torch.Tensor]:
+    def get_mixing_kwargs(
+        self,
+        batch: Batch,
+        all_qvalues: torch.Tensor,
+        is_next: bool = False,
+        actions: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
         return {}
 
     def _compute_qvalues(self, batch: Batch):
+        """Gather the selected action while preserving any objective dimension."""
         all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
-        qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
+        if self.qnetwork.is_multi_objective:
+            indices = (
+                batch.actions.unsqueeze(-1).unsqueeze(-1).expand(*batch.actions.shape, 1, self.qnetwork.n_objectives)
+            )
+            qvalues = torch.gather(all_qvalues, dim=-2, index=indices).squeeze(-2)
+        else:
+            qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(qvalues, batch.states, batch.states_extras, **self.get_mixing_kwargs(batch, all_qvalues))
+            qvalues = self.mixer.forward(
+                qvalues,
+                batch.states,
+                batch.states_extras,
+                **self.get_mixing_kwargs(batch, all_qvalues, actions=batch.actions),
+            )
         return all_qvalues, qvalues
 
     def _compute_td_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch):
@@ -151,8 +214,12 @@ class DQN[M: (Mixer | None)](Trainer):
         td_error = td_error * batch.masks
         squared_error = td_error**2
         if batch.importance_sampling_weights is not None:
-            assert squared_error.shape == batch.importance_sampling_weights.shape
-            squared_error = squared_error * batch.importance_sampling_weights
+            weights = batch.importance_sampling_weights
+            if weights.ndim == 1:
+                shape = [1] * squared_error.ndim
+                shape[1 if isinstance(batch, EpisodeBatch) else 0] = batch.size
+                weights = weights.reshape(shape)
+            squared_error = squared_error * weights
         loss = squared_error.sum() / batch.n_items
         return loss, td_error
 
@@ -165,7 +232,9 @@ class DQN[M: (Mixer | None)](Trainer):
         self.optimiser.zero_grad()
         td_loss.backward()
         if self.grad_norm_clipping is not None:
-            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(
+                self.target_updater.parameters, self.grad_norm_clipping
+            ).item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
         return logs
@@ -182,7 +251,7 @@ class DQN[M: (Mixer | None)](Trainer):
             return self._update(time_step)
         return dict[str, float]()
 
-    def make_agent(self):
+    def make_agent(self) -> Agent:
         from marl.agents import DQNAgent
 
         return DQNAgent(
@@ -193,18 +262,20 @@ class DQN[M: (Mixer | None)](Trainer):
         )
 
     def value(self, obs: Observation, state: State) -> float:
-        try:
-            data, extras = obs.as_tensors(self.device)
-            state_data, state_extras = state.as_tensors(self.device)
-            with torch.no_grad():
-                qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
-                max_qvalues = qvalues.max(dim=-1).values
-                if self.mixer is None:
-                    return float(max_qvalues.mean().item())
-                value = self.mixer.forward(
-                    max_qvalues, state_data, state_extras, all_qvalues=qvalues, one_hot_actions=torch.zeros_like(qvalues)
-                )
-                return float(value.item())
-        except Exception:
-            logging.warning("Error while computing value, returning 0.0 instead")
-            return 0.0
+        data, extras = obs.as_tensors(self.device)
+        state_data, state_extras = state.as_tensors(self.device)
+        with torch.no_grad():
+            qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
+            max_qvalues = qvalues.max(dim=-1).values
+            if self.mixer is None:
+                return float(max_qvalues.mean().item())
+            value = self.mixer.forward(
+                max_qvalues,
+                state_data,
+                state_extras,
+                **self.get_value_mixing_kwargs(qvalues),
+            )
+            return float(value.item())
+
+    def get_value_mixing_kwargs(self, all_qvalues: torch.Tensor) -> dict[str, torch.Tensor]:
+        return {}

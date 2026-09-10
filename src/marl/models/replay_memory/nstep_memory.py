@@ -1,38 +1,61 @@
+from collections import deque
+from collections.abc import Iterable
 from copy import deepcopy
+from dataclasses import dataclass, field
+
+import torch
 from marlenv import Transition
+
+from marl.models.batch import TransitionBatch
+from marl.utils import tuning
+
 from .replay_memory import TransitionMemory
 
 
+@dataclass
 class NStepMemory(TransitionMemory):
-    def __init__(self, max_size: int, n: int, gamma: float) -> None:
-        super().__init__(max_size)
-        assert n > 0
-        self._n = n
-        self._gamma = gamma
-        self._episode_len = 0
+    n: int = field(metadata=tuning(2, 5))
+    gamma: float
 
-    def __len__(self) -> int:
-        return max(0, len(self._memory) - self._n)
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self._pending = deque[Transition]()
 
     def add(self, item: Transition):
-        item = deepcopy(item)
-        self._episode_len += 1
-        r = item.reward
-        # Update the rewards of the last n transitions backward
-        for i in range(1, min(self._n, self._episode_len)):
-            r = r * self._gamma
-            self._memory[-i].reward += r
-
-        # Add the new transition to the memory
-        super().add(item)
+        """Finalize n-step transitions and flush shortened tails at episode ends. @ai-generated"""
+        self._pending.append(deepcopy(item))
+        # As soon as we have `n` items in the memory, link the 0th with the nth
+        if len(self._pending) >= self.n:
+            self._finalize()
         if item.is_terminal:
-            # Update the last n observations such that their next obs is the one of the episode
-            for i in range(2, min(self._n, self._episode_len) + 1):
-                self._update_transition(-i, item.next_obs, item.done, item.truncated)
-            self._episode_len = 0
+            # Flush
+            while len(self._pending) > 0:
+                self._finalize()
 
-    def _update_transition(self, index: int, obs_, done, truncated):
-        t = self._memory[index]
-        t.next_obs = obs_
-        t.done = done
-        t.truncated = truncated
+    def _finalize(self):
+        """Store a transition with its accumulated reward, successor and bootstrap discount. @ai-generated"""
+        first = deepcopy(self._pending[0])
+        for i, transition in enumerate(self._pending):
+            if i > 0:
+                first.reward += self.gamma**i * transition.reward
+        last = self._pending[-1]
+        first.next_obs = last.next_obs
+        first.next_state = last.next_state
+        first.done = last.done
+        first.truncated = last.truncated
+        first["n-step-gamma"] = self.gamma ** len(self._pending)
+        super().add(first)
+        self._pending.popleft()
+
+    def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
+        batch = super().make_batch(items)
+        batch.gamma = batch["n-step-gamma"].to(torch.float32)
+        return batch
+
+    def add_transition(self, transition: Transition):
+        return self.add(transition)
+
+    def clear(self):
+        """Clear completed samples and the unfinished trajectory. @ai-generated"""
+        super().clear()
+        self._pending.clear()

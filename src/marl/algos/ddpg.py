@@ -3,7 +3,7 @@ from typing import Any, Literal
 import torch
 from marlenv import Episode, Transition
 
-from marl.models.nn import DiscreteActorCritic
+from marl.models.nn import CategoricalActor, Critic
 from marl.models.replay_memory.replay_memory import ReplayMemory
 from marl.models.trainer import Trainer
 
@@ -11,7 +11,8 @@ from marl.models.trainer import Trainer
 class DDPG(Trainer):
     def __init__(
         self,
-        network: DiscreteActorCritic,
+        actor: CategoricalActor,
+        critic: Critic,
         memory: ReplayMemory,
         batch_size: int = 64,
         gamma: float = 0.99,
@@ -24,7 +25,8 @@ class DDPG(Trainer):
         self.update_on_episodes = train_every == "episode"
         self.update_on_steps = train_every == "step"
         self.step_update_interval = update_interval
-        self.network = network
+        self.actor = actor
+        self.critic = critic
         # self.target_network = deepcopy(network)
         self.memory = memory
         self.batch_size = batch_size
@@ -81,7 +83,7 @@ class DDPG(Trainer):
         probs = batch.probs
         with torch.no_grad():
             # get next actions
-            new_logits, _ = self.network.logits(obs_, extras_, available_actions)
+            new_logits, _ = self.actor.logits(obs_, extras_, available_actions)
             # new_logits, _ = self.target_network.forward(obs_, extras_)
             new_logits[available_actions.reshape(new_logits.shape) == 0] = -torch.inf  # mask unavailable actions
             new_logits = new_logits.reshape(actions.shape[0], actions.shape[1], -1)
@@ -93,7 +95,7 @@ class DDPG(Trainer):
             # compute target values
             target_values = rewards + self.gamma * (1 - dones) * new_values
 
-        old_value = self.network.value(states, extras, probs)  # type: ignore
+        old_value = self.critic.value(states, extras, probs)  # type: ignore
 
         value_loss = torch.nn.functional.mse_loss(old_value, target_values)
         self.value_optimiser.zero_grad()

@@ -1,8 +1,9 @@
 from abc import abstractmethod
 from collections import deque
-from dataclasses import dataclass, field
+from collections.abc import Iterable
+from dataclasses import KW_ONLY, dataclass, field
 from functools import cached_property
-from typing import Deque, Iterable, Literal
+from typing import Literal
 
 import numpy as np
 from marlenv import Episode, Transition
@@ -21,9 +22,10 @@ class ReplayMemory[T](Serializable):
 
     max_size: int = field(metadata=tuning(1_000, 200_000))
     update_on: Literal["transition", "episode"]
+    _: KW_ONLY
 
     def __post_init__(self):
-        self._memory: Deque[T] = deque(maxlen=self.max_size)
+        self._memory = deque[T](maxlen=self.max_size)
 
     @cached_property
     def update_on_transitions(self):

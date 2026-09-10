@@ -6,6 +6,7 @@ import torch
 from marlenv import DiscreteMARLEnv, Observation
 
 from marl.env import EnvConfig
+from marl.utils import PinnedStagingBuffer
 
 from .nn import NN, RecurrentNN
 
@@ -17,6 +18,7 @@ class QNetwork(NN):
     """
 
     n_actions: int
+    n_agents: int
     obs_shape: tuple[int, ...]
     extras_shape: tuple[int, ...]
     _: KW_ONLY
@@ -30,7 +32,6 @@ class QNetwork(NN):
     Paper: https://proceedings.mlr.press/v48/wangf16.pdf
     """
     independent: bool = False
-    """Whether each agent has its own independent weights or not."""
 
     def __post_init__(self):
         n_action_outputs = self.n_actions
@@ -48,18 +49,14 @@ class QNetwork(NN):
             self.action_dim = -2
         if self.duelling and self.n_objectives != 1:
             raise NotImplementedError("Multi-objective is currently not supported with duelling DQN.")
+        self._obs_stager = PinnedStagingBuffer()
+        self._extras_stager = PinnedStagingBuffer()
 
     def _get_qvalues(self, outputs: torch.Tensor):
         if not self.duelling:
             return outputs
-        if outputs.ndim == 3:
-            value = outputs[:, :, -1].unsqueeze(-1)  # Unsqueeze to keep 3 dimensions (batch_size, n_agents, 1)
-            adv = outputs[:, :, :-1]
-        elif outputs.ndim == 4:
-            value = outputs[:, :, :, -1].unsqueeze(-1)
-            adv = outputs[:, :, :, :-1]
-        else:
-            raise NotImplementedError()
+        value = outputs[..., -1].unsqueeze(-1)
+        adv = outputs[..., :-1]
         mean_adv = torch.mean(adv, dim=-1, keepdim=True)
         res = value + adv - mean_adv
         return res
@@ -79,8 +76,19 @@ class QNetwork(NN):
     def qvalues(self, obs: Observation) -> torch.Tensor:
         """
         Compute the Q-values (one per agent, per action and per objective).
+
+        On CUDA, the observation is staged through reusable pinned host buffers
+        (`PinnedStagingBuffer`) and transferred with non-blocking copies instead of the default
+        pageable `Observation.as_tensors` transfer. CPU behaviour is unchanged.
+
+        @ai-generated
         """
-        obs_tensor, extra_tensor = obs.as_tensors(self.device)
+        device = self.device
+        if device.type == "cuda":
+            obs_tensor = self._obs_stager.to(obs.data, device)
+            extra_tensor = self._extras_stager.to(obs.extras, device)
+        else:
+            obs_tensor, extra_tensor = obs.as_tensors(device)
         outputs = self.forward(obs_tensor.unsqueeze(0), extra_tensor.unsqueeze(0))
         qvalues = self._get_qvalues(outputs)
         return qvalues.squeeze(0)
@@ -98,27 +106,55 @@ class QNetwork(NN):
         return self._get_qvalues(outputs)
 
     def to_softmax_actor(self):
-        from .actor_critic import DiscreteActor
+        from .actor_critic import CategoricalActor
 
-        class ActorFromQNet(DiscreteActor):
+        class ActorFromQNet(CategoricalActor):
             def __init__(self, qnet: QNetwork):
-                super().__init__(qnet.output_shape)
+                super().__init__(qnet.n_actions, qnet.obs_shape, qnet.extras_shape)
                 self.qnet = qnet
 
             def __hash__(self):
                 return hash(self.name)
 
-            def logits(self, obs: torch.Tensor, extras: torch.Tensor, available_actions: torch.Tensor | None = None) -> torch.Tensor:
-                logits = self.qnet.batch_qvalues(obs, extras)
+            def forward(
+                self,
+                obs: torch.Tensor,
+                extras: torch.Tensor,
+                *,
+                available_actions: torch.Tensor | None = None,
+                **kwargs,
+            ) -> torch.Tensor:
+                """Adapt Q utilities to the categorical actor forward interface. @ai-generated"""
+                logits = self.qnet.batch_qvalues(obs, extras, **kwargs)
                 if available_actions is not None:
                     logits = logits.masked_fill(~available_actions, -torch.inf)
                 return logits
 
+            def logits(self, obs, extras, available_actions=None):
+                return self.forward(obs, extras, available_actions=available_actions)
+
         return ActorFromQNet(self)
 
     @classmethod
-    def from_env(cls, env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv, *, noisy: bool = False, duelling: bool = False, **kwargs):
-        return cls(env.n_actions, env.observation_shape, env.extras_shape, noisy=noisy, duelling=duelling, **kwargs)
+    def from_env(
+        cls,
+        env: EnvConfig[DiscreteMARLEnv] | DiscreteMARLEnv,
+        *,
+        noisy: bool = False,
+        duelling: bool = False,
+        independent: bool = False,
+        **kwargs,
+    ):
+        return cls(
+            env.n_actions,
+            env.n_agents,
+            env.observation_shape,
+            env.extras_shape,
+            noisy=noisy,
+            duelling=duelling,
+            independent=independent,
+            **kwargs,
+        )
 
 
 @dataclass
@@ -127,14 +163,21 @@ class RecurrentQNetwork(QNetwork, RecurrentNN):
         QNetwork.__post_init__(self)
         RecurrentNN.__post_init__(self)
 
-    def batch_qvalues(self, obs: torch.Tensor, extras: torch.Tensor, /, masks: torch.Tensor | None, **kwargs) -> torch.Tensor:
+    def batch_qvalues(
+        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs
+    ) -> torch.Tensor:
         """
         Compute the Q-values for a batch of observations (multiple episodes) during training.
 
-        In this case, the RNN considers hidden states=None.
+        In this case, every nested RNN starts from reset and its acting history is restored.
+        @ai-generated
         """
-        saved_hidden_states = self._hidden_states
-        self.reset_hidden_states()
-        qvalues = super().batch_qvalues(obs, extras, masks=masks, **kwargs)
-        self._hidden_states = saved_hidden_states
-        return qvalues
+        recurrent = [module for module in self.modules() if isinstance(module, RecurrentNN)]
+        saved = [module._hidden_states for module in recurrent]
+        try:
+            for module in recurrent:
+                module._hidden_states = None
+            return super().batch_qvalues(obs, extras, masks=masks, **kwargs)
+        finally:
+            for module, hidden in zip(recurrent, saved, strict=True):
+                module._hidden_states = hidden

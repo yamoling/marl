@@ -1,10 +1,10 @@
 <template>
     <div class="ps-3">
         <h5 class="mb-3">Runs</h5>
-        <div v-if="runs.length === 0" class="text-muted">
+        <div v-if="props.runs.length === 0" class="text-muted">
             No runs found.
         </div>
-        <DataTable v-else :value="runs" dataKey="rundir" striped-rows size="small">
+        <DataTable v-else :value="props.runs" dataKey="rundir" striped-rows size="small">
             <Column style="width: 4rem">
                 <template #header>
                     Status
@@ -65,7 +65,7 @@
 import { DataTable, Column } from 'primevue';
 import { Run, RunStatus } from '../../models/Run';
 
-defineProps<{
+const props = defineProps<{
     runs: Run[]
     startingRuns: Record<string, boolean>
     stoppingRuns: Record<string, boolean>

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -8,7 +8,7 @@ from marlenv import Episode, Transition
 
 from marl.models import Batch, EpisodeMemory, Mixer, Trainer, TransitionMemory
 from marl.models.batch import EpisodeBatch
-from marl.models.nn import ActorCritic
+from marl.models.nn import Actor, Critic
 from marl.utils import Schedule
 
 
@@ -16,7 +16,8 @@ from marl.utils import Schedule
 class PPO(Trainer):
     """Proximal Policy Optimization trainer. Either MAPPO (with a mixer) or IPPO (without mixer)."""
 
-    actor_critic: ActorCritic
+    actor: Actor
+    critic: Critic
     mixer: Mixer | None
     _: KW_ONLY
     train_interval: tuple[int, Literal["step", "episode"]] = (64, "step")
@@ -37,8 +38,8 @@ class PPO(Trainer):
         super().__post_init__()
         match self.train_interval:
             case (n, "step"):
-                if self.actor_critic.is_recurrent:
-                    raise ValueError("Recurrent neural networks should train on full episodes, not on transaitions !")
+                if self.actor.is_recurrent:
+                    raise ValueError("Recurrent neural networks should train on full episodes, not on transitions !")
                 self.memory = TransitionMemory(n)
             case (n, "episode"):
                 self.memory = EpisodeMemory(n)
@@ -48,9 +49,10 @@ class PPO(Trainer):
         )
         self._ratio_min = 1 - self.eps_clip
         self._ratio_max = 1 + self.eps_clip
-        self._parameters = list(self.actor_critic.parameters())
-        param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
-        self._optimizer = torch.optim.AdamW(param_groups, eps=1e-5)
+        self._parameters = [*self.actor.parameters(), *self.critic.parameters()]
+        if self.mixer is not None:
+            self._parameters += self.mixer.parameters()
+        self._optimizer = self._make_optimizer()
 
     @property
     def name(self):
@@ -58,31 +60,57 @@ class PPO(Trainer):
             return "IPPO"
         return f"MAPPO-{self.mixer.name}"
 
+    def _make_optimizer(self, fused: bool = False):
+        param_groups = self._compute_param_groups(self.lr_actor, self.lr_critic)
+        return torch.optim.AdamW(param_groups, eps=1e-5, fused=fused)
+
     def _compute_param_groups(self, lr_actor: float, lr_critic: float):
         params = [
-            {"params": self.actor_critic.policy_parameters, "lr": lr_actor, "name": "actor parameters"},
-            {"params": self.actor_critic.value_parameters, "lr": lr_critic, "name": "critic parameters"},
+            {"params": self.actor.parameters(), "lr": lr_actor, "name": "actor parameters"},
+            {"params": self.critic.parameters(), "lr": lr_critic, "name": "critic parameters"},
         ]
         if self.mixer is not None:
-            params.append({"params": list(self.mixer.parameters()), "lr": lr_critic, "name": "mixer parameters"})
+            params.append({"params": self.mixer.parameters(), "lr": lr_critic, "name": "mixer parameters"})
         return params
 
+    def add_intrinsic_rewards(self, batch: Batch, time_step: int) -> dict[str, Any]:
+        """
+        Add the intrinsic rewards to the batch rewards (in place) and update the intrinsic reward module.
+
+        # Returns
+            dict[str, Any]: intrinsic-reward metrics to log.
+        """
+        if self.ir_module is None:
+            return {}
+        intrinsic = self.ir_module.compute(batch)
+        while intrinsic.ndim < batch.rewards.ndim:
+            intrinsic = intrinsic.unsqueeze(-1)
+        batch.rewards = batch.rewards + intrinsic
+        return self.ir_module.update(batch, time_step)
+
     def _compute_training_data(self, batch: Batch):
-        """Compute the returns, advantages and action log_probs according to the current policy"""
-        values = self.actor_critic.value(batch.obs, batch.extras)
-        next_values = self.actor_critic.value(batch.next_obs, batch.extras)
+        """Compute targets with matching next observations and extras. @ai-generated"""
+        if getattr(self.critic, "is_recurrent", False):
+            all_values = self.critic.value(batch.all_obs, batch.all_extras)
+            values, next_values = all_values[:-1].clone(), all_values[1:].clone()
+        else:
+            values = self.critic.value(batch.obs, batch.extras)
+            next_values = self.critic.value(batch.next_obs, batch.next_extras)
         if self.mixer is not None:
             values = self.mixer.forward(values, batch.states, batch.states_extras)
             next_values = self.mixer.forward(next_values, batch.next_states, batch.next_states_extras) * batch.not_dones
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
-        advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
-        returns = batch.compute_mc_returns(self.gamma, next_values[-1])
+        advantages = batch.compute_gae(
+            self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages
+        )
+        returns = batch.compute_mc_returns(self.gamma, next_values[-1], next_values=next_values)
         advantages[batch.masked_indices] = 0.0
         return returns, advantages
 
     def train(self, step_num: int):
+        """Optimize every rollout item once per epoch, including a final short minibatch. @ai-generated"""
         if not self.memory.is_full:
             return {}
         batch = self.memory.as_batch().to(self.device)
@@ -91,10 +119,9 @@ class PPO(Trainer):
         self.c2.update(step_num)
         if self.mixer is None:
             batch = batch.for_individual_learners()
-        if self.ir_module is not None:
-            batch.rewards = batch.rewards + self.ir_module.compute(batch)
+        ir_logs = self.add_intrinsic_rewards(batch, step_num)
         with torch.no_grad():
-            old_dist = self.actor_critic.policy(batch.obs, batch.extras, batch.available_actions)
+            old_dist = self.actor.policy(batch.obs, batch.extras, available_actions=batch.available_actions)
             old_log_probs = old_dist.log_prob(batch.actions)
             old_log_probs[batch.masked_indices] = 0.0
             returns, advantages = self._compute_training_data(batch)
@@ -103,13 +130,21 @@ class PPO(Trainer):
             advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
         log_lists = defaultdict(list)
         early_stopped = False
-        for _ in range(self.n_epochs):
-            indices = np.random.choice(batch.size, self.minibatch_size, replace=False)
+        epoch_indices = (np.random.permutation(batch.size) for _ in range(self.n_epochs))
+        minibatches = (
+            indices[start : start + self.minibatch_size]
+            for indices in epoch_indices
+            for start in range(0, batch.size, self.minibatch_size)
+        )
+        for indices in minibatches:
             minibatch = batch.get_minibatch(indices)
             if self.mixer is None:
                 minibatch = minibatch.for_individual_learners()
             if isinstance(minibatch, EpisodeBatch):
-                indices = (slice(None), indices)  # The episode dimension come second in episode batches: (time, episode, ...)
+                indices = (
+                    slice(None),
+                    indices,
+                )  # The episode dimension come second in episode batches: (time, episode, ...)
             else:
                 indices = (indices,)
             mini_returns = returns[*indices]
@@ -117,14 +152,21 @@ class PPO(Trainer):
 
             # Actor loss (ratio between the new and old policy):
             # L^CLIP(θ) = E[ min(r(θ)A, clip(r(θ), 1 − ε, 1 + ε)A) ] in PPO paper
-            mini_policy = self.actor_critic.policy(minibatch.obs, minibatch.extras, minibatch.available_actions)
+            mini_policy = self.actor.policy(
+                minibatch.obs,
+                minibatch.extras,
+                available_actions=minibatch.available_actions,
+            )
             mini_new_log_probs: torch.Tensor = mini_policy.log_prob(minibatch.actions)
             mini_new_log_probs[minibatch.masked_indices] = 0.0
             log_ratio = mini_new_log_probs - old_log_probs[indices]
             ratio = torch.exp(log_ratio)
 
             with torch.no_grad():
-                approx_kl_div = torch.mean((ratio - 1) - log_ratio).item()
+                agent_masks = minibatch.masks
+                if agent_masks.ndim < ratio.ndim:
+                    agent_masks = agent_masks.unsqueeze(-1).expand_as(ratio)
+                approx_kl_div = (((ratio - 1) - log_ratio) * agent_masks).sum().div(agent_masks.sum()).item()
                 log_lists["approx-kl-divergence"].append(approx_kl_div)
             # KL divergence early stopping, cf Stable baselines implementation
             # https://github.com/DLR-RM/stable-baselines3/blob/08d984c3ee30093ea37409cf29cfb7efdd4bdcfd/stable_baselines3/ppo/ppo.py#L267
@@ -139,7 +181,7 @@ class PPO(Trainer):
 
             # Use the Monte Carlo estimate of returns as target values
             # L^VF(θ) = E[(V(s) - V_targ(s))^2] in PPO paper
-            mini_values = self.actor_critic.value(minibatch.obs, minibatch.extras)
+            mini_values = self.critic.value(minibatch.obs, minibatch.extras)
             if self.mixer is not None:
                 mini_values = self.mixer.forward(mini_values, minibatch.states, minibatch.states_extras)
             mini_values[minibatch.masked_indices] = 0.0
@@ -148,7 +190,7 @@ class PPO(Trainer):
                 huber_loss = torch.nn.functional.huber_loss(mini_values, mini_returns, delta=10.0, reduction="none")
                 critic_loss = torch.sum(huber_loss * minibatch.masks) / minibatch.n_items
             else:
-                td_error = mini_values - mini_returns
+                td_error = (mini_values - mini_returns) * minibatch.masks
                 critic_loss = torch.sum(td_error**2) / minibatch.n_items
 
             # S[\pi_0](s_t) in the paper (equation (9))
@@ -173,7 +215,11 @@ class PPO(Trainer):
             log_lists["loss"].append(loss.item())
             log_lists["ratios"].append(ratio.detach().cpu().numpy())
             log_lists["entropies"].append(entropy.detach().cpu().numpy())
+        log_lists = {
+            key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()
+        }
         return {
+            **ir_logs,
             "early_stopped": early_stopped,
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
@@ -197,4 +243,4 @@ class PPO(Trainer):
     def make_agent(self):
         from marl.agents import SimpleAgent
 
-        return SimpleAgent(self.actor_critic)
+        return SimpleAgent(self.actor)

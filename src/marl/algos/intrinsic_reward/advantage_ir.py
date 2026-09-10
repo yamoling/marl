@@ -39,11 +39,12 @@ class AdvantageIntrinsicReward(IRModule):
         self.memory = TransitionMemory(5_000)
 
     def compute(self, batch: Batch) -> torch.Tensor:
+        """Compute TD advantage with zero value after true termination. @ai-generated"""
         with torch.no_grad():
             values = self.network.value(batch.states, batch.states_extras)
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
             # Equation 2 in Haven's paper
-            advantage = batch.rewards + self.gamma * next_values - values
+            advantage = batch.rewards + self.gamma * next_values * batch.not_dones - values
         return advantage
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:
@@ -57,7 +58,7 @@ class AdvantageIntrinsicReward(IRModule):
         values = self.network.value(batch.states, batch.states_extras)
         with torch.no_grad():
             next_values = self.target_network.value(batch.next_states, batch.next_states_extras)
-            next_values = next_values * (1 - batch.dones)
+            next_values = next_values * batch.not_dones
         targets = batch.rewards + self.gamma * next_values
         loss = torch.nn.functional.mse_loss(values, targets)
         self.optimizer.zero_grad()

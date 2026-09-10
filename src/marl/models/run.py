@@ -1,9 +1,9 @@
 import os
-from dataclasses import dataclass
+from collections.abc import Collection
+from dataclasses import KW_ONLY, dataclass
 from functools import cached_property
 from pathlib import Path
 from signal import SIGINT, Signals
-from typing import Collection
 
 import numpy as np
 import polars as pl
@@ -20,23 +20,21 @@ from marl.utils import Serializable
 RUN_FILE = "run.json"
 
 
-@dataclass(unsafe_hash=True)
-class Run[E: MARLEnv](Serializable):
+@dataclass
+class LightRun[E: MARLEnv, T: Trainer](Serializable):
     seed: int
     rundir: str
-    trainer: Trainer
-    env: EnvConfig[E]
-    test_env: EnvConfig[E]
     n_steps: int
-    test_interval: int
-    n_tests: int
-    loggers: Collection[LoggerType]
-    save_weights: bool = True
+    _: KW_ONLY
+    test_interval: int = 5_000
+    n_tests: int = 1
+    loggers: Collection[LoggerType] = ("csv",)
+    save_weights: bool = False
     save_actions: bool = True
 
-    def __post_init__(self):
-        if not self.runpath.exists():
-            self.save()
+    @classmethod
+    def load(cls, rundir: Path):
+        return cls.from_file(rundir / RUN_FILE, exact_type=True)
 
     @property
     def runpath(self):
@@ -51,9 +49,6 @@ class Run[E: MARLEnv](Serializable):
         if self.test_interval <= 0:
             return False
         return time_step % self.test_interval == 0
-
-    def make_agent(self):
-        return self.trainer.make_agent()
 
     @property
     def run_file(self):
@@ -119,20 +114,21 @@ class Run[E: MARLEnv](Serializable):
 
     @property
     def is_running(self) -> bool:
-        return self.pid is not None
+        res = self.pid is not None
+        return res
 
-    @property
+    @ttl_cache(maxsize=1024, ttl=1)
     def latest_train_step(self) -> int:
         try:
             max_train = self.train_metrics.last().select(TIME_STEP_COL).collect().item()
-            if max_train == self.n_steps:
+            if max_train >= self.n_steps:
                 return max_train
             max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).collect().item()
             return max(max_train, max_training_data)
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 0
 
-    @property
+    @ttl_cache(maxsize=1024, ttl=1)
     def latest_test_step(self) -> int:
         try:
             return self.reader.test_metrics.last().select(TIME_STEP_COL).collect().item()
@@ -145,10 +141,9 @@ class Run[E: MARLEnv](Serializable):
 
     @property
     def latest_time_step(self) -> int:
-        latest_test = self.latest_test_step
-        if latest_test >= self.n_steps:
-            return latest_test
-        return max(latest_test, self.latest_train_step)
+        if self.is_running:
+            return LightRun.latest_train_step(self)
+        return LightRun.latest_test_step(self)
 
     @property
     def progress(self) -> float:
@@ -157,8 +152,17 @@ class Run[E: MARLEnv](Serializable):
 
     @property
     def pid(self):
-        # 1second TTL-cached property
-        return _get_pid(self.pid_filename)
+        if not os.path.exists(self.pid_filename):
+            return
+        try:
+            with open(self.pid_filename, "r") as f:
+                pid = int(f.read())
+            if not psutil.pid_exists(pid):
+                self._cleanup_pid_file()
+                return
+            return pid
+        except FileNotFoundError:
+            return
 
     @property
     def ppid(self):
@@ -186,15 +190,61 @@ class Run[E: MARLEnv](Serializable):
         except FileNotFoundError:
             pass
 
-    def __enter__(self):
-        if self.is_running:
-            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
-        pid = os.getpid()
-        with open(self.pid_filename, "w") as f:
-            f.write(str(pid))
+    def __hash__(self):
+        return hash(self.rundir)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup_pid_file()
+    def __eq__(self, other):
+        if not isinstance(other, LightRun):
+            return False
+        return self.rundir == other.rundir
+
+    def __enter__(self):
+        return self.to_full().__enter__()
+
+    def to_full(self):
+        return Run[E, T].load(self.runpath)
+
+
+@dataclass
+class Run[E: MARLEnv, T: Trainer](LightRun):
+    trainer: T
+    env: EnvConfig[E]
+    test_env: EnvConfig[E]
+
+    @classmethod
+    def create(
+        cls,
+        seed: int,
+        rundir: str,
+        trainer: T,
+        env: EnvConfig[E],
+        n_steps: int,
+        test_env: EnvConfig[E],
+        *,
+        test_interval: int = 5_000,
+        n_tests: int = 1,
+        loggers: Collection[LoggerType] = ("csv",),
+        save_weights: bool = True,
+        save_actions: bool = True,
+    ):
+        run = Run(
+            seed,
+            rundir,
+            n_steps,
+            trainer,
+            env,
+            test_env,
+            test_interval=test_interval,
+            n_tests=n_tests,
+            loggers=loggers,
+            save_weights=save_weights,
+            save_actions=save_actions,
+        )
+        run.save()
+        return run
+
+    def make_agent(self):
+        return self.trainer.make_agent()
 
     def make_replay_agent(self, time_step: int, test_num: int, only_saved_actions: bool):
         if only_saved_actions:
@@ -227,11 +277,22 @@ class Run[E: MARLEnv](Serializable):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
-        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
+        return ReplayEpisode(
+            self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent
+        )
 
-    @classmethod
-    def load(cls, rundir: Path):
-        return cls.from_file(rundir / RUN_FILE)
+    def __hash__(self):
+        return hash(self.rundir)
+
+    def __enter__(self):
+        if self.is_running:
+            raise RuntimeError(f"Run {self.rundir} is already running with pid {self.pid}!")
+        pid = os.getpid()
+        with open(self.pid_filename, "w") as f:
+            f.write(str(pid))
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cleanup_pid_file()
 
 
 @ttl_cache(ttl=1)

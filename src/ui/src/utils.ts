@@ -5,11 +5,7 @@ import { z } from "zod";
  * @param json - The raw JSON string
  * @param schema - The Zod schema to validate against
  */
-export function fromJsonString<T>(
-  json: string | null | undefined,
-  schema: z.ZodType<T>,
-  fallback: T,
-) {
+export function fromJsonString<T>(json: string | null | undefined, schema: z.ZodType<T>, fallback: T) {
   return z
     .string()
     .transform((str, ctx) => {
@@ -43,6 +39,9 @@ export function is1D(data: (number | null)[] | any): data is (number | null)[] {
 }
 
 export function is2D(data: (number | null)[][] | any): data is (number | null)[][] {
+  if (!Array.isArray(data)) {
+    return false;
+  }
   return is1D(data[0]) && !Array.isArray(data[0][0]);
 }
 
@@ -135,21 +134,14 @@ export function qvalueLabelToHSL(label: string, qv_or_ag: boolean): string {
   let hue_idx;
   if (qv_or_ag) hue_idx = getLabelIndex(label);
   else hue_idx = parseInt(label);
-  const hue =
-    hueMap[hue_idx] !== undefined
-      ? hueMap[hue_idx]
-      : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
+  const hue = hueMap[hue_idx] !== undefined ? hueMap[hue_idx] : (hue_idx * COL_OFFSET) % 360; // Elements 0-4, fixed hue, others sue fallback
 
   const saturation = 50; // qvalue dependent: 80 - (index%2)*40;
   const luminance = 50; // qvalue dependent: 45 + (Math.floor(index/2)%2)*15;
   return `hsl(${hue.toFixed(1)}, ${saturation}%, ${luminance}%)`;
 }
 
-export function updateHSL(
-  hsl: string,
-  sat_factor: number = 0,
-  lum_factor: number = 0,
-): string {
+export function updateHSL(hsl: string, sat_factor: number = 0, lum_factor: number = 0): string {
   const match = hsl.match(/hsl\((\d+),\s*(\d+)%?,\s*(\d+)%?\)/);
   if (!match) throw new Error(`Invalid HSL format to update: ${hsl}$`);
   const s = parseInt(match[2], 10) + sat_factor;
@@ -171,11 +163,7 @@ export function downloadStringAsFile(textToSave: string, fileName: string) {
   hiddenElement.click();
 }
 
-export async function fetchWithJSON(
-  url: string,
-  data: Object,
-  method: string = "POST",
-) {
+export async function fetchWithJSON(url: string, data: Object, method: string = "POST") {
   return await fetch(url, {
     method,
     headers: {
@@ -185,12 +173,7 @@ export async function fetchWithJSON(
   });
 }
 
-export function confidenceInterval(
-  mean: number[],
-  std: number[],
-  nSamples: number,
-  confidence: number,
-) {
+export function confidenceInterval(mean: number[], std: number[], nSamples: number, confidence: number) {
   const sqrtN = Math.sqrt(nSamples);
   const lower = Array<number>(std.length);
   const upper = Array<number>(std.length);
@@ -201,11 +184,7 @@ export function confidenceInterval(
   return { lower, upper };
 }
 
-export function clip(
-  values: (number | null)[],
-  min: (number | null)[],
-  max: (number | null)[],
-) {
+export function clip(values: (number | null)[], min: (number | null)[], max: (number | null)[]) {
   const result = new Array<number | null>(values.length);
   for (let i = 0; i < values.length; i++) {
     //result[i] = Math.min(Math.max(values[i], min[i]), max[i]);
@@ -229,13 +208,13 @@ export function unionXTicks(allXTicks: number[][]) {
 }
 
 /**
- * Temporal filter that computes a weighted average of recent readings up to the specified timeout. 
+ * Temporal filter that computes a weighted average of recent readings up to the specified timeout.
  * The more recent the reading, the higher the weight. A reading at the current time has weight 1, a reading at the edge of the window has weight 0.
  */
 export class TemporalFilter {
   private readings: Array<{ value: number; timestamp: number }>;
   private timeout: number;
-  public value: number
+  public value: number;
 
   constructor(timeout: number = 10_000) {
     this.timeout = timeout;
@@ -249,9 +228,7 @@ export class TemporalFilter {
   push(value: number): number {
     const now = Date.now();
     // Remove readings outside the window
-    this.readings = this.readings.filter(
-      (r) => now - r.timestamp <= this.timeout,
-    );
+    this.readings = this.readings.filter((r) => now - r.timestamp <= this.timeout);
     this.readings.push({ value, timestamp: now });
 
     // Return weighted average: recent readings have higher weight
