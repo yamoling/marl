@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Collection, Literal
+from collections.abc import Collection
+from typing import TYPE_CHECKING, Literal
 
 from marl.utils.gpu import DeviceLike, get_device
 

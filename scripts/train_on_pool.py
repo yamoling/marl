@@ -7,16 +7,18 @@ from typing import Literal, cast
 
 import dotenv
 import optuna
+import tuning
 import typed_argparse as tap
 from lle import World
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from optuna.trial import FixedTrial
-import tuning
 from tuning import Algo, make_trainer
 
 import marl
 from marl.env import LLEPool
+
+logger = logging.getLogger(__name__)
 
 SETTING = "cooperative"
 ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
@@ -73,7 +75,7 @@ def load_best_params(args: Args, algo: Algo, study_map_name: str):
     complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
     if not complete_trials:
         raise RuntimeError(f"Study {study_name!r} has no complete trials.")
-    logging.info(f"Using best trial {study.best_trial.number} from {study_name} with value {study.best_value}")
+    logger.info(f"Using best trial {study.best_trial.number} from {study_name} with value {study.best_value}")
     return study.best_params
 
 
@@ -104,22 +106,22 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
         completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in requested_seeds}
         seeds = [seed for seed in requested_seeds if seed not in completed_seeds]
         if args.dry_run:
-            logging.info(f"[exists] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
+            logger.info(f"[exists] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
             return
         if len(seeds) == 0:
             if args.skip_existing:
-                logging.info(
+                logger.info(
                     f"Skipping existing experiment: {logdir} ({len(completed_seeds)}/{args.n_seeds} runs complete)"
                 )
                 return
             raise FileExistsError(f"Experiment directory already exists: {logdir}")
-        logging.info(
+        logger.info(
             f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}"
         )
     else:
         seeds = list(requested_seeds)
         if args.dry_run:
-            logging.info(f"[new] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
+            logger.info(f"[new] {len(seeds)} runs of {spec.map_name} / {algo} / pool={args.pool_size} -> {logdir}")
             return
         train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
         test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
@@ -128,7 +130,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
         trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, tuning_args)
         print(params)
         exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
-        logging.info("Created experiment in %s", exp.logdir)
+        logger.info("Created experiment in %s", exp.logdir)
     exp.run(
         seeds=seeds,
         save_weights=True,
@@ -149,7 +151,7 @@ def main(args: Args):
     if args.n_tests <= 0:
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
     spec = parse_pool_spec(args.pool_dir)
-    logging.info(f"Starting pool-500 sweep on {spec.map_name} with {len(args.algos)} algorithms.")
+    logger.info(f"Starting pool-500 sweep on {spec.map_name} with {len(args.algos)} algorithms.")
 
     for algo in args.algos:
         run_experiment(args, spec, algo)
@@ -168,7 +170,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         raise
     except Exception as e:
-        logging.error(
+        logger.error(
             f"An error occurred while starting the pool-500 sweep with command line '{sys.argv}'.\nError: {e}",
             exc_info=True,
         )

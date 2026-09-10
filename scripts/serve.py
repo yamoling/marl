@@ -5,6 +5,8 @@ import sys
 import dotenv
 import typed_argparse as tap
 
+logger = logging.getLogger(__name__)
+
 
 class Arguments(tap.TypedArgs):
     port: int = tap.arg(default=5000)
@@ -25,4 +27,4 @@ if __name__ == "__main__":
     try:
         tap.Parser(Arguments).bind(main).run()
     except Exception as e:
-        logging.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)
+        logger.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)

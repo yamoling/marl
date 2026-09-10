@@ -4,6 +4,8 @@ from typing import Literal, TypedDict, Unpack
 
 import matplotlib.pyplot as plt
 
+logger = logging.getLogger(__name__)
+
 
 class GlobalConfig(TypedDict, total=False):
     use_latex: bool
@@ -18,7 +20,7 @@ def _setup(**kwargs: Unpack[GlobalConfig]):
     use_latex = kwargs.get("use_latex", True)
     if use_latex:
         if shutil.which("latex") is None:
-            logging.warning("LaTeX is not available on this system. Falling back to non-LaTeX rendering.")
+            logger.warning("LaTeX is not available on this system. Falling back to non-LaTeX rendering.")
             use_latex = False
     plt.rcParams.update(
         {

@@ -25,6 +25,8 @@ from marl.utils import DeviceLike, Serializable, stats
 from .dataset import Dataset
 from .run import LightRun, Run
 
+logger = logging.getLogger(__name__)
+
 EXPERIMENT_FILENAME = "experiment.json"
 
 
@@ -313,7 +315,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
                 logdir = Path("logs", logdir).as_posix()
         logpath = Path(logdir)
         if logpath.parts[-1].lower() in ("test", "tmp"):
-            logging.info(f"Discarding pre-existing experiment {logdir}.")
+            logger.info(f"Discarding pre-existing experiment {logdir}.")
             shutil.rmtree(logpath, ignore_errors=True)
         if logpath.exists():
             # Do not allow to overwrite an existing experiment

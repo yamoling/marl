@@ -5,6 +5,8 @@ import numpy as np
 
 from marl.models import Action, Agent
 
+logger = logging.getLogger(__name__)
+
 
 class ReplayAgent(Agent):
     def __init__(self):
@@ -42,7 +44,7 @@ class CombinedReplayAgent(ReplayAgent):
             msg = f"Agent restored from disk chose action ({agent_action.action})  which is different from the stored action ({saved_action.action}) at time step {self.current_step}."
             self.mismatch = True
             self.mismatch_details.append(msg)
-            logging.warning(msg)
+            logger.warning(msg)
             agent_action.action = saved_action.action
         return agent_action
 

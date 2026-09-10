@@ -11,6 +11,8 @@ import orjson
 
 from marl.models import Experiment, LightExperiment, ReplayEpisode
 
+logger = logging.getLogger(__name__)
+
 
 class ServerState:
     def __init__(self, logdir: str = "logs"):
@@ -71,7 +73,7 @@ class ServerState:
             command.append("--no-save-actions")
         if len(disabled_devices) > 0:
             command.extend(["--disabled-devices", *[str(device_id) for device_id in disabled_devices]])
-        logging.info("Starting new process with command: " + " ".join(command))
+        logger.info("Starting new process with command: " + " ".join(command))
         print(" ".join(command))
         # Start a detached training process so runs continue even if the web server exits.
         subprocess.Popen(
