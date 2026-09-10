@@ -7,7 +7,7 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.models import Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
+from marl.models import Agent, Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
 from marl.models.batch import EpisodeBatch
 from marl.utils.tuning import tuning
 
@@ -110,6 +110,10 @@ class DQN[M: (Mixer | None)](Trainer):
         if self.vbe is not None:
             name += f"-{self.vbe.name}"
         return name
+
+    @property
+    def n_actions(self):
+        return self.qnetwork.n_actions
 
     def _update(self, time_step: int) -> dict[str, float]:
         if not self.memory.can_sample(self.batch_size):
@@ -247,7 +251,7 @@ class DQN[M: (Mixer | None)](Trainer):
             return self._update(time_step)
         return dict[str, float]()
 
-    def make_agent(self):
+    def make_agent(self) -> Agent:
         from marl.agents import DQNAgent
 
         return DQNAgent(
