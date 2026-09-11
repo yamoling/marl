@@ -13,6 +13,7 @@ from optuna.storages.journal import JournalFileBackend
 import marl
 from marl.algos import ACER, DQN, LAN, PPO, VDN, QMix, QPlex
 from marl.env import EnvConfig, LLEConfig
+from marl.models import Trainer
 from marl.nn import mixers, model_bank
 from marl.nn.lan import LANValue, LocalAdvantageNetwork
 from marl.utils import Schedule
@@ -23,9 +24,7 @@ Algo = Literal["vdn", "qmix", "dqn", "qplex", "lan", "mappo", "ippo", "acer"]
 ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "qplex", "lan", "mappo", "ippo", "acer")
 LLE_LEVEL = 6
 LLE_TIME_LIMIT = 78
-GAMMA_LOW = 0.95
-GAMMA_HIGH = 0.99
-
+GAMMA = 0.99
 LOGGER = logging.getLogger(__name__)
 
 
@@ -84,53 +83,20 @@ class Args(tap.TypedArgs):
     )
 
 
-def make_env() -> LLEConfig:
-    """
-    Build the fixed LLE level 6 environment configuration used by every trial.
-    """
-    return LLEConfig(LLE_LEVEL, obs_type="perspective", state_type="flattened", time_limit=LLE_TIME_LIMIT)
-
-
-def hidden_sizes(trial: optuna.Trial, prefix: str) -> list[int]:
-    """
-    Suggest a uniform-width MLP architecture.
-
-    @ai-generated
-    """
-    n_layers = trial.suggest_int(f"{prefix}.n_layers", 1, 5)
-    size = trial.suggest_int(f"{prefix}.size", 32, 512, step=32)
-    return [size] * n_layers
-
-
-def suggest_gamma(trial: optuna.Trial) -> float:
-    """
-    Suggest the discount factor, shared by every algorithm.
-
-    @ai-generated
-    """
-    return trial.suggest_float("gamma", GAMMA_LOW, GAMMA_HIGH)
-
-
 def make_dqn_family_trainer(
     trial: optuna.Trial,
     algo: Literal["vdn", "qmix", "dqn", "qplex"],
     env: EnvConfig,
     catch_all: dict,
 ):
-    """
-    Build a trial-configured value-based trainer (VDN, QMIX, DQN or QPLEX).
-
-    @ai-generated
-    """
     qnetwork = model_bank.qnetworks.from_env(
         env,
         independent=True,
         duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=trial.suggest_categorical("qnetwork.noisy", [False, True]),
-        mlp_sizes=hidden_sizes(trial, "qnetwork"),
+        noisy=False,
     )
     test_policy = marl.policy.ArgMax()
-    gamma = suggest_gamma(trial)
+    gamma = GAMMA
     match algo:
         case "dqn":
             return suggest(
@@ -172,22 +138,14 @@ def make_dqn_family_trainer(
 
 
 def make_lan_trainer(trial: optuna.Trial, env: EnvConfig, catch_all: dict):
-    """
-    Build a trial-configured LAN trainer with its dedicated advantage/value networks.
-
-    @ai-generated
-    """
-    hidden_size = trial.suggest_int("lan.hidden_size", 32, 256, step=32)
-    embedding_size = trial.suggest_int("lan.embedding_size", 32, 256, step=32)
     mean_center = trial.suggest_categorical("lan.mean_center", [True, False])
-    qnetwork = LocalAdvantageNetwork.from_env(env, hidden_size=hidden_size, mean_center=mean_center)
+    qnetwork = LocalAdvantageNetwork.from_env(env, mean_center=mean_center)
     value_network = LANValue(
         env.observation_shape,
         env.extras_shape,
         env.state_shape,
         env.state_extra_shape,
-        hidden_size,
-        embedding_size,
+        qnetwork.hidden_size,
     )
     return suggest(
         LAN,
@@ -196,7 +154,7 @@ def make_lan_trainer(trial: optuna.Trial, env: EnvConfig, catch_all: dict):
         value_network=value_network,
         mixer=None,
         vbe=None,
-        gamma=suggest_gamma(trial),
+        gamma=GAMMA,
         catch_all=catch_all,
     )
 
@@ -208,21 +166,9 @@ def make_ppo_trainer(
     n_steps: int,
     catch_all: dict,
 ):
-    """
-    Build a trial-configured PPO trainer (MAPPO with a mixer, IPPO without).
-
-    @ai-generated
-    """
-    sizes = hidden_sizes(trial, "actor_critic")
-    actor, critic = model_bank.actor_critics.from_env(
-        env,
-        False,
-        independent=True,
-        actor_kwargs={"mlp_sizes": sizes},
-        critic_kwargs={"mlp_sizes": sizes},
-    )
-    train_interval = trial.suggest_int("train_interval", 10, 250, step=10)
-    minibatch_size = trial.suggest_int("minibatch_size", 5, train_interval)
+    actor, critic = model_bank.actor_critics.from_env(env, False, independent=True)
+    train_interval = trial.suggest_int("train_interval", 10, 156, step=2)
+    minibatch_size = trial.suggest_int("minibatch_size", 5, min(30, train_interval))
     c2_type = trial.suggest_categorical("c2_type", ["linear", "constant"])
     if c2_type == "linear":
         c2 = Schedule.linear(
@@ -238,16 +184,14 @@ def make_ppo_trainer(
         trial.suggest_float("early_stopping_kl", 1e-3, 0.1, log=True) if early_stopping_enabled else None
     )
     if algo == "mappo":
-        mixer_name = trial.suggest_categorical("mixer", ["vdn", "qmix"])
-        mixer = mixers.VDN.from_env(env) if mixer_name == "vdn" else mixers.QMix.from_env(env)
+        mixer = mixers.VDN.from_env(env)
     else:
         mixer = None
-
     return PPO(
         actor,
         critic,
         mixer=mixer,
-        gamma=suggest_gamma(trial),
+        gamma=GAMMA,
         lr_actor=trial.suggest_float("lr_actor", 1e-5, 1e-3, log=True),
         lr_critic=trial.suggest_float("lr_critic", 1e-5, 1e-3, log=True),
         train_interval=(train_interval, "step"),
@@ -262,35 +206,17 @@ def make_ppo_trainer(
 
 
 def make_acer_trainer(trial: optuna.Trial, env: EnvConfig, catch_all: dict):
-    """
-    Build a trial-configured decentralised ACER (IACER) trainer.
-
-    @ai-generated
-    """
-    actor = model_bank.actor_critics.discrete_actors.from_env(
-        env,
-        False,
-        independent=True,
-        mlp_sizes=hidden_sizes(trial, "acer_actor"),
-    )
+    actor = model_bank.actor_critics.discrete_actors.from_env(env, False, independent=True)
     critic = model_bank.qnetworks.from_env(
         env,
         independent=True,
         duelling=trial.suggest_categorical("acer_critic.duelling", [True, False]),
         noisy=False,
-        mlp_sizes=hidden_sizes(trial, "acer_critic"),
     )
-    return suggest(
-        ACER, trial, actor=actor, critic=critic, mixer=None, gamma=suggest_gamma(trial), catch_all=catch_all
-    )
+    return suggest(ACER, trial, actor=actor, critic=critic, mixer=None, gamma=GAMMA, catch_all=catch_all)
 
 
 def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig, args: Args):
-    """
-    Build the requested trainer from an Optuna trial.
-
-    @ai-generated
-    """
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions}
     if algo in ("vdn", "qmix", "dqn", "qplex"):
         return make_dqn_family_trainer(trial, algo, env, catch_all)
@@ -301,34 +227,65 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig, args: Args):
     return make_ppo_trainer(trial, algo, env, args.n_steps, catch_all)
 
 
+def resume_or_create_experiment(trial: optuna.Trial, algo: Algo, env: EnvConfig, trainer: Trainer, args: Args):
+    """
+    Return the experiment of `trial` together with the seeds that still have to be trained.
+
+    An interrupted trial leaves its experiment directory behind with some of its runs already
+    finished. In that case, the experiment is loaded instead of being re-created and only the
+    seeds whose run did not reach `args.n_steps` are scheduled again.
+
+    @ai-generated
+    """
+    logdir = Path("logs", f"optuna-lvl6-{algo}-{trial.number}")
+    requested_seeds = list(range(args.seeds))
+    if not logdir.exists():
+        return marl.Experiment.create(env, trainer, n_steps=args.n_steps, logdir=logdir), requested_seeds
+    experiment = marl.Experiment.load(logdir)
+    if experiment.n_steps != args.n_steps or experiment.trainer.to_json() != trainer.to_json():
+        raise FileExistsError(
+            f"Experiment directory {logdir} already exists but holds a different configuration: "
+            "delete it (or the stale logs of the previous study) before resuming this study."
+        )
+    complete_seeds = {run.seed for run in experiment.runs if run.is_complete}
+    remaining = [seed for seed in requested_seeds if seed not in complete_seeds]
+    LOGGER.info(
+        "Resuming %s: %d/%d runs already complete, scheduling seeds %s.",
+        logdir,
+        args.seeds - len(remaining),
+        args.seeds,
+        remaining,
+    )
+    return experiment, remaining
+
+
 def objective(trial: optuna.Trial, algo: Algo, args: Args) -> float:
     """
     Train `args.seeds` seeded runs and return their mean final sum of rewards.
 
+    Runs that are already complete from a previous, interrupted attempt at this trial are
+    reused as-is, so that only the missing seeds are trained.
+
     Testing is disabled during training (`test_interval=0`), but the runner always tests
     once at the very last time step, so the single resulting test episode's score is the
     final performance of the trained agent for each seed.
-
-    @ai-generated
     """
-    env = make_env()
+    env = LLEConfig(LLE_LEVEL, obs_type="perspective", state_type="flattened", time_limit=LLE_TIME_LIMIT)
     trainer = make_trainer(trial, algo, env, args)
-    experiment = marl.Experiment.create(
-        env,
-        trainer,
-        n_steps=args.n_steps,
-        logdir=Path("logs", f"optuna-lvl6-{algo}-{trial.number}"),
-    )
-    experiment.run(
-        seeds=args.seeds,
-        n_jobs=args.run_n_jobs,
-        gpu_strategy=args.gpu_strategy,
-        test_interval=0,
-        save_weights=False,
-        save_actions=False,
-        disabled_gpus=args.disabled_gpus,
-        quiet=True,
-    )
+    experiment, seeds = resume_or_create_experiment(trial, algo, env, trainer, args)
+    if len(seeds) > 0:
+        experiment.run(
+            seeds=seeds,
+            n_jobs=args.run_n_jobs,
+            gpu_strategy=args.gpu_strategy,
+            test_interval=0,
+            save_weights=False,
+            save_actions=False,
+            disabled_gpus=args.disabled_gpus,
+            quiet=True,
+        )
+    else:
+        LOGGER.info("All %d runs of %s are already complete: reusing their results.", args.seeds, experiment.logdir)
     return experiment.get_test_results(args.n_steps).select("mean-score-0").last().collect().item()
 
 
