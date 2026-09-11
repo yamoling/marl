@@ -282,13 +282,13 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
     test_env: EnvConfig[E]
 
     @classmethod
-    def create(
+    def create[Env: MARLEnv, Tr: Trainer](
         cls,
-        env: EnvConfig[E],
-        trainer: T,
+        env: EnvConfig[Env],
+        trainer: Tr,
         logdir: str | Literal["auto", "test", "tmp"] | Path = "tmp",
         n_steps: int = 1_000_000,
-        test_env: EnvConfig[E] | None = None,
+        test_env: EnvConfig[Env] | None = None,
         loggers: Collection[LoggerType] = ("csv",),
     ):
         """
