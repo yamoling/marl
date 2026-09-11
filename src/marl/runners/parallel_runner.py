@@ -49,6 +49,7 @@ def parallel_run[E: MARLEnv, T: Trainer](
     disabled_gpus: Collection[int] = (),
     quiet: bool = False,
     limit_torch_threads: bool = True,
+    device_affinity: int | None = None,
 ):
     if n_jobs is None:
         n_jobs = torch.cuda.device_count() if torch.cuda.is_available() else 1
@@ -60,12 +61,23 @@ def parallel_run[E: MARLEnv, T: Trainer](
             # Start first run to measure GPU memory used
             pids = get_gpu_processes()
             handles = [
-                submit(pool, runs[0], "auto", quiet, render_tests, 0, gpu_strategy, disabled_gpus, limit_torch_threads)
+                submit(
+                    pool,
+                    runs[0],
+                    "auto",
+                    quiet,
+                    render_tests,
+                    0,
+                    gpu_strategy,
+                    disabled_gpus,
+                    limit_torch_threads,
+                    device_affinity,
+                )
             ]
             estimated_gpu_memory = _estimate_required_gpu_memory(pids, handles[0])
             devices = []
             if gpu_strategy == "scatter":
-                devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus)
+                devices = scatter_plan(n_jobs - 1, estimated_gpu_memory, disabled_gpus, affinity=device_affinity)
                 logger.info(f"Preplanned device assignments for scatter strategy: {devices}")
             devices += [device] * (len(runs) - 1 - len(devices))
             for run, dev in zip(runs[1:], devices):
@@ -80,6 +92,7 @@ def parallel_run[E: MARLEnv, T: Trainer](
                         gpu_strategy,
                         disabled_gpus,
                         limit_torch_threads,
+                        device_affinity,
                     )
                 )
             # Actively loop over the results to free up memory as soon as a run is finished
@@ -118,6 +131,7 @@ def submit(
     gpu_strategy: str,
     disabled_gpus: Collection[int],
     limit_torch_threads: bool = True,
+    device_affinity: int | None = None,
 ):
     # Ignore sigint here such that CTRL-C is captured by the parent process
     with ignore_sigint():
@@ -132,6 +146,7 @@ def submit(
                 "auto_device_strategy": gpu_strategy,
                 "disabled_gpus": disabled_gpus,
                 "limit_torch_threads": limit_torch_threads,
+                "device_affinity": device_affinity,
             },
         )
 
@@ -145,6 +160,7 @@ def _start_run(
     auto_device_strategy: Literal["scatter", "group"],
     disabled_gpus: Collection[int] = (),
     limit_torch_threads: bool = True,
+    device_affinity: int | None = None,
 ):
     setproctitle(f"worker: {run.rundir}")
     if limit_torch_threads:
@@ -156,7 +172,9 @@ def _start_run(
         case str(s) if s.startswith("cuda"):
             device = torch.device(s)
         case "auto" | None:
-            device = get_device("auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus)
+            device = get_device(
+                "auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus, affinity=device_affinity
+            )
         case other:
             raise ValueError(f"Invalid device_type: {other}")
     logger.info(f"Selected device {device} for {run.rundir}")

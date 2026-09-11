@@ -1,11 +1,16 @@
 import subprocess
 import time
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
-from typing import Collection, Literal
+from typing import Literal
 
 import torch
 
-DeviceLike = Literal["cpu", "auto", "cuda", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cuda:4", "cuda:5", "cuda:6", "cuda:7"] | int | str
+DeviceLike = (
+    Literal["cpu", "auto", "cuda", "cuda:0", "cuda:1", "cuda:2", "cuda:3", "cuda:4", "cuda:5", "cuda:6", "cuda:7"]
+    | int
+    | str
+)
 
 
 @dataclass
@@ -72,19 +77,42 @@ def get_gpu_processes() -> set[int]:
         return set[int]()
 
 
-def scatter_plan(n_runs: int, required_memory_mb: int, disabled_gpus: Collection[int] = ()):
+def _break_tie(gpus: list[GPU], affinity: int | None) -> GPU:
+    """
+    Select one GPU among equally good candidates.
+
+    Without affinity, the first candidate is returned, which makes concurrent processes pile up on
+    the same device. With an affinity, the candidate at index `affinity % len(gpus)` is returned so
+    that processes with different affinities (e.g. successive Optuna trials) spread over the tied
+    devices.
+    """
+    if affinity is None:
+        return gpus[0]
+    return gpus[affinity % len(gpus)]
+
+
+def scatter_plan(
+    n_runs: int,
+    required_memory_mb: int,
+    disabled_gpus: Collection[int] = (),
+    *,
+    affinity: int | None = None,
+):
+    """
+    Assign each run to the GPU with the most free memory, accounting for the previous assignments.
+
+    Ties between GPUs with the same amount of free memory are broken with the `affinity`, if any.
+    """
     gpus = list_gpus(disabled_gpus)
     devices = list[int]()
     for _ in range(n_runs):
-        min_gpu = None
-        for i, gpu in enumerate(gpus):
-            if gpu.free_memory > required_memory_mb:
-                if min_gpu is None or gpu.free_memory > gpus[min_gpu].free_memory:
-                    min_gpu = i
-        if min_gpu is None:
+        candidates = [gpu for gpu in gpus if gpu.free_memory > required_memory_mb]
+        if len(candidates) == 0:
             raise RuntimeError(f"Not enough GPUs to fit {n_runs} runs with {required_memory_mb} MB each.")
-        devices.append(gpus[min_gpu].index)
-        gpus[min_gpu].free_memory -= required_memory_mb
+        most_free = max(gpu.free_memory for gpu in candidates)
+        selected = _break_tie([gpu for gpu in candidates if gpu.free_memory == most_free], affinity)
+        devices.append(selected.index)
+        selected.free_memory -= required_memory_mb
     return devices
 
 
@@ -127,29 +155,31 @@ def select_gpu(
     fit_strategy: Literal["scatter", "group"] = "group",
     estimated_memory_MB: int = 0,
     disabled_devices: Collection[int] | None = None,
+    *,
+    affinity: int | None = None,
 ):
-    """Select a GPU that can fit the estimated memory requirements."""
+    """
+    Select a GPU that can fit the estimated memory requirements.
 
-    def grouped_fit(gpus: list[GPU], estimated_memory: int):
-        gpus.sort(key=lambda gpu: gpu.free_memory)
-        for gpu in gpus:
-            if gpu.free_memory > estimated_memory:
-                return gpu
-        return None
+    GPUs that are equally good according to the fit strategy are discriminated by the `affinity`,
+    if any (see `_break_tie`).
+    """
 
-    def scattered_fit(gpus: list[GPU], estimated_memory: int):
-        # The more utilization, the less the sorting score.
-        gpus.sort(key=lambda gpu: gpu.free_memory * (1.1 - gpu.utilization), reverse=True)
-        for gpu in gpus:
-            if gpu.free_memory > estimated_memory:
-                return gpu
+    def best_fit(gpus: list[GPU], estimated_memory: int, score: Callable[[GPU], float]):
+        candidates = [gpu for gpu in gpus if gpu.free_memory > estimated_memory]
+        if len(candidates) == 0:
+            return None
+        best_score = max(score(gpu) for gpu in candidates)
+        return _break_tie([gpu for gpu in candidates if score(gpu) == best_score], affinity)
 
     devices = list_gpus(disabled_devices)
     match fit_strategy:
         case "group":
-            return grouped_fit(devices, estimated_memory_MB)
+            # The least free memory first, so as to group the runs on a single GPU.
+            return best_fit(devices, estimated_memory_MB, lambda gpu: -gpu.free_memory)
         case "scatter":
-            return scattered_fit(devices, estimated_memory_MB)
+            # The more utilization, the less the score.
+            return best_fit(devices, estimated_memory_MB, lambda gpu: gpu.free_memory * (1.1 - gpu.utilization))
         case _:
             raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'group' or 'scatter'")
 
@@ -160,11 +190,13 @@ def wait_for_fitting_gpu(
     disabled_devices: Collection[int] | None = None,
     timeout_s: float = 300.0,
     poll_interval_s: float = 1.0,
+    *,
+    affinity: int | None = None,
 ):
     """Wait until a GPU can fit the required memory and return it, else None on timeout."""
     start = time.time()
     while time.time() - start < timeout_s:
-        gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices)
+        gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices, affinity=affinity)
         if gpu is not None:
             return gpu
         time.sleep(poll_interval_s)
@@ -176,6 +208,8 @@ def get_device(
     fit_strategy: Literal["scatter", "group"] = "group",
     estimated_memory_MB: int = 0,
     disabled_devices: Collection[int] | None = None,
+    *,
+    affinity: int | None = None,
 ):
     """
     Get the given (GPU) device that fits the requirements.
@@ -186,6 +220,9 @@ def get_device(
             - "group": Fit the process in the GPU that has the least free memory (group all possible runs on a single GPU).
             - "scatter": Fit the process in the GPU that has the most free memory (scatter runs across all GPUs).
         - estimated_memory_MB: Estimated memory usage in MB.
+        - affinity: Tie-breaker between equally good GPUs. When None (default), the first one is
+        always selected. Otherwise, the GPU at index `affinity` (modulo the number of equally good
+        GPUs) is selected, which spreads processes with distinct affinities across the devices.
     """
     if isinstance(device, torch.device):
         return device
@@ -198,7 +235,7 @@ def get_device(
 
     if not torch.cuda.is_available():
         return torch.device("cpu")
-    gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices)
+    gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices, affinity=affinity)
     if gpu is None:
         return torch.device("cpu")
     return torch.device(f"cuda:{gpu.index}")

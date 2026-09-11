@@ -380,6 +380,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         n_jobs: int | Literal["auto"] = "auto",
         disabled_gpus: Collection[int] = (),
         limit_torch_threads: bool = True,
+        device_affinity: int | None = None,
     ):
         """
         Train the Agent on the environment according to the experiment parameters.
@@ -389,6 +390,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
         - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
         - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
+        - `device_affinity`: Tie-breaker between GPUs that are equally good candidates. When None (the default), the first one is always selected. Otherwise, the GPU at index `device_affinity` (modulo the number of tied GPUs) is selected, which spreads concurrent experiments across the devices.
         """
         from marl.runners import parallel_run, sequential_run
 
@@ -398,7 +400,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
             seeds = list(range(seeds))
         runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
         if n_jobs <= 1 or len(runs) <= 1:
-            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus)
+            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus, device_affinity)
         return parallel_run(
             runs,
             n_jobs,
@@ -408,4 +410,5 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
             disabled_gpus,
             quiet,
             limit_torch_threads,
+            device_affinity,
         )

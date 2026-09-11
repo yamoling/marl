@@ -14,8 +14,9 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 
 import marl
-from marl.algos import DQN, PPO, VDN, QMix
+from marl.algos import DQN, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
 from marl.env import EnvConfig, LLEPool
+from marl.models import Policy
 from marl.nn import mixers, model_bank
 from marl.utils import Schedule
 from marl.utils.tuning import suggest
@@ -23,11 +24,15 @@ from marl.utils.tuning import suggest
 Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "qplex"]
 Setting = Literal["cooperative", "independent"]
 
-ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
-TRAIN_POOL_SIZE = 5_000
-N_EVALUATION_EPISODES = 1_000
-N_SEEDS = 4
-N_RUN_JOBS = 4
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn")
+DEFAULT_POOL_DIR = Path("layouts", "4-agents-inter-2")
+TRAIN_POOL_SIZE = 2_500
+TEST_POOL_SIZE = 2_500
+"""The layouts in [TRAIN_POOL_SIZE + TEST_POOL_SIZE, ...[ are reserved for the actual experiments."""
+GAMMA = 0.99
+STORAGE_FILE = "tuning.journal"
+MAX_CONSECUTIVE_FAILURES = 3
+"""Number of consecutive scheduling rounds without a single completed trial before giving up."""
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,8 +47,12 @@ class PoolSpec:
 class Args(tap.TypedArgs):
     pool_dirs: list[Path] = tap.arg(
         positional=True,
-        nargs="+",
-        help="One or more directories containing at least 6,000 layouts (5,000 training and 1,000 evaluation).",
+        nargs="*",
+        default=[DEFAULT_POOL_DIR],
+        help=(
+            f"One or more directories containing at least {TRAIN_POOL_SIZE + TEST_POOL_SIZE:,} layouts "
+            f"({TRAIN_POOL_SIZE:,} training and {TEST_POOL_SIZE:,} evaluation)."
+        ),
     )
     n_jobs: int = tap.arg(
         "--n-jobs",
@@ -66,6 +75,22 @@ class Args(tap.TypedArgs):
         default="scatter",
         help="GPU strategy to use.",
     )
+    algos: list[Algo] = tap.arg(
+        "--algos",
+        nargs="*",
+        default=list(ALGOS),
+        help="Algorithms to tune.",
+    )
+    n_seeds: int = tap.arg(
+        "--n-seeds",
+        default=4,
+        help="Number of seeded runs to average over for each trial.",
+    )
+    n_run_jobs: int = tap.arg(
+        "--n-run-jobs",
+        default=4,
+        help="Number of runs of a same trial to execute in parallel.",
+    )
     budget: int = tap.arg(
         "--budget",
         default=20,
@@ -86,7 +111,7 @@ def parse_pool_spec(pool_dir: Path) -> PoolSpec:
         raise ValueError(f"Layout pool is not a directory: {pool_dir}")
 
     layout_files = sorted(path for path in pool_dir.iterdir() if path.is_file())
-    required_layouts = TRAIN_POOL_SIZE + N_EVALUATION_EPISODES
+    required_layouts = TRAIN_POOL_SIZE + TEST_POOL_SIZE
     if len(layout_files) < required_layouts:
         raise ValueError(
             f"Layout pool {pool_dir} contains {len(layout_files)} files; at least {required_layouts} are required."
@@ -123,40 +148,79 @@ def hidden_sizes(trial: optuna.Trial, prefix: str) -> list[int]:
     return [size] * n_layers
 
 
+def suggest_train_policy(trial: optuna.Trial, noisy: bool, n_steps: int) -> Policy:
+    """
+    Suggest the exploration policy of a value-based trainer.
+
+    Noisy networks explore through their own parameter noise, in which case the behaviour policy
+    is greedy. Otherwise, epsilon is linearly annealed from 1.0 over a fraction of the training.
+
+    @ai-generated
+    """
+    if noisy:
+        return marl.policy.ArgMax()
+    return marl.policy.EpsilonGreedy.linear(
+        1.0,
+        trial.suggest_categorical("epsilon_end", [0.01, 0.05]),
+        int(trial.suggest_categorical("epsilon_decay_ratio", [0.1, 0.25, 0.5]) * n_steps),
+    )
+
+
+def suggest_target_updater(trial: optuna.Trial) -> TargetParametersUpdater:
+    if trial.suggest_categorical("target_updater.__type__", ["soft", "hard"]) == "soft":
+        return SoftUpdate(trial.suggest_float("target_updater.tau", 1e-3, 5e-2, log=True))
+    return HardUpdate(trial.suggest_int("target_updater.update_period", 100, 1_000, step=10))
+
+
 def make_dqn_trainer(
     trial: optuna.Trial,
     algo: Literal["vdn", "qmix", "dqn", "qplex"],
     env: EnvConfig[DiscreteMARLEnv],
+    n_steps: int,
     catch_all: dict,
 ):
     """
     Build a trial-configured value-based trainer.
+
+    The Q-network architecture is the one that `qnetworks.from_env` provides for the environment:
+    only its duelling and noisy variants are searched over. The rest of the search space is kept
+    deliberately narrow (coarse batch sizes, a fixed Adam optimiser and double Q-learning) so that
+    a handful of trials is enough to locate promising regions. The replay memory is a
+    `TransitionMemory` (guaranteed by the non-recurrent Q-network) whose capacity is searched over.
+
+    @ai-generated
     """
+    noisy = trial.suggest_categorical("qnetwork.noisy", [False, True])
     qnetwork = model_bank.qnetworks.from_env(
         env,
+        recurrent=False,
         independent=True,
         duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=trial.suggest_categorical("qnetwork.noisy", [False, True]),
-        mlp_sizes=hidden_sizes(trial, "qnetwork"),
+        noisy=noisy,
     )
-    test_policy = marl.policy.ArgMax()
+    shared_kwargs = {
+        "qnetwork": qnetwork,
+        "gamma": GAMMA,
+        "lr": trial.suggest_float("lr", 1e-4, 3e-3, log=True),
+        "batch_size": trial.suggest_int("batch_size", 32, 256, step=8),
+        "memory_size": trial.suggest_int("memory_size", 5_000, 100_000, step=1_000),
+        "train_interval": (5, "step"),
+        "target_updater": suggest_target_updater(trial),
+        "optimiser_type": "adam",
+        "double_qlearning": True,
+        "train_policy": suggest_train_policy(trial, noisy, n_steps),
+        "test_policy": marl.policy.ArgMax(),
+        "ir_module": None,
+        "vbe": None,
+        "catch_all": catch_all,
+    }
     match algo:
         case "dqn":
-            return suggest(
-                DQN[None], trial, qnetwork=qnetwork, mixer=None, test_policy=test_policy, vbe=None, catch_all=catch_all
-            )
+            return suggest(DQN, trial, mixer=None, **shared_kwargs)
         case "vdn":
-            return suggest(VDN, trial, qnetwork=qnetwork, test_policy=test_policy, vbe=None, catch_all=catch_all)
+            return suggest(VDN, trial, **shared_kwargs)
         case "qmix":
-            return suggest(
-                cls=QMix,
-                trial=trial,
-                qnetwork=qnetwork,
-                mixer=mixers.QMix.from_env(env),
-                test_policy=test_policy,
-                vbe=None,
-                catch_all=catch_all,
-            )
+            return suggest(QMix, trial, mixer=mixers.QMix.from_env(env), **shared_kwargs)
     raise NotImplementedError()
 
 
@@ -221,38 +285,65 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv
     """
     Build the requested trainer from an Optuna trial.
     """
-    catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": 0.99}
+    catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": GAMMA}
     if algo in ("dqn", "vdn", "qmix", "qplex"):
-        return make_dqn_trainer(trial, algo, env, catch_all)
+        return make_dqn_trainer(trial, algo, env, args.n_steps, catch_all)
     return make_ppo_trainer(trial, algo, env, args.n_steps, catch_all)
+
+
+def make_logdir(algo: Algo, spec: PoolSpec, trial: optuna.Trial) -> Path:
+    """
+    Build a fresh log directory for a trial.
+
+    Trial numbers are only unique within a study, and a study that is restarted from scratch (or a
+    trial that previously crashed) may leave a directory behind. Since `Experiment.create` refuses
+    to overwrite an existing directory, a numbered suffix is appended until an unused path is found.
+
+    @ai-generated
+    """
+    base = Path("logs", f"optuna-{algo}-{spec.layout_type}-{trial.number}")
+    logdir = base
+    attempt = 0
+    while logdir.exists():
+        attempt += 1
+        logdir = base.with_name(f"{base.name}-retry{attempt}")
+    return logdir
 
 
 def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> float:
     """
-    Train four seeded runs and return their mean final evaluation exit rate.
+    Train the seeded runs of a trial and return their mean final evaluation exit rate.
+
+    @ai-generated
     """
     train_env = make_env(spec, TRAIN_POOL_SIZE)
-    test_env = make_env(spec, N_EVALUATION_EPISODES, offset=TRAIN_POOL_SIZE)
+    test_env = make_env(spec, TEST_POOL_SIZE, offset=TRAIN_POOL_SIZE)
     trainer = make_trainer(trial, algo, train_env, args)
+    logdir = make_logdir(algo, spec, trial)
+    trial.set_user_attr("logdir", logdir.as_posix())
     experiment = marl.Experiment.create(
         train_env,
         trainer,
         test_env=test_env,
         n_steps=args.n_steps,
-        logdir=Path("logs", f"optuna-{algo}-{spec.layout_type}-{trial.number}"),
+        logdir=logdir,
     )
     experiment.run(
-        seeds=N_SEEDS,
+        seeds=args.n_seeds,
         save_weights=False,
         save_actions=False,
         test_interval=0,
-        n_tests=N_EVALUATION_EPISODES,
-        n_jobs=N_RUN_JOBS,
+        n_tests=TEST_POOL_SIZE,
+        n_jobs=args.n_run_jobs,
         gpu_strategy=args.gpu_strategy,
+        device_affinity=trial.number,
         disabled_gpus=args.disabled_gpus,
         quiet=True,
     )
-    return experiment.get_test_results(args.n_steps).select("mean-exit_rate").last().collect().item()
+    results = experiment.get_test_results(args.n_steps).select("mean-exit_rate").last().collect()
+    if results.height == 0:
+        raise RuntimeError(f"Trial {trial.number} produced no evaluation results (see {logdir}).")
+    return results.item()
 
 
 def tune(storage: JournalStorage, spec: PoolSpec, algo: Algo, args: Args):
@@ -293,10 +384,11 @@ def tune(storage: JournalStorage, spec: PoolSpec, algo: Algo, args: Args):
         return
 
     LOGGER.info("Study %s has %d/%d completed trials; scheduling %d.", study_name, completed, args.budget, remaining)
-    if remaining:
-        study.optimize(lambda trial: objective(trial, algo, spec, args), n_trials=remaining, n_jobs=args.n_jobs)
+    remaining = args.budget - completed
+    study.optimize(lambda trial: objective(trial, algo, spec, args), n_trials=remaining, n_jobs=args.n_jobs)
+    if completed < args.budget:
+        LOGGER.error("Giving up on %s with %d/%d completed trials.", study_name, completed, args.budget)
 
-    completed = sum(trial.state == optuna.trial.TrialState.COMPLETE for trial in study.trials)
     if completed:
         LOGGER.info(
             "Best trial for %s: %d with value %s (%d/%d complete).",
@@ -310,7 +402,7 @@ def tune(storage: JournalStorage, spec: PoolSpec, algo: Algo, args: Args):
 
 def main(args: Args) -> None:
     """
-    Tune every supported algorithm independently for each supplied layout directory.
+    Tune every requested algorithm independently for each supplied layout directory.
     """
     if args.budget <= 0:
         raise ValueError(f"--budget must be a positive integer, got {args.budget}")
@@ -320,9 +412,9 @@ def main(args: Args) -> None:
     if len(layout_types) != len(set(layout_types)):
         raise ValueError("The supplied pool directories must have distinct layout types.")
 
-    storage = JournalStorage(JournalFileBackend("optuna_study.journal"))
+    storage = JournalStorage(JournalFileBackend(STORAGE_FILE))
     for spec in specs:
-        for algo in ALGOS:
+        for algo in args.algos:
             try:
                 tune(storage, spec, algo, args)
             except KeyboardInterrupt:
