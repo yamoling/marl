@@ -11,8 +11,8 @@ episode per training layout: the LLE SAT solver finds the shortest joint plan in
 reaches an exit, and that plan is replayed to produce an episode which is never evicted, so it
 keeps being sampled during the whole training.
 
-Hyperparameters are the best parameters of the corresponding Optuna study, read from the journal
-file, so that the biased runs use a configuration that was tuned *without* a bias: any improvement
+Hyperparameters are the best parameters of the 9x9 cooperative study of the algorithm, read from
+`tuning/certified-cooperation.journal`, so that the biased runs use a configuration that was tuned *without* a bias: any improvement
 is attributable to the demonstrations rather than to a re-tuning.
 
 This script only produces the *biased* condition. The control condition is `train_on_pool.py` run
@@ -63,6 +63,9 @@ from marl.models import BiasedMemory, EpisodeMemory, ReplayMemory, TransitionMem
 logger = logging.getLogger(__name__)
 
 SETTING = "cooperative"
+STUDY_MAP_NAME = "9x9_agents3_lasers2"
+"""The hyperparameters always come from the 9x9 cooperative variant of the tuning study."""
+DEFAULT_STUDY_JOURNAL = Path("tunings/certified-cooperation.journal")
 Algo = Literal["vdn", "qmix", "dqn"]
 """Policy gradient methods have no replay memory to bias and are out of the scope of this script."""
 ALGOS: tuple[Algo, ...] = get_args(Algo)
@@ -94,7 +97,7 @@ class Args(tap.TypedArgs):
     )
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
-    study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
+    study_journal: Path = tap.arg("--study-journal", default=DEFAULT_STUDY_JOURNAL)
     quiet: bool = tap.arg("--quiet", default=True)
     dry_run: bool = tap.arg("--dry-run", default=False)
     skip_existing: bool = tap.arg("--skip-existing", default=True)
@@ -102,10 +105,16 @@ class Args(tap.TypedArgs):
     logdir_prefix: str = tap.arg("--logdir-prefix", default="bias-", help="Prefix of the experiment log directories.")
 
 
-def load_best_params(journal: Path, algo: Algo, study_map_name: str):
-    """Read the best hyperparameters of an algorithm from the Optuna journal."""
+def load_best_params(journal: Path, algo: Algo):
+    """
+    Read the best hyperparameters of an algorithm from the Optuna journal.
+
+    The parameters are always those of the 9x9 cooperative variant of the study, whatever the pool
+    that is trained on, so that every biased run of an algorithm starts from the same tuned
+    configuration.
+    """
     storage = JournalStorage(JournalFileBackend(journal.as_posix()))
-    study_name = f"{algo.upper()}-{SETTING}-{study_map_name}"
+    study_name = f"{algo.upper()}-{SETTING}-{STUDY_MAP_NAME}"
     study = optuna.load_study(study_name=study_name, storage=storage)
     complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
     if not complete_trials:
@@ -217,7 +226,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo, demos: list[Episode])
             return
         train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
         test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
-        params = load_best_params(args.study_journal, algo, spec.study_map_name)
+        params = load_best_params(args.study_journal, algo)
         tuning_args = tuning.Args(pool_dirs=[spec.path], n_steps=args.n_steps)
         trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, tuning_args)
         exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
