@@ -896,7 +896,7 @@ class TestDQNIntegration:
     """
     Full integration test: suggest() on DQN with real Optuna trials.
 
-    env-dependent fields (qnetwork, memory_size, mixer, train_policy, test_policy)
+    env-dependent fields (qnetwork, memory, mixer, train_policy, test_policy)
     are passed as overrides.  All other fields are auto-suggested.
     """
 
@@ -913,6 +913,7 @@ class TestDQNIntegration:
         optuna.logging.set_verbosity(optuna.logging.WARNING)
         from marl import policy
         from marl.algos.dqn import DQN
+        from marl.models import TransitionMemory
         from marl.nn.model_bank import qnetworks
 
         study = optuna.create_study()
@@ -921,7 +922,7 @@ class TestDQNIntegration:
             DQN,
             trial,
             qnetwork=qnetworks.from_env(env),
-            memory_size=50_000,
+            memory=suggest(TransitionMemory, trial),
             mixer=None,
             train_policy=policy.EpsilonGreedy.linear(1.0, 0.05, 50_000),
             # test_policy is overridden to avoid random failure from Policy

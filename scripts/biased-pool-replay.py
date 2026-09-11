@@ -1,43 +1,3 @@
-"""
-Does a replay memory biased towards optimal demonstrations help an algorithm generalise over a
-pool of layouts?
-
-Experimental design
--------------------
-The pool directory is split into a *training* pool (the first `--pool-size` layouts) and a
-*held-out* pool (the next `--n-tests` layouts), exactly as in `train_on_pool.py`. Every trainer
-created here has its replay memory wrapped in a `BiasedMemory` seeded with one optimal winning
-episode per training layout: the LLE SAT solver finds the shortest joint plan in which every agent
-reaches an exit, and that plan is replayed to produce an episode which is never evicted, so it
-keeps being sampled during the whole training. The plans are cached in a JSON file stored next to
-the layouts of the pool and keyed by layout file name, so that a pool is only ever solved once:
-subsequent runs load that file, solve the layouts that are missing from it (if any), store it back
-and carry on.
-
-Hyperparameters are the best parameters of the 9x9 cooperative study of the algorithm, read from
-`tuning/certified-cooperation.journal`, so that the biased runs use a configuration that was tuned *without* a bias: any improvement
-is attributable to the demonstrations rather than to a re-tuning.
-
-This script only produces the *biased* condition. The control condition is `train_on_pool.py` run
-with the same `--pool-size`, `--n-tests`, `--n-steps` and seeds; its default `--logdir-prefix` is
-empty, so the two sets of experiments never collide. Comparing them answers the two questions of
-the study:
-
-1. *Does the bias help?* Compare the train metrics of both conditions for a fixed algorithm and
-   seed set.
-2. *Does the bias transfer?* The test environment is the held-out pool, whose layouts are never
-   solved, never trained on and never present in the bias. Compare the test `exit_rate` of both
-   conditions. Per-layout evaluation on the *seen* layouts can be obtained afterwards with
-   `scripts/test_policy_on_train_envs.py`.
-
-Only value-based algorithms are in the scope of this script: policy gradient methods such as PPO
-do not learn from a replay memory of past experience, so an optimal-demonstration bias is
-meaningless for them.
-
-Example:
-    uv run python scripts/biased-pool-replay.py layouts/convergent-2 --n-tests 1000
-"""
-
 import json
 import logging
 import os
@@ -82,7 +42,7 @@ ALGOS: tuple[Algo, ...] = get_args(Algo)
 
 
 class Args(tap.TypedArgs):
-    pool_dir: Path = tap.arg(positional=True, help="Directory containing the pool of maps to train on.")
+    pool_dirs: list[Path] = tap.arg(positional=True, help="Directory containing the pool of maps to train on.")
     n_seeds: int = tap.arg("--n-seeds", default=10)
     start_seed: int = tap.arg("--start-seed", default=0)
     n_steps: int = tap.arg("--n-steps", default=1_000_000)
@@ -99,11 +59,6 @@ class Args(tap.TypedArgs):
         "--bias-factor",
         default=1.0,
         help="Relative sampling weight of a biased item. 1.0 samples them like any other item.",
-    )
-    no_collect_gems: bool = tap.arg(
-        "--no-collect-gems",
-        default=False,
-        help="Do not require the demonstrations to collect every gem before exiting.",
     )
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
@@ -136,7 +91,7 @@ def load_best_params(journal: Path, algo: Algo):
     return study.best_params
 
 
-def make_journal_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv]):
+def make_journal_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv], demos: list[Episode]):
     if algo not in ("dqn", "vdn", "qmix"):
         raise NotImplementedError(f"Only value-based algorithms are in the scope of this study, got {algo!r}.")
     qnetwork = model_bank.qnetworks.from_env(
@@ -153,22 +108,18 @@ def make_journal_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[Discret
         "vbe": None,
         "catch_all": catch_all,
     }
+    # trx = [t for e in demos for t in e.transitions()]
+    trx = [t for e in demos for t in list(e.transitions())[-1:]]
+    memory = TransitionMemory(20_000)
+    memory = BiasedMemory(trx, memory)
     match algo:
         case "dqn":
-            return suggest(DQN, trial, mixer=None, **shared_kwargs)
+            return suggest(DQN, trial, mixer=None, memory=memory, **shared_kwargs)
         case "vdn":
-            return suggest(VDN, trial, **shared_kwargs)
+            return suggest(VDN, trial, memory=memory, **shared_kwargs)
         case "qmix":
-            return suggest(QMix, trial, mixer=mixers.QMix.from_env(env), **shared_kwargs)
-
-
-def solutions_path(spec: PoolSpec, collect_gems: bool):
-    """
-    Path of the file caching the solutions of a pool, in the very directory of its layouts.
-
-    @ai-generated
-    """
-    return spec.path / (SOLUTIONS_FILE if collect_gems else SOLUTIONS_FILE_NO_GEMS)
+            return suggest(QMix, trial, mixer=mixers.QMix.from_env(env), memory=memory, **shared_kwargs)
+    raise ValueError(f"Unknown algorithm: {algo}")
 
 
 def load_solutions(path: Path) -> dict[str, list[list[int]] | None]:
@@ -177,8 +128,6 @@ def load_solutions(path: Path) -> dict[str, list[list[int]] | None]:
 
     A `None` plan records a layout that the solver could not solve, so that a later run does not
     pay for solving it again. An absent or unreadable file simply yields an empty cache.
-
-    @ai-generated
     """
     if not path.exists():
         return {}
@@ -205,35 +154,22 @@ def save_solutions(path: Path, solutions: dict[str, list[list[int]] | None]):
     logger.info(f"Saved {len(solutions)} solutions to {path}")
 
 
-def solve_layout(layout: Path, time_limit: int, collect_gems: bool):
+def solve_layout(layout: Path, time_limit: int):
     """
     Find a shortest winning joint plan of a layout with the LLE SAT solver.
 
     The plan is returned as the list of the joint actions to perform at each step, as integers.
     Returns `None` when the layout admits no plan within the time limit.
-
-    @ai-generated
     """
     solver = Solver(World.from_file(layout.as_posix()), time_limit)
-    plan = solver.find_shortest(collect_gems=collect_gems)
-    if plan is None and collect_gems:
-        plan = solver.find_shortest()
+    plan = solver.find_shortest(collect_gems=True)
     if plan is None:
         return None
     return [[action.value for action in joint_action] for joint_action in plan]
 
 
-def compute_solutions(spec: PoolSpec, layouts: list[Path], collect_gems: bool):
-    """
-    Return the plans of the given layouts, solving and caching the ones that are missing.
-
-    The cache is shared by every run on that pool since it lives next to the layouts: only the
-    layouts that have never been solved are given to the solver, and the file is rewritten as soon
-    as new plans are found, including when the solving is interrupted.
-
-    @ai-generated
-    """
-    path = solutions_path(spec, collect_gems)
+def compute_solutions(spec: PoolSpec, layouts: list[Path]):
+    path = spec.path / SOLUTIONS_FILE
     solutions = load_solutions(path)
     missing = [layout for layout in layouts if layout.name not in solutions]
     if len(missing) == 0:
@@ -241,36 +177,13 @@ def compute_solutions(spec: PoolSpec, layouts: list[Path], collect_gems: bool):
     logger.info(f"Solving {len(missing)} layouts of {spec.path}")
     try:
         for layout in tqdm(missing, desc="Solving layouts", unit="layout"):
-            solutions[layout.name] = solve_layout(layout, spec.time_limit, collect_gems)
+            solutions[layout.name] = solve_layout(layout, spec.time_limit)
     finally:
         save_solutions(path, solutions)
     return solutions
 
 
-def replay_solution(spec: PoolSpec, index: int, plan: list[list[int]]):
-    """
-    Roll out a plan of the `index`th layout of the pool to produce an episode.
-
-    The plan is replayed in a single-layout pool built with the very same configuration as the
-    training environment, so that the resulting episode is indistinguishable from experience
-    collected during training. Returns `None` when the replay is not a winning episode.
-
-    @ai-generated
-    """
-    env = make_env(spec.path, 1, offset=index, time_limit=spec.time_limit).make()
-    obs, state = env.reset()
-    episode = Episode.new(obs, state)
-    for actions in plan:
-        step = env.step(actions)
-        episode.add(Transition.from_step(obs, state, actions, step))
-        obs, state = step.obs, step.state
-    if not episode.is_finished or episode.metrics.get("exit_rate", 0.0) < 1.0:
-        logger.warning(f"The plan of layout #{index} is not a winning episode; discarding it.")
-        return None
-    return episode
-
-
-def make_demonstrations(spec: PoolSpec, n_layouts: int, collect_gems: bool):
+def make_demonstrations(spec: PoolSpec, n_layouts: int):
     """
     Collect one winning episode for each of the first `n_layouts` layouts of the training pool.
 
@@ -278,21 +191,18 @@ def make_demonstrations(spec: PoolSpec, n_layouts: int, collect_gems: bool):
     before any episode is replayed. Unsolvable layouts are not admissible inputs: a pool that
     contains one is rejected outright rather than silently biasing the memory towards a subset of
     the training layouts.
-
-    @ai-generated
     """
     layouts = layout_files(spec.path)
     if len(layouts) < n_layouts:
         raise ValueError(f"{spec.path} only contains {len(layouts)} layouts, cannot bias towards {n_layouts}.")
     layouts = layouts[:n_layouts]
-    solutions = compute_solutions(spec, layouts, collect_gems)
+    solutions = compute_solutions(spec, layouts)
     episodes = list[Episode]()
     for index, layout in enumerate(tqdm(layouts, desc="Replaying solutions", unit="layout")):
         plan = solutions[layout.name]
-        episode = replay_solution(spec, index, plan) if plan is not None else None
-        if episode is None:
-            raise RuntimeError(f"Layout {index} ({layout.name}) of {spec.path} admits no winning plan!")
-        episodes.append(episode)
+        if plan is not None:
+            env = make_env(spec.path, 1, offset=index, time_limit=spec.time_limit).make()
+            episodes.append(env.replay(plan))
     logger.info(f"Collected {len(episodes)} demonstrations.")
     return episodes
 
@@ -316,7 +226,7 @@ def bias_memory(
     raise TypeError(f"Cannot bias a memory of type {type(base_memory).__name__}.")
 
 
-def get_experiment(args: Args, spec: PoolSpec, algo: Algo, demos: list[Episode]):
+def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     """
     Create (or resume) and run the biased experiment of one algorithm.
 
@@ -328,12 +238,11 @@ def get_experiment(args: Args, spec: PoolSpec, algo: Algo, demos: list[Episode])
         return marl.Experiment[MARLEnv, DQN].load(logdir)
     except FileNotFoundError:
         pass
+    demos = make_demonstrations(spec, args.pool_size)
     train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
     test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
     params = load_best_params(args.study_journal, algo)
-    trainer = make_journal_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env)
-    memory = bias_memory(trainer.memory, demos, args.bias_factor)
-    trainer.memory = memory  # type:ignore
+    trainer = make_journal_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, demos)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
     logger.info(f"Created experiment in {exp.logdir} with parameters {params}")
     return exp
@@ -366,17 +275,12 @@ def main(args: Args):
         raise ValueError(f"--pool-size must be a positive integer, got {args.pool_size}")
     if args.n_tests <= 0:
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
-    if args.n_bias < 0 or args.n_bias > args.pool_size:
-        raise ValueError(f"--n-bias must be in [0, {args.pool_size}], got {args.n_bias}")
-    spec = parse_pool_spec(args.pool_dir)
-
-    demos = []
-    if not args.dry_run:
-        demos = make_demonstrations(spec, args.n_bias or args.pool_size, not args.no_collect_gems)
-    logger.info(f"Starting the biased-replay study on {spec.map_name}: {args.algos}")
-    for algo in args.algos:
-        exp = get_experiment(args, spec, algo, demos)
-        run_experiment(exp, args)
+    for pool_dir in args.pool_dirs:
+        spec = parse_pool_spec(pool_dir)
+        logger.info(f"Starting the biased-replay study on {spec.map_name}: {args.algos}")
+        for algo in args.algos:
+            exp = get_experiment(args, spec, algo)
+            run_experiment(exp, args)
 
 
 if __name__ == "__main__":

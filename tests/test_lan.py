@@ -9,12 +9,13 @@ from marlenv.catalog import DiscreteMockEnv
 
 from marl.algos import LAN, HardUpdate
 from marl.env import EnvConfig
+from marl.models import EpisodeMemory
 from marl.models.batch import EpisodeBatch
 
 
 def setup_lan():
     config = EnvConfig.from_any(DiscreteMockEnv(n_agents=2, end_game=4), last_action=True)
-    trainer = LAN.from_env(config, hidden_size=8, embedding_size=12, batch_size=2)
+    trainer = LAN.from_env(config, hidden_size=8, embedding_size=12, memory=EpisodeMemory(64), batch_size=2)
     return config.make(), trainer
 
 

@@ -22,6 +22,7 @@ from marlenv.catalog import DiscreteMockEnv
 
 from marl import Experiment, algos
 from marl.env import EnvConfig
+from marl.models import TransitionMemory
 from marl.nn.model_bank import qnetworks
 from marl.utils.serialization import DISCRIMINATOR_KEY, Serializable
 
@@ -362,20 +363,23 @@ class TestFileIO:
 # ===========================================================================
 
 
-def _make_dqn(*, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser: Literal["rmsprop", "adam"] = "rmsprop"):
+def _make_dqn(
+    *, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser: Literal["rmsprop", "adam"] = "rmsprop"
+):
     """Utility that builds a concrete DQN instance for testing."""
     from marlenv.catalog import DiscreteMockEnv
 
     from marl import policy
     from marl.algos.dqn import DQN
     from marl.algos.qtarget_updater import SoftUpdate
+    from marl.models import TransitionMemory
     from marl.nn.model_bank import qnetworks
 
     env = DiscreteMockEnv()
     return DQN(
         qnetwork=qnetworks.from_env(env),
         train_policy=policy.ArgMax(),
-        memory_size=memory_size,
+        memory=TransitionMemory(memory_size),
         mixer=None,
         lr=lr,
         batch_size=batch_size,
@@ -418,8 +422,10 @@ class TestDQNToDict:
         assert "obs_shape" in qd
         assert "hidden_sizes" in qd
 
-    def test_memory_size_is_present(self, dqn):
-        assert dqn.to_dict()["memory_size"] == 5_000
+    def test_memory_serialized_with_own_discriminator(self, dqn):
+        d = dqn.to_dict()["memory"]
+        assert d[DISCRIMINATOR_KEY] == "TransitionMemory"
+        assert d["max_size"] == 5_000
 
     def test_target_updater_serialized_as_soft_update(self, dqn):
         d = dqn.to_dict()
@@ -521,13 +527,14 @@ class TestDQNDictRoundTrip:
         from marl import policy
         from marl.algos.dqn import DQN
         from marl.algos.qtarget_updater import HardUpdate
+        from marl.models import TransitionMemory
         from marl.nn.model_bank import qnetworks
 
         env = DiscreteMockEnv()
         dqn = DQN(
             qnetwork=qnetworks.from_env(env),
             train_policy=policy.ArgMax(),
-            memory_size=1_000,
+            memory=TransitionMemory(1_000),
             mixer=None,
             target_updater=HardUpdate(update_period=500),
         )
@@ -645,7 +652,7 @@ def test_experiment_serialization():
         logdir="logs/test-experiment-serialization",
         loggers=("csv",),
         creation_timestamp=datetime.now(),
-        trainer=algos.DQN(qnetworks.from_env(env), memory_size=50000, mixer=None),
+        trainer=algos.DQN(qnetworks.from_env(env), memory=TransitionMemory(50_000), mixer=None),
         env=env,
         test_env=env,
     )

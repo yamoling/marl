@@ -25,7 +25,6 @@ class LAN(DQN[None]):
     value_network: LANValue = field(kw_only=True)
     lr: float = 5e-4
     batch_size: int = 32
-    memory_size: int | Literal["auto"] = 5000
     train_interval: tuple[int, Literal["step", "episode"]] = (1, "episode")
     grad_norm_clipping: float | None = 10.0
     train_policy: Policy = field(default_factory=lambda: policy.EpsilonGreedy.linear(1.0, 0.05, 50_000))

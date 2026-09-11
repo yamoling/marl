@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from marlenv import Episode
 
-from marl.models import NN, Batch, EpisodeMemory
+from marl.models import NN, Batch
 from marl.nn import mixers
 
 from .dqn import DQN
@@ -117,10 +117,9 @@ class LAIES(DQN):
             raise ValueError(f"External-state indices must be in [0, {self.mixer.state_size})")
         if self.cdi_samples < 1 or self.estm_updates < 1:
             raise ValueError("cdi_samples and estm_updates must be positive")
-        if self.memory_size == "auto":
-            self.memory_size = 5000
+        if not self.memory.update_on_episodes:
+            raise ValueError("LAIES trains on episodes and requires an episode-based replay memory")
         super().__post_init__()
-        self.memory = EpisodeMemory(self.memory_size)
         self.estm = ExternalStateTransitionModel(
             self.mixer.state_size,
             self.mixer.state_extras_size,

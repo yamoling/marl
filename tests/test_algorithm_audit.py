@@ -12,6 +12,7 @@ from marl.algos.dqn import DQN
 from marl.algos.ppo import PPO
 from marl.algos.qlearning import QLearning
 from marl.algos.qplex import QPlex
+from marl.models import TransitionMemory
 from marl.models.batch import TransitionBatch
 from marl.nn.mixers.qatten import Qatten
 from marl.nn.mixers.qplex import QPlex as QPlexMixer
@@ -101,7 +102,7 @@ def test_ppo_bootstrap_uses_next_extras():
 @pytest.mark.parametrize("double", [False, True])
 def test_dqn_terminal_without_available_actions_is_finite(double):
     env, batch = make_batch()
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), double_qlearning=double)
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), double_qlearning=double)
     batch = batch.for_individual_learners()
     batch.next_available_actions[-1] = False
     with torch.no_grad():
@@ -113,7 +114,12 @@ def test_dqn_terminal_without_available_actions_is_finite(double):
 @pytest.mark.parametrize("double", [False, True])
 def test_qplex_trainer_can_compute_and_differentiate_loss(double):
     env, batch = make_batch()
-    trainer = QPlex(qnetworks.from_env(env, hidden_sizes=(8,)), mixer=QPlexMixer.from_env(env), double_qlearning=double)
+    trainer = QPlex(
+        qnetworks.from_env(env, hidden_sizes=(8,)),
+        memory=TransitionMemory(100),
+        mixer=QPlexMixer.from_env(env),
+        double_qlearning=double,
+    )
     logs = trainer.train(0, batch)
     assert np.isfinite(logs["td-loss"])
 
@@ -133,7 +139,7 @@ def test_single_agent_one_hot_keeps_agent_axis():
 
 def test_dqn_to_preserves_optimizer_moments_and_extra_groups():
     env, batch = make_batch()
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)))
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100))
     trainer.train(0, batch.for_individual_learners())
     extra = torch.nn.Parameter(torch.ones(1))
     trainer.optimiser.add_param_group({"params": [extra]})
@@ -146,7 +152,7 @@ def test_dqn_to_preserves_optimizer_moments_and_extra_groups():
 
 def test_randomized_dqn_starts_with_synchronized_targets():
     env, _ = make_batch()
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)))
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100))
     trainer.randomize()
     for online, target in zip(trainer.qnetwork.parameters(), trainer.qtarget.parameters(), strict=True):
         torch.testing.assert_close(online, target)
@@ -289,11 +295,11 @@ def test_prioritized_ring_indices_keep_their_transition_after_eviction(monkeypat
 
 
 def test_prioritized_individual_loss_and_clear():
-    from marl.models import PrioritizedMemory, TransitionMemory
+    from marl.models import PrioritizedMemory
 
     env, batch = make_batch(4)
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)))
-    trainer.memory = PrioritizedMemory(TransitionMemory(10), multi_objective=False)
+    memory = PrioritizedMemory(TransitionMemory(10), multi_objective=False)
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=memory)
     for t in batch.transitions:
         trainer.memory.add(t)
     sampled = trainer.memory.sample(2).for_individual_learners()
@@ -428,7 +434,9 @@ def test_noisy_qmlp_respects_action_count_with_single_hidden_layer(duelling):
 
 def test_dqn_checkpoint_keeps_online_and_target_weights_distinct(tmp_path):
     env, _ = make_batch()
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), mixer=QPlexMixer.from_env(env))
+    trainer = DQN(
+        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env)
+    )
     with torch.no_grad():
         for p in trainer.qnetwork.parameters():
             p.fill_(1.0)
@@ -471,7 +479,7 @@ def test_training_episode_respects_exact_run_budget():
     from marl.runners.simple_runner import _train_episode
 
     env, _ = make_batch(20)
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)))
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100))
     run = SimpleNamespace(
         n_steps=3,
         should_test_at=lambda t: False,
@@ -504,7 +512,9 @@ def test_intrinsic_potential_has_no_terminal_bootstrap(kind):
 
 def test_qplex_target_actions_follow_online_argmax_in_double_q(monkeypatch):
     env, batch = make_batch()
-    trainer = QPlex(qnetworks.from_env(env, hidden_sizes=(8,)), mixer=QPlexMixer.from_env(env))
+    trainer = QPlex(
+        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env)
+    )
     shape = (4, 2, 3)
     online = torch.tensor([1.0, 3.0, 2.0]).expand(shape).clone()
     target = torch.tensor([9.0, 4.0, 1.0]).expand(shape).clone()
@@ -529,7 +539,9 @@ def test_dqn_uses_nstep_discount():
     memory = NStepMemory(10, 3, 0.5)
     for t in batch.transitions:
         memory.add(t)
-    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), gamma=0.5, double_qlearning=False)
+    trainer = DQN(
+        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), gamma=0.5, double_qlearning=False
+    )
     trainer.qtarget.batch_qvalues = lambda *args, **kwargs: torch.full((4, 2, 3), 8.0)
     batch = memory.get_batch([0, 1, 2])
     targets = trainer._compute_qtargets(batch.for_individual_learners())
@@ -542,7 +554,7 @@ def test_multiobjective_dqn_preserves_rewards_and_selects_one_joint_action():
         transition.reward = np.array([1.0, 2.0], dtype=np.float32)
     batch = TransitionBatch(batch.transitions)
     network = qnetworks.from_env(env, hidden_sizes=(8,), n_objectives=2, duelling=False)
-    trainer = DQN(network, double_qlearning=False, gamma=0.5)
+    trainer = DQN(network, memory=TransitionMemory(100), double_qlearning=False, gamma=0.5)
     batch = batch.for_individual_learners()
     utilities = torch.tensor([[9.0, 0.0], [0.0, 10.0], [1.0, 1.0]]).expand(4, 2, 3, 2).clone()
     trainer.qtarget.batch_qvalues = lambda *args, **kwargs: utilities

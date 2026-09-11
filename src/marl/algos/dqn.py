@@ -7,7 +7,7 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.models import Agent, Batch, EpisodeMemory, Mixer, Policy, QNetwork, Trainer, TransitionMemory
+from marl.models import Agent, Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.utils.tuning import tuning
 
@@ -19,7 +19,7 @@ from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 class DQN[M: (Mixer | None)](Trainer):
     qnetwork: QNetwork
     _: KW_ONLY
-    memory_size: int | Literal["auto"] = "auto"
+    memory: ReplayMemory
     mixer: M = None  # type: ignore
     train_policy: Policy = field(default_factory=lambda: policy.EpsilonGreedy.constant(0.1))
     lr: float = field(default=1e-4, metadata=tuning(1e-5, 1e-2, log=True))
@@ -32,14 +32,6 @@ class DQN[M: (Mixer | None)](Trainer):
 
     def __post_init__(self):
         super().__post_init__()
-        if self.qnetwork.is_recurrent:
-            if self.memory_size == "auto":
-                self.memory_size = 5000
-            self.memory = EpisodeMemory(self.memory_size)
-        else:
-            if self.memory_size == "auto":
-                self.memory_size = 50_000
-            self.memory = TransitionMemory(self.memory_size)
         match self.train_interval:
             case (n, "step"):
                 self.step_update_interval = n
@@ -93,8 +85,7 @@ class DQN[M: (Mixer | None)](Trainer):
                 return torch.optim.Adam(self.target_updater.parameters, lr=self.lr, fused=fused)
             case "rmsprop":
                 return torch.optim.RMSprop(self.target_updater.parameters, lr=self.lr, eps=1e-5)
-            case other:
-                raise ValueError(f"Unknown optimiser: {other}. Expected 'adam' or 'rmsprop'.")
+        raise ValueError(f"Unknown optimiser: {self.optimiser_type}. Expected 'adam' or 'rmsprop'.")
 
     @property
     def name(self):

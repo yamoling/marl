@@ -1,29 +1,44 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any, Literal, Self, override
 
 import numpy as np
 from marlenv import Episode, Transition
+
+from marl.utils.marlenv_deserialization import episode_from_dict, transition_from_dict
 
 from .replay_memory import EpisodeMemory, ReplayMemory, TransitionMemory
 
 
 @dataclass
 class BiasedMemory[T](ReplayMemory[T]):
-    n_bias: int
+    bias: list[T]
     wrapped: ReplayMemory[T]
-    factor: float
+    factor: float = 1.0
     """Factor that multiplies the probability of sampling biased items."""
+    max_size: int = field(init=False)
+    update_on: Literal["episode", "transition"] = field(init=False)
 
-    def __init__(self, bias: Iterable[T], memory: ReplayMemory[T], factor: float = 1.0):
-        bias = list(bias)
-        assert len(bias) < memory.max_size, "The bias should be smaller than the memory size"
-        assert len(bias) > 0, "There sould be at least one element to bias towards"
-        assert factor > 0, "factor must be greater than 0"
-        super().__init__(memory.max_size + len(bias), memory.update_on)
-        self._memory.extend(bias)
-        self.n_bias = len(bias)
-        self.wrapped = memory
-        self.factor = factor
+    def __post_init__(self):
+        self.max_size = self.wrapped.max_size
+        self.update_on = self.wrapped.update_on
+        assert len(self.bias) < self.max_size, "The bias should be smaller than the memory size"
+        assert len(self.bias) > 0, "There sould be at least one element to bias towards"
+        assert self.factor > 0, "factor must be greater than 0"
+        super().__post_init__()
+        self._memory.extend(self.bias)
+        self.n_bias = len(self.bias)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], *, exact_type: bool = False) -> Self:
+        """Decode bias items according to the restored wrapped memory. @ai-generated"""
+        wrapped = ReplayMemory.from_dict(d["wrapped"])
+        d["wrapped"] = wrapped
+        if wrapped.update_on_transitions:
+            d["bias"] = [transition_from_dict(item) for item in d["bias"]]
+        else:
+            d["bias"] = [episode_from_dict(item) for item in d["bias"]]
+        return super().from_dict(d, exact_type=exact_type)
 
     def add(self, item: T):
         return self.wrapped.add(item)
@@ -47,17 +62,11 @@ class BiasedMemory[T](ReplayMemory[T]):
             return self._memory[index]
         return self.wrapped[index - self.n_bias]
 
+    @override
     def can_sample(self, batch_size: int) -> bool:
-        """
-        Only count the wrapped memory, since the bias is available from the very first time step.
-
-        Taking the bias into account would let a trainer start its updates at time step 0 on
-        demonstrations alone, whereas an unbiased trainer has to collect a whole batch first.
-
-        @ai-generated
-        """
         return self.wrapped.can_sample(batch_size)
 
+    @override
     def sample(self, batch_size: int):
         probs = np.ones(len(self))
         probs[: self.n_bias] *= self.factor
@@ -65,6 +74,7 @@ class BiasedMemory[T](ReplayMemory[T]):
         indices = np.random.choice(range(len(self)), batch_size, replace=False, p=probs)
         return self.get_batch(indices)
 
+    @override
     def make_batch(self, items: Iterable[T]):
         return self.wrapped.make_batch(items)
 

@@ -4,6 +4,7 @@ from marlenv import Episode, Transition
 
 from marl import algos
 from marl.env import LLEConfig
+from marl.models import EpisodeMemory
 from marl.nn import mixers
 from marl.nn.model_bank.qnetworks import QMLP
 
@@ -30,7 +31,7 @@ def test_laies_smoke_on_lle_level_6():
         qnetwork=qnetwork,
         mixer=mixers.QMix.from_env(env_config, embed_size=16, hypernet_embed_size=16),
         external_state_indices=external_state_indices,
-        memory_size=64,
+        memory=EpisodeMemory(64),
         batch_size=4,
         train_interval=(1, "episode"),
         estm_hidden_size=16,

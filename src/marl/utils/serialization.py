@@ -82,7 +82,7 @@ class Serializable:
         return cls.from_dict(d, exact_type=exact_type)
 
     def to_json(self, *, beautify: bool = False):
-        option = None
+        option = orjson.OPT_SERIALIZE_NUMPY
         if beautify:
             option = orjson.OPT_INDENT_2
         return orjson.dumps(self.to_dict(), option=option, default=default_serialization)
@@ -145,7 +145,9 @@ def resolve_type(field_type):
     # Resolve `x: T` where `T: SomeClass` → `SomeClass`
     if isinstance(field_type, TypeVar):
         if field_type.__bound__ is None:
-            raise TypeError(f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized.")
+            raise TypeError(
+                f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized."
+            )
         return resolve_type(field_type.__bound__)
     # Resolve `x: SomeGenericType[T]` → `SomeGenericType`
     origin = get_origin(field_type)
