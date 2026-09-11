@@ -20,7 +20,7 @@ from marl.nn import mixers, model_bank
 from marl.utils import Schedule
 from marl.utils.tuning import suggest
 
-Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo"]
+Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "qplex"]
 Setting = Literal["cooperative", "independent"]
 
 ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "mappo", "dqn", "ippo")
@@ -125,7 +125,7 @@ def hidden_sizes(trial: optuna.Trial, prefix: str) -> list[int]:
 
 def make_dqn_trainer(
     trial: optuna.Trial,
-    algo: Literal["vdn", "qmix", "dqn"],
+    algo: Literal["vdn", "qmix", "dqn", "qplex"],
     env: EnvConfig[DiscreteMARLEnv],
     catch_all: dict,
 ):
@@ -143,7 +143,7 @@ def make_dqn_trainer(
     match algo:
         case "dqn":
             return suggest(
-                DQN, trial, qnetwork=qnetwork, mixer=None, test_policy=test_policy, vbe=None, catch_all=catch_all
+                DQN[None], trial, qnetwork=qnetwork, mixer=None, test_policy=test_policy, vbe=None, catch_all=catch_all
             )
         case "vdn":
             return suggest(VDN, trial, qnetwork=qnetwork, test_policy=test_policy, vbe=None, catch_all=catch_all)
@@ -157,6 +157,7 @@ def make_dqn_trainer(
                 vbe=None,
                 catch_all=catch_all,
             )
+    raise NotImplementedError()
 
 
 def make_ppo_trainer(
@@ -221,7 +222,7 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv
     Build the requested trainer from an Optuna trial.
     """
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": 0.99}
-    if algo in ("dqn", "vdn", "qmix"):
+    if algo in ("dqn", "vdn", "qmix", "qplex"):
         return make_dqn_trainer(trial, algo, env, catch_all)
     return make_ppo_trainer(trial, algo, env, args.n_steps, catch_all)
 

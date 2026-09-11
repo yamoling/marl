@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 import numpy as np
 from marlenv import Episode, Transition
@@ -12,9 +12,11 @@ class BiasedMemory[T](ReplayMemory[T]):
     n_bias: int
     wrapped: ReplayMemory[T]
     factor: float
+    """Factor that multiplies the probability of sampling biased items."""
 
     def __init__(self, bias: Iterable[T], memory: ReplayMemory[T], factor: float = 1.0):
         bias = list(bias)
+        assert len(bias) < memory.max_size, "The bias should be smaller than the memory size"
         assert len(bias) > 0, "There sould be at least one element to bias towards"
         assert factor > 0, "factor must be greater than 0"
         super().__init__(memory.max_size + len(bias), memory.update_on)
@@ -26,6 +28,14 @@ class BiasedMemory[T](ReplayMemory[T]):
     def add(self, item: T):
         return self.wrapped.add(item)
 
+    def add_transition(self, transition: Transition):
+        """Forward the transition to the wrapped memory, leaving the bias untouched."""
+        return self.wrapped.add_transition(transition)
+
+    def add_episode(self, episode: Episode):
+        """Forward the episode to the wrapped memory, leaving the bias untouched."""
+        return self.wrapped.add_episode(episode)
+
     def clear(self):
         return self.wrapped.clear()
 
@@ -36,6 +46,17 @@ class BiasedMemory[T](ReplayMemory[T]):
         if index < self.n_bias:
             return self._memory[index]
         return self.wrapped[index - self.n_bias]
+
+    def can_sample(self, batch_size: int) -> bool:
+        """
+        Only count the wrapped memory, since the bias is available from the very first time step.
+
+        Taking the bias into account would let a trainer start its updates at time step 0 on
+        demonstrations alone, whereas an unbiased trainer has to collect a whole batch first.
+
+        @ai-generated
+        """
+        return self.wrapped.can_sample(batch_size)
 
     def sample(self, batch_size: int):
         probs = np.ones(len(self))
