@@ -7,6 +7,7 @@ import time
 from collections.abc import Collection
 from contextlib import contextmanager
 from multiprocessing.pool import AsyncResult, Pool
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import torch
@@ -138,7 +139,10 @@ def submit(
         return pool.apply_async(
             _start_run,
             kwds={
-                "run": run,
+                # Run.create() persists the complete run specification before it reaches the
+                # parallel runner. Pass only its path through the multiprocessing queue so that
+                # PyTorch does not create one shared-memory file descriptor per tensor storage.
+                "rundir": run.rundir,
                 "device_type": device,
                 "quiet": quiet,
                 "render_tests": render_tests,
@@ -152,7 +156,7 @@ def submit(
 
 
 def _start_run(
-    run: Run,
+    rundir: str,
     device_type: Literal["cpu", "auto", "cuda"] | str | int | None,
     quiet: bool,
     render_tests: bool,
@@ -162,6 +166,9 @@ def _start_run(
     limit_torch_threads: bool = True,
     device_affinity: int | None = None,
 ):
+    from ..models.run import Run
+
+    run = Run.load(Path(rundir))
     setproctitle(f"worker: {run.rundir}")
     if limit_torch_threads:
         torch.set_num_threads(1)
