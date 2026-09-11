@@ -37,7 +37,8 @@ class LLEPool(EnvConfig[EnvPool[npt.NDArray[np.int64]]]):
         from lle import ObservationType
         from lle.env import LLE, SingleObjective
 
-        files = sorted(os.listdir(self.directory))[self.offset : self.offset + self.size]
+        files = sorted(f for f in os.listdir(self.directory) if not f.endswith(".json"))
+        files = files[self.offset : self.offset + self.size]
         files = [os.path.join(self.directory, f) for f in files]
         assert len(files) == self.size, f"Expected {self.size} files, got {len(files)}."
         contents = set[str]()

@@ -58,8 +58,20 @@ class Args(tap.TypedArgs):
     )
 
 
+def layout_files(pool_dir: Path):
+    """
+    List the layout files of a pool directory in the order in which `LLEPool` enumerates them.
+
+    Non-layout side files such as the cached solutions are excluded so that the index of a layout
+    in this list is the offset to give to `LLEPool`.
+
+    @ai-generated
+    """
+    return sorted(path for path in pool_dir.iterdir() if path.suffix != ".json")
+
+
 def parse_pool_spec(pool_dir: Path):
-    world = World.from_file(str(pool_dir / os.listdir(pool_dir)[0]))
+    world = World.from_file(str(layout_files(pool_dir)[0]))
     grid_size = world.width
     n_lasers = len(world.laser_sources)
     laser_label = "laser" if n_lasers == 1 else "lasers"
