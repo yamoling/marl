@@ -30,7 +30,7 @@ TRAIN_POOL_SIZE = 2_500
 TEST_POOL_SIZE = 2_500
 """The layouts in [TRAIN_POOL_SIZE + TEST_POOL_SIZE, ...[ are reserved for the actual experiments."""
 GAMMA = 0.99
-STORAGE_FILE = "tuning.journal"
+STORAGE_FILE = Path("tuning", "tuning.journal")
 MAX_CONSECUTIVE_FAILURES = 3
 """Number of consecutive scheduling rounds without a single completed trial before giving up."""
 
@@ -339,6 +339,7 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
         device_affinity=trial.number,
         disabled_gpus=args.disabled_gpus,
         quiet=True,
+        limit_torch_threads=False,
     )
     results = experiment.get_test_results(args.n_steps).select("mean-exit_rate").last().collect()
     if results.height == 0:
@@ -412,7 +413,7 @@ def main(args: Args) -> None:
     if len(layout_types) != len(set(layout_types)):
         raise ValueError("The supplied pool directories must have distinct layout types.")
 
-    storage = JournalStorage(JournalFileBackend(STORAGE_FILE))
+    storage = JournalStorage(JournalFileBackend(STORAGE_FILE.as_posix()))
     for spec in specs:
         for algo in args.algos:
             try:
