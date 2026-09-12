@@ -35,7 +35,7 @@ class NoisyLinear(torch.nn.Module):
     """
 
     def __init__(self, in_features, out_features, sigma_init=0.5):
-        super(NoisyLinear, self).__init__()
+        super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.sigma_init = sigma_init

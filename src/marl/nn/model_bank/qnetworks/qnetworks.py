@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Sequence
 
 import torch
 from marlenv import DiscreteMARLEnv
@@ -24,7 +24,6 @@ class QCNN(QNetwork):
             self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation
         )
         if self.noisy:
-            self.noisy_layer = NoisyLinear(self.mlp_sizes[-1], self.output_size)
             self.mlp = MySequential(
                 MLP(
                     (self.mlp_sizes[-1],),
@@ -44,6 +43,7 @@ class QCNN(QNetwork):
                 self.cnn.output_size,
                 self.extras_size,
                 hidden_sizes=self.mlp_sizes,
+                hidden_activation=self.hidden_activation,
                 independent=self.independent,
                 n_agents=self.n_agents,
             )

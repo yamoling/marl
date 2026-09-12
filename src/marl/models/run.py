@@ -43,9 +43,6 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
     def should_test_at(self, time_step: int):
         if self.n_tests <= 0:
             return False
-        # Always test at the last time step, regardless of the test_interval
-        if time_step == self.n_steps:
-            return True
         if self.test_interval <= 0:
             return False
         return time_step % self.test_interval == 0

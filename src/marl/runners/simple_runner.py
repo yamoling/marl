@@ -44,8 +44,7 @@ def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests
                 time_step += len(episode)
                 pbar.update(len(episode))
             # Test the final agent
-            if run.should_test_at(time_step):
-                _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
+            _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
         finally:
             run.logger.close()
 
