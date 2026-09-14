@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import KW_ONLY, dataclass, field
 
 import torch
 from sumtree import SumTree
@@ -20,45 +20,21 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     """
 
     memory: ReplayMemory[T]
-    alpha: Schedule
-    beta: Schedule
-    eps: float
-    td_error_clipping: float | None
-    """Clip the TD errors to avoid numerical instability. Often required in sparse reward environments."""
+    alpha: Schedule = field(default_factory=lambda: Schedule.constant(0.7))
+    beta: Schedule = field(default_factory=lambda: Schedule.constant(0.4))
+    eps: float = 1e-2
+    td_error_clipping: float | None = 1.0
+    max_size: int = field(init=False)
+    _: KW_ONLY
+    multi_objective: bool = False
 
-    def __init__(
-        self,
-        memory: ReplayMemory[T],
-        multi_objective: bool,
-        alpha: float | Schedule = 0.7,
-        beta: float | Schedule = 0.4,
-        eps: float = 1e-2,
-        td_error_clipping: float | None = 1.0,
-    ):
-        update_on = "transition" if memory.update_on_transitions else "episode"
-        super().__init__(memory.max_size, update_on)
-        self.memory = memory
-        self.tree = SumTree(self.max_size)
-        self.eps = eps
-        self.max_priority = eps  # Initialize the max priority with epsilon
-        self.td_error_clipping = td_error_clipping
-        self.multi_objective = multi_objective
+    def __post_init__(self):
+        self.max_size = self.memory.max_size
+        super().__post_init__()
         self.sampled_indices = list[int]()
+        self.tree = SumTree(self.max_size)
+        self.max_priority = self.eps
         self._next_index = 0
-        match alpha:
-            case float():
-                self.alpha = Schedule.constant(alpha)
-            case Schedule():
-                self.alpha = alpha
-            case other:
-                raise ValueError(f"alpha must be a float or a Schedule, got {other}")
-        match beta:
-            case float():
-                self.beta = Schedule.constant(beta)
-            case Schedule():
-                self.beta = beta
-            case other:
-                raise ValueError(f"beta must be a float or a Schedule, got {other}")
 
     def add(self, item: T):
         """Advance the tree's physical ring slot alongside deque insertion. @ai-generated"""
