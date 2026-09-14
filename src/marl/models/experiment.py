@@ -4,7 +4,7 @@ import shutil
 from collections.abc import Collection
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from signal import SIGINT
 from typing import Literal, overload
@@ -248,9 +248,7 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
         return {
             "Test": stats.compute_experiment_results([run.test_metrics for run in runs], aggregate_by, granularity),
             "Train": stats.compute_experiment_results([run.train_metrics for run in runs], aggregate_by, granularity),
-            "Training data": stats.compute_experiment_results(
-                [run.training_data for run in runs], aggregate_by, granularity
-            ),
+            "Training data": stats.compute_experiment_results([run.training_data for run in runs], aggregate_by, granularity),
         }
 
     def get_test_results(self, granularity: int, aggregate_by: "TickColumn" = "time_step"):
@@ -326,7 +324,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
             n_steps,
             logpath.as_posix(),
             loggers,
-            datetime.now(),
+            datetime.now(UTC),
             trainer,
             env,
             test_env,

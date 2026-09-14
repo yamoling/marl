@@ -1,10 +1,10 @@
-import numpy as np
-from marl.models import Experiment
+import math
 
 import matplotlib.pyplot as plt
+import numpy as np
 from cycler import cycler
 
-import math
+from marl.models import Experiment
 
 
 def plot_target_distro(targets, path, labels):

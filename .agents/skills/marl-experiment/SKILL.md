@@ -120,12 +120,7 @@ experiment = Experiment.load(Path("logs/my-dqn-baseline"))
 per_run = []
 for run in experiment.runs:
     metrics: pl.LazyFrame = run.test_metrics
-    per_run.append(
-        metrics
-        .filter(pl.col("time_step") >= 50_000)
-        .select("time_step", "exit_rate")
-        .with_columns(seed=pl.lit(run.seed))
-    )
+    per_run.append(metrics.filter(pl.col("time_step") >= 50_000).select("time_step", "exit_rate").with_columns(seed=pl.lit(run.seed)))
 
 results = pl.concat(per_run).collect()
 print(results)

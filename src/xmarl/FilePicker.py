@@ -1,7 +1,7 @@
-from textual.screen import Screen
-from textual.widgets import ListView, ListItem, Label
-from textual.containers import Vertical
 from textual import events
+from textual.containers import Vertical
+from textual.screen import Screen
+from textual.widgets import Label, ListItem, ListView
 
 
 class FilePickerScreen(Screen):

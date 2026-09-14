@@ -31,9 +31,7 @@ class Mixer(NN):
         return -2
 
     @abstractmethod
-    def forward(
-        self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs
-    ) -> torch.Tensor:
+    def forward(self, qvalues: torch.Tensor, states: torch.Tensor, states_extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
         """
         Mix the utiliy values of the agents.
 
@@ -67,6 +65,4 @@ class StateMixer(Mixer):
 
     @classmethod
     def from_env(cls, env: DiscreteMARLEnv | EnvConfig[DiscreteMARLEnv], **kwargs):
-        return super().from_env(
-            env, n_agents=env.n_agents, state_size=env.state_size, state_extras_size=env.state_extras_size, **kwargs
-        )
+        return super().from_env(env, n_agents=env.n_agents, state_size=env.state_size, state_extras_size=env.state_extras_size, **kwargs)

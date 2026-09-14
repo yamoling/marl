@@ -131,9 +131,7 @@ class ACER(Trainer):
             {"params": list(self.critic.parameters()), "lr": self.lr_critic, "name": "critic parameters"},
         ]
         if self.mixer is not None:
-            param_groups.append(
-                {"params": list(self.mixer.parameters()), "lr": self.lr_critic, "name": "mixer parameters"}
-            )
+            param_groups.append({"params": list(self.mixer.parameters()), "lr": self.lr_critic, "name": "mixer parameters"})
         return torch.optim.AdamW(param_groups, eps=1e-5, fused=fused)
 
     def to(self, device: torch.device) -> Self:
@@ -297,9 +295,7 @@ class ACER(Trainer):
         objective = torch.sum(objective * agent_masks)
 
         if self.trust_region:
-            actor_loss, kl_divergence, trust_factor = self._trust_region_loss(
-                batch, probs, objective, agent_masks, n_agent_items
-            )
+            actor_loss, kl_divergence, trust_factor = self._trust_region_loss(batch, probs, objective, agent_masks, n_agent_items)
         else:
             actor_loss = -objective / n_agent_items
             with torch.no_grad():
@@ -348,9 +344,7 @@ class ACER(Trainer):
         n_steps, n_episodes = obs.shape[:2]
         if actor.is_recurrent:
             if next_obs:
-                logits = actor.forward(batch.all_obs, batch.all_extras, available_actions=batch.all_available_actions)[
-                    1:
-                ]
+                logits = actor.forward(batch.all_obs, batch.all_extras, available_actions=batch.all_available_actions)[1:]
             else:
                 logits = actor.forward(obs, extras, available_actions=available)
             return torch.softmax(logits, dim=-1)

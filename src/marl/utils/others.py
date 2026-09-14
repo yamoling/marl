@@ -2,7 +2,7 @@ import base64
 import os
 import random
 import re
-from typing import Callable, TypeVar
+from collections.abc import Callable
 
 import cv2
 import numpy as np

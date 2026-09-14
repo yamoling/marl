@@ -174,9 +174,7 @@ class ModelOfOtherAgents(NN):
         time, batch, n_agents = obs.shape[:3]
         # Overwrite slot 0 (the observing agent's own action) with each candidate action in turn.
         candidates = joint_actions.unsqueeze(0).repeat(self.n_actions, 1, 1, 1, 1)
-        candidates[..., : self.n_actions] = torch.eye(self.n_actions, device=self.device).view(
-            self.n_actions, 1, 1, 1, self.n_actions
-        )
+        candidates[..., : self.n_actions] = torch.eye(self.n_actions, device=self.device).view(self.n_actions, 1, 1, 1, self.n_actions)
         obs = obs.unsqueeze(0).expand(self.n_actions, *obs.shape)
         extras = extras.unsqueeze(0).expand(self.n_actions, *extras.shape)
         inputs = self._encode(obs, extras, candidates).reshape(1, -1, self.hidden_size)

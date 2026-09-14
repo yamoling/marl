@@ -102,9 +102,7 @@ class PPO(Trainer):
         values[batch.masked_indices] = 0.0
         next_values[batch.dones] = 0.0
         assert torch.all(next_values[batch.masked_indices] == 0.0)
-        advantages = batch.compute_gae(
-            self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages
-        )
+        advantages = batch.compute_gae(self.gamma, values, next_values, self.gae_lambda, normalize=self.normalize_advantages)
         returns = batch.compute_mc_returns(self.gamma, next_values[-1], next_values=next_values)
         advantages[batch.masked_indices] = 0.0
         return returns, advantages
@@ -132,9 +130,7 @@ class PPO(Trainer):
         early_stopped = False
         epoch_indices = (np.random.permutation(batch.size) for _ in range(self.n_epochs))
         minibatches = (
-            indices[start : start + self.minibatch_size]
-            for indices in epoch_indices
-            for start in range(0, batch.size, self.minibatch_size)
+            indices[start : start + self.minibatch_size] for indices in epoch_indices for start in range(0, batch.size, self.minibatch_size)
         )
         for indices in minibatches:
             minibatch = batch.get_minibatch(indices)
@@ -215,9 +211,7 @@ class PPO(Trainer):
             log_lists["loss"].append(loss.item())
             log_lists["ratios"].append(ratio.detach().cpu().numpy())
             log_lists["entropies"].append(entropy.detach().cpu().numpy())
-        log_lists = {
-            key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()
-        }
+        log_lists = {key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()}
         return {
             **ir_logs,
             "early_stopped": early_stopped,

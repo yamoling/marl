@@ -6,7 +6,7 @@ from marlenv import DiscreteMARLEnv, Episode
 from marl import policy
 from marl.agents.hierarchical import MAVENAgent
 from marl.env import EnvConfig
-from marl.models import EpisodeMemory, HierarchicalTrainer, Mixer, Policy
+from marl.models import HierarchicalTrainer, Mixer, Policy
 from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 

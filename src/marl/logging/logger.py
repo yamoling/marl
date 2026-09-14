@@ -1,7 +1,7 @@
 import os
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -101,7 +101,7 @@ class Logger(ABC, LogHelper):
         self.log(data, time_step, prefix="test/")
 
     @abstractmethod
-    def log(self, data: dict[str, Any], time_step: int, prefix: Optional[str] = None): ...
+    def log(self, data: dict[str, Any], time_step: int, prefix: str | None = None): ...
 
     def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions: bool = True):
         for episode in episodes:
@@ -115,7 +115,7 @@ class Logger(ABC, LogHelper):
     def close(self):
         """Close any underlying resources held by the logger."""
 
-    def log_as_json(self, object: object, time_step: int, name: Optional[str] = None):
+    def log_as_json(self, object: object, time_step: int, name: str | None = None):
         directory = self.get_logdir(time_step)
         if name is None:
             name = object.__class__.__name__

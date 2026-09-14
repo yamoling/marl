@@ -103,7 +103,7 @@ class Agent(ABC):
     def _can_autosave(self):
         """Check if the algorithm can be autosaved"""
         networks = self.networks()
-        names = set(nn.name for nn in networks)
+        names = {nn.name for nn in networks}
         return len(names) == len(networks)
 
     def save(self, to_directory: Path):

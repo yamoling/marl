@@ -1,5 +1,4 @@
 import base64
-from typing import Optional
 
 import cv2
 import matplotlib.pyplot as plt
@@ -146,8 +145,8 @@ class ActFrameViewer(FrameViewer):
     ax_action: Axes
 
     cursor: mplcursors.Cursor
-    qvalues_check_ax: Optional[Axes] = None
-    qvalues_check: Optional[CheckButtons] = None
+    qvalues_check_ax: Axes | None = None
+    qvalues_check: CheckButtons | None = None
     qvalues: np.ndarray
     qvalue_labels: list[str]
     show_qvalues: bool = False
@@ -167,7 +166,7 @@ class ActFrameViewer(FrameViewer):
             self.agent_ids[f"Agent {i}"] = i
         self.qvalues = qvalues  # Before parent init, because else qvalues = None
 
-        super(ActFrameViewer, self).__init__(frames, world_shape, n_agents)
+        super().__init__(frames, world_shape, n_agents)
         # Assert specific to sdt case, so comment for now til a better implementation
         # assert actions.shape[:-1] == (self.episode_len-1,n_agents,2) or actions.shape[:-1] == (self.episode_len-1,n_agents) # episode_len, based on len(frames), but there is 1 more frame at the end state, which has no related step
 
@@ -389,9 +388,7 @@ class AbstractActFrameViewer(ActFrameViewer):
         self.filters_layer = filters_dat[0].shape[-2]
         self.filters_layered = self.filters_layer > 1
 
-        super(AbstractActFrameViewer, self).__init__(
-            frames, world_shape, n_agents, agent_pos, actions, action_names, qvalues, qvalue_labels
-        )
+        super().__init__(frames, world_shape, n_agents, agent_pos, actions, action_names, qvalues, qvalue_labels)
 
         self.extras = extras_dat is not None
         assert len(obs_dat) == n_agents and len(filters_dat) == n_agents
@@ -691,7 +688,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         else:
             raise Exception(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
 
-        super(HeatmapActFrameViewer, self).__init__(frames, world_shape, n_agents, agent_pos, actions, action_names, qvalues, qvalue_labels)
+        super().__init__(frames, world_shape, n_agents, agent_pos, actions, action_names, qvalues, qvalue_labels)
 
         if self.extras:
             assert heatmap_dat.shape[:2] == (self.episode_len - 1, self.n_agents) and extras_filter.shape[:2] == (

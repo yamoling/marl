@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 import orjson
@@ -44,7 +44,7 @@ class IndividualLocalGraphTrainer(Trainer):
         if self.n_states_visited >= self.update_after_n_states:
             for agent, graph in enumerate(self.local_graphs):
                 b, _ = graph.find_bottleneck()
-                directory = os.path.join(self.logdir, str(time_step), datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+                directory = os.path.join(self.logdir, str(time_step), datetime.now(UTC).strftime("%Y-%m-%d-%H-%M-%S"))
                 os.makedirs(directory, exist_ok=True)
                 with open(os.path.join(directory, f"bottlenecks-agent={agent}.json"), "wb") as f:
                     f.write(orjson.dumps(b, default=default_serialization))

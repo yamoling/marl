@@ -1,6 +1,7 @@
 import math
-from marlenv import State
+
 import numpy as np
+from marlenv import State
 
 
 class Node:
@@ -32,7 +33,7 @@ class Node:
             self.reward = 0
         else:
             self.reward = reward if parent.current_player == 0 else -reward
-        self.action = action_taken or tuple()
+        self.action = action_taken or ()
         self.num_visits = 0
         self.total_value = 0.0
         self.is_terminal = is_terminal

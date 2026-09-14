@@ -2,13 +2,11 @@ import logging
 import os
 import pathlib
 import pickle
-from typing import Optional, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
 from marlenv.models import Episode
+from torch import nn, optim
 
 from marl.models.batch import Batch
 from xmarl.distilers.utils import abstract_observation, flatten_observation, get_agent_pos, get_fixed_features
@@ -30,9 +28,9 @@ class InnerNode(nn.Module):
         output_shape: tuple[int, ...],
         max_depth: int,
         lmbda: float,
-        device: Optional[torch.device],
+        device: torch.device | None,
     ):
-        super(InnerNode, self).__init__()
+        super().__init__()
         # Fix arguments
         self.input_shape = input_shape
         self.output_shape = output_shape
@@ -112,8 +110,8 @@ class LeafNode(nn.Module):
     """SoftDecisionTree: a class representing a Leaf Node in a SDT
     Almost copy pasted from: https://github.com/kimhc6028/soft-decision-tree/"""
 
-    def __init__(self, depth: int, output_shape: tuple[int, ...], device: Optional[torch.device] = None):
-        super(LeafNode, self).__init__()
+    def __init__(self, depth: int, output_shape: tuple[int, ...], device: torch.device | None = None):
+        super().__init__()
         self.depth = depth
         self.output_shape = output_shape
         self.device = device
@@ -147,7 +145,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
     lr: float
     lmbda: float
     momentum: float
-    device: Optional[torch.device]
+    device: torch.device | None
     seed: int
     log_interval: int  # not sure I need, enforced/done by DQN?
 
@@ -170,10 +168,10 @@ class SoftDecisionTree[B: Batch](nn.Module):
         lr: float = 0.01,
         lmbda: float = 0.01,
         momentum: float = 0.01,
-        device: Optional[torch.device] = torch.device("cpu"),
+        device: torch.device | None = torch.device("cpu"),
         agent_id: int = 0,
     ):
-        super(SoftDecisionTree, self).__init__()
+        super().__init__()
 
         self.input_shape = input_shape
         self.output_shape = output_shape
@@ -352,7 +350,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             best_leaves.append(leaves[best_leaf_idx])
         return best_leaves
 
-    def backtrack_leaf(self, leaf: LeafNode, parent_child: dict[Union[LeafNode, InnerNode], InnerNode]):
+    def backtrack_leaf(self, leaf: LeafNode, parent_child: dict[LeafNode | InnerNode, InnerNode]):
         """Given a leaf node, traces back to the root and returns each filter.
         The filters order is reversed to be in top to bottom order."""
         path_weights, path_biases = [], []

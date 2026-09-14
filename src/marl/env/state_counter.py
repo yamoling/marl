@@ -1,5 +1,6 @@
-from marlenv import RLEnvWrapper, MARLEnv, Space, State
 from dataclasses import dataclass
+
+from marlenv import MARLEnv, RLEnvWrapper, Space, State
 
 
 @dataclass

@@ -1,5 +1,5 @@
+from collections.abc import Collection
 from pathlib import Path
-from typing import Collection
 
 import matplotlib.pyplot as plt
 import numpy as np

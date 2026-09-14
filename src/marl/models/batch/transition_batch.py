@@ -211,15 +211,11 @@ class TransitionBatch(Batch):
 
     @cached_property
     def next_states(self):
-        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(
-            self.device
-        )
+        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
     def next_states_extras(self):
-        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(
-            self.device
-        )
+        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
 
     @cached_property
     def masks(self):

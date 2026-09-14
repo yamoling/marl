@@ -97,7 +97,7 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | Option-Critic | ✗ | ? | Hierarchical RL |
 | RND | ✓ | ✓ | Random Network Distillation |
 | Social Influence | ✗ | ✓ | Causal influence intrinsic reward with a Model of Other Agents (on top of IPPO/MAPPO) |
-| ICM | ✓ | ? | Intrinsic Curiosity Module |
+| ICM | ✓ | ✓ | Intrinsic Curiosity Module, agent-wise (on top of any trainer with an `ir_module`) |
 | HAVEN | ✗ | ✗ | Hierarchical MARL with intrinsic motivation |
 | REINFORCE | ✗ | ✓ | Policy gradient method |
 | AlphaZero/MCTS | ✗ | ? | Tree search-based |

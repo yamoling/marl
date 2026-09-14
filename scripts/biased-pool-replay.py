@@ -207,9 +207,7 @@ def make_demonstrations(spec: PoolSpec, n_layouts: int):
     return episodes
 
 
-def bias_memory(
-    base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], demos: list[Episode], factor: float
-) -> ReplayMemory:
+def bias_memory(base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], demos: list[Episode], factor: float) -> ReplayMemory:
     """
     Wrap a replay memory into one that permanently holds the demonstrations.
 

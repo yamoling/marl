@@ -55,10 +55,9 @@ class QTRAN(StateMixer):
         subteam_indices,
     ):
         batch_size = Q_local_values_real.size(0)
-        dummy = torch.zeros(3 * batch_size)
-        real_detached_indices = dummy != dummy
-        real_undetached_indices = dummy != dummy
-        max_undetached_indices = dummy != dummy
+        real_detached_indices = torch.zeros(3 * batch_size, dtype=torch.bool)
+        real_undetached_indices = torch.zeros(3 * batch_size, dtype=torch.bool)
+        max_undetached_indices = torch.zeros(3 * batch_size, dtype=torch.bool)
         for counter in range(batch_size):
             real_detached_indices[counter] = True
             real_undetached_indices[counter + batch_size] = True

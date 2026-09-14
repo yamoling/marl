@@ -363,9 +363,7 @@ class TestFileIO:
 # ===========================================================================
 
 
-def _make_dqn(
-    *, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser: Literal["rmsprop", "adam"] = "rmsprop"
-):
+def _make_dqn(*, tau=0.02, memory_size=5_000, batch_size=128, lr=3e-4, optimiser: Literal["rmsprop", "adam"] = "rmsprop"):
     """Utility that builds a concrete DQN instance for testing."""
     from marlenv.catalog import DiscreteMockEnv
 

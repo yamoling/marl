@@ -1,4 +1,4 @@
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import polars as pl
@@ -67,7 +67,7 @@ def compute_experiment_results(dfs: Sequence[pl.LazyFrame], aggregate_by: str, g
     except ValueError as e:
         if "cannot concat empty list" in str(e):
             return pl.LazyFrame()
-        raise e
+        raise
 
 
 def compute_qvalues(dfs: list[pl.DataFrame], logdir: str, replace_inf: bool, reward_components: list[str], n_agents: int) -> list[Dataset]:

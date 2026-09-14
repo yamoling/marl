@@ -1,5 +1,6 @@
 import logging
-from typing import Collection, Literal
+from collections.abc import Collection
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import polars as pl

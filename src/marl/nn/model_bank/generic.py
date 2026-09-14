@@ -1,6 +1,7 @@
 import math
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Sequence, override
+from typing import override
 
 import torch
 
@@ -87,9 +88,7 @@ class CNN(NN):
         assert len(self.strides) == len(self.kernel_sizes) == len(self.filters), (
             "The number of strides, kernel sizes and filters must be the same."
         )
-        self.cnn, n_features = make_cnn(
-            self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation
-        )
+        self.cnn, n_features = make_cnn(self.input_shape, self.filters, self.kernel_sizes, self.strides, self.hidden_activation)
         self.output_shape = (n_features,)
 
     def __hash__(self):
@@ -148,9 +147,7 @@ class RNN(RecurrentNN):
     def __hash__(self):
         return id(self)
 
-    def forward(
-        self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs
-    ) -> torch.Tensor:
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, *, masks: torch.Tensor | None = None, **kwargs) -> torch.Tensor:
         """Unroll episode batches from reset without replacing the acting history. @ai-generated"""
         self.gru.flatten_parameters()
         batched_episodes = obs.ndim >= 4

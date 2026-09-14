@@ -57,7 +57,6 @@ class Action:
     @overload
     def __getitem__(self, item: str) -> np.ndarray:
         """Get the keyword argument with the given name."""
-        pass
 
     def __getitem__(self, item: int | str):
         if isinstance(item, int):

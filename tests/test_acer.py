@@ -134,9 +134,7 @@ class TestUpdate:
 
         trainer.update_episode(collect_episode(env, agent), 0, EPISODE_LENGTH)
 
-        for avg_before_p, avg_param, param in zip(
-            avg_before, trainer.avg_actor.parameters(), trainer.actor.parameters()
-        ):
+        for avg_before_p, avg_param, param in zip(avg_before, trainer.avg_actor.parameters(), trainer.actor.parameters()):
             alpha = trainer.trust_region_decay
             assert torch.allclose(avg_param, alpha * avg_before_p + (1 - alpha) * param, atol=1e-6)
             assert not avg_param.requires_grad

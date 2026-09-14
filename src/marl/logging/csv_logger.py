@@ -32,7 +32,7 @@ class CSVLogWriter:
         data[TIME_STEP_COL] = time_step
         if self._writer is None:
             os.makedirs(os.path.dirname(self.filename), exist_ok=True)
-            self._file = open(self.filename, "w")
+            self._file = open(self.filename, "w")  # noqa: SIM115 — kept open across log() calls, closed via self.close()
             self._writer = csv.DictWriter(self._file, fieldnames=data.keys())
             self._writer.writeheader()
         try:
@@ -59,7 +59,7 @@ class CSVLogWriter:
         df = df.with_columns([pl.lit(None).alias(h) for h in new_headers])
         df.write_csv(self.filename)
 
-        self._file = open(self.filename, "a")
+        self._file = open(self.filename, "a")  # noqa: SIM115 — kept open across log() calls, closed via self.close()
         self._writer = csv.DictWriter(self._file, fieldnames=df.columns)
 
     def close(self):
@@ -104,7 +104,7 @@ class CSVLogger(Logger):
         self.test = CSVLogWriter(os.path.join(logdir, TEST), flush_interval_sec)
         self.train = CSVLogWriter(os.path.join(logdir, TRAIN), flush_interval_sec)
         self.training_data = CSVLogWriter(os.path.join(logdir, TRAINING_DATA), flush_interval_sec)
-        self.other_loggers = dict(default=CSVLogWriter(os.path.join(logdir, "other.csv"), flush_interval_sec))
+        self.other_loggers = {"default": CSVLogWriter(os.path.join(logdir, "other.csv"), flush_interval_sec)}
 
     def log_test(self, data: dict[str, float], time_step: int):
         return self.test.log(data, time_step)

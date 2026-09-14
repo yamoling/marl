@@ -82,9 +82,8 @@ class TestUnwrapOptional:
 
     def test_list_of_int_is_unchanged(self):
         """List[int] has a single type arg but is not a Union — must not be unwrapped."""
-        from typing import List
 
-        hint = List[int]
+        hint = list[int]
         assert unwrap_optional(hint) is hint
 
     def test_parameterized_serializable_is_unchanged(self):

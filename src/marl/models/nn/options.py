@@ -1,6 +1,6 @@
 from abc import abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 import torch
 from torch import Tensor
@@ -11,7 +11,6 @@ from .nn import NN
 @dataclass
 class OptionCriticNetwork(NN):
     n_options: int
-
 
     @abstractmethod
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:

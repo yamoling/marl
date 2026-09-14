@@ -21,8 +21,9 @@ The file is organised in sections that mirror the 12-rule decision table:
 
 import logging
 from abc import abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import Literal
 
 import pytest
 from optuna import Trial

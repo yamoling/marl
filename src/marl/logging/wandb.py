@@ -28,8 +28,7 @@ class WABLogger(Logger):
     @property
     def run_name(self):
         name = self.logdir.as_posix()
-        if name.startswith("logs/"):
-            name = name[5:]
+        name = name.removeprefix("logs/")
         return name
 
     def log_test_episodes(self, episodes: list[Episode], time_step: int, save_actions: bool = True):

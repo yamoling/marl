@@ -118,9 +118,7 @@ class OptionCritic(Trainer):
             # Apply mixer if present
             if self.target_mixer is not None and self.mixer is not None:
                 q_options = self.mixer.forward(q_options, batch.states, batch.states_extras)
-                next_q_options_continued = self.target_mixer.forward(
-                    next_q_options_continued, batch.next_states, batch.next_states_extras
-                )
+                next_q_options_continued = self.target_mixer.forward(next_q_options_continued, batch.next_states, batch.next_states_extras)
                 next_q_max = self.target_mixer.forward(next_q_max, batch.next_states, batch.next_states_extras)
                 next_values = self.target_mixer.forward(next_values, batch.next_states, batch.next_states_extras)
 

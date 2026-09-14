@@ -1,6 +1,7 @@
 import orjson
 from fastapi import APIRouter
 from fastapi.responses import Response
+
 from marl.logging import TIME_STEP_COL, TIMESTAMP_COL
 from marl.utils import default_serialization
 

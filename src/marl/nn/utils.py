@@ -1,4 +1,4 @@
-from typing import Sequence
+from collections.abc import Sequence
 
 import torch
 
@@ -8,11 +8,11 @@ from marl.models.nn.nn import ActivationType, get_activation
 class MySequential(torch.nn.Sequential):
     def __init__(self, *args: torch.nn.Module):
         super().__init__(*args)
-        ordered_modules = list(m for m in self)
+        ordered_modules = list(self)
         self._layer1 = ordered_modules[0]
         self._other_layers = ordered_modules[1:]
 
-    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor: # type: ignore
+    def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:  # type: ignore
         x = self._layer1.forward(obs, extras, **kwargs)
         for module in self._other_layers:
             x = module.forward(x)

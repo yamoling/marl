@@ -1,9 +1,11 @@
+from dataclasses import dataclass
+
 import networkx as nx
 import numpy as np
 from lle import World, WorldState
 from marlenv import Transition
 from sklearn.cluster import SpectralClustering
-from dataclasses import dataclass
+
 from marl.models.trainer import Trainer
 
 
@@ -34,7 +36,7 @@ class LocalGraphBottleneckFinder[T]:
         self.local_graph = nx.Graph()
 
     def predict_all(self):
-        predictions = {edge: self.predict(edge) for edge in self.apparition_count.keys()}
+        predictions = {edge: self.predict(edge) for edge in self.apparition_count}
         by_vertex = {}
         for (src, dst), pred in predictions.items():
             by_vertex[src] = by_vertex.get(src, 0) + pred

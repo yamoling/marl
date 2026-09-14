@@ -69,9 +69,7 @@ def test_recurrent_unroll_matches_execution_and_preserves_rollout_state():
     batch = batch_for(env, trainer)
     net = trainer.qnetwork
     net.reset_hidden_states()
-    sequential = torch.cat(
-        [net(batch.all_obs[t : t + 1], batch.all_extras[t : t + 1]) for t in range(len(batch.all_obs))]
-    )
+    sequential = torch.cat([net(batch.all_obs[t : t + 1], batch.all_extras[t : t + 1]) for t in range(len(batch.all_obs))])
     saved = net._hidden_states.clone()
     unrolled = net.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)
     torch.testing.assert_close(sequential, unrolled)

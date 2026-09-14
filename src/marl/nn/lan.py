@@ -75,9 +75,7 @@ class LANValue(NN):
             torch.nn.ReLU(),
         )
         self.value = torch.nn.Sequential(
-            torch.nn.Linear(
-                self.embedding_size + prod(self.state_shape) + prod(self.state_extras_shape), self.embedding_size
-            ),
+            torch.nn.Linear(self.embedding_size + prod(self.state_shape) + prod(self.state_extras_shape), self.embedding_size),
             torch.nn.ReLU(),
             torch.nn.Linear(self.embedding_size, self.embedding_size),
             torch.nn.ReLU(),

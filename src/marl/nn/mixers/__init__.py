@@ -5,9 +5,9 @@ from .qplex import QPlex
 from .vdn import VDN
 
 __all__ = [
+    "VDN",
     "QMix",
     "QMixMAVEN",
-    "VDN",
     "QPlex",
     "Qatten",
 ]

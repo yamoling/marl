@@ -2,30 +2,28 @@
 import os
 import pathlib
 import pickle
+from typing import Literal
 
-from typing import Literal, Optional
-
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix
+from sklearn.model_selection import train_test_split
 
+from marl.agents.qlearning import DQNAgent
+from marl.models import Experiment
+from marl.utils.gpu import get_device
 from xmarl.distilers.sdt import SoftDecisionTree
 
 from .utils import (
-    get_fixed_features,
-    feature_labels,
     abstract_observation,
-    plot_target_distro,
+    feature_labels,
     flatten_observation,
+    get_fixed_features,
     plot_importance,
     plot_importance_with_targets,
+    plot_target_distro,
 )
-from marl.models import Experiment
-from marl.agents.qlearning import DQNAgent
-from marl.utils.gpu import get_device
-
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
-import matplotlib.pyplot as plt
 
 
 class DistilHandler:
@@ -58,7 +56,7 @@ class DistilHandler:
         imp_perc: int,
         individual_agents: bool,
         abstract_obs: bool = False,
-        fixed_abs_features: Optional[list[list]] = None,
+        fixed_abs_features: list[list] | None = None,
     ):
         self._experiment = experiment
         self._distilers = distilers
@@ -404,8 +402,7 @@ class DistilHandler:
         # Select run, for now last run
         runs = os.listdir(self._experiment.logdir)
         runs = [run for run in runs if "run" in run]
-        if self.n_runs > len(runs):
-            self.n_runs = len(runs)
+        self.n_runs = min(self.n_runs, len(runs))
         for i in range(self.n_runs):
             run = runs[i]
             run_path = os.path.join(self._experiment.logdir, run)
@@ -436,7 +433,7 @@ class DistilHandler:
         return np.array(targets), np.array(observations), importances, np.array(ag_poses), np.array(extras)
 
     # Seed can at some point be replaced to a number of epochs we want to train to note change of seed for the SDT epochs?
-    def simulate_one_episode(self, seed: Optional[int] = None):
+    def simulate_one_episode(self, seed: int | None = None):
         """
         Runs an episode to gather action distributions and observations.
         """

@@ -41,13 +41,9 @@ class SimpleAgent[T: torch.distributions.Distribution](Agent):
             if self._device.type == "cuda":
                 obs_data = self._data_stager.to(observation.data, self._device).unsqueeze(0)
                 obs_extras = self._extras_stager.to(observation.extras, self._device).unsqueeze(0)
-                available_actions = self._available_actions_stager.to(
-                    observation.available_actions, self._device
-                ).unsqueeze(0)
+                available_actions = self._available_actions_stager.to(observation.available_actions, self._device).unsqueeze(0)
             else:
-                obs_data, obs_extras, available_actions = observation.as_tensors(
-                    self._device, batch_dim=True, actions=True
-                )
+                obs_data, obs_extras, available_actions = observation.as_tensors(self._device, batch_dim=True, actions=True)
             distribution = self.actor.policy(obs_data, obs_extras, available_actions=available_actions)
         actions = distribution.sample().squeeze(0).numpy(force=True)
         if with_details:

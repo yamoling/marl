@@ -5,11 +5,9 @@ Covers LinearSchedule, ExpSchedule, ConstantSchedule and RoundedSchedule, as wel
 the operator-overloading mixins defined on the abstract `Schedule` base class.
 """
 
-import math
-
 import pytest
 
-from marl.utils.schedule import ConstantSchedule, ExpSchedule, LinearSchedule, RoundedSchedule, Schedule
+from marl.utils.schedule import ExpSchedule, LinearSchedule, RoundedSchedule, Schedule
 
 
 class TestLinearSchedule:

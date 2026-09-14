@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from marlenv import Episode
 
 from marl.models import NN, Batch
-from marl.nn import mixers
 
 from .dqn import DQN
 
@@ -68,9 +67,7 @@ class ExternalStateTransitionModel(NN):
         """
         n_candidates = actions.shape[-3]
         states = states.unsqueeze(-2).expand(*states.shape[:-1], n_candidates, states.shape[-1])
-        states_extras = states_extras.unsqueeze(-2).expand(
-            *states_extras.shape[:-1], n_candidates, states_extras.shape[-1]
-        )
+        states_extras = states_extras.unsqueeze(-2).expand(*states_extras.shape[:-1], n_candidates, states_extras.shape[-1])
         inputs = torch.cat((states, states_extras, actions.flatten(start_dim=-2)), dim=-1)
         hidden = previous_hidden.unsqueeze(-2).expand(*previous_hidden.shape[:-1], n_candidates, self.hidden_size)
         outputs, _ = self.gru(
@@ -170,9 +167,7 @@ class LAIES(DQN):
         target = self._external_states(batch.next_states)
         loss_value = 0.0
         for _ in range(self.estm_updates):
-            prediction, _ = self.estm.forward_with_history(
-                batch.states, batch.states_extras, batch.one_hot_actions.float()
-            )
+            prediction, _ = self.estm.forward_with_history(batch.states, batch.states_extras, batch.one_hot_actions.float())
             item_loss = F.mse_loss(prediction, target, reduction="none").mean(dim=-1)
             loss = (item_loss * batch.masks).sum() / batch.masks.sum().clamp_min(1)
             self.estm_optimiser.zero_grad()
@@ -194,9 +189,7 @@ class LAIES(DQN):
             eye = torch.eye(batch.n_actions, device=self.device)
             individual = torch.zeros_like(batch.rewards)
             for agent in range(batch.n_agents):
-                candidates = (
-                    actions.unsqueeze(-3).expand(*actions.shape[:-2], batch.n_actions, *actions.shape[-2:]).clone()
-                )
+                candidates = actions.unsqueeze(-3).expand(*actions.shape[:-2], batch.n_actions, *actions.shape[-2:]).clone()
                 candidates[..., agent, :] = eye
                 predictions = self.estm.counterfactual(batch.states, batch.states_extras, candidates, previous_hidden)
                 valid = available[..., agent, :] & ~actions[..., agent, :].bool()
@@ -205,26 +198,18 @@ class LAIES(DQN):
                 diligence = F.mse_loss(factual, counterfactual, reduction="none").mean(dim=-1)
                 individual += diligence * (count.squeeze(-1) > 0)
 
-            sampled = torch.multinomial(
-                available.float().reshape(-1, batch.n_actions), self.cdi_samples, replacement=True
-            )
+            sampled = torch.multinomial(available.float().reshape(-1, batch.n_actions), self.cdi_samples, replacement=True)
             sampled = sampled.reshape(*available.shape[:-2], batch.n_agents, self.cdi_samples).movedim(-1, -2)
             factual_actions = batch.actions.unsqueeze(-2)
             has_counterfactual = available.sum(dim=-1).prod(dim=-1) > 1
             same_as_factual = (sampled == factual_actions).all(dim=-1) & has_counterfactual.unsqueeze(-1)
             while same_as_factual.any():
-                replacements = torch.multinomial(
-                    available.float().reshape(-1, batch.n_actions), self.cdi_samples, replacement=True
-                )
-                replacements = replacements.reshape(*available.shape[:-2], batch.n_agents, self.cdi_samples).movedim(
-                    -1, -2
-                )
+                replacements = torch.multinomial(available.float().reshape(-1, batch.n_actions), self.cdi_samples, replacement=True)
+                replacements = replacements.reshape(*available.shape[:-2], batch.n_agents, self.cdi_samples).movedim(-1, -2)
                 sampled = torch.where(same_as_factual.unsqueeze(-1), replacements, sampled)
                 same_as_factual = (sampled == factual_actions).all(dim=-1) & has_counterfactual.unsqueeze(-1)
             joint_candidates = F.one_hot(sampled, batch.n_actions).float()
-            joint_predictions = self.estm.counterfactual(
-                batch.states, batch.states_extras, joint_candidates, previous_hidden
-            )
+            joint_predictions = self.estm.counterfactual(batch.states, batch.states_extras, joint_candidates, previous_hidden)
             collaborative = F.mse_loss(factual, joint_predictions.mean(dim=-2), reduction="none").mean(dim=-1)
 
             intrinsic = self.beta_idi * individual + self.beta_cdi * collaborative

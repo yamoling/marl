@@ -28,6 +28,14 @@ class Batch(ABC):
         Extend the current batch with some data.
         """
 
+    @property
+    def individual_rewards(self) -> bool:
+        """
+        Whether the rewards, dones and masks carry a per-agent axis, i.e. whether `for_individual_learners`
+        has been applied to this batch.
+        """
+        return self._individual_learners_applied
+
     def for_individual_learners(self) -> "Batch":
         """
         Reshape rewards, dones such that each agent has its own (identical) signal.
@@ -68,9 +76,7 @@ class Batch(ABC):
         std = torch.sqrt(torch.sum(self.masks * (tensor - mean) ** 2) / self.n_items)
         return (tensor - mean) / (std + 1e-8)
 
-    def compute_mc_returns(
-        self, gamma: float, next_value: torch.Tensor | float = 0, *, next_values: torch.Tensor | None = None
-    ):
+    def compute_mc_returns(self, gamma: float, next_value: torch.Tensor | float = 0, *, next_values: torch.Tensor | None = None):
         """
         Compute the advantages using the Monte Carlo method, i.e. the discounted sum of rewards until the end of the episode.
 

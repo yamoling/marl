@@ -179,9 +179,7 @@ def _start_run(
         case str(s) if s.startswith("cuda"):
             device = torch.device(s)
         case "auto" | None:
-            device = get_device(
-                "auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus, affinity=device_affinity
-            )
+            device = get_device("auto", auto_device_strategy, estimated_gpu_memory, disabled_gpus, affinity=device_affinity)
         case other:
             raise ValueError(f"Invalid device_type: {other}")
     logger.info(f"Selected device {device} for {run.rundir}")

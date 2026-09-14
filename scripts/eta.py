@@ -118,9 +118,7 @@ def main() -> int:
     except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
         raise ValueError(f"{experiment_path} must contain a numeric n_steps value") from error
 
-    train_files = sorted(
-        experiment_dir.glob("run-*/train.csv"), key=lambda path: int(path.parent.name.removeprefix("run-"))
-    )
+    train_files = sorted(experiment_dir.glob("run-*/train.csv"), key=lambda path: int(path.parent.name.removeprefix("run-")))
     if not train_files:
         raise FileNotFoundError(f"No run-*/train.csv files found in {experiment_dir}")
 
@@ -139,9 +137,7 @@ def main() -> int:
     for run in progress:
         percentage = min(100.0, 100.0 * run.step / total_steps) if total_steps > 0 else 100.0
         status = (
-            f"complete in {format_duration(run.elapsed_seconds)}"
-            if run.step >= total_steps
-            else f"ETA {format_duration(run.eta_seconds)}"
+            f"complete in {format_duration(run.elapsed_seconds)}" if run.step >= total_steps else f"ETA {format_duration(run.eta_seconds)}"
         )
         rate = "unknown" if run.steps_per_second is None else f"{run.steps_per_second:.6f} steps/s"
         print(f"  {run.path.name}: {run.step:g}/{total_steps:g} steps ({percentage:.2f}%) - {rate} - {status}")

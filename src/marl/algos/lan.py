@@ -47,9 +47,7 @@ class LAN(DQN[None]):
         self._initial_targets_synced = False
 
     @classmethod
-    def from_env(
-        cls, env: EnvConfig, *, hidden_size: int = 64, embedding_size: int = 128, mean_center: bool = False, **kwargs
-    ):
+    def from_env(cls, env: EnvConfig, *, hidden_size: int = 64, embedding_size: int = 128, mean_center: bool = False, **kwargs):
         """Build serializable LAN networks for a scalar-reward environment. @ai-generated"""
         if env.n_objectives != 1:
             raise ValueError("LAN requires a scalar shared reward")
@@ -125,9 +123,7 @@ class LAN(DQN[None]):
             selection = target_advantages
         indices = selection.masked_fill(~batch.next_available_actions, -torch.inf).argmax(-1, keepdim=True)
         next_advantages = target_advantages.gather(-1, indices).squeeze(-1)
-        next_value = self.target_value(
-            histories[1:], batch.next_obs, batch.next_extras, batch.next_states, batch.next_states_extras
-        )
+        next_value = self.target_value(histories[1:], batch.next_obs, batch.next_extras, batch.next_states, batch.next_states_extras)
         return batch.rewards + self.gamma * (next_value + next_advantages) * batch.not_dones
 
     def _update(self, time_step: int):

@@ -29,7 +29,7 @@ class DRU:  # Source : https://github.com/minqi/learning-to-communicate-pytorch
                     for b in range(idx.size(0)):
                         m_[b, idx[b]] = 1.0
                 else:
-                    raise ValueError("Wrong message shape: {}".format(m.size()))
+                    raise ValueError(f"Wrong message shape: {m.size()}")
                 return m_
         else:
             scale = 2 * 20

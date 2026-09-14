@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Sequence
 
 import torch
 from marlenv import MARLEnv
@@ -22,9 +22,7 @@ def from_env(env: MARLEnv | EnvConfig, recurrent: bool, *, independent: bool = T
     network_class = registry.get(config)
     if network_class is not None:
         return network_class.from_env(env, independent=independent, **init_kwargs)
-    err_msg = "\n".join(
-        [f" - Shape Len: {shape_len}, Recurrent: {is_recurrent}" for shape_len, is_recurrent in registry.keys()]
-    )
+    err_msg = "\n".join([f" - Shape Len: {shape_len}, Recurrent: {is_recurrent}" for shape_len, is_recurrent in registry])
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")
 
 

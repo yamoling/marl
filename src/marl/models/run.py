@@ -274,9 +274,7 @@ class Run[E: MARLEnv, T: Trainer](LightRun):
         agent = self.make_replay_agent(time_step, test_num, only_saved_actions)
         seed = compute_test_seed(time_step, test_num)
         episode, frames, detailed_actions = seeded_rollout(test_env, agent, seed, compute_frames=True)
-        return ReplayEpisode(
-            self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent
-        )
+        return ReplayEpisode(self.runpath, time_step, test_num, episode, frames, detailed_actions, test_env.action_space, agent)
 
     def __hash__(self):
         return hash(self.rundir)

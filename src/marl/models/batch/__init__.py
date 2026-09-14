@@ -1,5 +1,5 @@
 from .batch import Batch
-from .transition_batch import TransitionBatch
 from .episode_batch import EpisodeBatch
+from .transition_batch import TransitionBatch
 
-__all__ = ["Batch", "TransitionBatch", "EpisodeBatch"]
+__all__ = ["Batch", "EpisodeBatch", "TransitionBatch"]

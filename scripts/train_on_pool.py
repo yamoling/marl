@@ -44,18 +44,14 @@ class Args(tap.TypedArgs):
     pool_size: int = tap.arg("--pool-size", default=500, help="Size of the training pool (positive integer).")
     n_tests: int = tap.arg("--n-tests", help="Number of test maps (positive integer).")
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
-    algos: list[Algo] = tap.arg(
-        "--algos", default=list(ALGOS), nargs="+", help="Algorithms to train (defaults to all algorithms)."
-    )
+    algos: list[Algo] = tap.arg("--algos", default=list(ALGOS), nargs="+", help="Algorithms to train (defaults to all algorithms).")
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="scatter")
     study_journal: Path = tap.arg("--study-journal", default=Path("optuna_study.journal"))
     quiet: bool = tap.arg("--quiet", default=True)
     dry_run: bool = tap.arg("--dry-run", default=False)
     skip_existing: bool = tap.arg("--skip-existing", default=True)
     test_interval: int = tap.arg("--test-interval", default=50_000)
-    logdir_prefix: str = tap.arg(
-        "--logdir-prefix", default="", help="Prefix prepended to the experiment log directory name."
-    )
+    logdir_prefix: str = tap.arg("--logdir-prefix", default="", help="Prefix prepended to the experiment log directory name.")
 
 
 def layout_files(pool_dir: Path):
@@ -122,14 +118,10 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
             return
         if len(seeds) == 0:
             if args.skip_existing:
-                logger.info(
-                    f"Skipping existing experiment: {logdir} ({len(completed_seeds)}/{args.n_seeds} runs complete)"
-                )
+                logger.info(f"Skipping existing experiment: {logdir} ({len(completed_seeds)}/{args.n_seeds} runs complete)")
                 return
             raise FileExistsError(f"Experiment directory already exists: {logdir}")
-        logger.info(
-            f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}"
-        )
+        logger.info(f"Experiment {logdir} has only {len(completed_seeds)}/{args.n_seeds} complete runs; starting missing seeds {seeds}")
     else:
         seeds = list(requested_seeds)
         if args.dry_run:

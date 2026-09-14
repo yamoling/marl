@@ -46,12 +46,7 @@ legacy-gpu = ["torch<2.8"]
 modern-gpu = ["torch"]
 
 [dependency-groups]
-dev = [
-  "basedpyright>=1.39.3",
-  "pyinstrument>=5.1.2",
-  "pytest>=8.3.2",
-  "ruff>=0.16.1"
-]
+dev = ["basedpyright>=1.39.3", "pyinstrument>=5.1.2", "pytest>=8.3.2", "ruff>=0.16.1"]
 
 [build-system]
 requires = ["hatchling"]
@@ -69,7 +64,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.ruff]
-line-length = 120
+line-length = 140
 
 [tool.uv]
 # Default dependency groups: modern-gpu provides latest PyTorch, dev provides development tools

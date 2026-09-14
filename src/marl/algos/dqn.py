@@ -183,9 +183,7 @@ class DQN[M: (Mixer | None)](Trainer):
         """Gather the selected action while preserving any objective dimension."""
         all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
         if self.qnetwork.is_multi_objective:
-            indices = (
-                batch.actions.unsqueeze(-1).unsqueeze(-1).expand(*batch.actions.shape, 1, self.qnetwork.n_objectives)
-            )
+            indices = batch.actions.unsqueeze(-1).unsqueeze(-1).expand(*batch.actions.shape, 1, self.qnetwork.n_objectives)
             qvalues = torch.gather(all_qvalues, dim=-2, index=indices).squeeze(-2)
         else:
             qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
@@ -223,9 +221,7 @@ class DQN[M: (Mixer | None)](Trainer):
         self.optimiser.zero_grad()
         td_loss.backward()
         if self.grad_norm_clipping is not None:
-            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(
-                self.target_updater.parameters, self.grad_norm_clipping
-            ).item()
+            logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(self.target_updater.parameters, self.grad_norm_clipping).item()
         self.optimiser.step()
         logs = logs | self.memory.update(time_step, td_error=td_error)
         return logs

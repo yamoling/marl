@@ -1,7 +1,7 @@
 # type: ignore
 
-import os
 import logging
+import os
 from pathlib import Path
 
 import numpy as np
@@ -265,9 +265,16 @@ class Selector(App):
                     self.handle_distillation(episode)
                 )
             else:
-                distilled_filters, distilled_bias, distilled_actions, distilled_extras, agent_pos, obs, extras, abs_labels = (
-                    self.handle_distillation(episode)
-                )
+                (
+                    distilled_filters,
+                    distilled_bias,
+                    distilled_actions,
+                    distilled_extras,
+                    agent_pos,
+                    obs,
+                    extras,
+                    abs_labels,
+                ) = self.handle_distillation(episode)
                 if not self.extra:
                     extras = None
             # Insert 7x7 obs into full board if needed
@@ -378,7 +385,15 @@ class Selector(App):
         if "sdt" in str(self.distiler_path):
             dist_type = self.query_one("#dist_switch", Switch).value
             if "individual" in str(self.distiler_path):
-                distilled_filters, distilled_bias, obs, distilled_extras, extras, distilled_actions, agent_pos = [], [], [], [], [], [], []
+                distilled_filters, distilled_bias, obs, distilled_extras, extras, distilled_actions, agent_pos = (
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                    [],
+                )
                 if self.abstract:
                     labels = []
                 for ag in range(episode.n_agents):
@@ -428,7 +443,16 @@ class Selector(App):
                 None,
             )  # Inelegant patch to be symmetric with ind (Additional return of fix features)
         else:
-            return distilled_filters, distilled_bias, distilled_actions, distilled_extras, agent_pos, obs, extras, labels
+            return (
+                distilled_filters,
+                distilled_bias,
+                distilled_actions,
+                distilled_extras,
+                agent_pos,
+                obs,
+                extras,
+                labels,
+            )
 
 
 def main():

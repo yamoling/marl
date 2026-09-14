@@ -1,10 +1,10 @@
 from copy import copy
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
-from marlenv import Episode, Transition
 import torch
+from marlenv import Episode, Transition
 
 from marl.agents import Haven
 from marl.models.trainer import Trainer
@@ -77,7 +77,7 @@ class HavenTrainer(Trainer):
         return meta_transition
 
     def _build_meta_episode(self, episode: Episode) -> Episode:
-        raise Exception("Not tested yet !")
+        raise NotImplementedError("Not tested yet !")
         transitions = list(episode.transitions())
         meta_episode = Episode.new(transitions[0].obs, transitions[0].state)
         reward = np.zeros_like(transitions[0].reward)
@@ -90,7 +90,7 @@ class HavenTrainer(Trainer):
                 reward += worker_transition.reward
         return meta_episode
 
-    def make_meta_transition(self, worker_transition: Transition, cumulative_reward: Optional[np.ndarray] = None) -> Transition:
+    def make_meta_transition(self, worker_transition: Transition, cumulative_reward: np.ndarray | None = None) -> Transition:
         # Avoid overhead with shallow copy
         obs = copy(worker_transition.obs)
         next_obs = copy(worker_transition.next_obs)

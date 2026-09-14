@@ -1,7 +1,7 @@
 from dataclasses import KW_ONLY, dataclass
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer

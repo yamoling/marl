@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from marlenv import Observation
 
-from marl.models import Agent, Action
+from marl.models import Action, Agent
 
 if TYPE_CHECKING:
     from marl.models import Policy

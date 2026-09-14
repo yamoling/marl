@@ -3,9 +3,9 @@ import math
 from dataclasses import KW_ONLY, dataclass
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from marlenv import DiscreteMARLEnv
+from torch import nn
 
 from marl.env import EnvConfig
 from marl.logging import warn_once

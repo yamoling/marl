@@ -37,9 +37,7 @@ def simple_run[E: MARLEnv, T: Trainer](run: Run[E, T], quiet: bool, render_tests
 
             episode_num, time_step = 0, 0
             while time_step < run.n_steps:
-                episode = _train_episode(
-                    env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run
-                )
+                episode = _train_episode(env, test_env, agent, trainer, time_step, episode_num, render_tests, quiet, run)
                 episode_num += 1
                 time_step += len(episode)
                 pbar.update(len(episode))

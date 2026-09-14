@@ -26,8 +26,8 @@ class VBE(Serializable):
     lr: float = 1e-4
 
     def __post_init__(self):
-        self._target_rqfs = list()
-        self._rqfs = list()
+        self._target_rqfs = []
+        self._rqfs = []
         self._optimizers = list[torch.optim.Optimizer]()
         self._bonus_history = []
         self._device = self.rqf.device
@@ -55,7 +55,7 @@ class VBE(Serializable):
                 q_predicted = rqf.forward(data, extras).squeeze(0)
                 # Compute TARGET(s, ·) then gather TARGET(s, a)
                 q_target = target.forward(data, extras).squeeze(0)
-                errors.append((q_target - q_predicted))
+                errors.append(q_target - q_predicted)
         # Stack according to the 1st dimension to have a shape (n_agents, n, n_actions)
         errors = torch.stack(errors, dim=1).abs()
         # Retrieve the maximal prediction error for each agent and for each action

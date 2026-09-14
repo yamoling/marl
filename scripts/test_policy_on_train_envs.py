@@ -129,9 +129,7 @@ def process_task(task: Task) -> tuple[list[dict[str, Any]], list[dict[str, Any]]
         if task.device == "cpu":
             device = torch.device("cpu")
         else:
-            device = torch.device(
-                f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu"
-            )
+            device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
         print(f"Processing {task.runpath} on {device}")
         agent = run.make_agent().to(device)
         train_env, test_env = None, None
@@ -200,9 +198,7 @@ def collect_tasks(
             missing_test = gather_missing_time_steps(run.runpath / "test-policy-on-test-envs.csv", timesteps)
             if len(missing_train) == 0 and len(missing_test) == 0:
                 continue
-        tasks.append(
-            Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test), device=device)
-        )
+        tasks.append(Task(runpath=run.runpath, train_steps=list(missing_train), test_steps=list(missing_test), device=device))
     return tasks
 
 

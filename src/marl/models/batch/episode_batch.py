@@ -204,11 +204,7 @@ class EpisodeBatch(Batch):
 
     @cached_property
     def _rewards(self) -> torch.Tensor:
-        rewards = (
-            torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32))
-            .transpose(1, 0)
-            .to(self.device)
-        )
+        rewards = torch.from_numpy(np.array([e.rewards for e in self.episodes], dtype=np.float32)).transpose(1, 0).to(self.device)
         return rewards.squeeze(-1)
 
     @property

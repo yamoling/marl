@@ -1,7 +1,8 @@
 import os
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Self, Sequence, overload
+from typing import Any, Literal, Self, overload
 
 import torch
 from marlenv import Episode, Observation, State, Transition

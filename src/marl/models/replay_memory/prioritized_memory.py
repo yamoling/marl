@@ -1,5 +1,5 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional
 
 import torch
 from sumtree import SumTree
@@ -23,7 +23,7 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     alpha: Schedule
     beta: Schedule
     eps: float
-    td_error_clipping: Optional[float]
+    td_error_clipping: float | None
     """Clip the TD errors to avoid numerical instability. Often required in sparse reward environments."""
 
     def __init__(
@@ -33,7 +33,7 @@ class PrioritizedMemory[T](ReplayMemory[T]):
         alpha: float | Schedule = 0.7,
         beta: float | Schedule = 0.4,
         eps: float = 1e-2,
-        td_error_clipping: Optional[float] = 1.0,
+        td_error_clipping: float | None = 1.0,
     ):
         update_on = "transition" if memory.update_on_transitions else "episode"
         super().__init__(memory.max_size, update_on)
@@ -132,9 +132,7 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     def update(self, time_step: int, /, td_error: torch.Tensor | None = None, **kwargs) -> dict[str, float]:
         """Use maximum absolute error per replay item across agents/time/objectives. @ai-generated"""
         if td_error is None:
-            raise ValueError(
-                "'td_error' keyword argument must be provided to update the priorities of the sampled transitions."
-            )
+            raise ValueError("'td_error' keyword argument must be provided to update the priorities of the sampled transitions.")
         # The first variant we consider is the direct, proportional prioritization where p_i = |δ_i| + eps,
         # where eps is a small positive constant that prevents the edge-case of transitions not being
         # revisited once their error is zero. (Section 3.3)

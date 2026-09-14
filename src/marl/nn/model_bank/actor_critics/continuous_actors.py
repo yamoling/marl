@@ -1,5 +1,6 @@
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Literal, Sequence, overload
+from typing import Literal, overload
 
 import torch
 from marlenv import ContinuousMARLEnv
@@ -41,9 +42,7 @@ def from_env(
     recurrent: bool = False,
     **init_kwargs,
 ):
-    registry: dict[
-        tuple[int, Literal["normal", "multivariate-normal"], bool], type[ContinuousActor[ContinuousDistribution]]
-    ] = {
+    registry: dict[tuple[int, Literal["normal", "multivariate-normal"], bool], type[ContinuousActor[ContinuousDistribution]]] = {
         # (obs shape rank, discrete action space, recurrent)
         (1, "normal", False): NormalLinearActor,
         (1, "normal", True): NormalRecurrentActor,
@@ -56,10 +55,7 @@ def from_env(
     if network_class is not None:
         return network_class.from_env(env, independent=independent, **init_kwargs)
     err_msg = "\n".join(
-        [
-            f" - Shape Len: {shape_len}, distribution: {dist}, recurrent: {is_recurrent}"
-            for shape_len, dist, is_recurrent in registry.keys()
-        ]
+        [f" - Shape Len: {shape_len}, distribution: {dist}, recurrent: {is_recurrent}" for shape_len, dist, is_recurrent in registry]
     )
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")
 

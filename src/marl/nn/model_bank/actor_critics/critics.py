@@ -1,5 +1,5 @@
+from collections.abc import Sequence
 from dataclasses import KW_ONLY, dataclass
-from typing import Sequence
 
 import torch
 from marlenv import MARLEnv
@@ -29,7 +29,7 @@ def from_env(env: MARLEnv | EnvConfig, *, independent: bool = True, recurrent: b
     err_msg = "\n".join(
         [
             f" - Shape Len: {shape_len}, Discrete: {is_discrete}, Recurrent: {is_recurrent}"
-            for shape_len, is_discrete, is_recurrent in registry.keys()
+            for shape_len, is_discrete, is_recurrent in registry
         ]
     )
     raise NotImplementedError(f"Unsupported configuration: {config}.\nSupported combinations are:\n{err_msg}")

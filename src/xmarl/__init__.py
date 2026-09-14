@@ -1,10 +1,10 @@
-from .frame_viewer import FrameViewer, ActFrameViewer, AbstractActFrameViewer, HeatmapActFrameViewer
 from .FilePicker import FilePickerScreen
+from .frame_viewer import AbstractActFrameViewer, ActFrameViewer, FrameViewer, HeatmapActFrameViewer
 
 __all__ = [
-    "FrameViewer",
-    "ActFrameViewer",
     "AbstractActFrameViewer",
-    "HeatmapActFrameViewer",
+    "ActFrameViewer",
     "FilePickerScreen",
+    "FrameViewer",
+    "HeatmapActFrameViewer",
 ]

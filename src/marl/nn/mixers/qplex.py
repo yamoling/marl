@@ -1,8 +1,8 @@
 from dataclasses import KW_ONLY, dataclass
 
 import torch
-import torch.nn as nn
 from marlenv import DiscreteMARLEnv
+from torch import nn
 
 from marl.env import EnvConfig
 from marl.models.nn import StateMixer
@@ -33,12 +33,8 @@ class DMAQSIWeight(nn.Module):
         self.action_extractors = nn.ModuleList()
         for _ in range(num_kernel):
             self.key_extractors.append(self._make_head(self.state_dim, 1, adv_hypernet_layers, adv_hypernet_embed))
-            self.agent_extractors.append(
-                self._make_head(self.state_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed)
-            )
-            self.action_extractors.append(
-                self._make_head(self.state_action_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed)
-            )
+            self.agent_extractors.append(self._make_head(self.state_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed))
+            self.action_extractors.append(self._make_head(self.state_action_dim, self.n_agents, adv_hypernet_layers, adv_hypernet_embed))
 
     @staticmethod
     def _make_head(in_features: int, out_features: int, n_layers: int, hidden_size: int) -> nn.Module:

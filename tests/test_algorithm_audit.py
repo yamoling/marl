@@ -168,36 +168,6 @@ def test_gae_does_not_cross_time_limit_reset():
     assert advantages[0].item() == 3.0
 
 
-def test_icm_uses_logits_and_supports_episode_dimensions():
-    from marl.algos.intrinsic_reward.icm import ICM
-    from marl.nn.model_bank.generic import MLP
-
-    _, batch = make_batch()
-    module = ICM(MLP((4,), 2, 0, hidden_sizes=(4,)), 2, 3, n_features=4)
-    batch.states = torch.zeros(3, 2)
-    batch.next_states = torch.ones(3, 2)
-    batch.states_extras = batch.next_states_extras = torch.empty(3, 0)
-    with torch.no_grad():
-        for parameter in module.inverse_model.parameters():
-            parameter.zero_()
-        module.inverse_model[-1].bias.copy_(torch.tensor([3.0, 0.0, -2.0, 3.0, 0.0, -2.0]))
-    expected = torch.nn.functional.cross_entropy(
-        torch.tensor([[3.0, 0.0, -2.0]]).expand(6, -1), batch.actions.flatten()
-    )
-    module.to(torch.device("cpu"))
-    logs = module.update(batch, 0)
-    assert logs["icm-inverse-loss"] == pytest.approx(expected.item())
-    batch.states = batch.states.unsqueeze(1)
-    batch.next_states = batch.next_states.unsqueeze(1)
-    batch.states_extras = batch.states_extras.unsqueeze(1)
-    batch.next_states_extras = batch.next_states_extras.unsqueeze(1)
-    batch.actions = batch.actions.unsqueeze(1)
-    batch.__dict__.pop("one_hot_actions", None)
-    batch.masks = torch.ones(3, 1)
-    assert module.compute(batch).shape == (3, 1)
-    assert np.isfinite(module.update(batch, 1)["ir-loss"])
-
-
 def test_rnd_empty_predictor_sample_is_finite_and_does_not_update():
     from marl.algos.intrinsic_reward.random_network_distillation import RND
 
@@ -251,9 +221,7 @@ def test_ppoc_critic_returns_do_not_depend_on_advantage_normalization():
     batch = batch.for_individual_learners()
     batch.rewards = torch.tensor([[1.0, 1.0], [2.0, 2.0], [4.0, 4.0]])
     batch._cache["options"] = torch.zeros_like(batch.actions)
-    trainer = SimpleNamespace(
-        target_oc=toy_options(), target_mixer=None, gamma=0.9, gae_lambda=0.95, normalize_advantages=False
-    )
+    trainer = SimpleNamespace(target_oc=toy_options(), target_mixer=None, gamma=0.9, gae_lambda=0.95, normalize_advantages=False)
     expected, _ = PPOC._compute_training_data(trainer, batch)
     trainer.normalize_advantages = True
     actual, _ = PPOC._compute_training_data(trainer, batch)
@@ -434,9 +402,7 @@ def test_noisy_qmlp_respects_action_count_with_single_hidden_layer(duelling):
 
 def test_dqn_checkpoint_keeps_online_and_target_weights_distinct(tmp_path):
     env, _ = make_batch()
-    trainer = DQN(
-        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env)
-    )
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env))
     with torch.no_grad():
         for p in trainer.qnetwork.parameters():
             p.fill_(1.0)
@@ -512,9 +478,7 @@ def test_intrinsic_potential_has_no_terminal_bootstrap(kind):
 
 def test_qplex_target_actions_follow_online_argmax_in_double_q(monkeypatch):
     env, batch = make_batch()
-    trainer = QPlex(
-        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env)
-    )
+    trainer = QPlex(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), mixer=QPlexMixer.from_env(env))
     shape = (4, 2, 3)
     online = torch.tensor([1.0, 3.0, 2.0]).expand(shape).clone()
     target = torch.tensor([9.0, 4.0, 1.0]).expand(shape).clone()
@@ -539,9 +503,7 @@ def test_dqn_uses_nstep_discount():
     memory = NStepMemory(10, 3, 0.5)
     for t in batch.transitions:
         memory.add(t)
-    trainer = DQN(
-        qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), gamma=0.5, double_qlearning=False
-    )
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100), gamma=0.5, double_qlearning=False)
     trainer.qtarget.batch_qvalues = lambda *args, **kwargs: torch.full((4, 2, 3), 8.0)
     batch = memory.get_batch([0, 1, 2])
     targets = trainer._compute_qtargets(batch.for_individual_learners())

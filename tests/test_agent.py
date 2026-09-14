@@ -4,7 +4,6 @@ RandomOneHot, the ReplayAgent family and the bandit module.
 """
 
 import numpy as np
-import pytest
 import torch
 from marlenv.catalog import DiscreteMockEnv
 

@@ -71,17 +71,17 @@ def from_env(
 
 
 __all__ = [
-    "from_env",
     "CategoricalConvActor",
     "CategoricalLinearActor",
     "CategoricalRecurrentActor",
     "CategoricalRecurrentConvActor",
+    "ConvCritic",
+    "LinearCritic",
     "NormalConvActor",
     "NormalLinearActor",
     "NormalRecurrentActor",
     "NormalRecurrentConvActor",
-    "ConvCritic",
-    "LinearCritic",
     "RecurrentConvCritic",
     "RecurrentCritic",
+    "from_env",
 ]

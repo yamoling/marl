@@ -1,7 +1,8 @@
 import random
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Literal
 
 import torch
 from marlenv import MARLEnv
@@ -34,9 +35,7 @@ class CNNOptionCritic(OptionCriticNetwork):
         from marl.nn.model_bank.qnetworks import QCNN
 
         assert len(env.observation_shape) == 3
-        policies = torch.nn.ModuleList(
-            [CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)]
-        )
+        policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
         assert len(env.observation_shape) == 3
         terminations = CNN((n_options,), env.observation_shape, env.extras_size, output_activation="sigmoid")
         q_options = QCNN(n_options, env.observation_shape, env.extras_shape)
@@ -53,9 +52,7 @@ class CNNOptionCritic(OptionCriticNetwork):
         # Squeeze the last dimension introduced by the gathering
         return probs.squeeze(-1)
 
-    def policy(
-        self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor
-    ):
+    def policy(self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor):
         if not isinstance(options, Tensor):
             logits = [self.policies[option].forward(obs, extra) for option, obs, extra in zip(options, obs, extras)]
             logits = torch.stack(logits)
@@ -93,9 +90,7 @@ class SimpleOptionCritic(Actor[torch.distributions.Categorical]):
 
     def __post_init__(self):
         super().__post_init__()
-        self.policies = ModuleList(
-            [self.options_policy] + [deepcopy(self.options_policy) for p in range(self.n_options - 1)]
-        )
+        self.policies = ModuleList([self.options_policy] + [deepcopy(self.options_policy) for p in range(self.n_options - 1)])
         self.current_options = [random.randint(0, self.n_options - 1) for _ in range(self.n_agents)]
         """The options currently selected by the agents."""
 

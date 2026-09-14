@@ -143,9 +143,7 @@ class PPOC(Trainer):
         e = 0
         epoch_indices = (np.random.permutation(batch.size) for _ in range(self.n_epochs))
         minibatches = (
-            indices[start : start + self.minibatch_size]
-            for indices in epoch_indices
-            for start in range(0, batch.size, self.minibatch_size)
+            indices[start : start + self.minibatch_size] for indices in epoch_indices for start in range(0, batch.size, self.minibatch_size)
         )
         early_stopped = False
         for e, indices in enumerate(minibatches):
@@ -185,9 +183,7 @@ class PPOC(Trainer):
             log_lists["loss"].append(loss.item())
             log_lists["ratio"].append(ratio.numpy(force=True))
 
-        log_lists = {
-            key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()
-        }
+        log_lists = {key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()}
         logs = {
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
@@ -249,18 +245,14 @@ class PPOC(Trainer):
 
     def _compute_termination_loss(self, minibatch: Batch, mini_options: torch.Tensor):
         """Average valid termination gradients without duplicating the agent axis. @ai-generated"""
-        next_termination_probs = self.oc.termination_probability(
-            minibatch.next_obs, minibatch.next_extras, mini_options
-        )
+        next_termination_probs = self.oc.termination_probability(minibatch.next_obs, minibatch.next_extras, mini_options)
         with torch.no_grad():
             next_q_options = self.target_oc.compute_q_options(minibatch.next_obs, minibatch.next_extras)
             next_q_max = next_q_options.max(dim=-1).values
             next_q_current = torch.gather(next_q_options, dim=-1, index=mini_options).squeeze(-1)
             if self.target_mixer is not None:
                 next_q_max = self.target_mixer.forward(next_q_max, minibatch.next_states, minibatch.next_states_extras)
-                next_q_current = self.target_mixer.forward(
-                    next_q_current, minibatch.next_states, minibatch.next_states_extras
-                )
+                next_q_current = self.target_mixer.forward(next_q_current, minibatch.next_states, minibatch.next_states_extras)
             next_advantage = next_q_current - next_q_max
             if self.target_mixer is not None:
                 next_advantage = next_advantage.unsqueeze(-1)
@@ -268,9 +260,7 @@ class PPOC(Trainer):
         termination_mask = minibatch.not_dones * minibatch.masks
         if termination_mask.ndim < next_termination_probs.ndim:
             termination_mask = termination_mask.unsqueeze(-1)
-        termination_loss = torch.sum(
-            next_termination_probs * (next_advantage + self.termination_reg) * termination_mask
-        )
+        termination_loss = torch.sum(next_termination_probs * (next_advantage + self.termination_reg) * termination_mask)
         return termination_loss / minibatch.n_items
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, float]:

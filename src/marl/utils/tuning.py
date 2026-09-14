@@ -72,7 +72,7 @@ def tuning(
     high: float | None = None,
     *,
     log: bool = False,
-    step: float | int | None = None,
+    step: float | None = None,
     choices: list | None = None,
 ) -> dict[str, Any]:
     """
@@ -130,9 +130,9 @@ def tuning(
 # ---------------------------------------------------------------------------
 
 
-def suggest(
+def suggest[T](
     cls: type[T],
-    trial: "Trial",
+    trial: Trial,
     *,
     prefix: str = "",
     catch_all: dict[str, Any] | None = None,
@@ -225,7 +225,7 @@ def suggest(
 
     try:
         hints = get_type_hints(cls)
-    except Exception:
+    except TypeError:
         hints = {}
 
     init_kwargs: dict[str, Any] = {}

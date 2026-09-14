@@ -145,9 +145,7 @@ def resolve_type(field_type):
     # Resolve `x: T` where `T: SomeClass` → `SomeClass`
     if isinstance(field_type, TypeVar):
         if field_type.__bound__ is None:
-            raise TypeError(
-                f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized."
-            )
+            raise TypeError(f"Generic type variable {field_type} is not constrained. Only constrained can be deserialized.")
         return resolve_type(field_type.__bound__)
     # Resolve `x: SomeGenericType[T]` → `SomeGenericType`
     origin = get_origin(field_type)

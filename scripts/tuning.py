@@ -110,9 +110,7 @@ def parse_pool_spec(pool_dir: Path) -> PoolSpec:
     layout_files = sorted(path for path in pool_dir.iterdir() if path.is_file())
     required_layouts = TRAIN_POOL_SIZE + TEST_POOL_SIZE
     if len(layout_files) < required_layouts:
-        raise ValueError(
-            f"Layout pool {pool_dir} contains {len(layout_files)} files; at least {required_layouts} are required."
-        )
+        raise ValueError(f"Layout pool {pool_dir} contains {len(layout_files)} files; at least {required_layouts} are required.")
 
     world = World.from_file(layout_files[0].as_posix())
     n_lasers = len(world.laser_sources)
@@ -274,8 +272,7 @@ def tune(storage: JournalStorage, spec: PoolSpec, algo: Algo, args: Args):
     remaining = max(0, args.budget - completed)
     if args.dry_run:
         LOGGER.info(
-            "[DRY RUN] %s: %d total (%d complete, %d failed, %d pruned, %d running, %d waiting); "
-            "would start %d additional trials.",
+            "[DRY RUN] %s: %d total (%d complete, %d failed, %d pruned, %d running, %d waiting); would start %d additional trials.",
             study_name,
             len(study.trials),
             completed,

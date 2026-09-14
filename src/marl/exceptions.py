@@ -1,8 +1,6 @@
 class CorruptExperimentException(Exception):
     """Raised when the experiment is corrupted and cannot be loaded."""
 
-    pass
-
 
 class ExperimentVersionMismatch(Exception):
     """Raised when the experiment is corrupted and cannot be loaded."""

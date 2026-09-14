@@ -1,9 +1,11 @@
-from copy import deepcopy
-import time
-from typing import Literal, Callable, Optional
-from marlenv import MARLEnv, State
-import numpy as np
 import random
+import time
+from collections.abc import Callable
+from copy import deepcopy
+from typing import Literal
+
+import numpy as np
+from marlenv import MARLEnv, State
 
 from .node import Node
 
@@ -98,7 +100,7 @@ class MCTS:
             node = self.policy(node)
         return node
 
-    def _explore(self, node: Node, priors: Optional[list[float]] = None) -> Node:
+    def _explore(self, node: Node, priors: list[float] | None = None) -> Node:
         """Expand a leaf node by adding all its children"""
         assert node.is_leaf, "Only leaf node should be expanded"
         if node.is_terminal:

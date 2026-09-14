@@ -6,15 +6,15 @@ from .replay_agent import ReplayAgent
 from .simple_agent import ContinuousAgent, DiscreteAgent, DiscreteOneHotAgent, SimpleAgent
 
 __all__ = [
-    "RandomAgent",
+    "ContinuousAgent",
     "DQNAgent",
+    "DiscreteAgent",
+    "DiscreteOneHotAgent",
     "Haven",
+    "OptionAgent",
+    "QAgent",
+    "RandomAgent",
+    "RandomOneHot",
     "ReplayAgent",
     "SimpleAgent",
-    "QAgent",
-    "OptionAgent",
-    "ContinuousAgent",
-    "DiscreteAgent",
-    "RandomOneHot",
-    "DiscreteOneHotAgent",
 ]

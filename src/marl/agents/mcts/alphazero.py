@@ -91,9 +91,7 @@ class AlphaZero:
         states_data = torch.from_numpy(np.array([all_states[i].data for i in indices])).to(self.device)
         state_extras = torch.from_numpy(np.array([all_states[i].extras for i in indices])).to(self.device)
         qvalues = torch.from_numpy(np.array([all_qvalues[i] for i in indices], dtype=np.float32)).to(self.device)
-        target_probs = torch.from_numpy(np.array([all_target_probs[i] for i in indices], dtype=np.float32)).to(
-            self.device
-        )
+        target_probs = torch.from_numpy(np.array([all_target_probs[i] for i in indices], dtype=np.float32)).to(self.device)
         actions = torch.from_numpy(np.array([all_actions[i] for i in indices])).to(self.device)
         availables = torch.from_numpy(np.array([all_availables[i] for i in indices])).to(self.device)
 

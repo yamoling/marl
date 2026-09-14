@@ -16,7 +16,7 @@ get_subclass_map         Build a ``{name: cls}`` dict for a whole hierarchy.
 
 import inspect
 from types import NoneType, UnionType
-from typing import Any, Literal, Type, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
 
 
 def unwrap_optional(hint: Any) -> Any:
@@ -106,7 +106,7 @@ def get_concrete_subclasses(cls: type) -> list[type]:
     return result
 
 
-def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
+def get_subclass_from_name(base_class: type, class_name: str) -> type | None:
     """
     Return the first subclass of *base_class* whose ``__name__`` matches
     *class_name*, searching the whole subclass tree depth-first.
@@ -126,7 +126,7 @@ def get_subclass_from_name(base_class: Type, class_name: str) -> Type | None:
     return None
 
 
-def get_subclass_map(base_class: Type) -> dict[str, Type]:
+def get_subclass_map(base_class: type) -> dict[str, type]:
     """
     Build a ``{class_name: class}`` mapping for *base_class* and every
     subclass in its hierarchy, recursively.
@@ -134,7 +134,7 @@ def get_subclass_map(base_class: Type) -> dict[str, Type]:
     Unlike :func:`get_subclass_from_name`, *base_class* **is** included in
     the returned mapping under its own ``__name__``.
     """
-    mapping: dict[str, Type] = {base_class.__name__: base_class}
+    mapping: dict[str, type] = {base_class.__name__: base_class}
     for subclass in base_class.__subclasses__():
         mapping[subclass.__name__] = subclass
         mapping.update(get_subclass_map(subclass))

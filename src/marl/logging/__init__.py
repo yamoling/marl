@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Sequence
 from functools import lru_cache
-from typing import Literal, Sequence, TypeAlias
+from typing import Literal
 
 from .csv_logger import CSVLogger
 from .logger import Logger, LogReader
@@ -11,8 +12,8 @@ from .sql_logger import SQLiteLogger
 from .tensorboard import TBLogger
 from .wandb import WABLogger
 
-LoggerType: TypeAlias = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite", "progress"]
-LogSpecs: TypeAlias = LoggerType | Sequence[LoggerType]
+type LoggerType = Literal["tensorboard", "csv", "wandb", "neptune", "sqlite", "progress"]
+type LogSpecs = LoggerType | Sequence[LoggerType]
 # Dataframe columns
 TIME_STEP_COL = "time_step"
 TIMESTAMP_COL = "timestamp_sec"
@@ -28,19 +29,19 @@ def warn_once(msg: str):
 
 
 __all__ = [
-    "Logger",
-    "CSVLogger",
-    "SQLiteLogger",
-    "MultiLogger",
-    "LogReader",
-    "TIME_STEP_COL",
     "TIMESTAMP_COL",
-    "WABLogger",
-    "NeptuneLogger",
-    "TBLogger",
-    "ProgressLogger",
-    "LoggerType",
+    "TIME_STEP_COL",
+    "CSVLogger",
+    "LogReader",
     "LogSpecs",
+    "Logger",
+    "LoggerType",
+    "MultiLogger",
+    "NeptuneLogger",
+    "ProgressLogger",
+    "SQLiteLogger",
+    "TBLogger",
     "TickColumn",
+    "WABLogger",
     "warn_once",
 ]

@@ -6,8 +6,8 @@ from .hierarchical_agent import HierarchicalAgent
 __all__ = [
     "Agent",
     "AgentWrapper",
-    "ContextualBandit",
     "CategoricalBandit",
-    "OneHotBandit",
+    "ContextualBandit",
     "HierarchicalAgent",
+    "OneHotBandit",
 ]

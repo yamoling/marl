@@ -1,6 +1,5 @@
-from . import sdt
-from .sdt import SoftDecisionTree
+from . import sdt, utils
 from .distilhandler import DistilHandler
-from . import utils
+from .sdt import SoftDecisionTree
 
-__all__ = ["sdt", "SoftDecisionTree", "DistilHandler", "utils"]
+__all__ = ["DistilHandler", "SoftDecisionTree", "sdt", "utils"]

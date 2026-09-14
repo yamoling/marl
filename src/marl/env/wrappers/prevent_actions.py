@@ -13,15 +13,17 @@ class PreventActions(LLE):
         available = super().available_actions()
         i, j = self.world.agents_positions[0]
         # When right before the middle of the map
-        if j == 1:
-            if i == 0 and self.b_width < 4:
-                available[0, Action.EAST.value] = False
-            elif i == 1 and self.b_width < 2:
-                available[0, Action.EAST.value] = False
-            elif i == 2 and self.b_width < 1:
-                available[0, Action.EAST.value] = False
-            elif i == 3 and self.b_width < 3:
-                available[0, Action.EAST.value] = False
-            elif i == 4 and self.b_width < 5:
-                available[0, Action.EAST.value] = False
+        if j == 1 and (
+            i == 0
+            and self.b_width < 4
+            or i == 1
+            and self.b_width < 2
+            or i == 2
+            and self.b_width < 1
+            or i == 3
+            and self.b_width < 3
+            or i == 4
+            and self.b_width < 5
+        ):
+            available[0, Action.EAST.value] = False
         return available

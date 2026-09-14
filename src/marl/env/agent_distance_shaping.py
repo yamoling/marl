@@ -1,10 +1,12 @@
+from dataclasses import dataclass
+from typing import Literal
+
 import networkx as nx
 import numpy as np
 from lle import LLE, World
 from marlenv import MARLEnv, RLEnvWrapper, Space
 from marlenv.wrappers import PotentialShaping
-from typing import Literal
-from dataclasses import dataclass
+
 from marl.utils import path
 
 
@@ -32,13 +34,12 @@ class AgentDistanceShaping[A: Space](PotentialShaping[A]):
             min_dist = float("inf")
             for exit_pos in world.exit_pos:
                 dist = nx.shortest_path_length(graph, (x, y), exit_pos)
-                if dist < min_dist:
-                    min_dist = dist
+                min_dist = min(min_dist, dist)
             matrix[x, y] = min_dist
         return matrix
 
     def compute_potential(self):
-        distances = list()
+        distances = []
         for pos in self._world.agents_positions:
             distances.append(self._distances[pos])
         match self.aggregation:

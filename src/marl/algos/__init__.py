@@ -1,7 +1,7 @@
 from .acer import ACER
 from .ddpg import DDPG
 from .dqn import DQN
-from .intrinsic_reward import RND, ModelOfOtherAgents, SocialInfluence
+from .intrinsic_reward import ICM, RND, ModelOfOtherAgents, SocialInfluence
 from .laies import LAIES
 from .lan import LAN
 from .maven import MAVEN
@@ -20,6 +20,7 @@ __all__ = [
     "ACER",
     "DDPG",
     "DQN",
+    "ICM",
     "LAIES",
     "LAN",
     "MAVEN",
