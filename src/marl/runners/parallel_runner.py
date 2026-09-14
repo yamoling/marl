@@ -49,7 +49,7 @@ def parallel_run[E: MARLEnv, T: Trainer](
     render_tests: bool = False,
     disabled_gpus: Collection[int] = (),
     quiet: bool = False,
-    limit_torch_threads: bool = True,
+    limit_torch_threads: int | Literal["auto"] | None = 1,
     device_affinity: int | None = None,
 ):
     if n_jobs is None:
@@ -131,7 +131,7 @@ def submit(
     estimated_gpu_memory: int,
     gpu_strategy: str,
     disabled_gpus: Collection[int],
-    limit_torch_threads: bool = True,
+    limit_torch_threads: int | Literal["auto"] | None,
     device_affinity: int | None = None,
 ):
     # Ignore sigint here such that CTRL-C is captured by the parent process
@@ -155,6 +155,17 @@ def submit(
         )
 
 
+def _torch_thread_limit(limit_torch_threads: int | Literal["auto"] | None):
+    if limit_torch_threads is None:
+        return
+    if limit_torch_threads != "auto":
+        torch.set_num_threads(limit_torch_threads)
+        torch.set_num_interop_threads(limit_torch_threads)
+        return
+    torch.set_num_threads(1)
+    torch.set_num_interop_threads(1)
+
+
 def _start_run(
     rundir: str,
     device_type: Literal["cpu", "auto", "cuda"] | str | int | None,
@@ -162,17 +173,15 @@ def _start_run(
     render_tests: bool,
     estimated_gpu_memory: int,
     auto_device_strategy: Literal["scatter", "group"],
-    disabled_gpus: Collection[int] = (),
-    limit_torch_threads: bool = True,
-    device_affinity: int | None = None,
+    disabled_gpus: Collection[int],
+    limit_torch_threads: int | Literal["auto"] | None,
+    device_affinity: int | None,
 ):
     from ..models.run import Run
 
     run = Run.load(Path(rundir))
     setproctitle(f"worker: {run.rundir}")
-    if limit_torch_threads:
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
+    _torch_thread_limit(limit_torch_threads)
     match device_type:
         case int() | "cpu":
             device = torch.device(device_type)

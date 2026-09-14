@@ -21,6 +21,7 @@ Use `Experiment.create`, not direct construction. It writes `experiment.json` im
 ```python
 from marl import Experiment, algos
 from marl.env import LLEConfig
+from marl.models import TransitionMemory
 from marl.nn.model_bank.qnetworks import QMLP
 from marl.nn.model_bank import qnetworks
 
@@ -37,7 +38,7 @@ qnetwork = QMLP(
 )
 # Or get a compatible Q-network from the model bank (preferred way)
 qnetwork = qnetworks.from_env(train_env, recurrent=False, noisy=False, duelling=True, independent=True)
-trainer = algos.DQN(qnetwork, memory_size=10, batch_size=1, train_interval=(1, "step"))
+trainer = algos.DQN(qnetwork, TransitionMemory(50_000), batch_size=1, train_interval=(1, "step"))
 
 experiment = Experiment.create(
     train_env,

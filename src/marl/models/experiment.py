@@ -377,7 +377,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         render_tests: bool = False,
         n_jobs: int | Literal["auto"] = "auto",
         disabled_gpus: Collection[int] = (),
-        limit_torch_threads: bool = True,
+        limit_torch_threads: Literal["auto"] | int | None = "auto",
         device_affinity: int | None = None,
     ):
         """
@@ -400,7 +400,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         if device_affinity is None:
             device_affinity = hash(self.logdir)
         if n_jobs <= 1 or len(runs) <= 1:
-            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus, device_affinity)
+            return sequential_run(runs, device, gpu_strategy, quiet, render_tests, disabled_gpus, device_affinity, limit_torch_threads)
         return parallel_run(
             runs,
             n_jobs,
