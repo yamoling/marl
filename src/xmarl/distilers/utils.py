@@ -12,7 +12,7 @@ def plot_target_distro(targets, path, labels):
     n_classes = len(labels)  # 0‒4
     # counts[i, j] = how many times class j occurs for agent i
     counts = np.stack([np.bincount(np.argmax(targets, axis=-1)[:, i], minlength=n_classes) for i in range(n_agents)])
-    fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
+    _fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
 
     bottom = np.zeros(n_agents)  # where the next bar segment starts
 
@@ -103,7 +103,7 @@ def plot_importance_with_targets(
     default_cycler = plt.rcParams["axes.prop_cycle"]
     class_colors = (default_cycler * cycler(linestyle=["-"])).by_key()["color"][:n_qvals]
 
-    fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
+    _fig, ax = plt.subplots(figsize=(10, 5), tight_layout=True)
     bottom = np.zeros(bins)
     for c in range(n_qvals):
         ax.bar(
@@ -132,7 +132,7 @@ def plot_importance_with_targets(
 
 
 def get_agent_pos(observations: np.ndarray):
-    n_timesteps, n_agents, _, height, width = observations.shape
+    n_timesteps, n_agents, _, _height, _width = observations.shape
     agent_positions = np.zeros((n_timesteps, n_agents, 2), dtype=int)
     # Use advanced indexing to extract each agent’s own layer
     for a in range(n_agents):
@@ -192,7 +192,7 @@ def flatten_observation(observation, n_agents, axis=0):
 
 def get_fixed_features(obs):
     """Gets relevant data of the fixed features, including: wall coordinates, exit coordinates, initial gem coordinates, laser source coordinates (per agent) and laser beam lines (lists of coordinates) (per agent)."""
-    A, L, H, W = obs.shape
+    A, _L, H, W = obs.shape
 
     # Extract fixed global elements layers in shapes: (H,W)
     wall_mask = obs[0, A, :, :] == 1  # Wall layer after agent layers
@@ -269,7 +269,7 @@ def abstract_observation(obs, fix_feats, ag_pos):
     Returns for each agent their abstracted observation. The shape of the abstracted observation might change from agent to agent."""
     ag_pos = ag_pos.tolist()
 
-    A, L, H, W = obs.shape
+    A, _L, H, W = obs.shape
 
     walls_yx, exits_yx, init_gems_yx, agent_l_sources, agent_l_beams = fix_feats
 

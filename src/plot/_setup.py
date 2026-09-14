@@ -18,10 +18,9 @@ class GlobalConfig(TypedDict, total=False):
 
 def _setup(**kwargs: Unpack[GlobalConfig]):
     use_latex = kwargs.get("use_latex", True)
-    if use_latex:
-        if shutil.which("latex") is None:
-            logger.warning("LaTeX is not available on this system. Falling back to non-LaTeX rendering.")
-            use_latex = False
+    if use_latex and shutil.which("latex") is None:
+        logger.warning("LaTeX is not available on this system. Falling back to non-LaTeX rendering.")
+        use_latex = False
     plt.rcParams.update(
         {
             "text.usetex": use_latex,

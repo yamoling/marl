@@ -21,7 +21,7 @@ def get_selection(cur_dir: str, file_list: str) -> pathlib.Path:
         file_str = file_list[int(file_str)]
         file_path = cur_dir / file_str
     else:
-        raise Exception("Not a valid file")
+        raise FileNotFoundError("Not a valid file")
     return file_path
 
 
@@ -97,7 +97,7 @@ def handle_distillation(episode: Episode, distil_path: pathlib.Path, extra: bool
                 episode, e_type
             )  # Give shape for obs and extras to be computed there, or reshape after, need to separate extras that's annoying
     else:
-        raise Exception(f"Distiller {distil_path} not implemented in visualization yet.")
+        raise NotImplementedError(f"Distiller {distil_path} not implemented in visualization yet.")
     return (
         distilled_filters,
         distilled_actions,

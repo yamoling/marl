@@ -41,9 +41,10 @@ class FrameViewer:
     btn_close: Button
     ctrl_height: float
 
-    figures: list[Figure] = []
+    figures: list[Figure]
 
     def __init__(self, frames: list[str], world_shape: tuple[int, int], n_agents: int = 1):
+        self.figures = []
         self.frames = frames
         self.frame_idx = 0
         self.episode_len = len(frames)
@@ -136,7 +137,7 @@ class ActFrameViewer(FrameViewer):
     radio: RadioButtons
     selected_agent: str
     n_agents: int
-    agent_ids: dict = {}
+    agent_ids: dict
 
     agent_pos: np.ndarray
     actions: np.ndarray
@@ -162,6 +163,7 @@ class ActFrameViewer(FrameViewer):
         qvalues: np.ndarray,
         qvalue_labels: list[str],
     ):
+        self.agents_ids = {}
         for i in range(n_agents):
             self.agent_ids[f"Agent {i}"] = i
         self.qvalues = qvalues  # Before parent init, because else qvalues = None
@@ -686,7 +688,7 @@ class HeatmapActFrameViewer(ActFrameViewer):
         elif len(heatmap_dat.shape[2:]) == 2:  # Simple heatmap
             pass
         else:
-            raise Exception(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
+            raise NotImplementedError(f"Heatmap data of dimension {self.heatmap_dat.shape} not supported!")
 
         super().__init__(frames, world_shape, n_agents, agent_pos, actions, action_names, qvalues, qvalue_labels)
 

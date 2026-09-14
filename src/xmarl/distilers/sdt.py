@@ -168,11 +168,12 @@ class SoftDecisionTree[B: Batch](nn.Module):
         lr: float = 0.01,
         lmbda: float = 0.01,
         momentum: float = 0.01,
-        device: torch.device | None = torch.device("cpu"),
+        device: torch.device | None = None,
         agent_id: int = 0,
     ):
         super().__init__()
-
+        if device is None:
+            device = torch.device("cpu")
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.n_agent = n_agent
@@ -262,7 +263,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             if self.agent_id is None:  # Ugly solution for individual distil
                 batch_size = target.shape[0]
                 if (
-                    not batch_size == self.batch_size
+                    batch_size != self.batch_size
                 ):  # because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
                     self.define_extras(batch_size)
 
@@ -298,7 +299,7 @@ class SoftDecisionTree[B: Batch](nn.Module):
             if self.agent_id is None:  # Ugly solution for individual distil
                 batch_size = target.shape[0]
                 if (
-                    not batch_size == self.batch_size
+                    batch_size != self.batch_size
                 ):  # because we have to initialize parameters for batch_size, tensor not matches with batch size cannot be trained
                     self.define_extras(batch_size)
 

@@ -91,5 +91,5 @@ if __name__ == "__main__":
     )
     try:
         tap.Parser(Args).bind(main).run()
-    except Exception as e:
-        logger.error(f"An error occurred while starting a run with command line '{sys.argv}'.\nError: {e}", exc_info=True)
+    except Exception:
+        logger.exception(f"An error occurred while starting a run with command line '{sys.argv}'.")

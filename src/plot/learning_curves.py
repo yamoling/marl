@@ -28,11 +28,13 @@ def plot(dataset: Dataset, prefix: str = "", show=False, save_to: str | Path | N
         plt.show()
 
 
-def plot_learning_curves(logdirs: Collection[str], metrics: Collection[str], *, global_config: GlobalConfig = {}):
+def plot_learning_curves(logdirs: Collection[str], metrics: Collection[str], *, global_config: GlobalConfig = None):
+    if global_config is None:
+        global_config = {}
     _setup(**global_config)
     experiments = [LightExperiment.load(logdir) for logdir in logdirs]
     datasets_dict = {exp.logdir: exp.get_results_datasets(1000, metrics=metrics) for exp in experiments}
-    all_labels = set([ds.label for datasets in datasets_dict.values() for ds in datasets])
+    all_labels = {ds.label for datasets in datasets_dict.values() for ds in datasets}
     for label in all_labels:
         for logdir, datasets in datasets_dict.items():
             [plot(ds, f"{logdir[5:]}-") for ds in datasets if ds.label == label]

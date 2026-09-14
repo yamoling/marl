@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from textual import events
 from textual.containers import Vertical
 from textual.screen import Screen
@@ -5,7 +7,7 @@ from textual.widgets import Label, ListItem, ListView
 
 
 class FilePickerScreen(Screen):
-    BINDINGS = [("q", "app.pop_screen()", "Cancel")]
+    BINDINGS: ClassVar = [("q", "app.pop_screen()", "Cancel")]
 
     def __init__(self, title: str, item_list: list[str]):
         super().__init__()
@@ -42,10 +44,9 @@ class FilePickerScreen(Screen):
             if lv.index == 0:
                 lv.index = last
                 event.stop()
-        elif event.key == "down":
-            if lv.index == last:
-                lv.index = 0
-                event.stop()
+        elif event.key == "down" and lv.index == last:
+            lv.index = 0
+            event.stop()
 
     def on_list_view_selected(self, event: ListView.Selected):
         label: Label = event.item.query_one(Label)

@@ -328,10 +328,10 @@ class DistilHandler:
                 for i in range(self.epochs):
                     if not self.abstract_obs:
                         train_logs.append(dist.train_(inputs_train[:, :, ag], outputs_train[:, :, ag], i))  # TODO: if abstract, no slices!!
-                        v_acc, v_preds = dist.test_(inputs_validation[:, :, ag], outputs_validation[:, :, ag], i)
+                        v_acc, _v_preds = dist.test_(inputs_validation[:, :, ag], outputs_validation[:, :, ag], i)
                     else:
                         train_logs.append(dist.train_(inputs_train[ag], outputs_train[ag], i))  # TODO: if abstract, no slices!!
-                        v_acc, v_preds = dist.test_(inputs_validation[ag], outputs_validation[ag], i)
+                        v_acc, _v_preds = dist.test_(inputs_validation[ag], outputs_validation[ag], i)
                     valid_logs.append(v_acc)
 
                 train_logs = np.array(train_logs)
@@ -340,9 +340,9 @@ class DistilHandler:
 
                 dist.load_best()
                 if not self.abstract_obs:
-                    test_logs, test_preds = dist.test_(inputs_test[:, :, ag], outputs_test[:, :, ag], best_dist)
+                    _test_logs, test_preds = dist.test_(inputs_test[:, :, ag], outputs_test[:, :, ag], best_dist)
                 else:
-                    test_logs, test_preds = dist.test_(inputs_test[ag], outputs_test[ag], best_dist)
+                    _test_logs, test_preds = dist.test_(inputs_test[ag], outputs_test[ag], best_dist)
                 # np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
                 # np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"ag{ag}_{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
 
@@ -370,7 +370,7 @@ class DistilHandler:
             best_dist = 0
             for i in range(self.epochs):
                 train_logs.append(dist.train_(inputs_train, outputs_train, i))
-                v_acc, v_preds = dist.test_(inputs_validation, outputs_validation, i)
+                v_acc, _v_preds = dist.test_(inputs_validation, outputs_validation, i)
                 valid_logs.append(v_acc)
 
             train_logs = np.array(train_logs)
@@ -378,7 +378,7 @@ class DistilHandler:
             # np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_valid_logs{"_extra" if self.extras else ""}.npz"),valid_logs)
 
             dist.load_best()
-            test_logs, test_preds = dist.test_(inputs_test, outputs_test, best_dist)
+            _test_logs, test_preds = dist.test_(inputs_test, outputs_test, best_dist)
             # np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_logs{"_extra" if self.extras else ""}.npz"),test_logs)
             # np.savez(pathlib.Path(f"{self._distilers[0].logdir}",f"{self.dist_type}_test_preds{"_extra" if self.extras else ""}.npz"),test_preds)
 

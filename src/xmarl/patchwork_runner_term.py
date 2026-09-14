@@ -3,6 +3,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 from marlenv.models import Episode
@@ -55,7 +56,7 @@ class Selector(App):
 
     show_extra_input = reactive(False)
 
-    BINDINGS = [
+    BINDINGS: ClassVar = [
         ("up", "focus_previous", "Focus up"),
         ("down", "focus_next", "Focus down"),
         ("enter", "press_button", "Press"),
@@ -430,7 +431,7 @@ class Selector(App):
                     distiller.distil_episode(episode, dist_type)
                 )
         else:
-            raise Exception(f"Distiller {self.distiler_path} not implemented in visualization yet.")
+            raise NotImplementedError(f"Distiller {self.distiler_path} not implemented in visualization yet.")
         if not self.abstract:
             return (
                 distilled_filters,
@@ -456,13 +457,10 @@ class Selector(App):
 
 
 def main():
-    import sys
-
     try:
         Selector().run()
-    except Exception as e:
-        logger.exception(f"Error: {e}")
-        sys.exit(1)
+    except Exception:
+        logger.exception()
 
 
 if __name__ == "__main__":

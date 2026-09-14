@@ -21,8 +21,10 @@ def boxplot_at(
     t: int | Literal["mean", "first", "last"] = "last",
     kind: Literal["Train", "Test", "Training data"] = "Test",
     *,
-    global_config: GlobalConfig = {},
+    global_config: GlobalConfig = None,
 ):
+    if global_config is None:
+        global_config = {}
     _setup(**global_config)
     results = []
     labels = []
@@ -53,7 +55,7 @@ def boxplot_at(
             results.append(df[metric].to_numpy())
             # Remove "logs/" prefix
             labels.append(e.logdir[5:])
-        except Exception:
+        except pl.exceptions.PolarsError:
             logger.warning(f"An error occurred while processing {e.logdir} with {metric}. Skipping.")
 
     fig, ax = plt.subplots()
