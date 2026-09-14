@@ -20,18 +20,16 @@ from tqdm import tqdm
 from train_on_pool import PoolSpec, experiment_logdir, layout_files, make_env, parse_pool_spec
 
 import marl
-from marl.algos import DQN, VDN, QMix
+from marl.algos import DQN
 from marl.env import EnvConfig
 from marl.models import BiasedMemory, EpisodeMemory, ReplayMemory, TransitionMemory
-from marl.nn import mixers, model_bank
-from marl.utils.tuning import suggest
 
 logger = logging.getLogger(__name__)
 
 SETTING = "cooperative"
-STUDY_MAP_NAME = "9x9_agents3_lasers2"
-"""The hyperparameters always come from the 9x9 cooperative variant of the tuning study."""
-DEFAULT_STUDY_JOURNAL = Path("tunings/certified-cooperation.journal")
+STUDY_MAP_NAME = "5x5_agents2_laser1"
+"""The hyperparameters always come from the 5x5 cooperative variant of the tuning study."""
+DEFAULT_STUDY_JOURNAL = Path("tunings", "tuning.journal")
 SOLUTIONS_FILE = "solutions.json"
 """Cached shortest plans, stored next to the layouts of the pool and keyed by layout file name."""
 SOLUTIONS_FILE_NO_GEMS = "solutions-no-gems.json"
@@ -74,52 +72,47 @@ class Args(tap.TypedArgs):
 
 
 def load_best_params(journal: Path, algo: Algo):
-    """
-    Read the best hyperparameters of an algorithm from the Optuna journal.
-
-    The parameters are always those of the 9x9 cooperative variant of the study, whatever the pool
-    that is trained on, so that every biased run of an algorithm starts from the same tuned
-    configuration.
-    """
+    """Read the best hyperparameters of an algorithm from the Optuna journal of `scripts/tuning.py`."""
+    if not journal.exists():
+        raise FileNotFoundError(f"No tuning journal at {journal}.")
     storage = JournalStorage(JournalFileBackend(journal.as_posix()))
     study_name = f"{algo.upper()}-{SETTING}-{STUDY_MAP_NAME}"
-    study = optuna.load_study(study_name=study_name, storage=storage)
+    try:
+        study = optuna.load_study(study_name=study_name, storage=storage)
+    except KeyError:
+        available = sorted(summary.study_name for summary in optuna.get_all_study_summaries(storage))
+        raise KeyError(f"{journal} has no study {study_name!r}. Available studies: {available}") from None
     complete_trials = [trial for trial in study.trials if trial.state == optuna.trial.TrialState.COMPLETE]
     if not complete_trials:
         raise RuntimeError(f"Study {study_name!r} has no complete trials.")
-    logger.info(f"Using best trial {study.best_trial.number} of {study_name} (value {study.best_value})")
+    logger.info(
+        f"Using best trial {study.best_trial.number} of {study_name} (value {study.best_value}, {len(complete_trials)} complete trials)"
+    )
     return study.best_params
 
 
-def make_journal_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv], demos: list[Episode]):
+def make_journal_trainer(
+    trial: optuna.Trial,
+    algo: Algo,
+    env: EnvConfig[DiscreteMARLEnv],
+    demos: list[Episode],
+    n_steps: int,
+    factor: float,
+):
+    """
+    Rebuild a tuned trainer from the journal parameters and bias its replay memory.
+
+    The trainer is built by the very factory of the tuning study, so that the parameters read from
+    the journal are replayed into the exact search space that produced them: the biased condition
+    and its control therefore only differ by the demonstrations held in the memory, whose capacity
+    remains the tuned `memory_size`.
+    """
     if algo not in ("dqn", "vdn", "qmix"):
         raise NotImplementedError(f"Only value-based algorithms are in the scope of this study, got {algo!r}.")
-    qnetwork = model_bank.qnetworks.from_env(
-        env,
-        independent=True,
-        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=trial.suggest_categorical("qnetwork.noisy", [False, True]),
-        mlp_sizes=tuning.hidden_sizes(trial, "qnetwork"),
-    )
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": tuning.GAMMA}
-    shared_kwargs = {
-        "qnetwork": qnetwork,
-        "test_policy": marl.policy.ArgMax(),
-        "vbe": None,
-        "catch_all": catch_all,
-    }
-    # trx = [t for e in demos for t in e.transitions()]
-    trx = [t for e in demos for t in list(e.transitions())[-1:]]
-    memory = TransitionMemory(20_000)
-    memory = BiasedMemory(trx, memory)
-    match algo:
-        case "dqn":
-            return suggest(DQN, trial, mixer=None, memory=memory, **shared_kwargs)
-        case "vdn":
-            return suggest(VDN, trial, memory=memory, **shared_kwargs)
-        case "qmix":
-            return suggest(QMix, trial, mixer=mixers.QMix.from_env(env), memory=memory, **shared_kwargs)
-    raise ValueError(f"Unknown algorithm: {algo}")
+    trainer = tuning.make_dqn_trainer(trial, algo, env, n_steps, catch_all)
+    trainer.memory = bias_memory(trainer.memory, demos, factor)
+    return trainer
 
 
 def load_solutions(path: Path) -> dict[str, list[list[int]] | None]:
@@ -226,21 +219,23 @@ def bias_memory(base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], d
 
 def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     """
-    Create (or resume) and run the biased experiment of one algorithm.
+    Create (or resume) the biased experiment of one algorithm.
 
-    The bias lives in the trainer's `memory` attribute, which is *not* serialised with the
-    experiment, so it is re-injected every time this script runs, including when resuming.
+    The bias lives in the trainer's `memory`, which is serialised with the experiment: an existing
+    experiment is resumed as it is, demonstrations included, and the layouts of its pool are never
+    solved again.
     """
     logdir = experiment_logdir(spec, algo, args.n_steps, args.pool_size, args.logdir_prefix)
     try:
         return marl.Experiment[MARLEnv, DQN].load(logdir)
     except FileNotFoundError:
         pass
-    demos = make_demonstrations(spec, args.pool_size)
+    params = load_best_params(args.study_journal, algo)
+    demos = make_demonstrations(spec, args.n_bias or args.pool_size)
     train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
     test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
-    params = load_best_params(args.study_journal, algo)
-    trainer = make_journal_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, demos)
+    trial = cast(optuna.Trial, FixedTrial(params))
+    trainer = make_journal_trainer(trial, algo, train_env, demos, args.n_steps, args.bias_factor)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
     logger.info(f"Created experiment in {exp.logdir} with parameters {params}")
     return exp
@@ -273,6 +268,8 @@ def main(args: Args):
         raise ValueError(f"--pool-size must be a positive integer, got {args.pool_size}")
     if args.n_tests <= 0:
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
+    if args.n_bias < 0 or args.n_bias > args.pool_size:
+        raise ValueError(f"--n-bias must be in [0, {args.pool_size}], got {args.n_bias}")
     for pool_dir in args.pool_dirs:
         spec = parse_pool_spec(pool_dir)
         logger.info(f"Starting the biased-replay study on {spec.map_name}: {args.algos}")

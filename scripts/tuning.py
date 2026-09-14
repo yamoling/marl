@@ -130,7 +130,7 @@ def make_env(spec: PoolSpec, size: int, *, offset: int = 0) -> LLEPool:
         offset=offset,
         time_limit=spec.time_limit,
         obs_type="perspective",
-        state_type="state",
+        state_type="flattened",
     )
 
 
@@ -214,6 +214,10 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
     The experiment directory is deleted once the score has been read: only trials that failed keep
     their logs, so that they remain inspectable.
     """
+    if trial.number < args.n_jobs:
+        import time
+
+        time.sleep(trial.number * 5)
     train_env = make_env(spec, TRAIN_POOL_SIZE)
     test_env = make_env(spec, TEST_POOL_SIZE, offset=TRAIN_POOL_SIZE)
     trainer = make_trainer(trial, algo, train_env, args)

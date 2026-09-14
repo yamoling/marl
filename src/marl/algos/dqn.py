@@ -18,8 +18,8 @@ from .qtarget_updater import SoftUpdate, TargetParametersUpdater
 @dataclass(unsafe_hash=True)
 class DQN[M: (Mixer | None)](Trainer):
     qnetwork: QNetwork
-    _: KW_ONLY
     memory: ReplayMemory
+    _: KW_ONLY
     mixer: M = None  # type: ignore
     train_policy: Policy = field(default_factory=lambda: policy.EpsilonGreedy.constant(0.1))
     lr: float = field(default=1e-4, metadata=tuning(1e-5, 1e-2, log=True))
