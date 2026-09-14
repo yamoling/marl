@@ -28,7 +28,6 @@ ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn")
 DEFAULT_POOL_DIR = Path("layouts", "tuning", "cooperative")
 TRAIN_POOL_SIZE = 500
 TEST_POOL_SIZE = 500
-"""The layouts in [TRAIN_POOL_SIZE + TEST_POOL_SIZE, ...[ are reserved for the actual experiments."""
 GAMMA = 0.99
 
 
