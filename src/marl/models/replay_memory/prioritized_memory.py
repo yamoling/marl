@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 from dataclasses import KW_ONLY, dataclass, field
+from typing import Literal
 
 import torch
 from sumtree import SumTree
@@ -27,9 +28,11 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     max_size: int = field(init=False)
     _: KW_ONLY
     multi_objective: bool = False
+    update_on: Literal["transition", "episode"] = field(init=False)
 
     def __post_init__(self):
         self.max_size = self.memory.max_size
+        self.update_on = self.memory.update_on
         super().__post_init__()
         self.sampled_indices = list[int]()
         self.tree = SumTree(self.max_size)

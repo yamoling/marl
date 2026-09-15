@@ -58,9 +58,10 @@ EPSILON_END = 0.05
 EPSILON_STEPS = 200_000
 
 # PER hyperparameters (best values from the grid search referenced in the plan document).
-PER_ALPHA = 0.6
+PER_ALPHA = Schedule.constant(0.6)
 PER_BETA_START = 0.5
 PER_BETA_END = 1.0
+PER_BETA = Schedule.linear(PER_BETA_START, PER_BETA_END, N_STEPS)
 PER_TD_ERROR_CLIPPING = 5.0
 
 # n-step hyperparameters (best value from the grid search referenced in the plan document).
@@ -102,7 +103,7 @@ def make_per_memory() -> PrioritizedMemory:
         TransitionMemory(MEMORY_SIZE),
         multi_objective=False,
         alpha=PER_ALPHA,
-        beta=Schedule.linear(PER_BETA_START, PER_BETA_END, N_STEPS),
+        beta=PER_BETA,
         td_error_clipping=PER_TD_ERROR_CLIPPING,
     )
 
