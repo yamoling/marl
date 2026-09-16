@@ -1,5 +1,6 @@
 from copy import copy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import numpy as np
@@ -32,21 +33,26 @@ class Haven(Agent):
         k: int,
         n_meta_extras: int,
         n_agent_extras: int,
+        *,
+        use_previous_meta_action: bool = True,
     ):
+        """Initialize the two policy timescales and optional macro-action history. @ai-edited"""
         super().__init__()
+        if min(k, n_subgoals, n_workers) <= 0 or min(n_meta_extras, n_agent_extras) < 0:
+            raise ValueError("Hierarchy sizes must be positive and extras sizes nonnegative")
         self.meta = meta_agent
         self.workers = workers
         self.k = k
         self.n_subgoals = n_subgoals
-        self._t_train = 0
-        self._t_test = 0
         self._t = 0
-        self.last_meta_action = np.zeros(0, dtype=np.float32)
+        self.last_meta_action = np.zeros(0, dtype=np.int64)
         self.last_subgoals = np.zeros(0, dtype=np.float32)
         self.n_meta_extras = n_meta_extras
         self.n_agent_extras = n_agent_extras
         self._all_meta_actions_avaiable = np.full((n_workers, self.n_subgoals), True)
         self.n_workers = n_workers
+        self.use_previous_meta_action = use_previous_meta_action
+        self._train_context = None
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
         """
@@ -57,45 +63,74 @@ class Haven(Agent):
         assert observation.extras_shape[0] == self.n_meta_extras + self.n_agent_extras + self.n_subgoals
         if self._t % self.k == 0:
             meta_obs = self.make_meta_observation(observation)
-            meta_action = np.array(self.meta.choose_action(meta_obs))
-            if meta_action.ndim == 1:
-                # Encode discrete actions as one-hot
-                subgoals = np.eye(self.n_subgoals, dtype=np.float32)[meta_action]
-            else:
-                subgoals = meta_action
+            meta_action = np.asarray(self.meta.choose_action(meta_obs, with_details=with_details).action).copy()
+            if (
+                meta_action.shape != (self.n_workers,)
+                or not np.issubdtype(meta_action.dtype, np.integer)
+                or np.any((meta_action < 0) | (meta_action >= self.n_subgoals))
+            ):
+                raise ValueError("HAVEN requires one discrete macro action per worker")
+            subgoals = np.eye(self.n_subgoals, dtype=np.float32)[meta_action]
             self.last_meta_action = meta_action
             self.last_subgoals = subgoals
         self._t += 1
-        observation.extras[:, -self.n_subgoals :] = self.last_subgoals
-        workers_actions = self.workers.choose_action(observation)
-        return Action(workers_actions.action, meta_actions=self.last_meta_action, **workers_actions.details)
+        worker_obs = copy(observation)
+        worker_obs.extras = observation.extras.copy()
+        worker_obs.extras[:, -self.n_subgoals :] = self.last_subgoals
+        workers_actions = self.workers.choose_action(worker_obs, with_details=with_details)
+        details = workers_actions.details | {"meta_actions": self.last_meta_action.copy()}
+        return Action(workers_actions.action, **details)
 
     def make_meta_observation(self, observation: Observation):
+        """Build macro inputs without exposing a mutable view of environment extras. @ai-edited"""
         meta_obs = copy(observation)
         # remove the subgoals padding
-        meta_obs.extras = observation.extras[:, : self.n_meta_extras]
+        meta_obs.extras = observation.extras[:, : self.n_meta_extras].copy()
+        if self.use_previous_meta_action:
+            previous = self.last_subgoals if self._t else np.zeros((self.n_workers, self.n_subgoals), dtype=np.float32)
+            meta_obs.extras = np.concatenate((meta_obs.extras, previous), axis=-1)
         # All actions (i.e. subgoals) are always available
         meta_obs.available_actions = self._all_meta_actions_avaiable
         return meta_obs
 
     def new_episode(self):
+        """Reset both policies and their active macro action. @ai-edited"""
         self.workers.new_episode()
         self.meta.new_episode()
         self._t = 0
+        self.last_meta_action = np.zeros(0, dtype=np.int64)
+        self.last_subgoals = np.zeros(0, dtype=np.float32)
 
     def set_testing(self):
+        """Preserve the complete training macro context during evaluation. @ai-edited"""
+        if self.is_testing:
+            return
+        self._train_context = (self._t, self.last_meta_action.copy(), self.last_subgoals.copy())
         self.meta.set_testing()
         self.workers.set_testing()
-        # Save the train time step and restore the test time step
-        self._t_train = self._t
-        self._t = self._t_test
+        self._training = False
+        self._t = 0
 
     def set_training(self):
+        """Restore training goals as well as child recurrent histories. @ai-edited"""
+        if self.is_training:
+            return
         self.meta.set_training()
         self.workers.set_training()
-        # Save the test time step and restore the train time step
-        self._t_test = self._t
-        self._t = self._t_train
+        self._training = True
+        if self._train_context is not None:
+            self._t, self.last_meta_action, self.last_subgoals = self._train_context
+
+    def networks(self):
+        return self.meta.networks() + self.workers.networks()
+
+    def save(self, to_directory: Path):
+        self.meta.save(to_directory / "meta")
+        self.workers.save(to_directory / "worker")
+
+    def load(self, from_directory: Path):
+        self.meta.load(from_directory / "meta")
+        self.workers.load(from_directory / "worker")
 
     def to(self, device: device):
         self._device = device

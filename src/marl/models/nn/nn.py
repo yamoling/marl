@@ -106,7 +106,9 @@ class RecurrentNN(NN):
         if not mode and self.training:
             # Set test mode: save training hidden states
             self._saved_hidden_states = self._hidden_states
-            self.reset_hidden_states()
+            # Children save their own histories during Module.train recursion.
+            # Calling an overridden reset here can erase them before that happens.
+            self._hidden_states = None
         else:
             # Set train mode
             if not self.training:
