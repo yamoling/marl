@@ -1,4 +1,3 @@
-from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -8,6 +7,8 @@ from marlenv import Observation
 from torch import device
 
 from marl.models import Action, Agent
+
+from .spec import HavenSpec
 
 
 @dataclass
@@ -38,8 +39,7 @@ class Haven(Agent):
     ):
         """Initialize the two policy timescales and optional macro-action history. @ai-edited"""
         super().__init__()
-        if min(k, n_subgoals, n_workers) <= 0 or min(n_meta_extras, n_agent_extras) < 0:
-            raise ValueError("Hierarchy sizes must be positive and extras sizes nonnegative")
+        self.spec = HavenSpec(n_workers, n_subgoals, k, n_meta_extras, n_agent_extras, use_previous_meta_action)
         self.meta = meta_agent
         self.workers = workers
         self.k = k
@@ -49,7 +49,6 @@ class Haven(Agent):
         self.last_subgoals = np.zeros(0, dtype=np.float32)
         self.n_meta_extras = n_meta_extras
         self.n_agent_extras = n_agent_extras
-        self._all_meta_actions_avaiable = np.full((n_workers, self.n_subgoals), True)
         self.n_workers = n_workers
         self.use_previous_meta_action = use_previous_meta_action
         self._train_context = None
@@ -63,35 +62,20 @@ class Haven(Agent):
         assert observation.extras_shape[0] == self.n_meta_extras + self.n_agent_extras + self.n_subgoals
         if self._t % self.k == 0:
             meta_obs = self.make_meta_observation(observation)
-            meta_action = np.asarray(self.meta.choose_action(meta_obs, with_details=with_details).action).copy()
-            if (
-                meta_action.shape != (self.n_workers,)
-                or not np.issubdtype(meta_action.dtype, np.integer)
-                or np.any((meta_action < 0) | (meta_action >= self.n_subgoals))
-            ):
-                raise ValueError("HAVEN requires one discrete macro action per worker")
-            subgoals = np.eye(self.n_subgoals, dtype=np.float32)[meta_action]
+            meta_action = self.spec.validate_action(self.meta.choose_action(meta_obs, with_details=with_details).action)
+            subgoals = self.spec.encode_goal(meta_action)
             self.last_meta_action = meta_action
             self.last_subgoals = subgoals
         self._t += 1
-        worker_obs = copy(observation)
-        worker_obs.extras = observation.extras.copy()
-        worker_obs.extras[:, -self.n_subgoals :] = self.last_subgoals
+        worker_obs = self.spec.worker_observation(observation, self.last_meta_action)
         workers_actions = self.workers.choose_action(worker_obs, with_details=with_details)
         details = workers_actions.details | {"meta_actions": self.last_meta_action.copy()}
         return Action(workers_actions.action, **details)
 
     def make_meta_observation(self, observation: Observation):
         """Build macro inputs without exposing a mutable view of environment extras. @ai-edited"""
-        meta_obs = copy(observation)
-        # remove the subgoals padding
-        meta_obs.extras = observation.extras[:, : self.n_meta_extras].copy()
-        if self.use_previous_meta_action:
-            previous = self.last_subgoals if self._t else np.zeros((self.n_workers, self.n_subgoals), dtype=np.float32)
-            meta_obs.extras = np.concatenate((meta_obs.extras, previous), axis=-1)
-        # All actions (i.e. subgoals) are always available
-        meta_obs.available_actions = self._all_meta_actions_avaiable
-        return meta_obs
+        previous = self.last_meta_action if self._t else None
+        return self.spec.meta_observation(observation, previous)
 
     def new_episode(self):
         """Reset both policies and their active macro action. @ai-edited"""

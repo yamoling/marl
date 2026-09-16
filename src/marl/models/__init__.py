@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from .action import Action
 from .agent import Agent, AgentWrapper, ContextualBandit, HierarchicalAgent
 from .batch import Batch
@@ -17,6 +19,19 @@ from .replay_memory import (
 from .run import LightRun, Run
 from .trainer import HierarchicalTrainer, Trainer
 
+if TYPE_CHECKING:
+    from marl.algos.haven.spec import HavenSpec
+
+
+def __getattr__(name: str):
+    """Load the compatibility HAVEN export without coupling model initialization to algorithms. @ai-generated"""
+    if name == "HavenSpec":
+        from marl.algos.haven.spec import HavenSpec
+
+        return HavenSpec
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 __all__ = [
     "NN",
     "Action",
@@ -32,6 +47,7 @@ __all__ = [
     "EpisodeMemory",
     "Experiment",
     "ExperimentResults",
+    "HavenSpec",
     "HierarchicalAgent",
     "HierarchicalTrainer",
     "IRModule",

@@ -1,22 +1,23 @@
-from copy import copy, deepcopy
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal
 
-import numpy as np
 import torch
-from marlenv import Episode, Observation, Transition
+from marlenv import Episode, Transition
 
-from marl.agents import Haven
-from marl.models import EpisodeMemory, Mixer, QNetwork, Trainer
-from marl.models.batch import EpisodeBatch
+from marl.models import Mixer, QNetwork, Trainer
+from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
-from .dqn import DQN
+from ..dqn import DQN
+from .agent import Haven
+from .replay import HavenReplay, HavenWorkerSample
+from .spec import HavenSpec
 
 
 @dataclass
 class HavenTrainer(Trainer):
-    """HAVEN with episode replay and independently optimized macro Q, V and worker Q.
+    """HAVEN with aligned replay and independently optimized macro Q, V and worker Q.
 
     The two DQN trainers supply replay, optimizers, discounts and update schedules.
     A one-output QNetwork represents each agent's scalar V; by default it is a
@@ -40,13 +41,19 @@ class HavenTrainer(Trainer):
     def __post_init__(self):
         """Validate the hierarchy and construct the independent value estimator. @ai-generated"""
         super().__post_init__()
-        if min(self.k, self.n_workers, self.n_subgoals) <= 0:
-            raise ValueError("k, n_workers and n_subgoals must be positive")
-        if min(self.n_meta_extras, self.n_agent_extras, self.n_meta_warmup_steps) < 0:
-            raise ValueError("Extras sizes and warmup must be nonnegative")
+        self.spec = HavenSpec(
+            self.n_workers,
+            self.n_subgoals,
+            self.k,
+            self.n_meta_extras,
+            self.n_agent_extras,
+            self.use_previous_meta_action,
+        )
+        if self.n_meta_warmup_steps < 0:
+            raise ValueError("Warmup must be nonnegative")
         for trainer in (self.meta_trainer, self.worker_trainer):
-            if not isinstance(trainer, DQN) or not isinstance(trainer.memory, EpisodeMemory):
-                raise TypeError("HAVEN requires two DQN trainers with EpisodeMemory for aligned recurrent replay")
+            if not isinstance(trainer, DQN):
+                raise TypeError("HAVEN requires two DQN trainers")
             if trainer.mixer is None or trainer.qnetwork.n_objectives != 1:
                 raise ValueError("HAVEN requires a cooperative, single-objective mixer at both levels")
             if trainer.ir_module is not None or trainer.vbe is not None:
@@ -55,10 +62,9 @@ class HavenTrainer(Trainer):
                 raise ValueError("Network agent counts must match n_workers")
         meta = self.meta_trainer.qnetwork
         worker = self.worker_trainer.qnetwork
-        meta_extras = self.n_meta_extras + (self.n_subgoals if self.use_previous_meta_action else 0)
-        if meta.n_actions != self.n_subgoals or tuple(meta.extras_shape) != (meta_extras,):
+        if meta.n_actions != self.n_subgoals or tuple(meta.extras_shape) != (self.spec.meta_extras_size,):
             raise ValueError("Macro network extras must include meta extras and, when enabled, the previous macro action")
-        if tuple(worker.extras_shape) != (self.n_meta_extras + self.n_agent_extras + self.n_subgoals,):
+        if tuple(worker.extras_shape) != (self.spec.worker_extras_size,):
             raise ValueError("Worker extras must contain meta extras, agent extras and subgoal padding")
         if self.meta_trainer.memory is self.worker_trainer.memory:
             raise ValueError("Macro and worker replay memories must be separate")
@@ -85,71 +91,18 @@ class HavenTrainer(Trainer):
             self.value_optimiser = torch.optim.RMSprop(self._value_parameters, lr=lr, eps=1e-5)
         else:
             self.value_optimiser = torch.optim.Adam(self._value_parameters, lr=lr)
-
-    def _meta_observation(self, observation: Observation, previous_action=None) -> Observation:
-        """Copy macro inputs without retaining worker subgoals or action masks. @ai-generated"""
-        result = copy(observation)
-        result.extras = observation.extras[:, : self.n_meta_extras].copy()
-        if self.use_previous_meta_action:
-            previous = np.zeros((self.n_workers, self.n_subgoals), dtype=np.float32)
-            if previous_action is not None:
-                previous = np.eye(self.n_subgoals, dtype=np.float32)[np.asarray(previous_action)]
-            result.extras = np.concatenate((result.extras, previous), axis=-1)
-        result.available_actions = np.ones((self.n_workers, self.n_subgoals), dtype=bool)
-        return result
-
-    def _build_meta_episode(self, episode: Episode) -> Episode:
-        """Aggregate complete intervals, including every reward and the final partial interval. @ai-edited"""
-        transitions = list(episode.transitions())
-        if not transitions:
-            raise ValueError("Cannot build an empty macro episode")
-        actions = episode["meta_actions"]
-        result = Episode.new(self._meta_observation(transitions[0].obs), transitions[0].state)
-        for start in range(0, len(transitions), self.k):
-            interval = transitions[start : start + self.k]
-            first, last = interval[0], interval[-1]
-            result.add(
-                Transition(
-                    obs=self._meta_observation(first.obs, actions[start - 1] if start else None),
-                    state=first.state,
-                    action=np.asarray(actions[start]).copy(),
-                    reward=np.sum([t.reward for t in interval], axis=0),
-                    next_obs=self._meta_observation(last.next_obs, actions[start]),
-                    next_state=last.next_state,
-                    done=last.done,
-                    truncated=last.truncated,
-                    info={},
-                )
-            )
-        return result
-
-    def _worker_episode(self, episode: Episode) -> Episode:
-        """Reconstruct recorded subgoals without mutating environment observations. @ai-generated"""
-        result = replace(episode)
-        result.all_extras = [extras.copy() for extras in episode.all_extras]
-        actions = episode["meta_actions"]
-        for t, action in enumerate(actions):
-            action = np.asarray(action)
-            if action.shape != (self.n_workers,) or not np.issubdtype(action.dtype, np.integer):
-                raise ValueError("HAVEN macro actions must be one discrete index per worker")
-            if np.any((action < 0) | (action >= self.n_subgoals)):
-                raise ValueError("Macro action outside the subgoal space")
-            if t % self.k and not np.array_equal(action, actions[t - 1]):
-                raise ValueError("Macro actions must remain fixed for k primitive steps")
-            result.all_extras[t][:, -self.n_subgoals :] = np.eye(self.n_subgoals, dtype=np.float32)[action]
-        # Inside an unfinished interval, the bootstrap still uses its current goal.
-        result.all_extras[-1][:, -self.n_subgoals :] = result.all_extras[-2][:, -self.n_subgoals :]
-        return result
+        self.replay = HavenReplay(self.spec, self.meta_trainer.memory, self.worker_trainer.memory)
+        if self.replay.mode == "transition" and any(network.is_recurrent for network in self.networks()):
+            raise ValueError("TransitionMemory requires feed-forward networks; use EpisodeMemory for recurrent HAVEN")
 
     def update_step(self, transition: Transition, time_step: int):
-        """Train from completed episodes on each child's primitive-step schedule. @ai-edited"""
+        """Collect aligned transitions, then follow each child's primitive-step schedule. @ai-edited"""
+        self.replay.add_transition(transition)
         return self._update(time_step, on_episode=None)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
         """Store aligned raw trajectories once; warmup gates learning, not collection. @ai-edited"""
-        worker_episode = self._worker_episode(episode)
-        self.worker_trainer.memory.add_episode(worker_episode)
-        self.meta_trainer.memory.add_episode(self._build_meta_episode(worker_episode))
+        self.replay.finish_episode(episode)
         return self._update(time_step, on_episode=episode_num)
 
     def _values(self, batch: EpisodeBatch):
@@ -160,7 +113,21 @@ class HavenTrainer(Trainer):
         extras = torch.cat((batch.states_extras[:1], batch.next_states_extras))
         return self.value_mixer.forward(local, states, extras)
 
-    def _value_targets(self, batch: EpisodeBatch):
+    def _value_pair(self, batch: EpisodeBatch | TransitionBatch):
+        """Evaluate each sampled transition's own endpoints, or full recurrent histories. @ai-generated"""
+        if isinstance(batch, EpisodeBatch):
+            values = self._values(batch)
+            return values[:-1], values[1:]
+        assert self.value_network is not None and self.value_mixer is not None
+        local = self.value_network.batch_qvalues(
+            torch.stack((batch.obs, batch.next_obs)), torch.stack((batch.extras, batch.next_extras))
+        ).squeeze(-1)
+        values = self.value_mixer.forward(
+            local, torch.stack((batch.states, batch.next_states)), torch.stack((batch.states_extras, batch.next_states_extras))
+        )
+        return values[0], values[1]
+
+    def _value_targets(self, batch: Batch):
         """Equation 8 uses the online macro Q maximum, not target Q or next V. @ai-generated"""
         trainer = self.meta_trainer
         assert trainer.mixer is not None
@@ -172,9 +139,9 @@ class HavenTrainer(Trainer):
             )
             return batch.rewards + trainer.gamma * mixed.masked_fill(batch.dones | batch.masked_indices, 0)
 
-    def _train_value(self, batch: EpisodeBatch):
+    def _train_value(self, batch: EpisodeBatch | TransitionBatch):
         """Optimize only the high-level value network and its own mixer. @ai-generated"""
-        values = self._values(batch)[:-1]
+        values, _ = self._value_pair(batch)
         loss = ((values - self._value_targets(batch)).square() * batch.masks).sum() / batch.n_items
         self.value_optimiser.zero_grad()
         loss.backward()
@@ -192,24 +159,17 @@ class HavenTrainer(Trainer):
             reward = advantage.repeat_interleave(self.k, dim=0)[: worker.rewards.shape[0]] / self.k
             return reward.masked_fill(worker.masked_indices, 0)
 
-    def _worker_batch(self, batch: EpisodeBatch):
-        """Align macro replay with worker samples and repair time-limit boundary goals. @ai-generated"""
-        episodes = batch._base_episodes
-        meta = EpisodeBatch([self._build_meta_episode(e) for e in episodes], device=self.device)
-        # No behavior action exists beyond a time limit. At a macro boundary use
-        # the current greedy macro policy for that bootstrap, preserving history.
+    def _prepare_worker_sample(self, sample: HavenWorkerSample):
+        """Recompute intrinsic rewards from the paired macro context. @ai-generated"""
         with torch.no_grad():
-            q = self.meta_trainer.qnetwork.batch_qvalues(meta.all_obs, meta.all_extras, masks=meta.all_masks)
-        for b, episode in enumerate(episodes):
-            t = len(episode)
-            if not episode.is_done and t % self.k == 0:
-                action = q[t // self.k, b].argmax(dim=-1)
-                goal = torch.nn.functional.one_hot(action, self.n_subgoals).to(batch.all_extras.dtype)
-                batch.all_extras[t, b, :, -self.n_subgoals :] = goal
-                batch.next_extras[t - 1, b, :, -self.n_subgoals :] = goal
-        intrinsic = self._intrinsic_rewards(batch, meta)
-        batch.rewards = batch.rewards + intrinsic
-        return batch, {"intrinsic-reward": (intrinsic.sum() / batch.n_items).item()}
+            current, following = self._value_pair(sample.macro)
+            advantage = sample.macro.rewards + self.meta_trainer.gamma * following.masked_fill(sample.macro.dones, 0) - current
+            intrinsic = sample.expand_macro_signal(advantage) / self.k
+            if sample.bootstrap_goal_mask.any():
+                qvalues = sample.macro_bootstrap_qvalues(self.meta_trainer.qnetwork)
+                sample.apply_bootstrap_goals(qvalues, self.n_subgoals)
+        sample.workers.rewards = sample.workers.rewards + intrinsic
+        return sample.workers, {"intrinsic-reward": (intrinsic.sum() / sample.workers.n_items).item()}
 
     def _update(self, time_step: int, on_episode: int | None):
         """Respect independent child schedules while refreshing rewards at sampling time. @ai-generated"""
@@ -218,14 +178,16 @@ class HavenTrainer(Trainer):
             return logs
         for prefix, trainer in (("meta", self.meta_trainer), ("worker", self.worker_trainer)):
             due = trainer.should_update_at(time_step=time_step) if on_episode is None else trainer.should_update_at(episode_num=on_episode)
-            if not due or not trainer.memory.can_sample(trainer.batch_size):
+            can_sample = (
+                self.replay.can_sample_meta(trainer.batch_size) if prefix == "meta" else self.replay.can_sample_workers(trainer.batch_size)
+            )
+            if not due or not can_sample:
                 continue
-            batch = trainer.memory.sample(trainer.batch_size).to(self.device)
-            assert isinstance(batch, EpisodeBatch)
             if prefix == "meta":
+                batch = self.replay.sample_meta(trainer.batch_size, self.device)
                 logs.update(self._train_value(batch))
             else:
-                batch, reward_logs = self._worker_batch(batch)
+                batch, reward_logs = self._prepare_worker_sample(self.replay.sample_workers(trainer.batch_size, self.device))
                 logs.update(reward_logs)
             child_logs = trainer.train(time_step, batch)
             child_logs.update(trainer.policy.update(time_step))
