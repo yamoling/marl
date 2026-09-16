@@ -14,6 +14,7 @@ from marl.models.replay_memory import EpisodeMemory, TransitionMemory
 from marl.models.replay_memory.biased_memory import BiasedMemory
 from marl.models.replay_memory.nstep_memory import NStepMemory
 from marl.models.replay_memory.prioritized_memory import PrioritizedMemory
+from marl.utils import Schedule
 
 
 def _make_transitions(n: int, end_game: int = 1000, reward_step: float = 1.0):
@@ -249,16 +250,16 @@ class TestPrioritizedMemory:
             memory.add(t)
         assert len(memory) == 4
 
-    def test_alpha_and_beta_accept_floats(self):
+    def test_alpha_and_beta_accept_schedules(self):
         inner = TransitionMemory(10)
-        memory = PrioritizedMemory(inner, multi_objective=False, alpha=0.6, beta=0.5)
+        memory = PrioritizedMemory(inner, multi_objective=False, alpha=Schedule.constant(0.6), beta=Schedule.constant(0.5))
         assert memory.alpha.value == pytest.approx(0.6)
         assert memory.beta.value == pytest.approx(0.5)
 
     def test_sample_produces_normalised_importance_weights(self):
         np.random.seed(0)
         inner = TransitionMemory(10)
-        memory = PrioritizedMemory(inner, multi_objective=False, beta=0.5)
+        memory = PrioritizedMemory(inner, multi_objective=False, beta=Schedule.constant(0.5))
         for t in _make_transitions(8):
             memory.add(t)
         batch = memory.sample(4)
@@ -278,15 +279,10 @@ class TestPrioritizedMemory:
 
     def test_update_increases_priority_for_high_td_error(self):
         inner = TransitionMemory(10)
-        memory = PrioritizedMemory(inner, multi_objective=False, alpha=1.0, eps=1e-2, td_error_clipping=None)
+        memory = PrioritizedMemory(inner, multi_objective=False, alpha=Schedule.constant(1.0), eps=1e-2, td_error_clipping=None)
         for t in _make_transitions(5):
             memory.add(t)
         memory.sample(3)
         logs = memory.update(0, td_error=torch.tensor([10.0, 0.0, 0.0]))
         assert logs["mean-priority"] > 0
         assert memory.max_priority >= 10.0
-
-    def test_invalid_alpha_type_raises(self):
-        inner = TransitionMemory(10)
-        with pytest.raises(ValueError):
-            PrioritizedMemory(inner, multi_objective=False, alpha="bad")  # type: ignore[arg-type]

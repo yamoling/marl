@@ -21,6 +21,7 @@ def test_submit_passes_only_run_directory_to_worker():
         estimated_gpu_memory=0,
         gpu_strategy="scatter",
         disabled_gpus=(),
+        limit_torch_threads=False,
     )
 
     assert result is handle
@@ -48,7 +49,9 @@ def test_worker_loads_run_from_directory(monkeypatch, tmp_path):
         render_tests=False,
         estimated_gpu_memory=0,
         auto_device_strategy="scatter",
-        limit_torch_threads=False,
+        disabled_gpus=(),
+        limit_torch_threads=None,
+        device_affinity=None,
     )
 
     assert result == "result"
