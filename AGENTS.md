@@ -7,9 +7,7 @@
 
 ## Contextual Imports
 
-@readme.md
-
-You MUST read the [readme.md](readme.md) before writing any code, if you haven't already.
+@README.md
 
 ## Project Description
 

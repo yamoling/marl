@@ -88,7 +88,7 @@ def load_best_params(args: Args, algo: Algo, study_map_name: str):
 
 
 def make_env(pool_dir: Path, pool_size: int, *, offset: int = 0, time_limit: int):
-    return LLEPool(pool_dir, pool_size, offset=offset, time_limit=time_limit, state_type="flattened")
+    return LLEPool(pool_dir, pool_size, offset=offset, time_limit=time_limit, obs_type="perspective", state_type="flattened")
 
 
 def experiment_logdir(spec: PoolSpec, algo: Algo, n_steps: int, pool_size: int, prefix: str = ""):
@@ -130,7 +130,7 @@ def run_experiment(args: Args, spec: PoolSpec, algo: Algo):
         train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
         test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
         params = load_best_params(args, algo, spec.study_map_name)
-        tuning_args = tuning.Args(pool_dirs=[spec.path], n_steps=args.n_steps)
+        tuning_args = tuning.Args(pool_dir=spec.path, n_steps=args.n_steps)
         trainer = make_trainer(cast(optuna.Trial, FixedTrial(params)), algo, train_env, tuning_args)
         print(params)
         exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
@@ -173,9 +173,6 @@ if __name__ == "__main__":
         tap.Parser(Args).bind(main).run()
     except KeyboardInterrupt:
         raise
-    except Exception as e:
-        logger.error(
-            f"An error occurred while starting the pool-500 sweep with command line '{sys.argv}'.\nError: {e}",
-            exc_info=True,
-        )
+    except Exception:
+        logger.exception(f"An error occurred while starting the pool-500 sweep with command line '{sys.argv}'")
         raise

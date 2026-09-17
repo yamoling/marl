@@ -3,6 +3,8 @@ Tests for marl.models.replay_memory: TransitionMemory, EpisodeMemory, NStepMemor
 BiasedMemory and PrioritizedMemory.
 """
 
+import json
+
 import numpy as np
 import pytest
 import torch
@@ -10,7 +12,7 @@ from marlenv import Episode, Transition
 from marlenv.catalog import DiscreteMockEnv
 
 from marl.models.batch import EpisodeBatch, TransitionBatch
-from marl.models.replay_memory import EpisodeMemory, TransitionMemory
+from marl.models.replay_memory import EpisodeMemory, ReplayMemory, TransitionMemory
 from marl.models.replay_memory.biased_memory import BiasedMemory
 from marl.models.replay_memory.nstep_memory import NStepMemory
 from marl.models.replay_memory.prioritized_memory import PrioritizedMemory
@@ -31,8 +33,8 @@ def _make_transitions(n: int, end_game: int = 1000, reward_step: float = 1.0):
     return transitions
 
 
-def _make_episode(length: int) -> Episode:
-    env = DiscreteMockEnv(end_game=length)
+def _make_episode(length: int, reward_step: float = 1.0) -> Episode:
+    env = DiscreteMockEnv(end_game=length, reward_step=reward_step)
     obs, state = env.reset()
     episode = Episode.new(obs, state)
     for _ in range(length):
@@ -195,29 +197,34 @@ class TestNStepMemory:
 
 class TestBiasedMemory:
     def test_length_includes_bias_and_wrapped_memory(self):
-        bias = _make_transitions(3)
-        memory = BiasedMemory.from_transitions(bias, max_size=20)
+        memory = BiasedMemory.from_episodes([_make_episode(3)], TransitionMemory(20))
         assert len(memory) == 3
         memory.add(_make_transitions(1)[0])
         assert len(memory) == 4
 
     def test_bias_items_come_first(self):
-        bias = _make_transitions(2)
-        memory = BiasedMemory.from_transitions(bias, max_size=20)
+        episode = _make_episode(2)
+        bias = list(episode.transitions())
+        memory = BiasedMemory.from_episodes([episode], TransitionMemory(20))
+        np.testing.assert_array_equal(memory[0].obs.data, bias[0].obs.data)
+        np.testing.assert_array_equal(memory[1].obs.data, bias[1].obs.data)
+
+    def test_episode_memory_keeps_whole_episodes(self):
+        bias = [_make_episode(2), _make_episode(3)]
+        memory = BiasedMemory.from_episodes(bias, EpisodeMemory(20))
         assert memory[0] is bias[0]
         assert memory[1] is bias[1]
 
     def test_raises_if_bias_is_empty(self):
         with pytest.raises(AssertionError):
-            BiasedMemory.from_transitions([], max_size=20)
+            BiasedMemory.from_episodes([], TransitionMemory(20))
 
     def test_raises_for_non_positive_factor(self):
         with pytest.raises(AssertionError):
-            BiasedMemory.from_transitions(_make_transitions(1), max_size=20, factor=0.0)
+            BiasedMemory.from_episodes([_make_episode(1)], TransitionMemory(20), factor=0.0)
 
     def test_sample_returns_requested_batch_size(self):
-        bias = _make_transitions(2)
-        memory = BiasedMemory.from_transitions(bias, max_size=20)
+        memory = BiasedMemory.from_episodes([_make_episode(2)], TransitionMemory(20))
         for t in _make_transitions(5):
             memory.add(t)
         batch = memory.sample(4)
@@ -225,8 +232,7 @@ class TestBiasedMemory:
 
     def test_high_factor_strongly_prefers_biased_items(self):
         np.random.seed(0)
-        bias = _make_transitions(1, reward_step=42.0)
-        memory = BiasedMemory.from_transitions(bias, max_size=1000, factor=1e6)
+        memory = BiasedMemory.from_episodes([_make_episode(1, reward_step=42.0)], TransitionMemory(1000), factor=1e6)
         for t in _make_transitions(50, reward_step=1.0):
             memory.add(t)
         # With an overwhelming bias factor, batch_size=1 samples should almost always hit the biased item.
@@ -234,12 +240,30 @@ class TestBiasedMemory:
         assert hits >= 15
 
     def test_clear_delegates_to_wrapped_memory(self):
-        bias = _make_transitions(1)
-        memory = BiasedMemory.from_transitions(bias, max_size=20)
+        memory = BiasedMemory.from_episodes([_make_episode(1)], TransitionMemory(20))
         for t in _make_transitions(3):
             memory.add(t)
         memory.clear()
         assert len(memory) == 1  # bias items remain
+
+    def test_file_round_trip_externalizes_and_lazily_loads_demonstrations(self, tmp_path):
+        memory = BiasedMemory.from_episodes([_make_episode(3)], TransitionMemory(20), factor=2.0)
+        path = tmp_path / "memory.json"
+
+        memory.to_file(path)
+
+        serialized = json.loads(path.read_bytes())
+        reference = serialized["demonstrations"]
+        assert set(reference) >= {"relative_path", "checksum", "count"}
+        assert "bias" not in serialized
+        assert (tmp_path / reference["relative_path"]).exists()
+
+        restored = ReplayMemory.from_file(path)
+        assert isinstance(restored, BiasedMemory)
+        assert restored.demonstrations._value is None
+        assert restored.n_bias == 3
+        assert restored[0].reward.item() == pytest.approx(1.0)
+        assert restored.demonstrations._value is not None
 
 
 class TestPrioritizedMemory:

@@ -34,7 +34,8 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
 
     @classmethod
     def load(cls, rundir: Path):
-        return cls.from_file(rundir / RUN_FILE, exact_type=True)
+        """Load a run and resolve shared artifacts from its experiment directory. @ai-edited"""
+        return cls.from_file(rundir / RUN_FILE, exact_type=True, artifact_root=rundir.parent)
 
     @property
     def runpath(self):
@@ -56,7 +57,8 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
         return self.runpath / "pid"
 
     def save(self):
-        self.to_file(self.run_file)
+        """Save a run while keeping external artifacts shared at experiment level. @ai-edited"""
+        self.to_file(self.run_file, artifact_root=self.runpath.parent)
 
     @cached_property
     def logger(self) -> Logger:

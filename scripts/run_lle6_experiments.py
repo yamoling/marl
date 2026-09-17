@@ -336,7 +336,7 @@ class Args(tap.TypedArgs):
     n_jobs: int | None = tap.arg("--n-jobs", default=None, help='Number of parallel run processes (defaults to "auto").')
     gpu_strategy: Literal["scatter", "group"] = tap.arg("--gpu-strategy", default="group")
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
-    test_interval: int = tap.arg("--test-interval", default=5_000)
+    test_interval: int = tap.arg("--test-interval", default=10_000)
     n_tests: int = tap.arg("--n-tests", default=5)
     quiet: bool = tap.arg("--quiet", default=False, help="Disable progress bars and console logs during training.")
 

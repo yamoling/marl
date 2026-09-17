@@ -26,10 +26,9 @@ from marl.models import BiasedMemory, EpisodeMemory, ReplayMemory, TransitionMem
 
 logger = logging.getLogger(__name__)
 
-SETTING = "cooperative"
-STUDY_MAP_NAME = "5x5_agents2_laser1"
-"""The hyperparameters always come from the 5x5 cooperative variant of the tuning study."""
-DEFAULT_STUDY_JOURNAL = Path("tunings", "tuning.journal")
+STUDY_LAYOUT_TYPE = "interdependent-2-9x9_agents3_lasers2"
+"""The perspective-tuning layout whose best trials provide the replay-study hyperparameters."""
+DEFAULT_STUDY_JOURNAL = Path("tunings", "perspective.journal")
 SOLUTIONS_FILE = "solutions.json"
 """Cached shortest plans, stored next to the layouts of the pool and keyed by layout file name."""
 SOLUTIONS_FILE_NO_GEMS = "solutions-no-gems.json"
@@ -46,6 +45,7 @@ class Args(tap.TypedArgs):
     n_steps: int = tap.arg("--n-steps", default=1_000_000)
     n_jobs: int = tap.arg("--n-jobs", default=1)
     pool_size: int = tap.arg("--pool-size", default=500, help="Size of the training pool (positive integer).")
+    offset: int = tap.arg("--offset", default=1_000, help="Index of the first training layout (non-negative integer).")
     n_tests: int = tap.arg("--n-tests", default=500, help="Number of held-out test maps (positive integer).")
     algos: list[Algo] = tap.arg("--algos", default=list(ALGOS), nargs="+", help="Value-based algorithms to train.")
     n_bias: int = tap.arg(
@@ -76,7 +76,7 @@ def load_best_params(journal: Path, algo: Algo):
     if not journal.exists():
         raise FileNotFoundError(f"No tuning journal at {journal}.")
     storage = JournalStorage(JournalFileBackend(journal.as_posix()))
-    study_name = f"{algo.upper()}-{SETTING}-{STUDY_MAP_NAME}"
+    study_name = f"{algo.upper()}-{STUDY_LAYOUT_TYPE}"
     try:
         study = optuna.load_study(study_name=study_name, storage=storage)
     except KeyError:
@@ -176,22 +176,25 @@ def compute_solutions(spec: PoolSpec, layouts: list[Path]):
     return solutions
 
 
-def make_demonstrations(spec: PoolSpec, n_layouts: int):
+def make_demonstrations(spec: PoolSpec, n_layouts: int, offset: int):
     """
-    Collect one winning episode for each of the first `n_layouts` layouts of the training pool.
+    Collect one winning episode for the first `n_layouts` layouts of the training pool.
 
     The plans come from the solution cache of the pool, which is completed and stored on disk
     before any episode is replayed. Unsolvable layouts are not admissible inputs: a pool that
     contains one is rejected outright rather than silently biasing the memory towards a subset of
     the training layouts.
+
+    @ai-edited
     """
     layouts = layout_files(spec.path)
-    if len(layouts) < n_layouts:
-        raise ValueError(f"{spec.path} only contains {len(layouts)} layouts, cannot bias towards {n_layouts}.")
-    layouts = layouts[:n_layouts]
+    required_layouts = offset + n_layouts
+    if len(layouts) < required_layouts:
+        raise ValueError(f"{spec.path} only contains {len(layouts)} layouts, cannot select {n_layouts} from offset {offset}.")
+    layouts = layouts[offset:required_layouts]
     solutions = compute_solutions(spec, layouts)
     episodes = list[Episode]()
-    for index, layout in enumerate(tqdm(layouts, desc="Replaying solutions", unit="layout")):
+    for index, layout in enumerate(tqdm(layouts, desc="Replaying solutions", unit="layout"), start=offset):
         plan = solutions[layout.name]
         if plan is not None:
             env = make_env(spec.path, 1, offset=index, time_limit=spec.time_limit).make()
@@ -205,16 +208,16 @@ def bias_memory(base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], d
     Wrap a replay memory into one that permanently holds the demonstrations.
 
     Episode memories (recurrent networks) are biased with whole episodes, transition memories with
-    the individual transitions of those same episodes. The wrapped memory keeps the capacity that
-    the trainer asked for, so a biased run only differs from its control by the extra,
+    the individual transitions of those same episodes. Demonstrations are persisted once as a
+    pickle artifact and materialized lazily in each worker. The wrapped memory keeps the capacity
+    that the trainer asked for, so a biased run only differs from its control by the extra,
     never-evicted items.
+
+    @ai-edited
     """
-    match base_memory:
-        case EpisodeMemory():
-            return BiasedMemory(demos, base_memory, factor=factor)
-        case TransitionMemory():
-            return BiasedMemory([t for e in demos for t in e.transitions()], base_memory, factor=factor)
-    raise TypeError(f"Cannot bias a memory of type {type(base_memory).__name__}.")
+    if not isinstance(base_memory, (EpisodeMemory, TransitionMemory)):
+        raise TypeError(f"Cannot bias a memory of type {type(base_memory).__name__}.")
+    return BiasedMemory.from_episodes(demos, base_memory, factor=factor)
 
 
 def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
@@ -231,9 +234,9 @@ def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     except FileNotFoundError:
         pass
     params = load_best_params(args.study_journal, algo)
-    demos = make_demonstrations(spec, args.n_bias or args.pool_size)
-    train_env = make_env(spec.path, args.pool_size, time_limit=spec.time_limit)
-    test_env = make_env(spec.path, args.n_tests, offset=args.pool_size, time_limit=spec.time_limit)
+    demos = make_demonstrations(spec, args.n_bias or args.pool_size, args.offset)
+    train_env = make_env(spec.path, args.pool_size, offset=args.offset, time_limit=spec.time_limit)
+    test_env = make_env(spec.path, args.n_tests, offset=args.offset + args.pool_size, time_limit=spec.time_limit)
     trial = cast(optuna.Trial, FixedTrial(params))
     trainer = make_journal_trainer(trial, algo, train_env, demos, args.n_steps, args.bias_factor)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
@@ -259,11 +262,13 @@ def run_experiment(exp: marl.Experiment, args: Args):
         gpu_strategy=args.gpu_strategy,
         disabled_gpus=args.disabled_gpus,
         quiet=args.quiet,
-        limit_torch_threads=False,
+        limit_torch_threads=None,
     )
 
 
 def main(args: Args):
+    if args.offset < 0:
+        raise ValueError(f"--offset must be a non-negative integer, got {args.offset}")
     if args.pool_size <= 0:
         raise ValueError(f"--pool-size must be a positive integer, got {args.pool_size}")
     if args.n_tests <= 0:

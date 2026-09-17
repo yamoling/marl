@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from dataclasses import MISSING, Field, dataclass, fields
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +11,12 @@ from marl.utils.reflection import get_subclass_from_name, unwrap_optional
 # Use a hyphen (-) in the discriminator such that no attribute ever
 # deserializes to that key.
 DISCRIMINATOR_KEY = "class-name"
+_SERIALIZATION_ROOT = ContextVar[Path | None]("serialization_root", default=None)
+
+
+def serialization_root() -> Path | None:
+    """Return the root used to resolve artifacts during the current deserialization. @ai-generated"""
+    return _SERIALIZATION_ROOT.get()
 
 
 def default_serialization(obj):
@@ -88,15 +95,48 @@ class Serializable:
         return orjson.dumps(self.to_dict(), option=option, default=default_serialization)
 
     @classmethod
-    def from_file(cls, path: Path | str, *, exact_type: bool = False):
-        with open(path, "rb") as f:
-            return cls.from_json(f.read(), exact_type=exact_type)
+    def from_file(
+        cls,
+        path: Path | str,
+        *,
+        exact_type: bool = False,
+        artifact_root: Path | str | None = None,
+    ):
+        """Deserialize a specification and bind its artifact references to `artifact_root`. @ai-edited"""
+        path = Path(path)
+        root = Path(artifact_root) if artifact_root is not None else path.parent
+        token = _SERIALIZATION_ROOT.set(root.resolve())
+        try:
+            with path.open("rb") as f:
+                return cls.from_json(f.read(), exact_type=exact_type)
+        finally:
+            _SERIALIZATION_ROOT.reset(token)
 
-    def to_file(self, path: Path | str, *, beautify: bool = False):
-        if not isinstance(path, Path):
-            path = Path(path)
+    def materialize(self, root: Path, *, _seen: set[int] | None = None):
+        """Persist external artifacts reachable through serializable fields. @ai-generated"""
+        if _seen is None:
+            _seen = set()
+        if id(self) in _seen:
+            return
+        _seen.add(id(self))
+        for dataclass_field in fields(self):
+            if not dataclass_field.init:
+                continue
+            _materialize_value(self.__dict__[dataclass_field.name], root, _seen)
+
+    def to_file(
+        self,
+        path: Path | str,
+        *,
+        beautify: bool = False,
+        artifact_root: Path | str | None = None,
+    ):
+        """Serialize this specification after materializing its external artifacts. @ai-edited"""
+        path = Path(path)
+        root = Path(artifact_root) if artifact_root is not None else path.parent
         path.parent.mkdir(exist_ok=True, parents=True)
-        with open(path, "wb") as f:
+        self.materialize(root.resolve())
+        with path.open("wb") as f:
             f.write(self.to_json(beautify=beautify))
 
     @classmethod
@@ -121,6 +161,18 @@ class Serializable:
             f"Attribute {f.name} of class {cls} is of type {field_type}, which is not Serializable !"
         )
         return field_type.from_dict(value)
+
+
+def _materialize_value(value: Any, root: Path, seen: set[int]):
+    """Recursively materialize artifacts nested in serializable containers. @ai-generated"""
+    if isinstance(value, Serializable):
+        value.materialize(root, _seen=seen)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _materialize_value(item, root, seen)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            _materialize_value(item, root, seen)
 
 
 def resolve_type(field_type):

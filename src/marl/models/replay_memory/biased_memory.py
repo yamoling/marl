@@ -1,44 +1,61 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal, Self, override
+from typing import Literal, Self, override
 
 import numpy as np
 from marlenv import Episode, Transition
 
-from marl.utils.marlenv_deserialization import episode_from_dict, transition_from_dict
+from marl.utils import PickleArtifact
 
-from .replay_memory import EpisodeMemory, ReplayMemory, TransitionMemory
+from .replay_memory import ReplayMemory
 
 
 @dataclass
 class BiasedMemory[T](ReplayMemory[T]):
-    bias: list[T]
+    """Replay memory with immutable demonstrations stored in an external pickle artifact."""
+
+    demonstrations: PickleArtifact[list[Episode]]
     wrapped: ReplayMemory[T]
+    n_bias: int
     factor: float = 1.0
     """Factor that multiplies the probability of sampling biased items."""
     max_size: int = field(init=False)
     update_on: Literal["episode", "transition"] = field(init=False)
+    _bias: list[T] | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self):
+        """Initialize lightweight metadata without loading the demonstration artifact. @ai-edited"""
         self.max_size = self.wrapped.max_size
         self.update_on = self.wrapped.update_on
-        assert len(self.bias) < self.max_size, "The bias should be smaller than the memory size"
-        assert len(self.bias) > 0, "There sould be at least one element to bias towards"
+        assert self.n_bias < self.max_size, "The bias should be smaller than the memory size"
+        assert self.n_bias > 0, "There should be at least one element to bias towards"
         assert self.factor > 0, "factor must be greater than 0"
         super().__post_init__()
-        self._memory.extend(self.bias)
-        self.n_bias = len(self.bias)
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any], *, exact_type: bool = False) -> Self:
-        """Decode bias items according to the restored wrapped memory. @ai-generated"""
-        wrapped = ReplayMemory.from_dict(d["wrapped"])
-        d["wrapped"] = wrapped
+    def from_episodes(cls, episodes: Iterable[Episode], wrapped: ReplayMemory[T], factor: float = 1.0) -> Self:
+        """Create a biased memory from canonical episodes and defer their persistence. @ai-generated"""
+        episodes = list(episodes)
         if wrapped.update_on_transitions:
-            d["bias"] = [transition_from_dict(item) for item in d["bias"]]
+            n_bias = sum(len(episode) for episode in episodes)
         else:
-            d["bias"] = [episode_from_dict(item) for item in d["bias"]]
-        return super().from_dict(d, exact_type=exact_type)
+            n_bias = len(episodes)
+        artifact = PickleArtifact.create(episodes, count=len(episodes))
+        return cls(artifact, wrapped, n_bias, factor)
+
+    @property
+    def bias(self) -> list[T]:
+        """Materialize and process-locally cache items matching the wrapped memory type. @ai-generated"""
+        if self._bias is None:
+            episodes = self.demonstrations.load()
+            if self.update_on_transitions:
+                items = [transition for episode in episodes for transition in episode.transitions()]
+            else:
+                items = episodes
+            if len(items) != self.n_bias:
+                raise ValueError(f"Expected {self.n_bias} biased items, loaded {len(items)}.")
+            self._bias = items
+        return self._bias
 
     def add(self, item: T):
         return self.wrapped.add(item)
@@ -59,7 +76,7 @@ class BiasedMemory[T](ReplayMemory[T]):
 
     def __getitem__(self, index: int) -> T:
         if index < self.n_bias:
-            return self._memory[index]
+            return self.bias[index]
         return self.wrapped[index - self.n_bias]
 
     @override
@@ -77,14 +94,3 @@ class BiasedMemory[T](ReplayMemory[T]):
     @override
     def make_batch(self, items: Iterable[T]):
         return self.wrapped.make_batch(items)
-
-    @staticmethod
-    def from_transitions(transitions: Iterable[Transition], max_size: int, factor: float = 1.0):
-        transitions = list(transitions)
-        memory = TransitionMemory(max_size=max_size - len(transitions))
-        return BiasedMemory(transitions, memory, factor=factor)
-
-    @staticmethod
-    def from_episodes(episodes: Iterable[Episode], max_size: int, factor: float = 1.0):
-        episodes = list(episodes)
-        return BiasedMemory(episodes, EpisodeMemory(max_size - len(episodes)), factor=factor)
