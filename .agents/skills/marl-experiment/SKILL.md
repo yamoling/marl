@@ -47,7 +47,7 @@ experiment = Experiment.create(
     n_steps=100_000,
     loggers=("csv",),
 )
-experiment.run(seeds=[0, 1, 2], test_interval=5_000, n_tests=5)
+experiment.run(seeds=3, test_interval=5_000, n_tests=5) # 3 seeds, from 0 to 2
 ```
 
 `test_env` defaults to a deep copy of `env`. Pass `test_env=...` explicitly when evaluation should use another map, pool, wrapper, or time limit.

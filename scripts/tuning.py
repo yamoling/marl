@@ -15,16 +15,17 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 
 import marl
-from marl.algos import DQN, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
+from marl.algos import DQN, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
 from marl.env import EnvConfig, LLEPool
 from marl.models import Policy, TransitionMemory
 from marl.nn import mixers, model_bank
+from marl.utils import Schedule
 from marl.utils.tuning import suggest
 
 Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "qplex"]
 Setting = Literal["cooperative", "independent"]
 
-ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn")
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "mappo", "ippo")
 DEFAULT_POOL_DIR = Path("layouts", "tuning", "cooperative")
 TRAIN_POOL_SIZE = 500
 TEST_POOL_SIZE = 500
@@ -196,6 +197,38 @@ def make_dqn_trainer(
     raise NotImplementedError()
 
 
+def make_ppo_trainer(
+    trial: optuna.Trial,
+    algo: Literal["mappo", "ippo"],
+    env: EnvConfig[DiscreteMARLEnv],
+    catch_all: dict,
+):
+    """Build a PPO trainer without tuning the actor or critic architecture. @ai-generated"""
+    actor, critic = model_bank.actor_critics.from_env(env, recurrent=False, independent=True)
+    rollout_size = trial.suggest_int("train_interval", 64, 512, step=64)
+    mixer = mixers.VDN.from_env(env) if algo == "mappo" else None
+    return suggest(
+        PPO,
+        trial,
+        actor=actor,
+        critic=critic,
+        mixer=mixer,
+        train_interval=(rollout_size, "step"),
+        lr_actor=trial.suggest_float("lr_actor", 5e-5, 3e-3, log=True),
+        lr_critic=trial.suggest_float("lr_critic", 5e-5, 3e-3, log=True),
+        n_epochs=trial.suggest_int("n_epochs", 2, 20),
+        eps_clip=trial.suggest_float("eps_clip", 0.1, 0.3, step=0.05),
+        c1=Schedule.constant(trial.suggest_float("c1", 0.1, 2.0, log=True)),
+        c2=Schedule.constant(trial.suggest_float("c2", 1e-4, 0.1, log=True)),
+        gae_lambda=trial.suggest_float("gae_lambda", 0.9, 0.99, step=0.01),
+        minibatch_size=trial.suggest_int("minibatch_size", 2, rollout_size // 2),
+        grad_norm_clipping=trial.suggest_float("grad_norm_clipping", 1.0, 50.0),
+        gamma=GAMMA,
+        ir_module=None,
+        catch_all=catch_all,
+    )
+
+
 def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv], args: Args):
     """
     Build the requested trainer from an Optuna trial.
@@ -203,6 +236,8 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": GAMMA}
     if algo in ("dqn", "vdn", "qmix", "qplex"):
         return make_dqn_trainer(trial, algo, env, args.n_steps, catch_all)
+    if algo in ("mappo", "ippo"):
+        return make_ppo_trainer(trial, algo, env, catch_all)
     raise NotImplementedError()
 
 
@@ -287,7 +322,7 @@ def tune(storage: JournalStorage, spec: PoolSpec, algo: Algo, args: Args):
         )
         return
 
-    LOGGER.info("Study %s has %d/%d completed trials; scheduling %d.", study_name, completed, args.budget, remaining)
+    LOGGER.info(f"Study {study_name} has {completed}/{args.budget} completed trials; scheduling {remaining}.")
     remaining = args.budget - completed
     study.optimize(lambda trial: objective(trial, algo, spec, args), n_trials=remaining, n_jobs=args.n_jobs)
     if completed < args.budget:
