@@ -49,7 +49,7 @@ class Args(tap.TypedArgs):
             f"({TRAIN_POOL_SIZE:,} training and {TEST_POOL_SIZE:,} evaluation)."
         ),
     )
-    storage: Path = tap.arg("--storage", help="Destination journal file", default=Path("tunings", "tuning.journal"))
+    storage: Path = tap.arg("--storage", help="Destination journal file", default=Path("tunings", "perspective.journal"))
     n_jobs: int = tap.arg(
         "--n-jobs",
         default=1,
@@ -239,7 +239,7 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
         device_affinity=trial.number,
         disabled_gpus=args.disabled_gpus,
         quiet=True,
-        limit_torch_threads=False,
+        limit_torch_threads=None,
     )
     results = experiment.get_test_results(args.n_steps).select("mean-exit_rate").last().collect()
     if results.height == 0:
