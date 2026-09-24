@@ -310,3 +310,40 @@ class TestPrioritizedMemory:
         logs = memory.update(0, td_error=torch.tensor([10.0, 0.0, 0.0]))
         assert logs["mean-priority"] > 0
         assert memory.max_priority >= 10.0
+
+    def test_nstep_tree_tracks_only_finalized_transitions(self):
+        memory = PrioritizedMemory(NStepMemory(10, 3, 0.5))
+        transitions = _make_transitions(4, end_game=4) + _make_transitions(2, end_game=100)
+        for i, transition in enumerate(transitions):
+            memory.add(transition)
+            assert memory.tree.num_items == len(memory)
+            assert len(memory) == (0, 0, 1, 4, 4, 4)[i]
+
+        assert memory.sample(4).size == 4
+
+    def test_nstep_tree_slots_follow_deque_across_wrap_and_terminal_flush(self):
+        memory = PrioritizedMemory(NStepMemory(3, 5, 0.5))
+        transitions = _make_transitions(5, end_game=5) + _make_transitions(3, end_game=3)
+        for transition in transitions:
+            memory.add(transition)
+            assert memory.tree.num_items == len(memory)
+
+        # Two episode tails have evicted earlier items; physical slots must still
+        # point to the same logical entries as their priorities.
+        assert memory._next_index == 2
+        for slot in range(3):
+            memory.tree.update_batched(list(range(3)), [1.0 if i == slot else 0.0 for i in range(3)])
+            sampled = memory.sample(1)
+            assert memory.sampled_indices == [slot]
+            assert sampled.transitions[0] is memory.memory[(slot - memory._next_index) % 3]
+
+    def test_nstep_tree_and_pending_reset_on_clear(self):
+        memory = PrioritizedMemory(NStepMemory(3, 3, 0.5))
+        for transition in _make_transitions(2):
+            memory.add(transition)
+        memory.clear()
+        for transition in _make_transitions(3):
+            memory.add(transition)
+            assert memory.tree.num_items == len(memory)
+        assert len(memory) == 1
+        assert memory.sample(1).size == 1

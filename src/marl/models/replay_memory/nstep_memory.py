@@ -18,8 +18,10 @@ class NStepMemory(TransitionMemory):
     gamma: float
 
     def __post_init__(self) -> None:
+        """@ai-edited"""
         super().__post_init__()
         self._pending = deque[Transition]()
+        self._num_finalized = 0
 
     def add(self, item: Transition):
         """Finalize n-step transitions and flush shortened tails at episode ends. @ai-generated"""
@@ -45,6 +47,7 @@ class NStepMemory(TransitionMemory):
         first.truncated = last.truncated
         first["n-step-gamma"] = self.gamma ** len(self._pending)
         super().add(first)
+        self._num_finalized += 1
         self._pending.popleft()
 
     def make_batch(self, items: Iterable[Transition]) -> TransitionBatch:
@@ -59,3 +62,4 @@ class NStepMemory(TransitionMemory):
         """Clear completed samples and the unfinished trajectory. @ai-generated"""
         super().clear()
         self._pending.clear()
+        self._num_finalized = 0

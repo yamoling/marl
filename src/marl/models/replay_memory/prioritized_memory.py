@@ -7,6 +7,7 @@ from sumtree import SumTree
 
 from marl.utils import Schedule
 
+from .nstep_memory import NStepMemory
 from .replay_memory import ReplayMemory
 
 
@@ -40,10 +41,13 @@ class PrioritizedMemory[T](ReplayMemory[T]):
         self._next_index = 0
 
     def add(self, item: T):
-        """Advance the tree's physical ring slot alongside deque insertion. @ai-generated"""
-        self.tree.add(self.max_priority)
+        """Advance the tree once per stored item, including n-step episode tails. @ai-generated"""
+        before = self.memory._num_finalized if isinstance(self.memory, NStepMemory) else None
         self.memory.add(item)
-        self._next_index = (self._next_index + 1) % self.max_size
+        count = self.memory._num_finalized - before if before is not None else 1
+        for _ in range(count):
+            self.tree.add(self.max_priority)
+        self._next_index = (self._next_index + count) % self.max_size
 
     def add_transition(self, transition):
         if self.update_on_transitions:
