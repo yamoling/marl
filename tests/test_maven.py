@@ -1,5 +1,8 @@
 import math
+from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
 import torch
 from marlenv import Episode, Transition
@@ -8,17 +11,19 @@ from marl import algos, policy
 from marl.algos.maven.mutual_information_trainer import MITrainer
 from marl.env import LLEConfig
 from marl.models import Trainer
+from marl.models.agent.agent_wrapper import AgentWrapper
 from marl.nn.model_bank import MAVENQnetwork
+from marl.runners.simple_runner import _train_episode, seeded_rollout
 
 NOISE_SIZE = 3
 
 
-def env_config():
-    return LLEConfig(6, obs_type="flattened", state_type="flattened", time_limit=8, maven_noise_size=NOISE_SIZE)
+def env_config(noise_size=NOISE_SIZE):
+    return LLEConfig(6, obs_type="flattened", state_type="flattened", time_limit=8, maven_noise_size=noise_size)
 
 
-def make_maven(**kwargs) -> algos.MAVEN:
-    env = env_config()
+def make_maven(noise_size=NOISE_SIZE, **kwargs) -> algos.MAVEN:
+    env = env_config(noise_size)
     qnetwork = MAVENQnetwork.from_env(env, agent_output_size=16)
     return algos.MAVEN(
         qnetwork,
@@ -84,6 +89,43 @@ def test_training_loop_smoke(z_policy_type):
     if z_policy_type == "return":
         assert "meta/mean_loss" in logs
     assert all(math.isfinite(value) for value in logs.values())
+
+
+@pytest.mark.parametrize("noise_size", [1, NOISE_SIZE])
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_truncated_episode_bootstraps_with_episode_noise(noise_size, wrapped):
+    env = env_config(noise_size).make()
+    agent = make_maven(noise_size=noise_size, z_policy_type="uniform").make_agent()
+    if wrapped:
+        agent = AgentWrapper(agent)
+    trainer = Mock()
+    trainer.update_step.return_value = {}
+    trainer.update_episode.return_value = {}
+    run = SimpleNamespace(n_steps=1, should_test_at=lambda _: False, logger=Mock())
+
+    episode = _train_episode(env, env, agent, trainer, 0, 0, False, True, run)
+
+    assert episode.is_truncated and not episode.is_done
+    assert np.any(episode["maven-noise"][0])
+    np.testing.assert_array_equal(
+        episode.all_extras[-1][:, -noise_size:], np.broadcast_to(episode["maven-noise"][0], (env.n_agents, noise_size))
+    )
+    transition = next(episode.transitions())
+    np.testing.assert_array_equal(
+        transition.next_obs.extras[:, -noise_size:], np.broadcast_to(episode["maven-noise"][0], (env.n_agents, noise_size))
+    )
+
+
+@pytest.mark.parametrize("noise_size", [1, NOISE_SIZE])
+def test_test_rollout_preserves_final_episode_noise(noise_size):
+    env = env_config(noise_size).make()
+    agent = make_maven(noise_size=noise_size, z_policy_type="uniform").make_agent()
+
+    episode, _, actions = seeded_rollout(env, agent, seed=0)
+
+    np.testing.assert_array_equal(
+        episode.all_extras[-1][:, -noise_size:], np.broadcast_to(actions[0]["maven-noise"], (env.n_agents, noise_size))
+    )
 
 
 def test_serialization_round_trip():

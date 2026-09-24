@@ -14,6 +14,7 @@ class MAVENAgent(HierarchicalAgent):
         self.noise_size = noise_size
 
     def choose_action(self, observation: Observation, *, with_details: bool = False):
+        """Choose an episode latent once and condition the workers' current observation on it. @ai-edited"""
         if self._episode_noise is None:
             meta_obs = observation.as_joint()
             meta_obs.available_actions = np.full((1, self.noise_size), True)
@@ -22,10 +23,15 @@ class MAVENAgent(HierarchicalAgent):
             noise = self.meta_agent.choose_action(meta_obs).action
             noise = np.squeeze(noise, 0)
             self._episode_noise = noise.astype(np.float32)
-        observation.extras[:, -self.noise_size :] = self._episode_noise
+        self.prepare_next_observation(observation)
         action = self.workers.choose_action(observation, with_details=with_details)
         action["maven-noise"] = self._episode_noise
         return action
+
+    def prepare_next_observation(self, observation: Observation) -> None:
+        """Carry the episode latent into successor observations, including the final one. @ai-generated"""
+        if self._episode_noise is not None:
+            observation.extras[:, -self.noise_size :] = self._episode_noise
 
     def new_episode(self):
         self._episode_noise = None

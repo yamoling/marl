@@ -3,6 +3,8 @@ Tests for marl.models.agent.agent.Agent (the base class), AgentWrapper, RandomAg
 RandomOneHot, the ReplayAgent family and the bandit module.
 """
 
+from unittest.mock import patch
+
 import numpy as np
 import torch
 from marlenv.catalog import DiscreteMockEnv
@@ -84,6 +86,13 @@ class TestAgentBase:
         for p1, p2 in zip(agent.qnetwork.parameters(), other.qnetwork.parameters()):
             assert torch.equal(p1, p2)
 
+    def test_prepare_next_observation_does_nothing_by_default(self):
+        env = DiscreteMockEnv()
+        obs, _ = env.reset()
+        extras = obs.extras.copy()
+        _DummyAgent().prepare_next_observation(obs)
+        np.testing.assert_array_equal(obs.extras, extras)
+
     def test_new_episode_resets_recurrent_networks_only(self):
         agent = _DummyAgent()
         # No recurrent networks: should simply not raise.
@@ -99,6 +108,14 @@ class TestAgentBase:
 
 
 class TestAgentWrapper:
+    def test_prepare_next_observation_delegates_to_wrapped_agent(self):
+        agent = _DummyAgent()
+        wrapper = AgentWrapper(agent)
+        obs, _ = DiscreteMockEnv().reset()
+        with patch.object(agent, "prepare_next_observation") as prepare:
+            wrapper.prepare_next_observation(obs)
+        prepare.assert_called_once_with(obs)
+
     def test_choose_action_delegates_to_wrapped_agent(self):
         env = DiscreteMockEnv()
         inner = RandomAgent(env)

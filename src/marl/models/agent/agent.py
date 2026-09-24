@@ -25,6 +25,9 @@ class Agent(ABC):
         If the `with_details` flag is set to True, the method should return an Action with additional details about the decision-making such as the action probabilities, the q-values, etc.
         """
 
+    def prepare_next_observation(self, observation: Observation) -> None:
+        """Adjust a fresh observation before it is stored as a transition's successor. @ai-generated"""
+
     @property
     def is_training(self):
         return self._training

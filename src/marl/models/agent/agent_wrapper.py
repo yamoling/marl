@@ -16,6 +16,10 @@ class AgentWrapper(Agent):
     def choose_action(self, observation: Observation, *, with_details: bool = False) -> Action:
         return self.agent.choose_action(observation, with_details=with_details)
 
+    def prepare_next_observation(self, observation: Observation) -> None:
+        """Forward successor-observation preparation to the wrapped agent. @ai-generated"""
+        self.agent.prepare_next_observation(observation)
+
     def new_episode(self):
         return self.agent.new_episode()
 

@@ -67,6 +67,7 @@ def _train_episode[A](
             _test_and_log(test_env, agent, time_step, render_tests, quiet, run)
         action = agent.choose_action(obs)
         step = env.step(action)
+        agent.prepare_next_observation(step.obs)
         if time_step + 1 >= run.n_steps:
             step.truncated = True
         transition = Transition.from_step(obs, state, action.action, step, **action.details)
@@ -104,6 +105,7 @@ def _test_and_log[A](test_env: MARLEnv[A], agent: Agent, time_step: int, render:
 
 
 def seeded_rollout[A](env: MARLEnv[A], agent: Agent, seed: int, render=False, compute_frames=False):
+    """Collect a seeded test episode with the same next-observation context as training. @ai-edited"""
     agent.set_testing()
     env.seed(seed)
     agent.seed(seed)
@@ -122,6 +124,7 @@ def seeded_rollout[A](env: MARLEnv[A], agent: Agent, seed: int, render=False, co
         action = agent.choose_action(obs, with_details=True)
         action_details.append(action)
         step = env.step(action.action)
+        agent.prepare_next_observation(step.obs)
         transition = Transition.from_step(obs, state, action.action, step)
         episode.add(transition)
         obs = step.obs
