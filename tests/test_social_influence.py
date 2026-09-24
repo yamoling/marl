@@ -1,12 +1,13 @@
 import math
+from copy import deepcopy
 
 import torch
-from marlenv import Transition
+from marlenv import Episode, Transition
 
 from marl import algos
 from marl.algos.intrinsic_reward.social_influence import ModelOfOtherAgents, SocialInfluence
 from marl.env import LLEConfig
-from marl.models.batch import TransitionBatch
+from marl.models.batch import EpisodeBatch, TransitionBatch
 from marl.nn import mixers
 from marl.nn.model_bank import actor_critics
 from marl.utils import Schedule
@@ -202,6 +203,33 @@ def test_moa_learns_to_predict_a_deterministic_partner():
         logits, _ = moa.forward_with_history(obs, extras, joint)
         final_loss = torch.nn.functional.cross_entropy(logits[:-1].reshape(-1, n_actions), targets.reshape(-1))
     assert final_loss.item() < 0.8 * math.log(n_actions)
+
+
+def test_truncated_episode_masks_moa_target_and_ignores_padding():
+    """A truncated step cannot predict the first padded action of the next step."""
+    torch.manual_seed(13)
+    env_config = LLEConfig(2, obs_type="flattened", time_limit=10)
+    trainer = make_trainer(env_config, moa_lr=0.0)
+    trainer.moa.randomize()
+    env = env_config.make()
+    transitions = _last_batch(env, trainer.make_agent(), trainer).transitions[:3]
+    episodes = []
+    for length in (2, 3):
+        ep = Episode.new(transitions[0].obs, transitions[0].state)
+        for transition in transitions[:length]:
+            ep.add(deepcopy(transition))
+        ep.is_truncated = True
+        episodes.append(ep)
+    batch = EpisodeBatch(episodes).for_individual_learners()
+    assert batch.masks[2, 0].eq(0).all()
+    assert batch.episode_ends[1, 0].all()
+    assert trainer._step_masks(batch)[1, 0].eq(0).all()
+    assert trainer._step_masks(batch)[0, 0].eq(1).all()
+
+    original_loss = trainer._update_moa(batch)
+    batch.actions = batch.actions.clone()
+    batch.actions[2, 0] = (batch.actions[2, 0] + 1) % trainer.moa.n_actions
+    torch.testing.assert_close(torch.tensor(trainer._update_moa(batch)), torch.tensor(original_loss))
 
 
 def test_smoke_ippo_and_mappo_on_lle():

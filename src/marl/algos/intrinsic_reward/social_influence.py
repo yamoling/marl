@@ -294,7 +294,7 @@ class SocialInfluence(PPO):
 
         @ai-generated
         """
-        masks = self._time_major(batch, batch.masks) * self._time_major(batch, batch.not_dones)
+        masks = self._time_major(batch, batch.masks) * (~self._time_major(batch, batch.episode_ends))
         if masks.dim() == 2:  # (time, batch): the same mask applies to every agent
             masks = masks.unsqueeze(-1).expand(-1, -1, self.moa.n_agents)
         return masks.float()
