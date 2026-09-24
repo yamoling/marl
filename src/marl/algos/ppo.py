@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import copy
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Any, Literal
 
@@ -75,18 +76,23 @@ class PPO(Trainer):
 
     def add_intrinsic_rewards(self, batch: Batch, time_step: int) -> dict[str, Any]:
         """
-        Add the intrinsic rewards to the batch rewards (in place) and update the intrinsic reward module.
+        Add intrinsic rewards for training, updating the module with extrinsic rewards only.
+
+        @ai-edited
 
         # Returns
             dict[str, Any]: intrinsic-reward metrics to log.
         """
         if self.ir_module is None:
             return {}
+        extrinsic_rewards = batch.rewards.clone()
         intrinsic = self.ir_module.compute(batch)
         while intrinsic.ndim < batch.rewards.ndim:
             intrinsic = intrinsic.unsqueeze(-1)
         batch.rewards = batch.rewards + intrinsic
-        return self.ir_module.update(batch, time_step)
+        ir_batch = copy(batch)
+        ir_batch.rewards = extrinsic_rewards
+        return self.ir_module.update(ir_batch, time_step)
 
     def _compute_training_data(self, batch: Batch):
         """Compute targets with matching next observations and extras. @ai-generated"""

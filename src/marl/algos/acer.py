@@ -1,5 +1,5 @@
 from collections import defaultdict
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -222,7 +222,8 @@ class ACER(Trainer):
 
         The intrinsic rewards (when an `ir_module` is set) are recomputed at every update since the
         replayed episodes are off-policy, but the intrinsic reward module itself is only trained on the
-        on-policy batches to avoid training it several times on the same data.
+        on-policy batches to avoid training it several times on the same data. Its update receives
+        extrinsic rewards, while the ACER loss uses the augmented rewards.
 
         @ai-generated
         """
@@ -232,12 +233,16 @@ class ACER(Trainer):
             batch = individual_batch
         ir_logs = dict[str, float]()
         if self.ir_module is not None:
+            extrinsic_rewards = batch.rewards.clone() if on_policy else None
             intrinsic = self.ir_module.compute(batch)
             while intrinsic.ndim < batch.rewards.ndim:
                 intrinsic = intrinsic.unsqueeze(-1)
             batch.rewards = batch.rewards + intrinsic
             if on_policy:
-                ir_logs = self.ir_module.update(batch, time_step)
+                assert extrinsic_rewards is not None
+                ir_batch = copy(batch)
+                ir_batch.rewards = extrinsic_rewards
+                ir_logs = self.ir_module.update(ir_batch, time_step)
         actions = batch.actions.unsqueeze(-1)  # (T, B, A, 1)
         masks = batch.masks  # (T, B) with a mixer, (T, B, A) without
         if masks.dim() == batch.actions.dim():

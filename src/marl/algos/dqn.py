@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -107,13 +107,20 @@ class DQN[M: (Mixer | None)](Trainer):
         return self.qnetwork.n_actions
 
     def _update(self, time_step: int) -> dict[str, float]:
+        """Train with shaped rewards, but update the IR module with extrinsic rewards. @ai-edited"""
         if not self.memory.can_sample(self.batch_size):
             return {}
         batch = self.memory.sample(self.batch_size).to(self.device)
+        if self.mixer is None:
+            batch = batch.for_individual_learners()
+        extrinsic_rewards = batch.rewards.clone() if self.ir_module is not None else None
         batch, logs = self._prepare_batch(batch)
         logs = logs | self.train(time_step, batch)
         if self.ir_module is not None:
-            logs = logs | self.ir_module.update(batch, time_step)
+            assert extrinsic_rewards is not None
+            ir_batch = copy(batch)
+            ir_batch.rewards = extrinsic_rewards
+            logs = logs | self.ir_module.update(ir_batch, time_step)
         if self.vbe is not None:
             logs = logs | self.vbe.update(batch)
         logs = logs | self.policy.update(time_step)
