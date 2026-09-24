@@ -134,7 +134,7 @@ def _last_batch(env, agent, trainer) -> TransitionBatch:
 
 
 def test_influence_matches_a_naive_reference_implementation():
-    """Cross-check the vectorised influence reward against an explicit per-agent loop."""
+    """Cross-check the vectorised influence reward against an explicit per-agent loop. @ai-edited"""
     torch.manual_seed(1)
     env_config = LLEConfig(2, obs_type="flattened", time_limit=10)
     trainer = make_trainer(env_config, influence_reward_clip=None, influence_weight=Schedule.constant(1.0))
@@ -162,14 +162,17 @@ def test_influence_matches_a_naive_reference_implementation():
                 total = 0.0
                 for j in range(n_agents - 1):
                     conditional = counterfactual[actions[t, b, k], t, b, k, j]
-                    marginal = sum(probs[t, b, k, a] * counterfactual[a, t, b, k, j] for a in range(n_actions))
+                    marginal = sum(
+                        (probs[t, b, k, a] * counterfactual[a, t, b, k, j] for a in range(n_actions)),
+                        torch.zeros_like(conditional),
+                    )
                     total += torch.sum(conditional * (torch.log(conditional) - torch.log(marginal))).item()
                 expected[t, b, k] = total
     assert torch.allclose(influence, expected, atol=1e-5)
 
 
 def test_moa_learns_to_predict_a_deterministic_partner():
-    """The MOA loss must drop well below ln(n_actions) when the other agent is fully predictable."""
+    """The MOA loss must drop well below ln(n_actions) when the other agent is fully predictable. @ai-edited"""
     torch.manual_seed(0)
     n_agents, n_actions = 2, 4
     moa = ModelOfOtherAgents((3,), 0, n_agents, n_actions, hidden_size=32)
@@ -195,7 +198,10 @@ def test_moa_learns_to_predict_a_deterministic_partner():
         optimizer.step()
     # Agent 0's next action is unpredictable, agent 1's is not, so a perfect model reaches
     # ln(n_actions) / 2 at most: check we are clearly below the uninformed ln(n_actions).
-    assert loss.item() < 0.8 * math.log(n_actions)
+    with torch.no_grad():
+        logits, _ = moa.forward_with_history(obs, extras, joint)
+        final_loss = torch.nn.functional.cross_entropy(logits[:-1].reshape(-1, n_actions), targets.reshape(-1))
+    assert final_loss.item() < 0.8 * math.log(n_actions)
 
 
 def test_smoke_ippo_and_mappo_on_lle():

@@ -1,15 +1,17 @@
 from marl import Experiment, algos
 from marl.env import LLEConfig
+from marl.models import TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 
 
 def short_run():
+    """Run DQN with VDN mixing and RND intrinsic reward. @ai-edited"""
     env = LLEConfig(6, obs_type="layered")
     rnd = algos.RND.from_env(env)
     trainer = algos.DQN(
         qnetworks.from_env(env, independent=True),
-        memory_size=50_000,
+        TransitionMemory(50_000),
         mixer=mixers.VDN.from_env(env),
         ir_module=rnd,
     )

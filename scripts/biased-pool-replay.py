@@ -40,14 +40,14 @@ ALGOS: tuple[Algo, ...] = get_args(Algo)
 
 class Args(tap.TypedArgs):
     pool_dirs: list[Path] = tap.arg(positional=True, help="Directory containing the pool of maps to train on.")
-    n_seeds: int = tap.arg("--n-seeds", default=10)
+    n_seeds: int = tap.arg("--n-seeds", default=16)
     start_seed: int = tap.arg("--start-seed", default=0)
     n_steps: int = tap.arg("--n-steps", default=1_000_000)
     n_jobs: int = tap.arg("--n-jobs", default=1)
     pool_size: int = tap.arg("--pool-size", default=500, help="Size of the training pool (positive integer).")
     offset: int = tap.arg("--offset", default=1_000, help="Index of the first training layout (non-negative integer).")
     n_tests: int = tap.arg("--n-tests", default=500, help="Number of held-out test maps (positive integer).")
-    algos: list[Algo] = tap.arg("--algos", default=list(ALGOS), nargs="+", help="Value-based algorithms to train.")
+    algos: list[Algo] = tap.arg("--algos", nargs="+", help="Value-based algorithms to train.")
     n_bias: int = tap.arg(
         "--n-bias",
         default=0,
@@ -194,11 +194,14 @@ def make_demonstrations(spec: PoolSpec, n_layouts: int, offset: int):
     layouts = layouts[offset:required_layouts]
     solutions = compute_solutions(spec, layouts)
     episodes = list[Episode]()
+    unsolved = [layout.name for layout in layouts if solutions[layout.name] is None]
+    if len(unsolved) > 0:
+        raise ValueError(f"No winning plan for {len(unsolved)} layouts in {spec.path}: {unsolved[:5]}")
     for index, layout in enumerate(tqdm(layouts, desc="Replaying solutions", unit="layout"), start=offset):
         plan = solutions[layout.name]
-        if plan is not None:
-            env = make_env(spec.path, 1, offset=index, time_limit=spec.time_limit).make()
-            episodes.append(env.replay(plan))
+        assert plan is not None
+        env = make_env(spec.path, 1, offset=index, time_limit=spec.time_limit).make()
+        episodes.append(env.replay(plan))
     logger.info(f"Collected {len(episodes)} demonstrations.")
     return episodes
 
@@ -248,8 +251,8 @@ def run_experiment(exp: marl.Experiment, args: Args):
     completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in args.requested_seeds}
     seeds = list(set(args.requested_seeds) - set(completed_seeds))
     seeds.sort()
-    if args.dry_run:
-        logger.info(f"[exists] {len(seeds)} runs of {exp.env.name} / {exp.trainer.name} -> {exp.logdir}")
+    if len(seeds) == 0:
+        logger.info(f"All requested seeds are complete in {exp.logdir}")
         return
     logger.info(f"Resuming {exp.logdir} with the missing seeds {seeds}")
     exp.run(
@@ -267,6 +270,13 @@ def run_experiment(exp: marl.Experiment, args: Args):
 
 
 def main(args: Args):
+    """Validate the selected pools and launch or preview the requested runs. @ai-edited"""
+    if args.n_seeds <= 0:
+        raise ValueError(f"--n-seeds must be positive, got {args.n_seeds}")
+    if args.n_jobs <= 0:
+        raise ValueError(f"--n-jobs must be positive, got {args.n_jobs}")
+    if args.bias_factor <= 0:
+        raise ValueError(f"--bias-factor must be positive, got {args.bias_factor}")
     if args.offset < 0:
         raise ValueError(f"--offset must be a non-negative integer, got {args.offset}")
     if args.pool_size <= 0:
@@ -275,10 +285,28 @@ def main(args: Args):
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
     if args.n_bias < 0 or args.n_bias > args.pool_size:
         raise ValueError(f"--n-bias must be in [0, {args.pool_size}], got {args.n_bias}")
+    if not args.pool_dirs:
+        raise ValueError("Provide at least one pool directory (e.g. layouts/canonicals/asymmetric).")
     for pool_dir in args.pool_dirs:
+        if not pool_dir.is_dir():
+            raise ValueError(f"Layout pool is not a directory: {pool_dir}")
+        layouts = layout_files(pool_dir)
+        required = args.offset + args.pool_size + args.n_tests
+        if len(layouts) < required:
+            raise ValueError(f"{pool_dir} has {len(layouts)} layouts; need {required} for training and held-out tests.")
         spec = parse_pool_spec(pool_dir)
         logger.info(f"Starting the biased-replay study on {spec.map_name}: {args.algos}")
         for algo in args.algos:
+            logdir = experiment_logdir(spec, algo, args.n_steps, args.pool_size, args.logdir_prefix)
+            if args.dry_run:
+                if logdir.exists():
+                    exp = marl.Experiment[MARLEnv, DQN].load(logdir)
+                    missing = set(args.requested_seeds) - {run.seed for run in exp.runs if run.is_complete}
+                    logger.info(f"[exists] {len(missing)} missing runs -> {logdir}")
+                else:
+                    load_best_params(args.study_journal, algo)
+                    logger.info(f"[new] {args.n_seeds} runs -> {logdir}")
+                continue
             exp = get_experiment(args, spec, algo)
             run_experiment(exp, args)
 

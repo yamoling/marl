@@ -1,18 +1,18 @@
 ---
 name: marl-experiment
-description: Create, run, resume, and analyse the results of MARL experiments. Use when writing or reviewing experiment scripts in this repository.
+description: Create, run, inspect, and analyse MARL experiments and add new seeded runs. Use when writing or reviewing experiment scripts in this repository.
 ---
 
 # MARL experiments
 
-Use this skill when creating, running, resuming, or analysing the results of an experiment in this repository. Run commands from the repository root with `uv run python ...`.
+Use this skill when creating, running, inspecting, or analysing an experiment in this repository. Run commands from the repository root with `uv run python ...`. The linked examples live in this skill's `examples/` directory.
 
 ## Core model
 
 - **`EnvConfig`** is a serializable recipe for an environment. Call `env_config.make()` to get a fresh `MARLEnv`; its convenience properties (`n_agents`, `n_actions`, `observation_shape`, etc.) describe that environment. Use a concrete config such as `LLEConfig` in experiment scripts. For an environment under active development, implement a stable `EnvConfig` subclass rather than relying on generic pickling.
 - **`Trainer`** is the serializable training-algorithm configuration. It owns trainable networks and implements updates; call `trainer.make_agent()` to construct the agent that acts in the environment. Build the trainer from the _environment config_ so its dimensions match the environment.
 - An **`Experiment`** is the persistent specification: training `EnvConfig`, optional test `EnvConfig`, `Trainer`, step budget, logger choices, and experiment directory.
-- A **`Run`** is one execution of that specification for one seed. Calling `experiment.run(seeds=3)` creates `run-0`, `run-1`, and `run-2`; each has independent metrics, saved actions, and (by default) checkpoints. Use multiple seeds for reportable results.
+- A **`Run`** is one execution of that specification for one seed. Calling `experiment.run(seeds=3)` creates `run-0`, `run-1`, and `run-2`; each has independent metrics, saved actions, and (by default) checkpoints. Use multiple seeds for reportable results. Loading an experiment does not resume training within an existing run.
 
 ## Create and run
 
@@ -25,7 +25,7 @@ from marl.models import TransitionMemory
 from marl.nn.model_bank.qnetworks import QMLP
 from marl.nn.model_bank import qnetworks
 
-train_env = LLEConfig(1, obs_type="layered", state_type="flattened", time_limit=78)
+train_env = LLEConfig(1, obs_type="flattened", state_type="flattened", time_limit=78)
 # Instantiate a specific Q-network
 qnetwork = QMLP(
     train_env.n_actions,
@@ -36,7 +36,8 @@ qnetwork = QMLP(
     independent=True,
     hidden_sizes=(16, 16),
 )
-# Or get a compatible Q-network from the model bank (preferred way)
+# Or get a compatible Q-network from the model bank (preferred way;
+# selects an MLP for flattened observations or a CNN for layered ones)
 qnetwork = qnetworks.from_env(train_env, recurrent=False, noisy=False, duelling=True, independent=True)
 trainer = algos.DQN(qnetwork, TransitionMemory(50_000), batch_size=1, train_interval=(1, "step"))
 
@@ -47,16 +48,16 @@ experiment = Experiment.create(
     n_steps=100_000,
     loggers=("csv",),
 )
-experiment.run(seeds=3, test_interval=5_000, n_tests=5) # 3 seeds, from 0 to 2
+experiment.run(seeds=3, test_interval=5_000, n_tests=5)  # seeds 0, 1, 2
 ```
 
 `test_env` defaults to a deep copy of `env`. Pass `test_env=...` explicitly when evaluation should use another map, pool, wrapper, or time limit.
 
-For a short, executable smoke test, use [`examples/smoke_experiment.py`](examples/smoke_experiment.py). It is intentionally tiny and uses `logdir="tmp"` so it does not retain a test artifact.
+For a short, executable smoke test, run `uv run python .agents/skills/marl-experiment/examples/smoke_experiment.py`. It uses `logdir="tmp"`, which overwrites any existing `logs/tmp`; its files remain there until replaced or removed.
 
-### Launch an existing experiment
+### Add new seeds to an existing experiment
 
-Creation and execution are separate. To launch or add runs to an already-created experiment, load it, then call `run`:
+Creation and execution are separate. To launch an experiment that has no runs yet, or add **new seeds** to one already run, load it, then call `run`:
 
 ```python
 from marl import Experiment
@@ -65,13 +66,13 @@ experiment = Experiment.load("logs/my-dqn-baseline")
 experiment.run(seeds=[3, 4], test_interval=5_000, n_tests=5)
 ```
 
-Do not reuse a seed whose run you want to preserve: `run-<seed>` is that seed's directory. Before adding work, inspect `experiment.runs` and `run.is_complete`.
+Before adding work, inspect `experiment.runs` and `run.is_complete`. Do not pass an existing seed to `run`: `create_runs` rewrites its `run.json`, and the runner starts at step zero, randomizes the trainer, and opens fresh CSV logs. This is **not** checkpoint-based resume; it can overwrite an interrupted or completed seed's data. Use unused seeds for new runs, or preserve the old directory before deliberately restarting a seed.
 
 For parallel execution, set `n_jobs`, `gpu_strategy` (`"group"` or `"scatter"`), `device`, and optionally `disabled_gpus`. Start with a single seed/job before scheduling a larger sweep.
 
 ## Storage and names
 
-All relative log directory names are rooted under `logs/`:
+Names outside `logs/` are rooted under `logs/` (paths already beginning with `logs` are left as given):
 
 | `logdir` value          | Result                           | Existing directory behaviour                                                                                                     |
 | ----------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,10 +90,10 @@ logs/my-dqn-baseline/
   experiment.json
   run-0/
     run.json
-    train.csv
-    test.csv
-    training_data.csv
-    test/<time_step>/          # actions and, when enabled, saved weights
+    train.csv                # written if train episodes produce metrics
+    test.csv                 # written if tests produce metrics
+    training_data.csv        # written if trainer updates produce metrics
+    test/<time_step>/        # actions.json and, when enabled, saved agent weights
 ```
 
 ## Logging: default to CSV
@@ -105,7 +106,7 @@ Supported experiment logger specs are `"csv"`, `"tensorboard"`, `"wandb"`, and `
 - Use **Weights & Biases** or **Neptune** only when the project needs their remote collaboration/dashboard features and their credentials/configuration are available. They do not provide a local metrics reader in this repository.
 - Do not select `"sqlite"` through `Experiment.create`; it requires additional parameters and the run factory rejects it.
 
-CSV writes `train.csv`, `test.csv`, and `training_data.csv` inside each run directory. Every row includes `time_step` and `timestamp_sec`. A metric schema that changes during a run causes the CSV writer to rewrite the file with the added columns, so keep metric keys stable during large runs.
+CSV writes `train.csv`, `test.csv`, and `training_data.csv` inside each run directory when the corresponding metrics are nonempty. Every written row includes `time_step` and `timestamp_sec`. A metric schema that changes during a run causes the CSV writer to rewrite the file with the added columns, so keep metric keys stable during large runs.
 
 ## Read logs with Polars
 
@@ -134,7 +135,7 @@ summary = experiment.get_test_results(granularity=5_000).collect()
 # Includes ticks and aggregate columns such as mean-<metric>, std-<metric>, and ci95-<metric>.
 ```
 
-See [`examples/read_csv_logs.py`](examples/read_csv_logs.py) for the complete lazy-reading pattern. If no metrics were produced, Polars may raise `NoDataError` or `ColumnNotFoundError`; handle that explicitly in batch analysis.
+See [`examples/read_csv_logs.py`](examples/read_csv_logs.py) for a lazy-reading example. If no metrics were produced, Polars may raise `NoDataError` or `ColumnNotFoundError`; handle that explicitly in batch analysis.
 
 ## Useful operational checks
 

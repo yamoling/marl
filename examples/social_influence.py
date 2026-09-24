@@ -16,6 +16,7 @@ from marl.utils import Schedule
 
 
 def short_run():
+    """Configure and run a short social-influence experiment."""
     env = LLEConfig(6, obs_type="layered")
     actor, critic = actor_critics.from_env(env, recurrent=False)
     trainer = algos.SocialInfluence(
@@ -28,7 +29,7 @@ def short_run():
         # restrict the reward to influencees inside the influencer's field of view, as in the paper.
         visibility="all",
         # The paper ramps up the weight of the influence reward over training (curriculum).
-        influence_weight=Schedule.linear(0.0, 0.5, 100_000),
+        influence_weight=Schedule.linear(0.0, 0.5, 10_000),
         train_interval=(64, "step"),
         grad_norm_clipping=10,
     )

@@ -15,11 +15,9 @@ from marl import Experiment
 def main(logdir: Path) -> None:
     experiment = Experiment.load(logdir)
 
-    frames: list[pl.LazyFrame] = []
-    for run in experiment.runs:
-        frames.append(run.test_metrics.select("time_step", "exit_rate").with_columns(seed=pl.lit(run.seed)))
-
-    if not frames:
+    # frame is of type list[pl.LazyFrame]
+    frames = [run.test_metrics.select("time_step", "exit_rate").with_columns(seed=pl.lit(run.seed)) for run in experiment.runs]
+    if len(frames) == 0:
         print("No run directories found.")
         return
 

@@ -14,7 +14,8 @@ from marl.nn.model_bank import qnetworks
 def main() -> None:
     env = LLEConfig(1, obs_type="flattened")
     qnetwork = qnetworks.from_env(env, recurrent=False, noisy=False, duelling=True, independent=True)
-    trainer = marl.algos.DQN(qnetwork, memory_size=10, batch_size=1, train_interval=(1, "step"))
+    memory = marl.models.TransitionMemory(10)
+    trainer = marl.algos.DQN(qnetwork, memory, batch_size=1, train_interval=(1, "step"))
 
     experiment = marl.Experiment.create(env, trainer, logdir="tmp", n_steps=2, loggers=("csv",))
     print(f"Created {experiment.logdir}")

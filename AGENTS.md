@@ -43,9 +43,18 @@ def simple_function():
     """@ai-generated"""
     return
 
-def previously_existing_function():
+def previously_existing_ai_function():
     """
-    This function already existed before and has just been edited.
+    This function has just been edited but was already marked as ai-generated.
+    It remains ai-generated.
+
+    @ai-generated
+    """
+
+def previously_existing_human_function():
+    """
+    This function has just been edited and was not marked as ai-generated.
+    It becomes ai-edited.
 
     @ai-edited
     """

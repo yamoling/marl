@@ -1,4 +1,5 @@
 import subprocess
+from pathlib import Path
 
 import polars as pl
 from critdd import Diagram
@@ -6,32 +7,44 @@ from critdd import Diagram
 import marl
 
 
-def retrieve_data(logdirs: list[str], time_steps: list[int]):
-    experiments = [marl.Experiment.load(logdir) for logdir in logdirs]
-    data = list[pl.DataFrame]()
-    for exp in experiments:
-        try:
-            run_results = [
-                run.test_metrics.with_columns(seed=pl.lit(run.seed))
-                .filter(pl.col("time_step").is_in(time_steps))
-                .group_by("time_step")
-                .mean()
-                for run in exp.runs
-            ]
-            raw_results = pl.concat(run_results).with_columns(logdir=pl.lit(exp.logdir))
-            data.append(raw_results.select("seed", "exit_rate", "logdir", "time_step").collect())
-        except pl.exceptions.NoDataError:
-            print(f"No data for {exp.logdir}")
+def retrieve_data(logdirs: list[str], time_steps: list[int]) -> pl.DataFrame:
+    """Average test episodes within each run and requested step. @ai-edited"""
+    data = []
+    for logdir in logdirs:
+        exp = marl.Experiment.load(logdir)
+        for run in exp.runs:
+            try:
+                result = (
+                    run.test_metrics.filter(pl.col("time_step").is_in(time_steps))
+                    .group_by("time_step")
+                    .agg(pl.col("exit_rate").mean())
+                    .with_columns(seed=pl.lit(run.seed), logdir=pl.lit(str(exp.logdir)))
+                    .select("seed", "exit_rate", "logdir", "time_step")
+                    .collect()
+                )
+            except (pl.exceptions.NoDataError, pl.exceptions.ColumnNotFoundError):
+                print(f"No test exit_rate data for {exp.logdir}, seed {run.seed}")
+                continue
+            if not result.is_empty():
+                data.append(result)
+    if not data:
+        raise ValueError("No test exit_rate data found at the requested time steps")
     return pl.concat(data)
 
 
 def main(time_steps: list[int], logdirs: list[str], do_compile: bool = False):
+    """Generate one diagram per step using seeds shared by all treatments. @ai-edited"""
     results = retrieve_data(logdirs=logdirs, time_steps=time_steps)
-    df = results.pivot("logdir", index=("seed", "time_step"), values="exit_rate").drop("seed")
-
+    output_dir = Path("plots")
     for step in time_steps:
-        output_file = f"plots/statistical-{step}.tex"
-        sub_df = df.filter(time_step=step).drop("time_step")
+        step_results = results.filter(pl.col("time_step") == step)
+        if step_results.is_empty():
+            raise ValueError(f"No test exit_rate data at time step {step}")
+        output_file = output_dir / f"statistical-{step}.tex"
+        sub_df = step_results.pivot("logdir", index="seed", values="exit_rate").sort("seed").drop("seed").drop_nulls()
+        if sub_df.width < 3 or sub_df.height < 2:
+            raise ValueError(f"Need at least three treatments and two shared seeds at time step {step}")
+        output_dir.mkdir(exist_ok=True)
         print(sub_df)
         diagram = Diagram(sub_df.to_numpy(), treatment_names=sub_df.columns, maximize_outcome=True)
         diagram.to_file(
@@ -53,12 +66,10 @@ def main(time_steps: list[int], logdirs: list[str], do_compile: bool = False):
         print(f"Created {output_file}")
         if do_compile:
             # Compile the latex
-            subprocess.run(["pdflatex", output_file], check=True)
+            subprocess.run(["pdflatex", "-output-directory", str(output_dir), str(output_file)], check=True)
 
 
 if __name__ == "__main__":
-    import os
-
-    logdirs = [f"logs/{d}" for d in os.listdir("logs") if d.startswith("VDN")]
+    logdirs = [str(file.parent) for file in Path("logs").glob("VDN*/experiment.json")]
     time_steps = [100_000, 400_000, 700_000, 1_000_000]
     main(time_steps, logdirs, do_compile=True)
