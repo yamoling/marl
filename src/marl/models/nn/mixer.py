@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 from marlenv import DiscreteMARLEnv
@@ -8,6 +9,9 @@ from marlenv import DiscreteMARLEnv
 from marl.env import EnvConfig
 
 from .nn import NN
+
+if TYPE_CHECKING:
+    from marl.models import Batch
 
 
 @dataclass
@@ -39,6 +43,41 @@ class Mixer(NN):
         - qvalues: the Q-values of the action take by each agent. (batch, n_agents)
         - states: the state of the environment. (batch, state_size)
         """
+
+    def mixing_kwargs(
+        self,
+        all_qvalues: torch.Tensor,
+        actions: torch.Tensor,
+        batch: "Batch | None" = None,
+        *,
+        is_next: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        """
+        Additional keyword arguments that this mixer requires in `forward`, besides the Q-values and the states.
+
+        Args:
+            - all_qvalues: Q-values of every action, with shape (*dims, n_agents, n_actions[, n_objectives]).
+            - actions: the action of each agent whose Q-value is mixed, with shape (*dims, n_agents).
+            - batch: the batch the Q-values come from, if any (e.g. None when evaluating a single state).
+            - is_next: whether the Q-values relate to the next states of the batch rather than the current ones.
+        """
+        return {}
+
+    def forward_batch(
+        self,
+        qvalues: torch.Tensor,
+        batch: "Batch",
+        all_qvalues: torch.Tensor,
+        actions: torch.Tensor,
+        *,
+        is_next: bool = False,
+    ) -> torch.Tensor:
+        """Mix the Q-values of the given (current or next) time steps of a batch, including the inputs of `mixing_kwargs`."""
+        if is_next:
+            states, states_extras = batch.next_states, batch.next_states_extras
+        else:
+            states, states_extras = batch.states, batch.states_extras
+        return self.forward(qvalues, states, states_extras, **self.mixing_kwargs(all_qvalues, actions, batch, is_next=is_next))
 
     def save(self, directory: Path):
         """Save the mixer to a directory."""

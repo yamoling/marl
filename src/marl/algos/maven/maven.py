@@ -6,7 +6,7 @@ from marlenv import DiscreteMARLEnv, Episode
 from marl import policy
 from marl.agents.hierarchical import MAVENAgent
 from marl.env import EnvConfig
-from marl.models import HierarchicalTrainer, Mixer, Policy
+from marl.models import EpisodeMemory, HierarchicalTrainer, Mixer, Policy
 from marl.nn.mixers import QMixMAVEN
 from marl.nn.model_bank import MAVENQnetwork, qnetworks
 
@@ -50,15 +50,16 @@ class MAVEN(HierarchicalTrainer):
     qmix_hypernet_embed_size: int = 64
 
     def __post_init__(self):
+        """Build the Z-policy (bandit) trainer and the mutual-information worker trainer. @ai-edited"""
         super().__post_init__()
         match self.z_policy_type:
             case "uniform":
                 self.meta_trainer = NoTrain()
             case "return":
                 if len(self.env.maven_bandit_obs_shape) == 1:
-                    bandit_nn = qnetworks.QMLP(self.env.noise_size, self.env.maven_bandit_obs_shape, self.env.maven_bandit_extras_shape)
+                    bandit_nn = qnetworks.QMLP(self.env.noise_size, 1, self.env.maven_bandit_obs_shape, self.env.maven_bandit_extras_shape)
                 elif len(self.env.maven_bandit_obs_shape) == 3:
-                    bandit_nn = qnetworks.QCNN(self.env.noise_size, self.env.maven_bandit_obs_shape, self.env.maven_bandit_extras_shape)
+                    bandit_nn = qnetworks.QCNN(self.env.noise_size, 1, self.env.maven_bandit_obs_shape, self.env.maven_bandit_extras_shape)
                 else:
                     raise ValueError(f"Unsupported bandit observation shape: {self.env.maven_bandit_obs_shape}")
                 self.meta_trainer = ExpectedReturnTrainer(
@@ -81,8 +82,8 @@ class MAVEN(HierarchicalTrainer):
             mixer = QMixMAVEN.from_env(self.env, embed_size=self.qmix_embed_size, hypernet_embed_size=self.qmix_hypernet_embed_size)
         self.worker_trainer = MITrainer(
             self.qnetwork,
+            EpisodeMemory(self.memory_size),
             self.env,
-            memory_size=self.memory_size,
             mixer=mixer,
             train_policy=self.train_policy,
             train_interval=(self.train_interval[0], "episode"),

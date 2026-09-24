@@ -134,9 +134,7 @@ class HavenTrainer(Trainer):
         with torch.no_grad():
             q = trainer.qnetwork.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
             values, actions = q.max(dim=-1)
-            mixed = trainer.mixer.forward(
-                values, batch.next_states, batch.next_states_extras, **trainer.get_mixing_kwargs(batch, q, is_next=True, actions=actions)
-            )
+            mixed = trainer.mixer.forward_batch(values, batch, q, actions, is_next=True)
             return batch.rewards + trainer.gamma * mixed.masked_fill(batch.dones | batch.masked_indices, 0)
 
     def _train_value(self, batch: EpisodeBatch | TransitionBatch):

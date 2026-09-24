@@ -115,5 +115,6 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | Social Influence     |        ✗        | ✓           | Causal influence intrinsic reward with a Model of Other Agents (on top of IPPO/MAPPO) |
 | ICM                  |        ✓        | ✓           | Intrinsic Curiosity Module, agent-wise (on top of any trainer with an `ir_module`)    |
 | HAVEN                |        ✗        | Unit-tested | Two-level value decomposition with advantage rewards                                  |
+| MASER                |        ✗        | Unit-tested | Subgoals from the replay buffer with actionable-distance intrinsic rewards (on QMIX)  |
 | REINFORCE            |        ✗        | ✓           | Policy gradient method                                                                |
 | AlphaZero/MCTS       |        ✗        | ?           | Tree search-based                                                                     |

@@ -5,6 +5,7 @@ from .haven import HavenTrainer
 from .intrinsic_reward import ICM, RND, ModelOfOtherAgents, SocialInfluence
 from .laies import LAIES
 from .lan import LAN
+from .maser import MASER
 from .maven import MAVEN
 from .no_train import NoTrain
 from .option_critic import OptionCritic
@@ -24,6 +25,7 @@ __all__ = [
     "ICM",
     "LAIES",
     "LAN",
+    "MASER",
     "MAVEN",
     "PPO",
     "PPOC",

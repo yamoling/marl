@@ -144,13 +144,7 @@ class DQN[M: (Mixer | None)](Trainer):
         else:
             next_values = torch.gather(next_qvalues, -1, indices).squeeze(-1)
         if self.target_mixer is not None:
-            mixing_kwargs = self.get_mixing_kwargs(batch, next_qvalues, is_next=True, actions=indices.squeeze(-1))
-            next_values = self.target_mixer.forward(
-                next_values,
-                batch.next_states,
-                batch.next_states_extras,
-                **mixing_kwargs,
-            )
+            next_values = self.target_mixer.forward_batch(next_values, batch, next_qvalues, indices.squeeze(-1), is_next=True)
         assert batch.rewards.shape == next_values.shape == batch.not_dones.shape == batch.masks.shape
         gamma = batch.gamma if batch.gamma is not None else self.gamma
         if isinstance(gamma, torch.Tensor):
@@ -170,15 +164,6 @@ class DQN[M: (Mixer | None)](Trainer):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
-    def get_mixing_kwargs(
-        self,
-        batch: Batch,
-        all_qvalues: torch.Tensor,
-        is_next: bool = False,
-        actions: torch.Tensor | None = None,
-    ) -> dict[str, torch.Tensor]:
-        return {}
-
     def _compute_qvalues(self, batch: Batch):
         """Gather the selected action while preserving any objective dimension."""
         all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
@@ -188,12 +173,7 @@ class DQN[M: (Mixer | None)](Trainer):
         else:
             qvalues = torch.gather(all_qvalues, dim=-1, index=batch.actions.unsqueeze(-1)).squeeze(-1)
         if self.mixer is not None:
-            qvalues = self.mixer.forward(
-                qvalues,
-                batch.states,
-                batch.states_extras,
-                **self.get_mixing_kwargs(batch, all_qvalues, actions=batch.actions),
-            )
+            qvalues = self.mixer.forward_batch(qvalues, batch, all_qvalues, batch.actions)
         return all_qvalues, qvalues
 
     def _compute_td_loss(self, qvalues: torch.Tensor, qtargets: torch.Tensor, batch: Batch):
@@ -253,16 +233,13 @@ class DQN[M: (Mixer | None)](Trainer):
         state_data, state_extras = state.as_tensors(self.device)
         with torch.no_grad():
             qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
-            max_qvalues = qvalues.max(dim=-1).values
+            max_qvalues, greedy_actions = qvalues.max(dim=-1)
             if self.mixer is None:
                 return float(max_qvalues.mean().item())
             value = self.mixer.forward(
                 max_qvalues,
                 state_data,
                 state_extras,
-                **self.get_value_mixing_kwargs(qvalues),
+                **self.mixer.mixing_kwargs(qvalues, greedy_actions),
             )
             return float(value.item())
-
-    def get_value_mixing_kwargs(self, all_qvalues: torch.Tensor) -> dict[str, torch.Tensor]:
-        return {}

@@ -9,6 +9,7 @@ from torch import nn
 
 from marl.env import EnvConfig
 from marl.logging import warn_once
+from marl.models import Batch
 from marl.models.nn import StateMixer
 from marl.nn.layers import AbsLayer
 
@@ -114,6 +115,19 @@ class QMixMAVEN(QMix):
     @property
     def input_size(self):
         return super().input_size + self.noise_size
+
+    def mixing_kwargs(
+        self,
+        all_qvalues: torch.Tensor,
+        actions: torch.Tensor,
+        batch: Batch | None = None,
+        *,
+        is_next: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        """The MAVEN noise is constant within an episode, hence identical for current and next states. @ai-generated"""
+        if batch is None:
+            return {}
+        return {"maven_noise": batch["maven-noise"]}
 
     def forward(
         self,

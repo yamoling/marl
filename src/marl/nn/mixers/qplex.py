@@ -5,6 +5,7 @@ from marlenv import DiscreteMARLEnv
 from torch import nn
 
 from marl.env import EnvConfig
+from marl.models import Batch
 from marl.models.nn import StateMixer
 
 
@@ -160,6 +161,23 @@ class QPlex(StateMixer):
         v_tot = self._calc_v(agent_qs)
         adv_tot = self._calc_adv(agent_qs, max_q_i, states_flat, one_hot_actions)
         return v_tot + adv_tot
+
+    def mixing_kwargs(
+        self,
+        all_qvalues: torch.Tensor,
+        actions: torch.Tensor,
+        batch: Batch | None = None,
+        *,
+        is_next: bool = False,
+    ) -> dict[str, torch.Tensor]:
+        """The advantage stream needs every Q-value, the selected actions and the legal actions. @ai-generated"""
+        kwargs = {
+            "all_qvalues": all_qvalues,
+            "one_hot_actions": torch.nn.functional.one_hot(actions.long(), self.n_actions).to(all_qvalues.dtype),
+        }
+        if batch is not None:
+            kwargs["available_actions"] = batch.next_available_actions if is_next else batch.available_actions
+        return kwargs
 
     def forward(
         self,

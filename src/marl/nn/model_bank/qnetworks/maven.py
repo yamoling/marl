@@ -123,18 +123,20 @@ class MAVENQnetwork(QNetwork):
     """
 
     noise_size: int
-    n_agents: int
     _: KW_ONLY
     head: NN = field(init=False)
     tail_type: Literal["bmm", "mul"] = "bmm"
     agent_output_size: int = 128
 
     def __post_init__(self):
+        """Build the observation head (CNN + MLP for images, MLP otherwise) and the noise-conditioned tail. @ai-edited"""
         super().__post_init__()
         match self.obs_shape:
-            case (_, _, _):
-                self.head = CNN((self.agent_output_size,), self.obs_shape, self.actual_extras_size, output_activation="relu")
+            case (c, h, w):
+                self.cnn = CNN((c, h, w), output_activation="relu")
+                self.head = MLP((self.agent_output_size,), self.cnn.output_size, self.actual_extras_size, output_activation="relu")
             case (_,):
+                self.cnn = None
                 self.head = MLP((self.agent_output_size,), self.obs_size, self.actual_extras_size, output_activation="relu")
             case _:
                 raise NotImplementedError(f"Observation shape {self.obs_shape} not supported for MAVEN.")
@@ -151,16 +153,17 @@ class MAVENQnetwork(QNetwork):
         return self.extras_size - self.noise_size
 
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /, **kwargs) -> torch.Tensor:
-        match len(extras.shape):
-            case 3:
-                noise = extras[:, :, -self.noise_size :]
-                extras = extras[:, :, : -self.noise_size]
-            case 4:
-                noise = extras[:, :, :, -self.noise_size :]
-                extras = extras[:, :, :, : -self.noise_size]
-            case _:
-                raise NotImplementedError()
-        x = self.head.forward(obs, extras, **kwargs)
+        """
+        Split the noise from the extras and compute the Q-values. Training-only keyword arguments (e.g. `masks`)
+        are ignored because the network is not recurrent.
+
+        @ai-edited
+        """
+        noise = extras[..., -self.noise_size :]
+        extras = extras[..., : -self.noise_size]
+        if self.cnn is not None:
+            obs = self.cnn.forward(obs)
+        x = self.head.forward(obs, extras)
         return self.tail.forward(noise, x)
 
     @classmethod
@@ -171,14 +174,15 @@ class MAVENQnetwork(QNetwork):
         tail_type: Literal["bmm", "mul"] = "bmm",
         **kwargs,
     ):
+        """Build the network from an environment configuration with a MAVEN noise space. @ai-edited"""
         if not isinstance(env, EnvConfig):
             env = EnvConfig.from_any(env)
         return MAVENQnetwork(
             env.n_actions,
+            env.n_agents,
             env.observation_shape,
             env.extras_shape,
             env.noise_size,
-            env.n_agents,
             agent_output_size=agent_output_size,
             tail_type=tail_type,
             **kwargs,
