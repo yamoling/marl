@@ -1,14 +1,12 @@
 from dataclasses import KW_ONLY, dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
-import numpy as np
 import torch
 from marlenv import Episode
 
 from marl.models import Trainer
-
-if TYPE_CHECKING:
-    from marl.models import ActorCritic
+from marl.models.batch import EpisodeBatch
+from marl.models.nn import Actor, Critic
 
 
 @dataclass
@@ -16,52 +14,61 @@ class Reinforce(Trainer):
     """Vanilla policy gradient algorithm."""
 
     n_agents: int
-    ac: "ActorCritic"
+    actor: Actor
+    critic: Critic
     _: KW_ONLY
     lr: float = 1e-4
     returns_computation_method: Literal["monte_carlo", "td1"] = "monte_carlo"
 
     def __post_init__(self):
+        """Set up optimization for both the policy and its learned baseline. @ai-edited"""
         super().__post_init__()
-        self._optim = torch.optim.AdamW(self.ac.parameters(), lr=self.lr)
+        if self.actor.is_recurrent or self.critic.is_recurrent:
+            raise ValueError("Reinforce currently requires non-recurrent actor and critic networks")
+        self._optim = torch.optim.AdamW([*self.actor.parameters(), *self.critic.parameters()], lr=self.lr)
 
-    def compute_td1_returns(self, episode: Episode):
-        obs = torch.from_numpy(episode.next_obs).to(self.device)
-        extras = torch.from_numpy(episode.next_extras).to(self.device)
-        next_values = self.ac.value(obs, extras)
-        return episode.rewards + self.gamma * next_values.numpy(force=True)
+    def compute_returns(self, batch: EpisodeBatch) -> torch.Tensor:
+        """Bootstrap truncated MC rollouts and mask terminal TD(1) targets. @ai-generated"""
+        with torch.no_grad():
+            next_values = self.critic.value(batch.next_obs.flatten(0, 1), batch.next_extras.flatten(0, 1)).unflatten(
+                0, batch.next_obs.shape[:2]
+            )
+            match self.returns_computation_method:
+                case "monte_carlo":
+                    return batch.compute_mc_returns(self.gamma, next_values[-1])
+                case "td1":
+                    return batch.compute_td1_returns(self.gamma, next_values)
+                case other:
+                    raise ValueError(f"Invalid returns computation method: {other}")
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int) -> dict[str, Any]:
-        match self.returns_computation_method:
-            case "monte_carlo":
-                G = torch.from_numpy(episode.compute_returns(self.gamma))
-            case "td1":
-                next_obs = torch.from_numpy(episode.next_obs).to(self.device)
-                next_extras = torch.from_numpy(episode.next_extras).to(self.device)
-                rewards = torch.from_numpy(episode.rewards).to(self.device)
-                next_values = self.ac.value(next_obs, next_extras)
-                G = rewards + self.gamma * next_values
-            case other:
-                raise ValueError(f"Invalid returns computation method: {other}")
-        obs = torch.from_numpy(np.array(episode.obs)).to(self.device)
-        extras = torch.from_numpy(np.array(episode.extras)).to(self.device)
-        with torch.no_grad():
-            values = self.ac.value(obs, extras)
-            adv = G - values
-        actions = torch.from_numpy(np.array(episode.actions)).to(self.device)
-        log_probs = self.ac.log_probs(obs, extras, actions)
-        loss = -(log_probs * adv.detach()).mean()
+        """Train the masked policy and value baseline against episode returns. @ai-edited"""
+        batch = EpisodeBatch([episode], device=self.device).for_individual_learners()
+        returns = self.compute_returns(batch)
+        obs = batch.obs.flatten(0, 1)
+        extras = batch.extras.flatten(0, 1)
+        values = self.critic.value(obs, extras).unflatten(0, batch.obs.shape[:2])
+        advantages = returns - values.detach()
+        policy = self.actor.policy(obs, extras, available_actions=batch.available_actions.flatten(0, 1))
+        log_probs = policy.log_prob(batch.actions.flatten(0, 1)).unflatten(0, batch.obs.shape[:2])
+        actor_loss = -(log_probs * advantages).mean()
+        critic_loss = torch.nn.functional.mse_loss(values, returns)
+        loss = actor_loss + critic_loss
         self._optim.zero_grad()
         loss.backward()
+        if self.grad_norm_clipping is not None:
+            torch.nn.utils.clip_grad_norm_([*self.actor.parameters(), *self.critic.parameters()], self.grad_norm_clipping)
         self._optim.step()
         return {
             "loss": loss.item(),
-            "returns_mean": G.mean().item(),
-            "adv_mean": adv.mean().item(),
+            "critic_loss": critic_loss.item(),
+            "returns_mean": returns.mean().item(),
+            "adv_mean": advantages.mean().item(),
             "log_probs_mean": log_probs.mean().item(),
         }
 
     def make_agent(self):
+        """Use the same actor interface for behaviour and training. @ai-edited"""
         from marl.agents import SimpleAgent
 
-        return SimpleAgent(self.ac)
+        return SimpleAgent(self.actor)
