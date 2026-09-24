@@ -98,7 +98,7 @@ class QMix(StateMixer):
             y = torch.bmm(hidden, weight_2) + value
             y = torch.reshape(y, batch_dims)
             q_totals.append(y)
-        return torch.stack(q_totals, dim=-1).squeeze()
+        return torch.stack(q_totals, dim=-1).squeeze(-1)
 
     @classmethod
     def from_env(cls, env: DiscreteMARLEnv | EnvConfig, embed_size: int = 64, hypernet_embed_size: int = 64, **kwargs):

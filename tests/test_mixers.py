@@ -6,10 +6,18 @@ each individual agent's Q-value, which holds because every weight of the mixing
 network is passed through `AbsLayer` before being applied.
 """
 
+import numpy as np
+import pytest
 import torch
+from marlenv import Episode, Transition
+from marlenv.catalog import DiscreteMockEnv
 
+from marl.algos.dqn import DQN
+from marl.models import TransitionMemory
+from marl.models.batch import EpisodeBatch, TransitionBatch
 from marl.nn.mixers.qmix import QMix
 from marl.nn.mixers.vdn import VDN
+from marl.nn.model_bank import qnetworks
 
 
 class TestVDN:
@@ -56,6 +64,37 @@ class TestQMix:
         states_extras = torch.randn(batch, 0)
         out = mixer.forward(qvalues, states, states_extras)
         assert out.shape == (batch,)
+
+    @pytest.mark.parametrize("batch_dims", [(1,), (1, 1), (1, 2), (2, 1)])
+    def test_forward_preserves_singleton_batch_and_time_axes(self, batch_dims):
+        mixer = _make_qmix(n_agents=2)
+        mixer.randomize()
+        qvalues = torch.randn(*batch_dims, 2)
+        states = torch.randn(*batch_dims, mixer.state_size)
+        states_extras = torch.empty(*batch_dims, 0)
+
+        assert mixer(qvalues, states, states_extras).shape == batch_dims
+
+    @pytest.mark.parametrize("episode", [False, True], ids=["transition", "one_step_episode"])
+    def test_dqn_singleton_qmix_targets_and_training(self, episode):
+        env = DiscreteMockEnv(n_agents=2, n_actions=3, end_game=1)
+        obs, state = env.reset()
+        action = env.sample_action()
+        transition = Transition.from_step(obs, state, action, env.step(action))
+        batch = EpisodeBatch([Episode.from_transitions([transition])]) if episode else TransitionBatch([transition])
+        trainer = DQN(
+            qnetworks.from_env(env, hidden_sizes=(8,)),
+            memory=TransitionMemory(10),
+            mixer=QMix.from_env(env, embed_size=8, hypernet_embed_size=8),
+        )
+        expected_shape = (1, 1) if episode else (1,)
+
+        assert batch.rewards.shape == expected_shape
+        with torch.no_grad():
+            targets = trainer._compute_qtargets(batch)
+        assert targets.shape == expected_shape
+        assert torch.isfinite(targets).all()
+        assert np.isfinite(trainer.train(0, batch)["td-loss"])
 
     def test_is_monotonic_in_each_agents_qvalue(self):
         """Increasing a single agent's Q-value (all else fixed) must not decrease Q_tot,
