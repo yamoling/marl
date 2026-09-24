@@ -236,11 +236,13 @@ class DQN[M: (Mixer | None)](Trainer):
         )
 
     def value(self, obs: Observation, state: State) -> float:
+        """Evaluate the best available action using Q-values, not raw network heads. @ai-edited"""
         data, extras = obs.as_tensors(self.device)
         state_data, state_extras = state.as_tensors(self.device)
         with torch.no_grad():
-            qvalues = self.qnetwork.forward(data.unsqueeze(0), extras.unsqueeze(0))
-            max_qvalues, greedy_actions = qvalues.max(dim=-1)
+            qvalues = self.qnetwork.batch_qvalues(data.unsqueeze(0), extras.unsqueeze(0))
+            available = torch.as_tensor(obs.available_actions, device=self.device, dtype=torch.bool).unsqueeze(0)
+            max_qvalues, greedy_actions = qvalues.masked_fill(~available, -torch.inf).max(dim=-1)
             if self.mixer is None:
                 return float(max_qvalues.mean().item())
             value = self.mixer.forward(

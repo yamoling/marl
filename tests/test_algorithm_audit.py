@@ -1,6 +1,7 @@
 """Numerical and integration regressions found during the repository audit."""
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -109,6 +110,28 @@ def test_dqn_terminal_without_available_actions_is_finite(double):
         targets = trainer._compute_qtargets(batch)
     assert torch.isfinite(targets).all()
     torch.testing.assert_close(targets[-1], batch.rewards[-1])
+
+
+def test_dqn_value_uses_masked_duelling_qvalues_with_and_without_mixer():
+    env, _ = make_batch()
+    obs, state = env.reset()
+    obs.available_actions[:] = [[False, True, True], [True, True, False]]
+    net = qnetworks.from_env(env, hidden_sizes=(8,), duelling=True)
+    outputs = torch.tensor([[[9.0, 2.0, 0.0, 10.0], [1.0, 4.0, 8.0, 5.0]]])
+    expected_qvalues = net._get_qvalues(outputs)
+    mask = torch.as_tensor(obs.available_actions).unsqueeze(0)
+    expected_values, expected_actions = expected_qvalues.masked_fill(~mask, -torch.inf).max(-1)
+    trainer = DQN(net, memory=TransitionMemory(100))
+    with patch.object(net, "forward", return_value=outputs):
+        assert trainer.value(obs, state) == pytest.approx(expected_values.mean().item())
+    from marl.nn.mixers.qmix import QMix
+
+    mixer = QMix.from_env(env)
+    mixed_trainer = DQN(net, memory=TransitionMemory(100), mixer=mixer)
+    state_data, state_extras = state.as_tensors(mixed_trainer.device)
+    expected = mixer.forward(expected_values, state_data, state_extras, **mixer.mixing_kwargs(expected_qvalues, expected_actions))
+    with patch.object(net, "forward", return_value=outputs):
+        assert mixed_trainer.value(obs, state) == pytest.approx(expected.item())
 
 
 @pytest.mark.parametrize("double", [False, True])
