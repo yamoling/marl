@@ -16,10 +16,14 @@ class EnvConfig[E: MARLEnv](Serializable):
     agent_id: bool = True
     time_limit: int | None = None
     last_action: bool = False
+    extra_padding_size: int | None = None
     maven_noise_size: int | None = None
 
     def __post_init__(self):
+        """Reject conflicting padding settings while retaining legacy MAVEN configs. @ai-edited"""
         super().__post_init__()
+        if self.extra_padding_size is not None and self.maven_noise_size is not None:
+            raise ValueError("Specify only one of extra_padding_size and maven_noise_size")
 
     @cached_property
     def env(self):
@@ -36,9 +40,10 @@ class EnvConfig[E: MARLEnv](Serializable):
         time_limit: int | None = None,
         last_action: bool = False,
         maven_noise_size: int | None = None,
+        extra_padding_size: int | None = None,
         **kwargs,
     ) -> EnvConfig[MARLEnv[A]]:
-        """Create an EnvConfig from any MARLEnv by pickling it."""
+        """Create an EnvConfig from any MARLEnv by pickling it. @ai-edited"""
         from .pickle_config import PickleEnvConfig
 
         return PickleEnvConfig.create(
@@ -47,6 +52,7 @@ class EnvConfig[E: MARLEnv](Serializable):
             time_limit=time_limit,
             last_action=last_action,
             maven_noise_size=maven_noise_size,
+            extra_padding_size=extra_padding_size,
             **kwargs,
         )
 
@@ -57,6 +63,7 @@ class EnvConfig[E: MARLEnv](Serializable):
     def make_base_env(self) -> E: ...
 
     def make(self):
+        """Apply environment wrappers, including optional reserved extras. @ai-edited"""
         base_env = self.make_base_env()
         builder = marlenv.Builder(base_env)
         if self.time_limit is not None:
@@ -65,7 +72,9 @@ class EnvConfig[E: MARLEnv](Serializable):
             builder = builder.agent_id()
         if self.last_action:
             builder = builder.last_action()
-        if self.maven_noise_size is not None:
+        if self.extra_padding_size is not None:
+            builder = builder.pad("extra", self.extra_padding_size, label="padding")
+        elif self.maven_noise_size is not None:
             builder = builder.pad("extra", self.maven_noise_size, label="maven")
         return builder.build()
 
@@ -127,10 +136,11 @@ class EnvConfig[E: MARLEnv](Serializable):
 
     @property
     def noise_size(self):
-        """Convenience property to get the size of the MAVEN noise space without type-checking."""
-        if self.maven_noise_size is None:
+        """Return the reserved extras size for MAVEN's noise vector. @ai-edited"""
+        size = self.extra_padding_size if self.extra_padding_size is not None else self.maven_noise_size
+        if size is None:
             raise ValueError("This environment does not have a maven noise space.")
-        return self.maven_noise_size
+        return size
 
     @property
     def maven_bandit_obs_shape(self):

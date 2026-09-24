@@ -25,8 +25,10 @@ class PickleEnvConfig(EnvConfig[MARLEnv]):
         time_limit: int | None = None,
         last_action: bool = False,
         maven_noise_size: int | None = None,
+        extra_padding_size: int | None = None,
         **kwargs,
     ) -> EnvConfig[MARLEnv[A]]:
+        """Persist a reusable environment and its optional extras padding. @ai-edited"""
         env_dir = Path("envs")
         env_dir.mkdir(exist_ok=True)
         env_file = env_dir / f"{env.name}.pkl"
@@ -42,6 +44,7 @@ class PickleEnvConfig(EnvConfig[MARLEnv]):
                     time_limit=time_limit,
                     last_action=last_action,
                     maven_noise_size=maven_noise_size,
+                    extra_padding_size=extra_padding_size,
                     **kwargs,
                 )
             suffix += 1
@@ -54,5 +57,6 @@ class PickleEnvConfig(EnvConfig[MARLEnv]):
             time_limit=time_limit,
             last_action=last_action,
             maven_noise_size=maven_noise_size,
+            extra_padding_size=extra_padding_size,
             **kwargs,
         )

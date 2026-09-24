@@ -36,7 +36,8 @@ export const EnvConfigSchema = z
     agent_id: z.boolean(),
     time_limit: z.number().nullable(),
     last_action: z.boolean(),
-    maven_noise_size: z.number().nullable(),
+    extra_padding_size: z.number().nullable().optional(),
+    maven_noise_size: z.number().nullable().optional(),
     env: EnvSchema.optional(),
   })
   .loose();

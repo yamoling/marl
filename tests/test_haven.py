@@ -7,7 +7,7 @@ import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl.algos.dqn import DQN
-from marl.algos.haven import Haven, HavenTrainer
+from marl.algos.haven import HAVEN, HavenAgent
 from marl.models import Action, Agent, EpisodeMemory, TransitionMemory
 from marl.models.batch import EpisodeBatch
 from marl.nn.mixers.qmix import QMix
@@ -17,13 +17,13 @@ from marl.nn.model_bank.qnetworks import QMLP, QRNN
 
 def test_haven_public_imports_are_consistent():
     """The consolidated package remains available through established convenience exports. @ai-generated"""
-    from marl.agents import Haven as AgentExport
-    from marl.algos import HavenTrainer as TrainerExport
+    from marl.agents import HavenAgent as AgentExport
+    from marl.algos import HAVEN as TrainerExport
     from marl.algos.haven import HavenSpec as PackageSpec
     from marl.models import HavenSpec
 
-    assert AgentExport is Haven
-    assert TrainerExport is HavenTrainer
+    assert AgentExport is HavenAgent
+    assert TrainerExport is HAVEN
     assert HavenSpec is PackageSpec
 
 
@@ -43,7 +43,7 @@ def make_trainer(recurrent=False, qmix=False, transition_memory=False, memory_si
             train_interval=(1, "episode"),
         )
 
-    return HavenTrainer(child(3, meta_memory_size), child(4, memory_size), 2, 2, 3, 1, 1, **kwargs)
+    return HAVEN(child(3, meta_memory_size), child(4, memory_size), 2, 2, 3, 1, 1, **kwargs)
 
 
 def make_episode(length=5, done=True):
@@ -202,7 +202,7 @@ class ScriptedAgent(Agent):
 
 def test_agent_cadence_evaluation_restore_and_observation_ownership():
     meta, worker = ScriptedAgent(), ScriptedAgent()
-    agent = Haven(meta, worker, 2, 2, 3, 1, 1)
+    agent = HavenAgent(meta, worker, 2, 2, 3, 1, 1)
     obs = next(make_episode().transitions()).obs
     first = agent.choose_action(obs, with_details=True)
     agent.set_testing()
@@ -248,7 +248,7 @@ def test_checkpoint_and_configuration_roundtrip(tmp_path):
     trainer = make_trainer(qmix=True)
     trainer.update_episode(make_episode(), 0, 5)
     trainer.update_episode(make_episode(1), 1, 6)
-    restored = HavenTrainer.from_json(trainer.to_json())
+    restored = HAVEN.from_json(trainer.to_json())
     trainer.save(tmp_path / "trainer")
     restored.load(tmp_path / "trainer")
     for actual, expected in zip(restored.networks(), trainer.networks()):
@@ -390,7 +390,7 @@ def test_transition_replay_trains_all_estimators_on_steps(qmix):
     assert all(np.isfinite(v) for v in logs.values())
     for net, old in zip(groups, before):
         assert any(not torch.equal(p, previous) for p, previous in zip(net.parameters(), old))
-    restored = HavenTrainer.from_json(trainer.to_json())
+    restored = HAVEN.from_json(trainer.to_json())
     assert isinstance(restored.meta_trainer.memory, TransitionMemory)
 
 

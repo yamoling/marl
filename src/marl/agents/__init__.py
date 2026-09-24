@@ -7,15 +7,15 @@ from .replay_agent import ReplayAgent
 from .simple_agent import ContinuousAgent, DiscreteAgent, DiscreteOneHotAgent, SimpleAgent
 
 if TYPE_CHECKING:
-    from marl.algos.haven import Haven
+    from marl.algos.haven import HavenAgent
 
 
 def __getattr__(name: str):
     """Load the HAVEN compatibility export only when requested. @ai-generated"""
-    if name == "Haven":
-        from marl.algos.haven import Haven
+    if name == "HavenAgent":
+        from marl.algos.haven import HavenAgent
 
-        return Haven
+        return HavenAgent
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -24,7 +24,7 @@ __all__ = [
     "DQNAgent",
     "DiscreteAgent",
     "DiscreteOneHotAgent",
-    "Haven",
+    "HavenAgent",
     "OptionAgent",
     "QAgent",
     "RandomAgent",

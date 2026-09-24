@@ -10,13 +10,13 @@ from marl.models import Mixer, QNetwork, Trainer
 from marl.models.batch import Batch, EpisodeBatch, TransitionBatch
 
 from ..dqn import DQN
-from .agent import Haven
+from .agent import HavenAgent
 from .replay import HavenReplay, HavenWorkerSample
 from .spec import HavenSpec
 
 
 @dataclass
-class HavenTrainer(Trainer):
+class HAVEN(Trainer):
     """HAVEN with aligned replay and independently optimized macro Q, V and worker Q.
 
     The two DQN trainers supply replay, optimizers, discounts and update schedules.
@@ -96,12 +96,12 @@ class HavenTrainer(Trainer):
             raise ValueError("TransitionMemory requires feed-forward networks; use EpisodeMemory for recurrent HAVEN")
 
     def update_step(self, transition: Transition, time_step: int):
-        """Collect aligned transitions, then follow each child's primitive-step schedule. @ai-edited"""
+        """Collect aligned transitions, then follow each child's primitive-step schedule."""
         self.replay.add_transition(transition)
         return self._update(time_step, on_episode=None)
 
     def update_episode(self, episode: Episode, episode_num: int, time_step: int):
-        """Store aligned raw trajectories once; warmup gates learning, not collection. @ai-edited"""
+        """Store aligned raw trajectories once; warmup gates learning, not collection."""
         self.replay.finish_episode(episode)
         return self._update(time_step, on_episode=episode_num)
 
@@ -194,7 +194,7 @@ class HavenTrainer(Trainer):
         return logs
 
     def make_agent(self):
-        return Haven(
+        return HavenAgent(
             self.meta_trainer.make_agent(),
             self.worker_trainer.make_agent(),
             self.n_subgoals,

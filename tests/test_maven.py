@@ -18,6 +18,26 @@ from marl.runners.simple_runner import _train_episode, seeded_rollout
 NOISE_SIZE = 3
 
 
+def test_generic_extra_padding_and_legacy_configs():
+    plain = LLEConfig(6)
+    padded = LLEConfig(6, extra_padding_size=NOISE_SIZE)
+    assert padded.extras_shape == (plain.extras_shape[0] + NOISE_SIZE,)
+    assert padded.noise_size == NOISE_SIZE
+    assert padded.extras_meanings[-NOISE_SIZE:] == ["padding-0", "padding-1", "padding-2"]
+    restored = LLEConfig.from_json(padded.to_json())
+    assert restored.extra_padding_size == NOISE_SIZE
+    assert restored.extras_shape == padded.extras_shape
+
+    legacy_data = env_config().to_dict()
+    legacy_data.pop("extra_padding_size")
+    legacy = LLEConfig.from_dict(legacy_data)
+    assert legacy.maven_noise_size == NOISE_SIZE
+    assert legacy.noise_size == NOISE_SIZE
+    assert legacy.extras_shape == padded.extras_shape
+    with pytest.raises(ValueError, match="Specify only one"):
+        LLEConfig(6, extra_padding_size=NOISE_SIZE, maven_noise_size=NOISE_SIZE)
+
+
 def env_config(noise_size=NOISE_SIZE):
     return LLEConfig(6, obs_type="flattened", state_type="flattened", time_limit=8, maven_noise_size=noise_size)
 

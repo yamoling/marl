@@ -12,7 +12,7 @@ from .spec import HavenSpec
 
 
 @dataclass
-class Haven(Agent):
+class HavenAgent(Agent):
     """
     Hierarchical agent where a meta-agent gives orders (i.e. actions, subgoals, communication) to workers (multi-agent).
 

@@ -1,7 +1,7 @@
 from .acer import ACER
 from .ddpg import DDPG
 from .dqn import DQN
-from .haven import HavenTrainer
+from .haven import HAVEN
 from .intrinsic_reward import ICM, RND, ModelOfOtherAgents, SocialInfluence
 from .laies import LAIES
 from .lan import LAN
@@ -22,6 +22,7 @@ __all__ = [
     "ACER",
     "DDPG",
     "DQN",
+    "HAVEN",
     "ICM",
     "LAIES",
     "LAN",
@@ -32,7 +33,6 @@ __all__ = [
     "RND",
     "VDN",
     "HardUpdate",
-    "HavenTrainer",
     "ModelOfOtherAgents",
     "NoTrain",
     "OptionCritic",
