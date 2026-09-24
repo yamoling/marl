@@ -4,7 +4,8 @@ from dataclasses import KW_ONLY, dataclass, field
 import torch
 import torch.nn.functional as F
 
-from marl.models import NN, Batch, Mixer
+from marl.models import NN, Batch, Mixer, RecurrentQNetwork
+from marl.models.batch import EpisodeBatch, TransitionBatch
 from marl.utils.tuning import tuning
 
 from .dqn import DQN
@@ -79,6 +80,9 @@ class MASER(DQN[Mixer]):
     Differences with the paper:
         - φ is shared by all agents (like the utility networks) and also receives the observation extras.
         - The episodic correction only considers the available actions.
+        - With transition replay, subgoals are selected from the sampled transitions rather than within each episode;
+          episodic correction is omitted because the sampled transitions have no temporal ordering. Recurrent networks
+          require episode replay.
 
     The paper uses `alpha=0.5`, `intrinsic_weight=0.03` and `1e-3` for the three auxiliary loss weights, with
     RMSProp (lr=5e-4), 32 episodes per batch, a 5000-episodes buffer and a hard target update every 200 episodes.
@@ -107,8 +111,8 @@ class MASER(DQN[Mixer]):
             raise ValueError("MASER requires a mixer (QMIX in the paper)")
         if self.mixer.n_objectives != 1 or self.qnetwork.is_multi_objective:
             raise ValueError("MASER only supports scalar rewards")
-        if not self.memory.update_on_episodes:
-            raise ValueError("MASER selects subgoals within episodes and requires an episode-based replay memory")
+        if self.memory.update_on_transitions and isinstance(self.qnetwork, RecurrentQNetwork):
+            raise ValueError("MASER requires episode replay for recurrent Q-networks")
         if not 0.0 <= self.alpha <= 1.0:
             raise ValueError(f"alpha must be in [0, 1], got {self.alpha}")
         super().__post_init__()
@@ -171,13 +175,22 @@ class MASER(DQN[Mixer]):
 
         @ai-generated
         """
-        next_qvalues = self.qtarget.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+        if isinstance(batch, TransitionBatch):
+            next_obs, next_extras = batch.next_obs, batch.next_extras
+            masks = None
+        else:
+            next_obs, next_extras = batch.all_obs, batch.all_extras
+            masks = batch.all_masks
+        next_qvalues = self.qtarget.batch_qvalues(next_obs, next_extras, masks=masks)
         if self.double_qlearning:
             self.qnetwork.eval()
-            qvalues_for_index = self.qnetwork.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+            qvalues_for_index = self.qnetwork.batch_qvalues(next_obs, next_extras, masks=masks)
             self.qnetwork.train()
         else:
             qvalues_for_index = next_qvalues
+        if isinstance(batch, EpisodeBatch):
+            next_qvalues = next_qvalues[1:]
+            qvalues_for_index = qvalues_for_index[1:]
         indices = qvalues_for_index.masked_fill(~batch.next_available_actions, -torch.inf).argmax(dim=-1, keepdim=True)
         next_values = next_qvalues.gather(-1, indices).squeeze(-1)
         next_total = self.target_mixer.forward_batch(next_values, batch, next_qvalues, indices.squeeze(-1), is_next=True)
@@ -212,19 +225,29 @@ class MASER(DQN[Mixer]):
         chosen_qvalues = all_qvalues.gather(-1, batch.actions.unsqueeze(-1)).squeeze(-1)
         agent_masks = batch.masks.unsqueeze(-1)
         n_agents = all_qvalues.shape[-2]
+        episodic = isinstance(batch, EpisodeBatch)
 
         # Subgoal generation (Section 4.1) and actionable distance (eq. 6)
         with torch.no_grad():
             qvalues = all_qvalues.detach()
             greedy_actions = qvalues.masked_fill(~batch.available_actions, -torch.inf).argmax(dim=-1, keepdim=True)
             greedy_qvalues = qvalues.gather(-1, greedy_actions).squeeze(-1)
-            subgoal_timesteps = self._select_subgoals(greedy_qvalues, qtotal.detach(), batch.masked_indices)
-            goal_qvalues = at_timestep(qvalues, subgoal_timesteps)
+            if episodic:
+                subgoal_timesteps = self._select_subgoals(greedy_qvalues, qtotal.detach(), batch.masked_indices)
+                goal_qvalues = at_timestep(qvalues, subgoal_timesteps)
+            else:
+                scores = self.alpha * greedy_qvalues + (1 - self.alpha) * qtotal.detach().unsqueeze(-1) / n_agents
+                subgoal_indices = scores.argmax(dim=0)  # one sampled transition per agent
+                agent_indices = torch.arange(n_agents, device=qvalues.device)
+                goal_qvalues = qvalues[subgoal_indices, agent_indices].unsqueeze(0)
             actionable_distances = 1 - F.cosine_similarity(qvalues, goal_qvalues, dim=-1)
 
         # Representation loss (eq. 7)
         embeddings = self.representation.forward(batch.obs, batch.extras)
-        goal_embeddings = at_timestep(embeddings, subgoal_timesteps)
+        if episodic:
+            goal_embeddings = at_timestep(embeddings, subgoal_timesteps)
+        else:
+            goal_embeddings = embeddings[subgoal_indices, agent_indices].unsqueeze(0)
         distances = torch.linalg.vector_norm(embeddings - goal_embeddings, dim=-1)
         representation_loss = ((distances - actionable_distances) ** 2 * agent_masks).sum() / batch.n_items
 
@@ -238,11 +261,14 @@ class MASER(DQN[Mixer]):
         td_loss, td_error = self._compute_td_loss(qtotal, total_targets, batch)
         individual_loss = (((chosen_qvalues - individual_targets) * agent_masks) ** 2).sum() / batch.n_items
 
-        # Episodic correction (eq. 8), from each agent's subgoal time step until the end of the episode
-        timesteps = torch.arange(all_qvalues.shape[0], device=all_qvalues.device).view(-1, 1, 1)
-        after_subgoal = (timesteps >= subgoal_timesteps.unsqueeze(0)) & ~batch.masked_indices.unsqueeze(-1)
-        kl = self._uniform_kl(all_qvalues, batch.available_actions)
-        correction_loss = (kl * after_subgoal).sum() / batch.n_items
+        # Eq. (8) needs ordered episode histories; an unordered transition sample cannot identify later steps.
+        if episodic:
+            timesteps = torch.arange(all_qvalues.shape[0], device=all_qvalues.device).view(-1, 1, 1)
+            after_subgoal = (timesteps >= subgoal_timesteps.unsqueeze(0)) & ~batch.masked_indices.unsqueeze(-1)
+            kl = self._uniform_kl(all_qvalues, batch.available_actions)
+            correction_loss = (kl * after_subgoal).sum() / batch.n_items
+        else:
+            correction_loss = qtotal.new_zeros(())
 
         loss = (
             td_loss
@@ -259,8 +285,11 @@ class MASER(DQN[Mixer]):
             "representation-loss": representation_loss.item(),
             "loss": loss.item(),
             "intrinsic-reward": (intrinsic_rewards.sum() / (batch.n_items * n_agents)).item(),
-            "subgoal-timestep": subgoal_timesteps.float().mean().item(),
         }
+        if episodic:
+            logs["subgoal-timestep"] = subgoal_timesteps.float().mean().item()
+        else:
+            logs["subgoal-index"] = subgoal_indices.float().mean().item()
         if self.grad_norm_clipping is not None:
             parameters = [*self.target_updater.parameters, *self.representation.parameters()]
             logs["grad_norm"] = torch.nn.utils.clip_grad_norm_(parameters, self.grad_norm_clipping).item()

@@ -10,7 +10,7 @@ from marl import algos
 from marl.algos.maser import MASER, at_timestep
 from marl.env import LLEConfig
 from marl.models import EpisodeMemory, Trainer, TransitionMemory
-from marl.models.batch import EpisodeBatch
+from marl.models.batch import EpisodeBatch, TransitionBatch
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 
@@ -19,7 +19,7 @@ def env_config(time_limit: int = 15):
     return LLEConfig(6, obs_type="flattened", state_type="flattened", time_limit=time_limit)
 
 
-def make_trainer(recurrent: bool = False, **kwargs: Any) -> MASER:
+def make_trainer(recurrent: bool = False, transition_memory: bool = False, **kwargs: Any) -> MASER:
     env = env_config()
     if recurrent:
         qnetwork = qnetworks.QRNN.from_env(env, mlp_head_sizes=(16,), mlp_tail_sizes=(16,))
@@ -28,7 +28,8 @@ def make_trainer(recurrent: bool = False, **kwargs: Any) -> MASER:
     kwargs.setdefault("batch_size", 4)
     kwargs.setdefault("representation_hidden_size", 16)
     kwargs.setdefault("mixer", mixers.QMix.from_env(env, embed_size=8, hypernet_embed_size=8))
-    return algos.MASER(qnetwork, EpisodeMemory(64), train_interval=(1, "episode"), **kwargs)
+    memory = TransitionMemory(64) if transition_memory else EpisodeMemory(64)
+    return algos.MASER(qnetwork, memory, train_interval=(1, "step" if transition_memory else "episode"), **kwargs)
 
 
 def collect_episode(trainer: MASER, time_limit: int) -> Episode:
@@ -125,8 +126,9 @@ def test_configuration_is_validated():
     mixer = mixers.QMix.from_env(env, embed_size=8, hypernet_embed_size=8)
     with pytest.raises(ValueError, match="mixer"):
         algos.MASER(qnetwork, EpisodeMemory(10))
-    with pytest.raises(ValueError, match="episode"):
-        algos.MASER(qnetwork, TransitionMemory(10), mixer=mixer)
+    recurrent = qnetworks.QRNN.from_env(env, mlp_head_sizes=(16,), mlp_tail_sizes=(16,))
+    with pytest.raises(ValueError, match="episode replay"):
+        algos.MASER(recurrent, TransitionMemory(10), mixer=mixer)
     with pytest.raises(ValueError, match="alpha"):
         algos.MASER(qnetwork, EpisodeMemory(10), mixer=mixer, alpha=1.5)
 
@@ -168,6 +170,21 @@ def test_other_mixers_can_be_used(mixer_type):
     assert math.isfinite(trainer.value(obs, state))
 
 
+def test_transition_replay_selects_goals_and_updates_networks():
+    torch.manual_seed(0)
+    trainer = make_trainer(transition_memory=True, lr=1e-2)
+    episode = collect_episode(trainer, time_limit=8)
+    batch = TransitionBatch(list(episode.transitions())[:4])
+    before = [[p.detach().clone() for p in net.parameters()] for net in (trainer.qnetwork, trainer.mixer, trainer.representation)]
+    logs = trainer.train(0, batch)
+    assert all(math.isfinite(value) for value in logs.values())
+    assert logs["correction-loss"] == 0
+    assert "subgoal-timestep" not in logs
+    assert 0 <= logs["subgoal-index"] < batch.size
+    for old, net in zip(before, (trainer.qnetwork, trainer.mixer, trainer.representation), strict=True):
+        assert any(not torch.equal(a, b) for a, b in zip(old, net.parameters(), strict=True))
+
+
 def test_representation_loss_does_not_backpropagate_into_the_value_networks():
     trainer = make_trainer()
     batch = padded_batch(trainer)
@@ -206,9 +223,10 @@ def test_save_and_load_restore_the_representation(tmp_path):
         torch.testing.assert_close(expected, actual)
 
 
-def test_training_loop_smoke():
+@pytest.mark.parametrize("transition_memory", [False, True])
+def test_training_loop_smoke(transition_memory: bool):
     env = env_config(time_limit=10).make()
-    trainer = make_trainer()
+    trainer = make_trainer(transition_memory=transition_memory)
     agent = trainer.make_agent()
     obs, state = env.reset()
     episode = Episode.new(obs, state)
