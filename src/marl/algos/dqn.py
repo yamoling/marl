@@ -122,7 +122,7 @@ class DQN[M: (Mixer | None)](Trainer):
             ir_batch.rewards = extrinsic_rewards
             logs = logs | self.ir_module.update(ir_batch, time_step)
         if self.vbe is not None:
-            logs = logs | self.vbe.update(batch)
+            logs = logs | self.vbe.update(batch, qnetwork=self.qnetwork)
         logs = logs | self.policy.update(time_step)
         logs = logs | self.target_updater.update(time_step)
         return logs

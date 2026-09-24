@@ -112,6 +112,19 @@ def test_dqn_terminal_without_available_actions_is_finite(double):
     torch.testing.assert_close(targets[-1], batch.rewards[-1])
 
 
+def test_dqn_vbe_uses_online_qnetwork_for_greedy_next_actions(monkeypatch):
+    env, batch = make_batch()
+    memory = TransitionMemory(10)
+    trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=memory, batch_size=1)
+    seen = []
+    trainer.vbe = SimpleNamespace(update=lambda sample, qnetwork: seen.append((sample, qnetwork)) or {})
+    monkeypatch.setattr(memory, "can_sample", lambda _: True)
+    monkeypatch.setattr(memory, "sample", lambda _: batch)
+    monkeypatch.setattr(trainer, "train", lambda *_: {})
+    trainer._update(1)
+    assert seen[0][1] is trainer.qnetwork
+
+
 def test_dqn_value_uses_masked_duelling_qvalues_with_and_without_mixer():
     env, _ = make_batch()
     obs, state = env.reset()

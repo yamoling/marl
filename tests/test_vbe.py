@@ -1,6 +1,7 @@
 """Tests for marl.algos.optimism.vbe.VBE (Value Bonuses using Ensemble)."""
 
 import math
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -96,6 +97,48 @@ class TestUpdate:
         assert all(math.isfinite(v) for v in logs.values())
         assert len(vbe._bonus_history) == 0
 
+    def test_random_reward_td_has_fixed_point(self):
+        """Matching the random function must give zero TD error, including at terminals."""
+        torch.manual_seed(3)
+        vbe, env = _make_vbe(n=1, lr=1e-1)
+        vbe._rqfs[0].load_state_dict(vbe._target_rqfs[0].state_dict())
+        vbe._predictor_targets[0].load_state_dict(vbe._target_rqfs[0].state_dict())
+        obs, _ = env.reset()
+        vbe.compute_bonus(obs)
+        batch = self._make_batch(env)
+        before = [p.detach().clone() for p in vbe._rqfs[0].parameters()]
+        logs = vbe.update(batch)
+        assert logs["vbe_loss"] == 0.0
+        assert all(torch.equal(a, b) for a, b in zip(before, vbe._rqfs[0].parameters()))
+
+    def test_td_target_uses_taken_action_gamma_legal_next_action_and_terminals(self):
+        """Check the TD loss against a direct calculation with a controlled next-action selector."""
+        torch.manual_seed(4)
+        vbe, env = _make_vbe(n=1, lr=0.0)
+        vbe.gamma = 0.37
+        batch = self._make_batch(env)
+        batch.dones[0] = True
+        batch.next_available_actions[:] = False
+        batch.next_available_actions[..., 0] = True
+        if batch.n_actions > 1:
+            batch.next_available_actions[0, ..., 0] = False
+            batch.next_available_actions[0, ..., 1] = True
+        with torch.no_grad():
+            predicted = vbe._rqfs[0].forward(batch.obs, batch.extras).gather(-1, batch.actions.unsqueeze(-1)).squeeze(-1)
+            random_now = vbe._target_rqfs[0].forward(batch.obs, batch.extras).gather(-1, batch.actions.unsqueeze(-1)).squeeze(-1)
+            next_indices = batch.next_available_actions.long().argmax(-1, keepdim=True)
+            random_next = vbe._target_rqfs[0].forward(batch.next_obs, batch.next_extras).gather(-1, next_indices).squeeze(-1)
+            bootstrap_next = vbe._predictor_targets[0].forward(batch.next_obs, batch.next_extras).gather(-1, next_indices).squeeze(-1)
+            expected = random_now + vbe.gamma * (bootstrap_next - random_next) * (~batch.dones).unsqueeze(-1)
+            expected_loss = (predicted - expected).square().mean().item()
+            selector_scores = torch.zeros_like(vbe.rqf.forward(batch.next_obs, batch.next_extras))
+            selector_scores[..., 0] = 100.0
+        obs, _ = env.reset()
+        vbe.compute_bonus(obs)
+        with patch.object(vbe.rqf, "forward", return_value=selector_scores):
+            logs = vbe.update(batch, qnetwork=vbe.rqf)
+        assert math.isclose(logs["vbe_loss"], expected_loss, rel_tol=1e-5, abs_tol=1e-7)
+
     def test_update_changes_the_selected_rqfs_parameters(self):
         torch.manual_seed(0)
         vbe, env = _make_vbe(n=1, lr=1e-1)
@@ -112,5 +155,5 @@ def test_to_moves_all_rqfs_and_targets():
     vbe, _ = _make_vbe(n=2)
     vbe.to(torch.device("cpu"))
     assert vbe._device.type == "cpu"
-    for rqf in vbe._rqfs + vbe._target_rqfs:
+    for rqf in vbe._rqfs + vbe._target_rqfs + vbe._predictor_targets:
         assert rqf.device.type == "cpu"
