@@ -24,7 +24,11 @@ class BiasedMemory[T](ReplayMemory[T]):
     _bias: list[T] | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self):
-        """Initialize lightweight metadata without loading the demonstration artifact. @ai-edited"""
+        """Initialize metadata and reject PER, which bias sampling would bypass. @ai-edited"""
+        from .prioritized_memory import PrioritizedMemory
+
+        if isinstance(self.wrapped, PrioritizedMemory):
+            raise TypeError("BiasedMemory cannot wrap PrioritizedMemory: bias sampling bypasses priorities and importance weights.")
         self.max_size = self.wrapped.max_size
         self.update_on = self.wrapped.update_on
         assert self.n_bias < self.max_size, "The bias should be smaller than the memory size"

@@ -32,6 +32,11 @@ class PrioritizedMemory[T](ReplayMemory[T]):
     update_on: Literal["transition", "episode"] = field(init=False)
 
     def __post_init__(self):
+        """Reject biased stores whose demonstration prefix has no priority slots. @ai-edited"""
+        from .biased_memory import BiasedMemory
+
+        if isinstance(self.memory, BiasedMemory):
+            raise TypeError("PrioritizedMemory cannot wrap BiasedMemory: demonstration indices do not match priority tree slots.")
         self.max_size = self.memory.max_size
         self.update_on = self.memory.update_on
         super().__post_init__()
