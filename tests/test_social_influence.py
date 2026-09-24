@@ -1,6 +1,7 @@
 import math
 from copy import deepcopy
 
+import pytest
 import torch
 from marlenv import Episode, Transition
 
@@ -230,6 +231,50 @@ def test_truncated_episode_masks_moa_target_and_ignores_padding():
     batch.actions = batch.actions.clone()
     batch.actions[2, 0] = (batch.actions[2, 0] + 1) % trainer.moa.n_actions
     torch.testing.assert_close(torch.tensor(trainer._update_moa(batch)), torch.tensor(original_loss))
+
+
+@pytest.mark.parametrize("truncated", [False, True])
+def test_transition_moa_resets_at_episode_end_for_predictions_and_influence(truncated: bool):
+    """Episode two's recurrent history must not include episode one after done or truncation."""
+    torch.manual_seed(14)
+    env_config = LLEConfig(2, obs_type="flattened", time_limit=10)
+    trainer = make_trainer(env_config, influence_reward_clip=None)
+    trainer.moa.randomize()
+    env = env_config.make()
+    transitions = deepcopy(_last_batch(env, trainer.make_agent(), trainer).transitions[:4])
+    for transition in transitions:
+        transition.done = False
+        transition.truncated = False
+    transitions[1].done = not truncated
+    transitions[1].truncated = truncated
+    batch = TransitionBatch(transitions).for_individual_learners()
+    boundary = 2
+    assert batch.episode_ends[1].all() and batch.dones[1].all().item() == (not truncated)
+
+    changed = deepcopy(batch)
+    changed.obs = changed.obs.clone()
+    changed.obs[:boundary] += 100.0
+    changed.actions = changed.actions.clone()
+    changed.actions[:boundary] = (changed.actions[:boundary] + 1) % trainer.moa.n_actions
+
+    def predictions(sample):
+        obs, extras, _, joint = trainer._moa_inputs(sample)
+        ends = trainer._time_major(sample, sample.episode_ends)
+        with torch.no_grad():
+            logits, history = trainer.moa.forward_with_history(obs, extras, joint, ends)
+            counterfactual = trainer.moa.counterfactuals(obs, extras, joint, history)
+        return logits, history, counterfactual
+
+    logits, history, counterfactual = predictions(batch)
+    changed_logits, changed_history, changed_counterfactual = predictions(changed)
+    assert not torch.allclose(logits[0], changed_logits[0])
+    torch.testing.assert_close(history[boundary], torch.zeros_like(history[boundary]))
+    torch.testing.assert_close(history[boundary:], changed_history[boundary:])
+    torch.testing.assert_close(logits[boundary:], changed_logits[boundary:])
+    torch.testing.assert_close(counterfactual[:, boundary:], changed_counterfactual[:, boundary:])
+    _, influence = trainer._influence_reward(batch)
+    _, changed_influence = trainer._influence_reward(changed)
+    torch.testing.assert_close(influence[boundary:], changed_influence[boundary:])
 
 
 def test_smoke_ippo_and_mappo_on_lle():

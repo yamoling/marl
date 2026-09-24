@@ -129,7 +129,13 @@ class ModelOfOtherAgents(NN):
         features = self.encoder.forward(obs, extras)
         return F.relu(self.input_layer.forward(torch.cat((features, joint_actions), dim=-1)))
 
-    def forward_with_history(self, obs: torch.Tensor, extras: torch.Tensor, joint_actions: torch.Tensor):
+    def forward_with_history(
+        self,
+        obs: torch.Tensor,
+        extras: torch.Tensor,
+        joint_actions: torch.Tensor,
+        episode_ends: torch.Tensor | None = None,
+    ):
         """
         Run the MOA over a whole trajectory.
 
@@ -137,6 +143,8 @@ class ModelOfOtherAgents(NN):
             obs: observations of shape (T, B, n_agents, *obs_shape).
             extras: extras of shape (T, B, n_agents, extras_size).
             joint_actions: rolled one-hot joint actions of shape (T, B, n_agents, n_agents * n_actions).
+            episode_ends: optional (T, B) or (T, B, n_agents) boundary flags. Reset the GRU
+                before the step following each episode end.
 
         Returns:
             The logits over the other agents' *next* actions, of shape
@@ -148,8 +156,24 @@ class ModelOfOtherAgents(NN):
         """
         time, batch, n_agents = obs.shape[:3]
         inputs = self._encode(obs, extras, joint_actions).reshape(time, batch * n_agents, self.hidden_size)
-        hidden, _ = self.gru.forward(inputs)
-        previous_hidden = torch.cat((torch.zeros_like(hidden[:1]), hidden[:-1]), dim=0)
+        if episode_ends is None:
+            hidden, _ = self.gru.forward(inputs)
+            previous_hidden = torch.cat((torch.zeros_like(hidden[:1]), hidden[:-1]), dim=0)
+        else:
+            ends = episode_ends.bool()
+            if ends.dim() == 2:
+                ends = ends.unsqueeze(-1).expand(-1, -1, n_agents)
+            state = inputs.new_zeros(1, batch * n_agents, self.hidden_size)
+            states = []
+            outputs = []
+            for t in range(time):
+                if t:
+                    state = state * (~ends[t - 1]).reshape(1, batch * n_agents, 1)
+                states.append(state.squeeze(0))
+                output, state = self.gru.forward(inputs[t : t + 1], state)
+                outputs.append(output)
+            hidden = torch.cat(outputs, dim=0)
+            previous_hidden = torch.stack(states, dim=0)
         logits = self.output_layer.forward(hidden)
         logits = logits.view(time, batch, n_agents, self.n_agents - 1, self.n_actions)
         return logits, previous_hidden.view(time, batch, n_agents, self.hidden_size)
@@ -330,7 +354,8 @@ class SocialInfluence(PPO):
         """
         obs, extras, actions, joint_actions = self._moa_inputs(batch)
         with torch.no_grad():
-            _, previous_hidden = self.moa.forward_with_history(obs, extras, joint_actions)
+            episode_ends = self._time_major(batch, batch.episode_ends) if not isinstance(batch, EpisodeBatch) else None
+            _, previous_hidden = self.moa.forward_with_history(obs, extras, joint_actions, episode_ends)
             # (n_actions, T, B, n_agents, n_agents - 1, n_actions)
             counterfactual_logits = self.moa.counterfactuals(obs, extras, joint_actions, previous_hidden)
             counterfactual_probs = torch.softmax(counterfactual_logits, dim=-1)
@@ -375,9 +400,10 @@ class SocialInfluence(PPO):
         pair_masks = self._pair_masks(obs)
         if pair_masks is not None:
             masks = masks * pair_masks[:-1]
+        episode_ends = self._time_major(batch, batch.episode_ends) if not isinstance(batch, EpisodeBatch) else None
         total = 0.0
         for _ in range(self.moa_updates):
-            logits, _ = self.moa.forward_with_history(obs, extras, joint_actions)
+            logits, _ = self.moa.forward_with_history(obs, extras, joint_actions, episode_ends)
             logits = logits[:-1]
             cross_entropy = F.cross_entropy(
                 logits.reshape(-1, self.moa.n_actions),
