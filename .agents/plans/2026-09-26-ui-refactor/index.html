@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MARL · Four directions for the interface</title>
+  <style>
+    :root { font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #182421; background: #f4f4ee; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid #156859; outline-offset: 4px; }
+    .skip { position: absolute; left: -1000px; top: 1rem; background: white; padding: .7rem; z-index: 5; }
+    .skip:focus { left: 1rem; }
+    .wrap { width: min(1190px, calc(100% - 2.5rem)); margin: auto; }
+    header { background: #142b25; color: #e8f5e7; padding: 1.15rem 0; }
+    header .wrap { display: flex; flex-wrap: wrap; gap: .75rem 2rem; align-items: center; justify-content: space-between; }
+    .brand { font-size: 1rem; font-weight: 850; letter-spacing: .15em; text-decoration: none; }
+    header span { font-size: .78rem; color: #c7d6cc; letter-spacing: .08em; text-transform: uppercase; }
+    .hero { padding: clamp(2.5rem, 7vw, 6rem) 0 2.5rem; }
+    .eyebrow { margin: 0 0 .8rem; color: #34715d; font-size: .72rem; text-transform: uppercase; letter-spacing: .16em; font-weight: 850; }
+    h1 { font-family: Georgia, "Times New Roman", serif; font-weight: 400; letter-spacing: -.055em; font-size: clamp(2.7rem, 6vw, 5.6rem); line-height: 1.04; margin: 0 0 1rem; max-width: 840px; }
+    .hero p:not(.eyebrow) { max-width: 780px; margin: 0; font-size: 1.04rem; color: #50615a; }
+    .note { border-left: 3px solid #bd7c54; background: #f6eddf; padding: .9rem 1.15rem; font-size: .83rem; color: #594937; margin: 1.5rem 0 2.3rem; }
+    .section-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .3rem 2rem; margin: 0 0 1.2rem; }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+    .section-header p { margin: 0; color: #596961; font-size: .82rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.3rem; padding-bottom: 3rem; }
+    .card { display: flex; flex-direction: column; background: #fff; border: 1px solid #d5dfd5; border-radius: 16px; overflow: hidden; min-width: 0; box-shadow: 0 8px 22px #213e2720; transition: transform .16s, box-shadow .16s; }
+    .card:hover, .card:focus-within { transform: translateY(-3px); box-shadow: 0 16px 30px #213e272b; }
+    .preview { height: 208px; display: grid; grid-template-columns: 24% 1fr 21%; gap: 8px; padding: 15px; position: relative; overflow: hidden; }
+    .preview .block { border-radius: 5px; min-width: 0; padding: 13px; }
+    .preview .label { display: block; font-size: .55rem; text-transform: uppercase; letter-spacing: .14em; font-weight: 850; margin-bottom: 12px; }
+    .preview .line { display: block; height: 6px; border-radius: 3px; width: 90%; opacity: .5; margin-bottom: 10px; background: currentColor; }
+    .preview .line.short { width: 57%; }
+    .preview .chart { width: 100%; height: 107px; margin-top: 4px; }
+    .studio { background: #eeede6; color: #355c4a; }
+    .studio .block { background: #fffdf8; }
+    .studio .center { color: #a9583f; }
+    .observatory { background: #080f13; color: #bde8da; grid-template-columns: 19% 1fr 22%; }
+    .observatory .block { background: #142127; border: 1px solid #344b49; }
+    .observatory .center { color: #8bf1cd; }
+    .control { background: #e9ede7; color: #2c6550; grid-template-columns: 19% 1fr; }
+    .control .block { background: #fffefa; }
+    .control .side { background: #17382e; color: #bdeecb; }
+    .control .center { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; background: transparent; padding: 0; }
+    .control .lane { border-radius: 6px; background: #fffefa; padding: 10px; }
+    .control .tile { height: 45px; border-radius: 5px; background: #e4f2e6; border-left: 4px solid #377f5f; margin: 9px 0; }
+    .control .lane:nth-child(2) .tile { background: #fff0da; border-color: #bd7840; }
+    .atlas { background: #f3efdf; color: #285242; grid-template-columns: 23% 1fr 24%; }
+    .atlas .block { background: #fffdf5; border: 1px solid #c4ceba; }
+    .atlas .center { padding: 8px; display: grid; place-items: center; }
+    .map { display: grid; grid-template-columns: repeat(7, 1fr); width: min(100%, 160px); aspect-ratio: 1; border: 3px solid #345e4c; gap: 2px; background: #bccdb2; padding: 3px; }
+    .map i { background: #e0e7d1; }
+    .map i:nth-child(5n) { background: #6d8874; }
+    .map i:nth-child(17), .map i:nth-child(32) { border-radius: 50%; background: #aa6340; }
+    .card-content { padding: 1.25rem 1.4rem 1.45rem; display: flex; flex-direction: column; flex: 1; }
+    .tag { color: #42755f; font-size: .7rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 .3rem; }
+    .card h3 { font-family: Georgia, serif; letter-spacing: -.025em; font-size: 1.65rem; margin: 0 0 .35rem; }
+    .card p:not(.tag) { font-size: .87rem; margin: 0 0 1rem; color: #53645b; }
+    .card a { display: inline-block; align-self: flex-start; border-radius: 5px; padding: .55rem .85rem; background: #1d493b; color: white; font-size: .85rem; font-weight: 750; text-decoration: none; margin-top: auto; }
+    .card a:hover { background: #2e6b53; }
+    footer { padding: 1.5rem 0 2.5rem; color: #52645a; font-size: .85rem; border-top: 1px solid #d2dbd0; }
+    footer a { text-underline-offset: 3px; }
+    @media (max-width: 730px) { .grid { grid-template-columns: 1fr; } .preview { height: 170px; } }
+    @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#directions">Skip to concepts</a>
+  <header><div class="wrap"><a class="brand" href="index.html">MARL / INTERFACE LAB</a><span>Four independent design prototypes · local HTML</span></div></header>
+  <main class="wrap">
+    <div class="hero"><p class="eyebrow">Design checkpoint · UI refactor</p><h1>Four ways to explore an experiment.</h1><p>Open each direction to move between its views and try its comparison or replay controls. These are visual prototypes, not changes to the running MARL UI.</p></div>
+    <div class="note"><strong>Illustrative only.</strong> Experiment names are examples found under <code>logs/</code>. All curves, statuses, episodes and displayed numbers in the prototypes are mock data. Nothing reads logs, launches runs, or calls a server. Wall-time labels refer to elapsed time from each run’s start.</div>
+    <section id="directions" aria-labelledby="directions-title"><div class="section-header"><h2 id="directions-title">Choose a direction</h2><p>Each prototype links back here and to the other three.</p></div>
+      <div class="grid">
+        <article class="card"><div class="preview studio" aria-hidden="true"><div class="block"><span class="label">Library</span><span class="line"></span><span class="line short"></span><span class="line"></span></div><div class="block center"><span class="label">Compare · Train + Test</span><svg class="chart" viewBox="0 0 240 100"><path d="M0 74 L28 63 L57 67 L88 49 L116 53 L145 36 L177 44 L203 27 L240 22" fill="none" stroke="currentColor" stroke-width="3"/><path d="M0 85 L36 75 L67 63 L98 60 L131 50 L163 36 L194 31 L240 15" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5"/></svg></div><div class="block"><span class="label">Details</span><span class="line"></span><span class="line short"></span></div></div><div class="card-content"><p class="tag">01 · Recommended</p><h3>Research studio</h3><p>Warm editorial canvas with experiment cards, a comparison tray, a focused chart, and details beside the work.</p><a href="research-studio/index.html">Explore Research studio →</a></div></article>
+        <article class="card"><div class="preview observatory" aria-hidden="true"><div class="block"><span class="label">Signals</span><span class="line"></span><span class="line short"></span></div><div class="block center"><span class="label">Observation / 02</span><svg class="chart" viewBox="0 0 240 100"><path d="M0 82 L26 71 L45 81 L68 52 L92 61 L118 40 L141 55 L163 28 L183 41 L207 23 L240 15" fill="none" stroke="currentColor" stroke-width="2"/><path d="M0 89 L34 77 L67 74 L100 58 L136 55 L171 38 L205 34 L240 28" fill="none" stroke="#f6c98b" stroke-width="2" stroke-dasharray="6 5"/></svg></div><div class="block"><span class="label">Telemetry</span><span class="line short"></span><span class="line"></span></div></div><div class="card-content"><p class="tag">02 · Plot-first</p><h3>Observatory</h3><p>Dark, low-glare instrument panel with vivid signal traces, a searchable catalog, and a focused replay.</p><a href="observatory/index.html">Explore Observatory →</a></div></article>
+        <article class="card"><div class="preview control" aria-hidden="true"><div class="block side"><span class="label">Operations</span><span class="line short"></span><span class="line"></span></div><div class="center"><div class="lane"><span class="label">Active</span><div class="tile"></div><div class="tile"></div></div><div class="lane"><span class="label">Attention</span><div class="tile"></div></div><div class="lane"><span class="label">Complete</span><div class="tile"></div><div class="tile"></div></div></div></div><div class="card-content"><p class="tag">03 · Operations-first</p><h3>Run control room</h3><p>Readable run cards and status lanes put active work first; analysis and inspection have dedicated screens.</p><a href="run-control-room/index.html">Explore Run control room →</a></div></article>
+        <article class="card"><div class="preview atlas" aria-hidden="true"><div class="block"><span class="label">Episodes</span><span class="line short"></span><span class="line"></span></div><div class="block center"><div class="map"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="block"><span class="label">Agents</span><span class="line"></span><span class="line short"></span></div></div><div class="card-content"><p class="tag">04 · Episode-first</p><h3>Replay atlas</h3><p>A spatial, timeline-driven view of episodes, agents, and environment events, with curves a step away.</p><a href="replay-atlas/index.html">Explore Replay atlas →</a></div></article>
+      </div>
+    </section>
+  </main>
+  <footer><div class="wrap">Read the <a href="plan.md">refactoring plan</a> or the <a href="index.md">markdown entrypoint</a>. Open this file directly in a browser; no server, installation, or network connection is needed.</div></footer>
+</body>
+</html>

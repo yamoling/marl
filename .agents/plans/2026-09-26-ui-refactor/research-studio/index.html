@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light" />
+        <title>Research Studio · MARL UI concepts</title>
+        <style>
+            :root {
+                color-scheme: light;
+                font-family: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+                background: #f5f3ee;
+                color: #242d2a;
+                --ink: #242d2a;
+                --muted: #626c67;
+                --line: #d9ddd4;
+                --paper: #fffcf6;
+                --ground: #f5f3ee;
+                --accent: #b94f34;
+                --green: #335c50;
+                --focus: #a53c22;
+            }
+            * {
+                box-sizing: border-box;
+            }
+            body {
+                margin: 0;
+                min-width: 320px;
+                background: radial-gradient(circle at 73% 0%, #e9efe4 0, transparent 34rem), var(--ground);
+            }
+            button,
+            input,
+            select {
+                font: inherit;
+            }
+            button {
+                cursor: pointer;
+            }
+            button:disabled {
+                cursor: not-allowed;
+                opacity: 0.48;
+            }
+            a {
+                color: inherit;
+            }
+            :focus-visible {
+                outline: 3px solid var(--focus);
+                outline-offset: 3px;
+            }
+            [hidden] {
+                display: none !important;
+            }
+            .skip {
+                position: absolute;
+                top: -5rem;
+                left: 1rem;
+                z-index: 20;
+                padding: 0.7rem 1rem;
+                background: var(--ink);
+                color: white;
+            }
+            .skip:focus {
+                top: 1rem;
+            }
+            .eyebrow {
+                font-size: 0.68rem;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.17em;
+                color: var(--green);
+            }
+            .serif {
+                font-family: Georgia, "Times New Roman", serif;
+                font-weight: 400;
+                letter-spacing: -0.035em;
+            }
+            .masthead {
+                padding: 1.35rem clamp(1rem, 3vw, 3.5rem) 0;
+                max-width: 1720px;
+                margin: auto;
+            }
+            .mast-top,
+            .brand,
+            .nav,
+            .links,
+            .heading-row,
+            .row,
+            .toolbar,
+            .legend,
+            .plot-header,
+            .rail-head,
+            .card-top,
+            .pane-head {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+            }
+            .mast-top,
+            .heading-row,
+            .plot-header,
+            .rail-head,
+            .card-top,
+            .pane-head {
+                justify-content: space-between;
+            }
+            .brand {
+                text-decoration: none;
+                font-weight: 800;
+                letter-spacing: -0.035em;
+                font-size: 1.1rem;
+            }
+            .mark {
+                display: grid;
+                place-items: center;
+                width: 2.1rem;
+                height: 2.1rem;
+                border-radius: 50%;
+                background: var(--ink);
+                color: #fffdf8;
+                font-family: Georgia, serif;
+                font-style: italic;
+            }
+            .links {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+                font-size: 0.75rem;
+                color: var(--muted);
+            }
+            .links a {
+                text-decoration: none;
+                border-bottom: 1px solid transparent;
+            }
+            .links a:hover {
+                color: var(--accent);
+                border-color: currentColor;
+            }
+            .links .here {
+                color: var(--ink);
+                font-weight: 800;
+            }
+            .intro {
+                padding: 2rem 0 1.55rem;
+                display: flex;
+                justify-content: space-between;
+                align-items: end;
+                gap: 2rem;
+            }
+            h1,
+            h2,
+            h3,
+            p {
+                margin-top: 0;
+            }
+            h1 {
+                font-size: clamp(2.25rem, 4vw, 4.1rem);
+                line-height: 0.98;
+                margin: 0.65rem 0 0.65rem;
+            }
+            .intro p {
+                color: var(--muted);
+                margin: 0;
+                max-width: 38rem;
+                line-height: 1.5;
+                font-size: 0.9rem;
+            }
+            .demo-stamp {
+                max-width: 14.5rem;
+                padding-left: 1rem;
+                border-left: 2px solid var(--accent);
+                font-size: 0.76rem;
+                line-height: 1.45;
+                color: #655d51;
+            }
+            .nav {
+                border-bottom: 1px solid var(--line);
+                gap: 1.5rem;
+                overflow-x: auto;
+                scrollbar-width: thin;
+            }
+            .nav button {
+                white-space: nowrap;
+                border: 0;
+                border-bottom: 2px solid transparent;
+                background: none;
+                padding: 0.9rem 0.2rem 0.85rem;
+                color: var(--muted);
+                font-size: 0.79rem;
+                font-weight: 700;
+            }
+            .nav button[aria-current="page"] {
+                color: var(--ink);
+                border-color: var(--accent);
+            }
+            main {
+                max-width: 1720px;
+                margin: auto;
+                padding: 1.45rem clamp(1rem, 3vw, 3.5rem) 3rem;
+            }
+            .workspace {
+                display: grid;
+                grid-template-columns: minmax(235px, 280px) minmax(0, 1fr) minmax(245px, 292px);
+                gap: 1.1rem;
+                align-items: start;
+            }
+            .panel {
+                background: var(--paper);
+                border: 1px solid var(--line);
+                border-radius: 8px;
+                box-shadow: 0 12px 32px #3549390a;
+            }
+            .rail {
+                padding: 1.1rem;
+            }
+            .rail h2,
+            .inspector h2 {
+                font-size: 1.45rem;
+                margin: 0.35rem 0 1rem;
+            }
+            .count {
+                font-variant-numeric: tabular-nums;
+                color: var(--muted);
+                font-size: 0.75rem;
+            }
+            .search-label {
+                display: block;
+                font-size: 0.73rem;
+                font-weight: 700;
+                margin-bottom: 0.4rem;
+            }
+            .search {
+                width: 100%;
+                border: 1px solid #c5ccc2;
+                border-radius: 5px;
+                background: #fff;
+                padding: 0.72rem 0.8rem;
+                color: var(--ink);
+            }
+            .search::placeholder {
+                color: #757e76;
+            }
+            .rail-note {
+                color: var(--muted);
+                font-size: 0.7rem;
+                line-height: 1.45;
+                margin: 0.65rem 0 1rem;
+            }
+            .cards {
+                display: grid;
+                gap: 0.5rem;
+                max-height: min(65vh, 680px);
+                overflow-y: auto;
+                padding: 0 0.15rem 0.15rem 0;
+            }
+            .exp-card {
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 5px;
+                padding: 0.82rem;
+                min-width: 0;
+            }
+            .exp-card.selected {
+                border-color: var(--accent);
+                box-shadow: inset 3px 0 var(--accent);
+                background: #fffaf4;
+            }
+            .status {
+                font-size: 0.63rem;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--green);
+                font-weight: 800;
+            }
+            .color-dot {
+                width: 0.62rem;
+                height: 0.62rem;
+                border-radius: 50%;
+                flex: none;
+            }
+            .exp-card h3 {
+                font-size: 0.84rem;
+                line-height: 1.37;
+                overflow-wrap: anywhere;
+                margin: 0.6rem 0 0.35rem;
+            }
+            .exp-card p {
+                font-size: 0.73rem;
+                color: var(--muted);
+                line-height: 1.4;
+                margin: 0 0 0.7rem;
+            }
+            .btn {
+                border: 1px solid #b8c3b7;
+                color: var(--ink);
+                background: #fff;
+                padding: 0.5rem 0.65rem;
+                border-radius: 4px;
+                font-size: 0.73rem;
+                font-weight: 700;
+                line-height: 1.2;
+            }
+            .btn:hover:not(:disabled) {
+                background: #e9f0e8;
+            }
+            .btn.primary {
+                background: var(--ink);
+                border-color: var(--ink);
+                color: white;
+            }
+            .btn.primary:hover:not(:disabled) {
+                background: var(--green);
+            }
+            .btn.quiet {
+                border-color: transparent;
+                background: transparent;
+                color: var(--accent);
+            }
+            .btn.quiet:hover:not(:disabled) {
+                background: #f8e9df;
+            }
+            .exp-card .row {
+                gap: 0.35rem;
+                flex-wrap: wrap;
+            }
+            .center {
+                min-width: 0;
+                display: grid;
+                gap: 1.1rem;
+            }
+            .canvas,
+            .subpanel {
+                padding: clamp(1rem, 2vw, 1.65rem);
+            }
+            .heading-row {
+                gap: 0.7rem;
+                flex-wrap: wrap;
+            }
+            .canvas h2,
+            .subpanel h2 {
+                font-size: clamp(1.4rem, 2.1vw, 2rem);
+                margin: 0.4rem 0;
+            }
+            .description {
+                font-size: 0.79rem;
+                color: var(--muted);
+                line-height: 1.5;
+                margin: 0.15rem 0 1.2rem;
+            }
+            .axis-control {
+                font-size: 0.72rem;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                gap: 0.45rem;
+            }
+            select {
+                border: 1px solid #c5ccc2;
+                border-radius: 4px;
+                padding: 0.45rem 0.6rem;
+                background: white;
+                color: var(--ink);
+            }
+            .plot-frame {
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 5px;
+                padding: 0.85rem 0.65rem 0.35rem;
+                position: relative;
+            }
+            .plot-header {
+                padding: 0.1rem 0.7rem 0.4rem;
+                gap: 0.5rem;
+                align-items: start;
+            }
+            .plot-header strong {
+                font-size: 0.72rem;
+            }
+            .plot-header span {
+                color: var(--muted);
+                font-size: 0.68rem;
+                text-align: right;
+            }
+            svg {
+                width: 100%;
+                height: auto;
+                display: block;
+                overflow: visible;
+            }
+            .chart-empty {
+                min-height: 300px;
+                display: grid;
+                place-content: center;
+                text-align: center;
+                padding: 2rem;
+            }
+            .chart-empty h3 {
+                font-family: Georgia, serif;
+                font-weight: 400;
+                font-size: 1.55rem;
+                margin: 0 0 0.5rem;
+            }
+            .chart-empty p {
+                color: var(--muted);
+                font-size: 0.8rem;
+                line-height: 1.5;
+                max-width: 23rem;
+            }
+            .legend {
+                flex-wrap: wrap;
+                gap: 0.55rem 1.1rem;
+                padding: 0.65rem 0.35rem 0.15rem;
+            }
+            .legend-item {
+                display: flex;
+                align-items: center;
+                gap: 0.35rem;
+                font-size: 0.69rem;
+                color: var(--ink);
+            }
+            .legend-item .swatch {
+                width: 1.15rem;
+                border-top: 3px solid;
+            }
+            .legend-item .swatch.train {
+                border-top-style: dashed;
+            }
+            .chart-note {
+                color: var(--muted);
+                font-size: 0.69rem;
+                line-height: 1.55;
+                margin: 0.75rem 0.2rem 0;
+            }
+            .subpanel h2 {
+                font-size: 1.4rem;
+            }
+            .tray {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                margin-top: 0.8rem;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                max-width: 100%;
+                padding: 0.32rem 0.35rem 0.32rem 0.6rem;
+                background: #f1f3ed;
+                border: 1px solid #d4dcd2;
+                border-radius: 4px;
+                font-size: 0.69rem;
+            }
+            .chip span {
+                overflow-wrap: anywhere;
+            }
+            .chip button {
+                background: white;
+                border: 1px solid #c2cac0;
+                border-radius: 3px;
+                width: 1.4rem;
+                height: 1.4rem;
+                font-size: 0.9rem;
+                line-height: 1;
+                flex: none;
+            }
+            .chip button:hover {
+                background: #f8e9df;
+            }
+            .hint {
+                color: var(--muted);
+                font-size: 0.73rem;
+                line-height: 1.5;
+                margin: 0.7rem 0 0;
+            }
+            .inspector {
+                padding: 1.2rem;
+                position: sticky;
+                top: 1rem;
+                min-width: 0;
+            }
+            .inspector h2 {
+                overflow-wrap: anywhere;
+                font-size: 1.28rem;
+                line-height: 1.25;
+                margin-bottom: 0.55rem;
+            }
+            .inspector .lead {
+                color: var(--muted);
+                font-size: 0.75rem;
+                line-height: 1.5;
+                margin: 0 0 1.1rem;
+            }
+            .fact {
+                border-top: 1px solid var(--line);
+                padding: 0.78rem 0;
+                display: flex;
+                justify-content: space-between;
+                gap: 0.5rem;
+                font-size: 0.73rem;
+            }
+            .fact span:first-child {
+                color: var(--muted);
+            }
+            .fact strong {
+                text-align: right;
+                font-weight: 700;
+            }
+            .inspector .actions {
+                border-top: 1px solid var(--line);
+                padding-top: 1rem;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.45rem;
+            }
+            .inspector .actions .wide {
+                grid-column: 1 / -1;
+            }
+            .inspector .actions button {
+                text-align: center;
+            }
+            .inspector .aside-note {
+                color: var(--muted);
+                font-size: 0.68rem;
+                line-height: 1.5;
+                margin: 1rem 0 0;
+            }
+            .screen-head {
+                border-bottom: 1px solid var(--line);
+                padding-bottom: 1rem;
+                margin-bottom: 1.2rem;
+            }
+            .screen-head h2 {
+                font-size: clamp(1.6rem, 2.5vw, 2.35rem);
+            }
+            .screen-head p {
+                margin: 0;
+            }
+            .episode-row {
+                border-top: 1px solid var(--line);
+                padding: 0.85rem 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+            }
+            .episode-row strong {
+                display: block;
+                font-size: 0.84rem;
+            }
+            .episode-row span {
+                color: var(--muted);
+                font-size: 0.74rem;
+                line-height: 1.5;
+            }
+            .code-block {
+                background: #f1f2eb;
+                border: 1px solid var(--line);
+                border-radius: 4px;
+                padding: 1rem;
+                color: #37463e;
+                font:
+                    0.8rem/1.8 ui-monospace,
+                    SFMono-Regular,
+                    Consolas,
+                    monospace;
+                overflow-wrap: anywhere;
+            }
+            .config-grid {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0.7rem;
+            }
+            .config-grid .fact {
+                display: block;
+                padding: 0.8rem;
+                border: 1px solid var(--line);
+                background: #fff;
+                border-radius: 4px;
+            }
+            .config-grid .fact span,
+            .config-grid .fact strong {
+                display: block;
+                text-align: left;
+            }
+            .config-grid .fact strong {
+                margin-top: 0.35rem;
+                overflow-wrap: anywhere;
+            }
+            .replay-controls {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 0.5rem;
+                margin: 1rem 0;
+            }
+            .step-counter {
+                font-variant-numeric: tabular-nums;
+                font-size: 0.79rem;
+                margin: 0 0.4rem;
+            }
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 3px;
+                width: min(100%, 370px);
+                aspect-ratio: 1;
+                background: #cfd9ca;
+                padding: 3px;
+                border-radius: 5px;
+                margin: 1rem auto;
+            }
+            .cell {
+                display: grid;
+                place-items: center;
+                background: #f6f5ed;
+                font-size: clamp(0.9rem, 2vw, 1.35rem);
+                font-weight: 800;
+                color: var(--ink);
+            }
+            .cell.wall {
+                background: #dce2d7;
+            }
+            .cell.goal {
+                background: #f4e4ca;
+            }
+            .cell.agent {
+                background: #396f5a;
+                color: white;
+            }
+            .cell.agent.two {
+                background: #bd6a47;
+            }
+            .replay-key {
+                display: flex;
+                gap: 1rem;
+                flex-wrap: wrap;
+                font-size: 0.71rem;
+                color: var(--muted);
+            }
+            .empty-message {
+                padding: 1.2rem;
+                border: 1px dashed var(--line);
+                border-radius: 4px;
+                color: var(--muted);
+                font-size: 0.78rem;
+                line-height: 1.5;
+            }
+            footer {
+                max-width: 1720px;
+                margin: auto;
+                padding: 0 clamp(1rem, 3vw, 3.5rem) 2rem;
+                color: var(--muted);
+                font-size: 0.72rem;
+            }
+            @media (max-width: 1150px) {
+                .workspace {
+                    grid-template-columns: minmax(220px, 265px) minmax(0, 1fr);
+                }
+                .inspector {
+                    grid-column: 2;
+                    position: static;
+                }
+            }
+            @media (max-width: 760px) {
+                .mast-top,
+                .intro {
+                    align-items: flex-start;
+                    flex-direction: column;
+                }
+                .links {
+                    justify-content: flex-start;
+                }
+                .intro {
+                    gap: 1rem;
+                    padding: 1.5rem 0 1rem;
+                }
+                .demo-stamp {
+                    max-width: none;
+                }
+                .workspace {
+                    grid-template-columns: minmax(0, 1fr);
+                }
+                .inspector {
+                    grid-column: 1;
+                }
+                .cards {
+                    max-height: 300px;
+                }
+                .plot-header {
+                    flex-wrap: wrap;
+                }
+            }
+            @media (prefers-reduced-motion: no-preference) {
+                .btn,
+                .exp-card,
+                .nav button {
+                    transition:
+                        background 0.16s,
+                        border-color 0.16s;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <a class="skip" href="#content">Skip to workspace</a>
+        <header class="masthead">
+            <div class="mast-top">
+                <a class="brand" href="../index.html" aria-label="MARL concepts gallery"
+                    ><span class="mark" aria-hidden="true">m.</span> MARL <span style="font-weight: 400">/ research studio</span></a
+                >
+                <nav class="links" aria-label="Prototype gallery">
+                    <a href="../index.html">Gallery ↗</a><a class="here" href="index.html" aria-current="page">Research studio</a
+                    ><a href="../observatory/index.html">Observatory</a><a href="../run-control-room/index.html">Run control room</a
+                    ><a href="../replay-atlas/index.html">Replay atlas</a>
+                </nav>
+            </div>
+            <div class="intro">
+                <div>
+                    <span class="eyebrow">Concept 01 / a place to think</span>
+                    <h1 class="serif">Make room for the signal.</h1>
+                    <p>
+                        Find an experiment, layer its training and test trajectories, then follow an episode into the details. A quiet
+                        workspace for multi-agent research.
+                    </p>
+                </div>
+                <div class="demo-stamp">
+                    <strong>Offline concept · local only</strong><br />Directory names are real examples. Every plotted value, count,
+                    status, configuration, and replay frame below is illustrative mock data—not a reading of logs.
+                </div>
+            </div>
+            <nav class="nav" aria-label="Workspace screens">
+                <button type="button" data-view="analysis" aria-current="page">01 &nbsp; Analysis</button
+                ><button type="button" data-view="episodes">02 &nbsp; Episodes</button
+                ><button type="button" data-view="configuration">03 &nbsp; Configuration</button
+                ><button type="button" data-view="replay">04 &nbsp; Replay</button>
+            </nav>
+        </header>
+        <main id="content">
+            <div class="workspace">
+                <aside class="panel rail" aria-label="Experiment library">
+                    <div class="rail-head"><span class="eyebrow">Library / demo</span><span class="count" id="result-count"></span></div>
+                    <h2 class="serif">Experiments</h2>
+                    <label class="search-label" for="search">Find an experiment</label
+                    ><input class="search" id="search" type="search" placeholder="Search directory or algorithm…" autocomplete="off" />
+                    <p class="rail-note">Choose a card to inspect it; add Test directly to the comparison. Nothing is loaded from disk.</p>
+                    <div class="cards" id="cards" aria-live="polite"></div>
+                </aside>
+                <div class="center">
+                    <section id="analysis" class="panel canvas" aria-labelledby="analysis-title">
+                        <div class="heading-row">
+                            <span class="eyebrow">01 / Comparison canvas</span
+                            ><label class="axis-control" for="axis"
+                                >X axis
+                                <select id="axis">
+                                    <option value="steps">Environment steps</option>
+                                    <option value="time">Elapsed time · demo</option>
+                                </select></label
+                            >
+                        </div>
+                        <h2 class="serif" id="analysis-title">One question. Several traces.</h2>
+                        <p class="description">
+                            Illustrative success rate · compare Train and Test within one experiment, then add another experiment's Test
+                            curve.
+                        </p>
+                        <div class="plot-frame">
+                            <div class="plot-header">
+                                <strong>Success rate / % · mock</strong><span id="axis-caption">Environment steps · illustrative</span>
+                            </div>
+                            <svg
+                                id="chart"
+                                viewBox="0 0 760 390"
+                                role="img"
+                                aria-labelledby="chart-title chart-desc"
+                                preserveAspectRatio="xMidYMid meet"
+                            >
+                                <title id="chart-title">Illustrative comparison of experiment success rates</title>
+                                <desc id="chart-desc">
+                                    The plotted series are illustrative mock values, not measurements from experiment logs.
+                                </desc>
+                            </svg>
+                            <div id="chart-empty" class="chart-empty" hidden>
+                                <h3>Add a trace to begin.</h3>
+                                <p>
+                                    Choose an experiment in the library and use Add Train or Add Test. You can mix phases from one
+                                    experiment and compare across experiments.
+                                </p>
+                            </div>
+                            <div class="legend" id="legend" aria-label="Chart legend"></div>
+                        </div>
+                        <p class="chart-note" id="chart-note">
+                            Mock values only. Train is dashed; Test is solid. Steps and sample curves are illustrative, not replayable Test
+                            observations.
+                        </p>
+                    </section>
+                    <section id="episodes" class="panel subpanel" aria-labelledby="episodes-title" hidden>
+                        <div class="screen-head">
+                            <span class="eyebrow">02 / Inspect episodes</span>
+                            <h2 class="serif" id="episodes-title">A closer look at a test.</h2>
+                            <p class="description">
+                                These are invented example episodes, separate from chart points; they do not claim a recorded step or saved
+                                action file.
+                            </p>
+                        </div>
+                        <div id="episode-list"></div>
+                    </section>
+                    <section id="configuration" class="panel subpanel" aria-labelledby="configuration-title" hidden>
+                        <div class="screen-head">
+                            <span class="eyebrow">03 / Experiment details</span>
+                            <h2 class="serif" id="configuration-title">Configuration, at a glance.</h2>
+                            <p class="description">
+                                Mocked fields for layout demonstration. Only the directory name is from the repository.
+                            </p>
+                        </div>
+                        <div id="config-content"></div>
+                    </section>
+                    <section id="replay" class="panel subpanel" aria-labelledby="replay-title" hidden>
+                        <div class="screen-head">
+                            <span class="eyebrow">04 / Episode replay</span>
+                            <h2 class="serif" id="replay-title">Frame by frame.</h2>
+                            <p class="description">
+                                Illustrative 5 × 5 storyboard; not generated from saved actions, and no playback is connected to real runs.
+                            </p>
+                        </div>
+                        <div id="replay-content"></div>
+                    </section>
+                    <section class="panel subpanel" aria-labelledby="tray-title">
+                        <div class="pane-head">
+                            <div>
+                                <span class="eyebrow">Working set</span>
+                                <h2 class="serif" id="tray-title">Comparison tray</h2>
+                            </div>
+                            <button type="button" id="clear" class="btn quiet">Clear all</button>
+                        </div>
+                        <div id="tray" class="tray" aria-live="polite"></div>
+                        <p class="hint">
+                            Each chip is an independent series. Removing a chip does not change the selected experiment. Add curves from the
+                            inspector or library cards.
+                        </p>
+                    </section>
+                </div>
+                <aside class="panel inspector" aria-label="Selected experiment details">
+                    <span class="eyebrow">Selected / context</span>
+                    <h2 class="serif" id="selected-name"></h2>
+                    <p class="lead" id="selected-lead"></p>
+                    <div class="fact"><span>Algorithm · demo</span><strong id="selected-algo"></strong></div>
+                    <div class="fact"><span>Collection · demo</span><strong id="selected-collection"></strong></div>
+                    <div class="fact"><span>Runs · mock</span><strong id="selected-runs"></strong></div>
+                    <div class="fact"><span>Condition · mock</span><strong id="selected-condition"></strong></div>
+                    <div class="actions">
+                        <button type="button" class="btn primary" id="add-train">+ Add Train</button
+                        ><button type="button" class="btn primary" id="add-test">+ Add Test</button
+                        ><button type="button" class="btn wide" id="see-episodes">Inspect episodes →</button
+                        ><button type="button" class="btn wide" id="see-config">View configuration →</button>
+                    </div>
+                    <p class="aside-note">
+                        Selection changes the inspector, not the plot. This prototype is read-only, local, and has no API or file access.
+                    </p>
+                </aside>
+            </div>
+        </main>
+        <footer>
+            MARL · Research studio concept / static offline prototype. Illustrative data throughout; no live log reads, network calls, or
+            measurements.
+        </footer>
+        <script>
+            "use strict";
+            // Directory names come from logs/; all other fields and coordinates below are fabricated for this visual prototype.
+            const experiments = [
+                {
+                    id: "lle6-qmix",
+                    algo: "QMIX",
+                    collection: "LLE 6",
+                    runs: "5 example runs",
+                    condition: "Example archive",
+                    color: "#b94f34",
+                    train: [8, 19, 27, 38, 48, 61, 70, 77, 83],
+                    test: [4, 12, 23, 32, 45, 53, 65, 70, 78],
+                },
+                {
+                    id: "lle6-vdn",
+                    algo: "VDN",
+                    collection: "LLE 6",
+                    runs: "4 example runs",
+                    condition: "Example archive",
+                    color: "#335c50",
+                    train: [6, 14, 22, 31, 40, 48, 56, 62, 69],
+                    test: [3, 9, 16, 26, 34, 43, 48, 57, 63],
+                },
+                {
+                    id: "5x5_2agents_1laser-cooperative-qmix-100",
+                    algo: "QMIX",
+                    collection: "5 × 5 / cooperative",
+                    runs: "3 example runs",
+                    condition: "Example partial",
+                    color: "#8a64a2",
+                    train: [11, 21, 34, 46, 56, 67, 73, 81, 88],
+                    test: [6, 14, 24, 37, 49, 58, 65, 75, 80],
+                },
+                {
+                    id: "lle6-mappo",
+                    algo: "MAPPO",
+                    collection: "LLE 6",
+                    runs: "2 example runs",
+                    condition: "Example archive",
+                    color: "#ac7731",
+                    train: [10, 25, 32, 44, 59, 64, 73, 79, 85],
+                    test: [5, 18, 29, 34, 48, 57, 64, 72, 77],
+                },
+                {
+                    id: "lle6-qmix-icm",
+                    algo: "QMIX + ICM",
+                    collection: "LLE 6",
+                    runs: "3 example runs",
+                    condition: "Example partial",
+                    color: "#467c9a",
+                    train: [8, 16, 25, 39, 50, 62, 72, 79, 89],
+                    test: [4, 13, 22, 35, 42, 56, 63, 71, 82],
+                },
+            ];
+            const byId = Object.fromEntries(experiments.map((experiment) => [experiment.id, experiment]));
+            const state = {
+                selected: experiments[0].id,
+                view: "analysis",
+                series: [
+                    { id: experiments[0].id, phase: "Train" },
+                    { id: experiments[0].id, phase: "Test" },
+                    { id: experiments[1].id, phase: "Test" },
+                ],
+                episode: null,
+                step: 0,
+            };
+            const $ = (id) => document.getElementById(id);
+            const svgNS = "http://www.w3.org/2000/svg";
+            function element(tag, className, text) {
+                const node = document.createElement(tag);
+                if (className) node.className = className;
+                if (text !== undefined) node.textContent = text;
+                return node;
+            }
+            function button(text, className, onClick) {
+                const node = element("button", className, text);
+                node.type = "button";
+                node.addEventListener("click", onClick);
+                return node;
+            }
+            function svgNode(tag, attrs, text) {
+                const node = document.createElementNS(svgNS, tag);
+                for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+                if (text !== undefined) node.textContent = text;
+                return node;
+            }
+            function hasSeries(id, phase) {
+                return state.series.some((series) => series.id === id && series.phase === phase);
+            }
+            function addSeries(id, phase) {
+                if (!hasSeries(id, phase)) state.series.push({ id, phase });
+                renderSeries();
+            }
+            function select(id) {
+                state.selected = id;
+                state.episode = null;
+                state.step = 0;
+                renderCards();
+                renderInspector();
+                renderDetail();
+            }
+            function switchView(view) {
+                state.view = view;
+                for (const section of ["analysis", "episodes", "configuration", "replay"]) $(section).hidden = section !== view;
+                document.querySelectorAll(".nav button").forEach((tab) => {
+                    if (tab.dataset.view === view) tab.setAttribute("aria-current", "page");
+                    else tab.removeAttribute("aria-current");
+                });
+                if (view === "replay") renderReplay();
+                $(view).querySelector("h2").focus({ preventScroll: true });
+                if (window.matchMedia("(max-width: 760px)").matches) $(view).scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+            function renderCards() {
+                const query = $("search").value.trim().toLowerCase();
+                const matches = experiments.filter((experiment) =>
+                    (experiment.id + " " + experiment.algo + " " + experiment.collection).toLowerCase().includes(query),
+                );
+                $("result-count").textContent = matches.length + " / " + experiments.length;
+                const cards = $("cards");
+                cards.replaceChildren();
+                if (!matches.length) {
+                    cards.append(
+                        element(
+                            "div",
+                            "empty-message",
+                            "No matching demo directories. Try “lle6”, “vdn”, or clear your search. Your comparison stays intact.",
+                        ),
+                    );
+                    return;
+                }
+                for (const experiment of matches) {
+                    const card = element("article", "exp-card" + (experiment.id === state.selected ? " selected" : ""));
+                    const top = element("div", "card-top");
+                    const label = element("span", "status", experiment.condition);
+                    const dot = element("span", "color-dot");
+                    dot.style.backgroundColor = experiment.color;
+                    dot.setAttribute("aria-hidden", "true");
+                    top.append(label, dot);
+                    card.append(
+                        top,
+                        element("h3", "", experiment.id),
+                        element("p", "", experiment.algo + " · " + experiment.collection + " · mock summary"),
+                    );
+                    const actions = element("div", "row");
+                    const inspect = button(experiment.id === state.selected ? "Selected" : "Inspect", "btn", () => select(experiment.id));
+                    inspect.setAttribute("aria-label", "Inspect " + experiment.id);
+                    const add = button(hasSeries(experiment.id, "Test") ? "Test added" : "+ Add Test", "btn quiet", () =>
+                        addSeries(experiment.id, "Test"),
+                    );
+                    add.disabled = hasSeries(experiment.id, "Test");
+                    add.setAttribute("aria-label", "Add Test for " + experiment.id + " to comparison");
+                    actions.append(inspect, add);
+                    card.append(actions);
+                    cards.append(card);
+                }
+            }
+            function renderInspector() {
+                const experiment = byId[state.selected];
+                $("selected-name").textContent = experiment.id;
+                $("selected-lead").textContent = "Directory name from logs/ · everything else in this panel is a mock example.";
+                $("selected-algo").textContent = experiment.algo;
+                $("selected-collection").textContent = experiment.collection;
+                $("selected-runs").textContent = experiment.runs;
+                $("selected-condition").textContent = experiment.condition;
+                $("add-train").disabled = hasSeries(experiment.id, "Train");
+                $("add-test").disabled = hasSeries(experiment.id, "Test");
+                $("add-train").textContent = hasSeries(experiment.id, "Train") ? "Train added" : "+ Add Train";
+                $("add-test").textContent = hasSeries(experiment.id, "Test") ? "Test added" : "+ Add Test";
+            }
+            function renderSeries() {
+                const tray = $("tray");
+                tray.replaceChildren();
+                if (!state.series.length)
+                    tray.append(
+                        element("p", "hint", "No traces selected. Choose an experiment and add Train or Test to start a comparison."),
+                    );
+                for (const series of state.series) {
+                    const chip = element("div", "chip");
+                    const dot = element("span", "color-dot");
+                    dot.style.backgroundColor = byId[series.id].color;
+                    dot.setAttribute("aria-hidden", "true");
+                    const label = element("span", "", series.id + " · " + series.phase);
+                    const remove = button("×", "", () => {
+                        state.series = state.series.filter((item) => item !== series);
+                        renderSeries();
+                    });
+                    remove.setAttribute("aria-label", "Remove " + series.phase + " for " + series.id + " from comparison");
+                    chip.append(dot, label, remove);
+                    tray.append(chip);
+                }
+                $("clear").disabled = state.series.length === 0;
+                renderCards();
+                renderInspector();
+                renderChart();
+            }
+            function renderChart() {
+                const chart = $("chart"),
+                    legend = $("legend"),
+                    time = $("axis").value === "time";
+                // Keep title and description nodes: they supply an accessible name for the SVG.
+                chart.replaceChildren($("chart-title"), $("chart-desc"));
+                legend.replaceChildren();
+                $("chart-empty").hidden = state.series.length > 0;
+                chart.hidden = state.series.length === 0;
+                $("axis-caption").textContent = time ? "Elapsed minutes · illustrative, per-run zero" : "Environment steps · illustrative";
+                $("chart-note").textContent = time
+                    ? "Mock values only. Each demo run starts at its own 00:00 (its first observation); elapsed minutes are invented, not measured. Train is dashed; Test is solid. These are not replayable observations."
+                    : "Mock values only. Train is dashed; Test is solid. Steps and sample curves are illustrative, not replayable Test observations.";
+                $("chart-desc").textContent =
+                    "Illustrative mock success-rate values for " +
+                    (state.series.length ? state.series.map((series) => series.id + " " + series.phase).join(", ") : "no selected series") +
+                    ". Not measurements from logs. " +
+                    (time
+                        ? "Elapsed time starts at zero independently for each demo run."
+                        : "Horizontal axis shows illustrative environment steps.");
+                if (!state.series.length) return;
+                const left = 58,
+                    right = 726,
+                    top = 25,
+                    bottom = 322;
+                for (let tick = 0; tick <= 100; tick += 25) {
+                    const y = bottom - (tick / 100) * (bottom - top);
+                    chart.append(svgNode("line", { x1: left, y1: y, x2: right, y2: y, stroke: "#e5e9e2", "stroke-width": 1 }));
+                    chart.append(
+                        svgNode("text", { x: left - 11, y: y + 4, "text-anchor": "end", fill: "#67716b", "font-size": 12 }, String(tick)),
+                    );
+                }
+                const ticks = time ? ["00:00", "00:15", "00:30", "00:45", "01:00"] : ["0", "25k", "50k", "75k", "100k"];
+                ticks.forEach((tick, index) => {
+                    const x = left + (index / 4) * (right - left);
+                    chart.append(svgNode("line", { x1: x, y1: bottom, x2: x, y2: bottom + 5, stroke: "#b6c0b6" }));
+                    chart.append(svgNode("text", { x, y: bottom + 23, "text-anchor": "middle", fill: "#67716b", "font-size": 12 }, tick));
+                });
+                chart.append(
+                    svgNode(
+                        "text",
+                        { x: (left + right) / 2, y: 377, "text-anchor": "middle", fill: "#46544a", "font-size": 12 },
+                        time ? "Elapsed time from start of each demo run (illustrative)" : "Environment steps (illustrative)",
+                    ),
+                );
+                for (const series of state.series) {
+                    const experiment = byId[series.id],
+                        values = series.phase === "Train" ? experiment.train : experiment.test;
+                    const points = values.map((value, i) => [
+                        left + (i / (values.length - 1)) * (right - left),
+                        bottom - (value / 100) * (bottom - top),
+                    ]);
+                    const path = svgNode("path", {
+                        d: points.map(([x, y], i) => (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1)).join(" "),
+                        fill: "none",
+                        stroke: experiment.color,
+                        "stroke-width": 3.3,
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                        ...(series.phase === "Train" ? { "stroke-dasharray": "9 7" } : {}),
+                    });
+                    path.append(svgNode("title", {}, series.id + " " + series.phase + ": illustrative success rate"));
+                    chart.append(path);
+                    if (series.phase === "Test")
+                        points.forEach(([x, y]) =>
+                            chart.append(
+                                svgNode("circle", { cx: x, cy: y, r: 3.6, fill: "#fff", stroke: experiment.color, "stroke-width": 2 }),
+                            ),
+                        );
+                    const item = element("span", "legend-item");
+                    const swatch = element("span", "swatch" + (series.phase === "Train" ? " train" : ""));
+                    swatch.style.borderColor = experiment.color;
+                    swatch.setAttribute("aria-hidden", "true");
+                    item.append(swatch, element("span", "", series.id + " · " + series.phase));
+                    legend.append(item);
+                }
+            }
+            function renderDetail() {
+                const experiment = byId[state.selected];
+                const list = $("episode-list");
+                list.replaceChildren();
+                for (let number = 1; number <= 3; number++) {
+                    const row = element("div", "episode-row"),
+                        info = element("div");
+                    info.append(
+                        element("strong", "", "Example episode " + String(number).padStart(2, "0")),
+                        element("span", "", experiment.id + " · synthetic storyboard · 6 frames"),
+                    );
+                    const open = button("Inspect / replay →", "btn", () => {
+                        state.episode = number;
+                        state.step = 0;
+                        switchView("replay");
+                    });
+                    open.setAttribute("aria-label", "Inspect mock episode " + number + " for " + experiment.id);
+                    row.append(info, open);
+                    list.append(row);
+                }
+                const config = $("config-content");
+                config.replaceChildren();
+                const block = element(
+                    "div",
+                    "code-block",
+                    "logs/" + experiment.id + "\nExample schema: local demo only · not read from experiment.json",
+                );
+                block.style.whiteSpace = "pre-wrap";
+                const grid = element("div", "config-grid");
+                for (const [label, value] of [
+                    ["Algorithm · mock", experiment.algo],
+                    ["Environment · mock", experiment.collection],
+                    ["Run count · mock", experiment.runs],
+                    ["Condition · mock", experiment.condition],
+                ]) {
+                    const fact = element("div", "fact");
+                    fact.append(element("span", "", label), element("strong", "", value));
+                    grid.append(fact);
+                }
+                config.append(
+                    block,
+                    element("p", "hint", "Directory name only is real. No configuration files are opened by this example."),
+                    grid,
+                );
+                renderReplay();
+            }
+            function renderReplay() {
+                const content = $("replay-content");
+                content.replaceChildren();
+                if (state.episode === null) {
+                    const empty = element(
+                        "div",
+                        "empty-message",
+                        "No episode selected for " +
+                            state.selected +
+                            ". Choose a mock episode from the Episodes screen to open its storyboard.",
+                    );
+                    content.append(
+                        empty,
+                        button("Browse episodes →", "btn primary", () => switchView("episodes")),
+                    );
+                    return;
+                }
+                content.append(
+                    element(
+                        "p",
+                        "description",
+                        state.selected +
+                            " · example episode " +
+                            String(state.episode).padStart(2, "0") +
+                            " · invented frames, not a log replay",
+                    ),
+                );
+                const controls = element("div", "replay-controls");
+                const prev = button("← Previous", "btn", () => {
+                    state.step--;
+                    renderReplay();
+                });
+                prev.disabled = state.step === 0;
+                const next = button("Next →", "btn primary", () => {
+                    state.step++;
+                    renderReplay();
+                });
+                next.disabled = state.step === 5;
+                controls.append(
+                    prev,
+                    element("strong", "step-counter", "Frame " + (state.step + 1) + " / 6"),
+                    next,
+                    button("Other episodes", "btn quiet", () => switchView("episodes")),
+                );
+                content.append(controls);
+                const grid = element("div", "grid");
+                grid.setAttribute("role", "img");
+                grid.setAttribute(
+                    "aria-label",
+                    "Illustrative 5 by 5 grid. Two agents move across the storyboard towards a goal; not recorded actions.",
+                );
+                const agentA = Math.min(20, state.step * 5),
+                    agentB = Math.max(4, 24 - state.step * 4);
+                for (let i = 0; i < 25; i++) {
+                    const cell = element("span", "cell" + ([7, 12, 17].includes(i) ? " wall" : "") + (i === 20 ? " goal" : ""));
+                    if (i === agentA) {
+                        cell.classList.add("agent");
+                        cell.textContent = "A";
+                    } else if (i === agentB) {
+                        cell.classList.add("agent", "two");
+                        cell.textContent = "B";
+                    } else if (i === 20) cell.textContent = "◇";
+                    cell.setAttribute("aria-hidden", "true");
+                    grid.append(cell);
+                }
+                content.append(
+                    grid,
+                    element("p", "replay-key", "A / green agent     B / terracotta agent     ◇ / illustrative goal"),
+                    element(
+                        "p",
+                        "hint",
+                        "Storyboard navigation is interactive, but frames are invented and never mapped from aggregate chart steps.",
+                    ),
+                );
+            }
+            document.querySelectorAll(".nav button").forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view)));
+            document.querySelectorAll(".center > section[id] h2").forEach((heading) => heading.setAttribute("tabindex", "-1"));
+            $("search").addEventListener("input", renderCards);
+            $("axis").addEventListener("change", renderChart);
+            $("clear").addEventListener("click", () => {
+                state.series = [];
+                renderSeries();
+            });
+            $("add-train").addEventListener("click", () => addSeries(state.selected, "Train"));
+            $("add-test").addEventListener("click", () => addSeries(state.selected, "Test"));
+            $("see-episodes").addEventListener("click", () => switchView("episodes"));
+            $("see-config").addEventListener("click", () => switchView("configuration"));
+            renderSeries();
+            renderDetail();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+  <title>Run control room · MARL UI concepts</title>
+  <style>
+    :root { --ink:#17231f; --muted:#61716b; --paper:#f3f4ee; --white:#fffefa; --line:#d8dfd8; --dark:#142d27; --green:#176e50; --mint:#d9f1dc; --orange:#aa561e; --peach:#ffeddc; --blue:#315f96; --pale-blue:#e5eef9; --red:#a3403c; --radius:16px; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    button,select,input { font:inherit; }
+    button { cursor:pointer; }
+    button:disabled { cursor:not-allowed; opacity:.53; }
+    :focus-visible { outline:3px solid #367ab9; outline-offset:3px; }
+    a { color:inherit; }
+    .app { min-height:100vh; display:grid; grid-template-columns:238px minmax(0,1fr); }
+    .sidebar { background:var(--dark); color:#f0f7ee; padding:29px 18px; display:flex; flex-direction:column; gap:34px; }
+    .brand { display:flex; align-items:center; gap:12px; padding:0 10px; text-decoration:none; }
+    .brand-mark { width:35px; height:35px; border:2px solid #a4ecad; border-radius:10px; display:grid; place-items:center; color:#c9f5ce; font-size:21px; font-weight:800; line-height:1; }
+    .brand strong { display:block; letter-spacing:.12em; font-size:14px; }
+    .brand small { display:block; color:#a5bcb1; font-size:11px; letter-spacing:.09em; text-transform:uppercase; }
+    .nav-label,.side-label,.eyebrow { margin:0 0 10px; text-transform:uppercase; letter-spacing:.15em; font-size:11px; font-weight:800; }
+    .nav-label,.side-label { color:#9cb3a9; padding-left:12px; }
+    .nav { display:grid; gap:5px; }
+    .nav button { width:100%; border:0; background:transparent; color:#bfd0c5; border-radius:11px; padding:12px; text-align:left; display:flex; align-items:center; justify-content:space-between; font-weight:650; }
+    .nav button[aria-current="page"] { background:#315147; color:white; }
+    .nav button:hover:not([aria-current="page"]) { background:#244238; color:white; }
+    .nav .number { font-size:11px; color:#d1e7d4; border:1px solid #658779; border-radius:6px; padding:0 6px; }
+    .side-footer { margin-top:auto; border-top:1px solid #395448; padding:18px 10px 0; font-size:12px; color:#acc3b5; }
+    .side-footer p { margin:0 0 14px; }
+    .side-footer a { display:block; padding:5px 0; text-underline-offset:3px; }
+    main { min-width:0; padding:0 clamp(18px,3.7vw,54px) 64px; }
+    .topbar { min-height:70px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap:12px; color:var(--muted); font-size:12px; font-weight:650; }
+    .topbar .crumb { color:var(--ink); font-weight:800; }
+    .offline { border:1px solid var(--line); border-radius:30px; padding:6px 12px; color:var(--green); background:#e9f5e8; white-space:nowrap; }
+    .offline::before,.dot::before { content:""; display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:7px; vertical-align:1px; }
+    .screen { max-width:1470px; margin:auto; }
+    .screen[hidden] { display:none !important; }
+    .intro { padding:31px 0 26px; display:flex; justify-content:space-between; align-items:flex-end; gap:20px; }
+    .eyebrow { color:var(--green); }
+    h1,h2,h3,p { margin-top:0; }
+    h1 { font-size:clamp(32px,3.5vw,51px); line-height:1.08; letter-spacing:-.055em; margin-bottom:9px; }
+    h2 { font-size:22px; line-height:1.2; letter-spacing:-.035em; margin-bottom:5px; }
+    h3 { font-size:16px; letter-spacing:-.02em; margin-bottom:4px; }
+    .subtle { color:var(--muted); }
+    .intro p:last-child { margin-bottom:0; }
+    .pill { display:inline-flex; gap:6px; align-items:center; padding:5px 10px; border-radius:99px; font-size:11px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; white-space:nowrap; }
+    .pill.green { background:var(--mint); color:#155a42; }
+    .pill.orange { background:var(--peach); color:#92501e; }
+    .pill.blue { background:var(--pale-blue); color:#305c92; }
+    .pill.gray { background:#e8ebe6; color:#52635b; }
+    .notice { border:1px solid #b6d5bd; border-radius:11px; padding:11px 15px; background:#e8f3e6; color:#28553a; font-size:13px; margin-bottom:20px; }
+    .notice strong { color:#154931; }
+    .panel { border:1px solid var(--line); background:var(--white); border-radius:var(--radius); box-shadow:0 6px 20px #1a39270a; }
+    .section-head { display:flex; align-items:end; justify-content:space-between; gap:12px; margin:0 0 15px; }
+    .section-head p { margin:0; font-size:13px; color:var(--muted); }
+    .section-head small { color:var(--muted); }
+    .overview { display:grid; grid-template-columns:minmax(0,1fr) 330px; gap:16px; margin-bottom:30px; }
+    .hero { background:var(--dark); color:white; border-radius:var(--radius); padding:26px 30px; position:relative; overflow:hidden; min-height:227px; }
+    .hero::after { content:""; position:absolute; width:350px; height:350px; border:1px solid #6d9f8166; border-radius:50%; right:-75px; top:-180px; box-shadow:0 0 0 36px #6d9f8118,0 0 0 85px #6d9f8111; pointer-events:none; }
+    .hero .eyebrow { color:#9ee0b5; }
+    .hero h2 { font-size:clamp(28px,3vw,39px); max-width:560px; margin:0 0 10px; letter-spacing:-.045em; }
+    .hero p { color:#c8ddd0; max-width:560px; margin:0 0 24px; }
+    .hero-metrics { display:flex; flex-wrap:wrap; gap:26px; position:relative; z-index:1; }
+    .hero-metrics div { border-left:2px solid #8acda3; padding-left:12px; }
+    .hero-metrics strong { display:block; font-size:25px; line-height:1.1; }
+    .hero-metrics span { display:block; color:#bad2c1; font-size:11px; text-transform:uppercase; font-weight:750; letter-spacing:.07em; margin-top:5px; }
+    .machine { padding:21px; }
+    .machine .section-head { align-items:center; margin-bottom:15px; }
+    .machine .section-head h2 { font-size:18px; margin:0; }
+    .machine-row { display:flex; justify-content:space-between; gap:10px; border-top:1px solid var(--line); padding:11px 0; font-size:13px; }
+    .machine-row strong { font-variant-numeric:tabular-nums; }
+    .machine .caption { color:var(--muted); font-size:11px; margin:6px 0 0; }
+    .toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:11px; margin:0 0 19px; }
+    label.field { display:grid; gap:5px; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+    input[type="search"],select { border:1px solid #bdc9c0; border-radius:9px; padding:9px 12px; min-height:42px; color:var(--ink); background:var(--white); font-size:14px; letter-spacing:normal; text-transform:none; font-weight:550; }
+    input[type="search"] { min-width:min(310px,80vw); }
+    .toolbar .count { margin-left:auto; color:var(--muted); font-size:12px; align-self:center; }
+    .lanes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .lane { border:1px solid var(--line); border-radius:var(--radius); background:#e8ece6; padding:13px; min-width:0; }
+    .lane-head { display:flex; justify-content:space-between; align-items:center; padding:5px 5px 14px; font-size:13px; font-weight:850; text-transform:uppercase; letter-spacing:.08em; }
+    .lane-head .count-badge { border-radius:6px; background:#d5ded3; padding:2px 8px; color:#394940; }
+    .run-card { border:1px solid var(--line); border-top:4px solid var(--green); border-radius:11px; background:var(--white); padding:18px; margin-bottom:10px; min-width:0; box-shadow:0 2px 8px #1431230a; }
+    .run-card:last-child { margin-bottom:0; }
+    .run-card.partial { border-top-color:var(--orange); }
+    .run-card.queued { border-top-color:var(--blue); }
+    .run-card .card-top { display:flex; justify-content:space-between; align-items:start; gap:8px; }
+    .run-card h3 { overflow-wrap:anywhere; font-size:15px; line-height:1.3; margin:13px 0 5px; }
+    .run-card .meta { font-size:12px; color:var(--muted); margin-bottom:15px; }
+    .run-card .progress-label { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); font-weight:700; }
+    .meter { height:7px; background:#e4e9e1; border-radius:99px; margin:7px 0 17px; overflow:hidden; }
+    .meter span { display:block; height:100%; background:var(--green); border-radius:99px; }
+    .partial .meter span { background:var(--orange); }
+    .queued .meter span { background:var(--blue); }
+    .card-actions { display:flex; flex-wrap:wrap; gap:7px; }
+    .btn { border:1px solid #b8c8bd; background:var(--white); color:var(--ink); border-radius:8px; font-size:12px; font-weight:800; padding:8px 10px; min-height:36px; line-height:1.25; }
+    .btn:hover:not(:disabled) { background:#eaf2e8; border-color:#809d89; }
+    .btn.primary { border-color:var(--green); background:var(--green); color:white; }
+    .btn.primary:hover:not(:disabled) { background:#0e543b; }
+    .btn.danger { color:var(--red); border-color:#dfa9a5; }
+    .btn.danger:hover:not(:disabled) { background:#fff0ef; }
+    .btn.text { border-color:transparent; background:transparent; color:var(--green); }
+    .btn.text:hover { background:#eaf2e8; }
+    .lane-empty { color:var(--muted); font-size:12px; padding:12px 5px; margin:0; }
+    .lower-note { margin:16px 0 0; font-size:12px; color:var(--muted); }
+    .analysis-grid { display:grid; grid-template-columns:minmax(0,1fr) 285px; gap:16px; align-items:start; }
+    .chart-panel { padding:22px; min-width:0; }
+    .chart-head { display:flex; justify-content:space-between; gap:15px; align-items:start; }
+    .chart-head p { font-size:13px; margin-bottom:6px; }
+    .chart-wrap { overflow-x:auto; }
+    #chart { display:block; width:100%; height:auto; min-width:510px; overflow:visible; }
+    .chart-caption { font-size:12px; color:var(--muted); margin:0; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px 19px; margin:14px 0 12px; font-size:12px; font-weight:650; }
+    .legend span { display:inline-flex; gap:7px; align-items:center; }
+    .swatch { display:inline-block; width:25px; border-top:3px solid var(--green); }
+    .swatch.test { border-top-style:dashed; }
+    .swatch.compare { border-top-color:var(--blue); }
+    .plot-controls { padding:22px; }
+    .plot-controls h2 { margin-bottom:6px; }
+    .plot-controls > p { font-size:13px; margin-bottom:18px; }
+    .plot-controls .field { margin-bottom:15px; }
+    .plot-controls select { width:100%; }
+    fieldset { border:0; border-top:1px solid var(--line); padding:14px 0 0; margin:12px 0 0; }
+    legend { padding:0 5px 0 0; font-size:11px; font-weight:800; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+    .check { display:flex; gap:9px; align-items:flex-start; font-size:13px; margin:8px 0; cursor:pointer; }
+    .check input { accent-color:var(--green); margin-top:4px; }
+    .hint { border-radius:9px; background:#eef3ed; padding:11px; margin:18px 0 0; color:#4e6155; font-size:12px; }
+    .data-panel { margin-top:16px; padding:19px 22px; overflow-x:auto; }
+    .data-panel p { font-size:12px; color:var(--muted); margin:0 0 12px; }
+    table { border-collapse:collapse; width:100%; min-width:490px; font-size:12px; text-align:left; }
+    th,td { padding:9px 10px; border-top:1px solid var(--line); }
+    th { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.07em; }
+    .inspect-grid { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:16px; }
+    .inspect-main,.inspect-aside { padding:23px; }
+    .inspect-title { overflow-wrap:anywhere; margin:8px 0 9px; }
+    .inspect-meta { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+    .alert { border:1px solid #ebcbab; background:#fff5e8; border-radius:10px; padding:16px; margin:0 0 23px; }
+    .alert h3 { color:#8d4b20; }
+    .alert p { margin:5px 0 0; font-size:13px; }
+    .artifact-list { display:grid; gap:0; margin:12px 0 24px; }
+    .artifact { display:flex; justify-content:space-between; align-items:baseline; gap:12px; border-top:1px solid var(--line); padding:12px 0; font-size:13px; }
+    .artifact span { color:var(--muted); text-align:right; }
+    .artifact strong { overflow-wrap:anywhere; }
+    .inspect-aside p { color:var(--muted); font-size:13px; }
+    .inspect-aside .field { margin:20px 0 12px; }
+    .inspect-aside select { width:100%; }
+    .mini-frame { background:#233c33; border-radius:11px; height:150px; display:grid; place-items:center; color:#e2f1e3; margin:14px 0; position:relative; }
+    .mini-frame::before { content:""; position:absolute; inset:19px; border:2px solid #709784; border-radius:5px; background:repeating-linear-gradient(90deg,transparent 0 31px,#6d927f33 32px 33px),repeating-linear-gradient(0deg,transparent 0 31px,#6d927f33 32px 33px); }
+    .mini-frame span { position:relative; z-index:1; background:#29483b; padding:4px 8px; font-size:12px; border-radius:4px; }
+    .replay-state { font-size:12px; min-height:18px; }
+    #toast { position:fixed; z-index:20; bottom:20px; right:20px; max-width:min(420px,calc(100vw - 40px)); border:1px solid #658d72; border-radius:11px; background:#153b2b; color:white; padding:14px 17px; box-shadow:0 14px 35px #102b2250; font-size:13px; }
+    #toast[hidden] { display:none; }
+    @media(max-width:1100px) { .lanes { grid-template-columns:repeat(2,minmax(0,1fr)); } .overview,.analysis-grid,.inspect-grid { grid-template-columns:1fr; } .machine { display:grid; grid-template-columns:repeat(3,1fr); gap:0 14px; } .machine .section-head,.machine .caption { grid-column:1/-1; } }
+    @media(max-width:700px) { .app { display:block; } .sidebar { padding:14px 16px; gap:13px; } .brand { padding:0; } .nav-label,.side-footer { display:none; } .nav { display:flex; overflow-x:auto; gap:6px; } .nav button { width:auto; white-space:nowrap; padding:9px 12px; } main { padding:0 16px 38px; } .intro { align-items:start; flex-direction:column; } .lanes { grid-template-columns:1fr; } .machine { display:block; } .topbar { min-height:56px; } .hero { padding:22px; } .chart-panel,.plot-controls,.inspect-main,.inspect-aside { padding:18px; } }
+    @media(prefers-reduced-motion:no-preference) { .btn,.nav button { transition:background .15s ease,border-color .15s ease; } }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" aria-label="Site navigation">
+    <a class="brand" href="../index.html" aria-label="MARL concepts gallery"><span class="brand-mark" aria-hidden="true">↗</span><span><strong>MARL / OPS</strong><</strong>small>Interface concepts</small></span></a>
+    <div><p class="nav-label">Workspace</p><nav class="nav" aria-label="Run control room screens">
+      <button type="button" data-screen="control" aria-current="page">Control room <span class="number">01</span></button>
+      <button type="button" data-screen="analysis">Analysis <span class="number">02</span></button>
+      <button type="button" data-screen="inspect">Inspect <span class="number">03</span></button>
+    </nav></div>
+    <div class="side-footer"><p></p>Local-only concept. No services, telemetry, or live run connections.</p><span class="side-label" style="padding:0">Explore directions</span>
+      <a href="../index.html">All concepts ↗</a>
+      <a href="../research-studio/index.html">Research studio ↗</a>
+      <a href="../observatory/index.html">Observatory ↗</a>
+      <a href="../replay-atlas/index.html">Replay atlas ↗</a>
+    </div>
+  </aside>
+  <main id="main">
+    <div class="topbar"><span><span class="crumb">WORKSPACE</span> / <span id="breadcrumb">CONTROL ROOM</span></span><span class="offline">Offline prototype · simulated data</span></div>
+
+    <section class="screen" id="control" aria-labelledby="control-title">
+      <header class="intro"><div><p class="eyebrow">01 / Operations overview</p><h1 id="control-title">Run control room<span aria-hidden="true">.</span></h1><p class="subtle">A clear desk for what is moving, waiting, and needing attention.</p></div><span class="pill green">● Local workspace</span></header>
+      <div class="notice"><strong></strong>Illustrative prototype.</strong> Experiment names are drawn from local log directory names; every status, timestamp, progress value, metric, and machine reading below is fabricated. Buttons only display simulated feedback.</div>
+      <div class="overview">
+        <div class="hero"><p class="eyebrow">Illustrative shift summary</p><h2></h2>Keep the work visible.<br>Keep control explicit.</h2><p></p>Inspect an experiment without granting it process access. Operations are shown here as a visual concept, not wired to the machine.</p><div class="hero-metrics"><div><strong></strong>01</strong><span></span>Simulated active</span></div><div><strong></strong>01</strong><span></span>Partial record</span></div><div><strong>01</strong></strong><span>Sim</span>ulated queued</span></div></div></div>
+        <section class="machine panel" aria-label="Local machine status, illustrative"><div class="section-head"><h2>Local</h2> machine</h2><span class="pill gray">Mock reading</span></div><div class="machine-row"><span>CPU load</</span>span><strong>38% <span class="subtle">mock</</strong>span></strong></div><div class="machine-row"><span>GPU</span> memory</span><strong>7.2 / 24 GB <</strong>span class="subtle">mock</span></strong></div><div class="machine-row"><span>Disk free</span><strong></span></strong>184 GB <span class="subtle">mock</span></strong></div><p class="caption">Static example values · no system sensors are accessed.</p></section>
+      </div>
+      <div class="section-head"><div><h2>Run lanes</h2><p>Operational grouping is illustrative; historical logs do not imply a live process.</p></div><button class="btn" type="</h2>button" data-action="refresh">Simulate status check</button></</p>div>
+      <div class="toolbar"><label class="field" for="run-search">Find experiment<input id="run-search" type="search" placeholder="Search by log name" autocomplete="off"></label><label class="field" for="status-filter">Show status<select id="status-filter"><option value="all">All mock statuses</option><option value="active">Simulated active</option><option value="partial">Partial record</option><option value="queued">Simulated queued</option></select></label><span id="visible-count" class="count" aria-live="polite"></span></div>
+      <div class="lanes">
+        <section class="lane" data-lane="active" aria-label="Simulated active lane"><div class="lane-head">Simulated active <span class="count-badge" data-count="active">1</span></div><div class="lane-items" data-items="active"></div></section>
+        <section class="lane" data-lane="partial" aria-label="Partial record lane"><div class="lane-head">Partial record <span class="count-badge" data-count="partial">1</span></div><div class="lane-items" data-items="partial"></div></section>
+        <section class="lane" data-lane="queued" aria-label="Simulated queued lane"><div class="lane-head">Simulated queued <span class="count-badge" data-count="queued">1</span></div><div class="lane-items" data-items="queued"></div></section>
+      </div><p class="lower-note">No launch, pause, stop, delete, file read, or status polling is performed by this page.</p>
+    </section>
+
+    <section class="screen" id="analysis" aria-labelledby="analysis-title" hidden>
+      <header class="intro"><div><p class="eyebrow">02 / Separate destination</p><h1 id="analysis-title">Analysis canvas<span aria-hidden="true">.</span></h1><p class="subtle">Compose Train and Test from one experiment; add a second experiment for context.</p></div><span class="pill blue">Illustrative series</span></header>
+      <div class="notice"><strong>Demo chart only.</strong> Points are invented for this prototype, not read from logs. Wall time is elapsed from the start of <em>each run</em>, never a shared clock or a category-specific origin.</div>
+      <div class="analysis-grid">
+        <section class="panel chart-panel" aria-labelledby="plot-title"><div class="chart-head"><div><p class="</section>eyebrow">Comparison / 01</p><h2</strong> id="plot-title">Learning curves</h2><p class="subtle" id="plot-subtitle">Train + Test · lle6</em>-qmix-per</p></div><span class="pill green">Composed view</span></div>
+          <div class="chart-wrap"><svg id="chart" viewBox="0 0 720 365" role="img" aria-labelledby="chart-title chart-desc"><title id="chart-title">Illustrative learning curves</title><desc id="chart-desc">The selected Train and Test series are plotted across training steps.</desc></svg></div>
+          <div id="legend" class="legend" aria-label="Series legend"></div><p class="chart-caption" id="chart-caption">Dashed = Test; solid = Train. Each point is an illustrative observation.</p>
+        </section>
+        <section class="panel plot-controls" aria-labelledby="compose-title"><p class="eyebrow">Plot builder</p><h2 id="compose-title">Compose plot</h2><p class="subtle">Change these controls to redraw the SVG locally.</p>
+          <label class="field" for="primary-run">Primary experiment<select id="primary-run"><option value="qmix">lle6-qmix-per</option><option value="vdn">lle6-vdn-nstep3</option><option value="dqn">5x5_2agents_1laser-cooperative-dqn-100</option></select></label>
+          <label class="field" for="metric">Metric<select id="metric"><option value="return">Episode return (illustrative)</option><option value="success">Success rate % (illustrative)</option></select></label>
+          <label class="field" for="axis">Horizontal axis<select id="axis"><option value="step">Training step</option><option value="time">Elapsed wall time from each run start</option></select></label>
+          <fieldset><legend>Series composition</legend><label class="check"><input type="checkbox" id="show-train" checked> Train observations (solid)</label><label class="check"><input type="checkbox" id="show-test" checked> Test observations (dashed)</label><label class="check"><input type="checkbox" id="show-compare"> Add other experiment · Test (blue)</label></fieldset>
+          <label class="field" for="compare-run">Other experiment<select id="compare-run"><option value="vdn">lle6-vdn-nstep3</option><option value="qmix">lle6-qmix-per</option><option value="dqn">5x5_2agents_1laser-cooperative-dqn-100</option></select></label>
+          <p id="plot-warning" class="hint" role="status">Each category remains a separate series. Points are not aligned by array position.</p>
+        </section>
+      </div>
+      <section class="panel data-panel" aria-labelledby="data-title"><h2 id="data-title">Visible source points</h2><p>Small readout of the plotted illustrative observations. X values remain native to each series; no missing values are filled in.</p><table><thead><tr><th scope="col">Experiment</th><th scope="col">Source</th><th scope="col">Step</th><th scope="col">Elapsed from run start</th><th scope="col" id="value-heading">Episode return</th></tr></</legend>thead><tbody id="point-rows"></tbody></table></section>
+    </section>
+
+    <section class="screen" id="inspect" aria-labelledby="inspect-title" hidden>
+      <header class="intro"><div><p class="eyebrow">03 / Read-only inspection</p><h1 id="inspect-title">Inspect record<span aria-hidden="true">.</span></h1><p class="subtle">What a historical</p> log can tell you, even when its run is incomplete.</p></div><span class="pill orange">No writes</span></header>
+      <div class="notice"><strong>Illustrative artifact inventory.</strong> Names match log folders; the file statuses, diagnostics, and replay availability are mock examples, not a scan of those folders.</div>
+</section>      <div class="inspect-grid"><article class="panel inspect-main"><p class="eyebrow">Experiment / local example</p><h2 id="inspect-name" class="inspect-title"></h2><div class="inspect-meta"><span class="pill orange" id="inspect-condition">Partial record · mock</span><span class="pill gray">Read-only · mock</span></div>
+        <div class="alert"><h3 id="inspect-alert-title">A partial log is still inspectable</h3><p</strong> id="inspect-alert"></p></div>
+        <h3>Artifact visibility · simulated</h3><div class="artifact-list" id="artifacts"></div>
+        <button class="btn" type="button" data-screen="analysis">Open Analysis</button><p class="lower-note">Displaying a log never means its trainer can be loaded or its process managed. This prototype reads no files and does not attempt repair.</p>
+      </article><aside class="panel inspect-aside" aria-labelledby="replay-title"><p class="eyebrow">Optional capability</p><h2 id="replay-title">Episode replay</h2><p id="replay</h3>-explanation">Saved actions are a separate, optional artifact. Metrics alone do not provide a replay.</p><label class="field" for="episode-select">Illustrative Test episode<select id="episode-select"><option value="40">Test step 40,000 · mock</option><option value="80">Test step 80,000 · mock</option></select></label><div class="mini-frame" aria-hidden="true"><span>Illustrative replay preview</span></div><button class="btn primary" id="replay-button" type="button">Preview mock replay</button><p id="replay-state" class="replay-state" role="status"></p><p class="lower-note">This is a visual demo only. No actions, environments, or saved episodes are loaded.</p></aside></div>
+    </section>
+  </main>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+  // @ai-generated — self-contained illustrative prototype; never connect these controls to live processes.
+  const runs = [
+    { id:'qmix', name:'lle6-qmix-per', lane:'active', subtitle:'QMIX · prioritized replay', progress:68, step:'68k / 100k', seed:'Seed 12 · mock', replay:true },
+    { id:'vdn', name:'lle6-vdn-nstep3', lane:'partial', subtitle:'VDN · n-step 3', progress:41, step:'41k / 100k', seed:'Seed 07 · mock', replay:false },
+    { id:'dqn', name:'5x5_2agents_1laser-cooperative-dqn-100', lane:'queued', subtitle:'Cooperative DQN · LLE 5×5', progress:0, step:'0 / 100k', seed:'Seed 100 · mock', replay:false }
+  ];
+  // Each point's time is elapsed hours since that illustrative run began, independent of other runs.
+  const observations = {
+    qmix:{train:[{s:0,t:0,return:12,success:14},{s:20,t:.6,return:28,success:30},{s:40,t:1.3,return:39,success:47},{s:60,t:2.1,return:55,success:62},{s:80,t:3,return:66,success:74},{s:100,t:3.9,return:76,success:84}],test:[{s:0,t:.1,return:9,success:11},{s:25,t:.9,return:24,success:26},{s:40,t:1.5,return:34,success:42},{s:60,t:2.4,return:47,success:56},{s:80,t:3.3,return:61,success:70},{s:100,t:4.1,return:69,success:78}]},
+    vdn:{train:[{s:0,t:0,return:13,success:15},{s:18,t:.7,return:25,success:29},{s:35,t:1.5,return:36,success:41},{s:55,t:2.3,return:49,success:53},{s:75,t:3.2,return:58,success:66},{s:100,t:4.4,return:65,success:73}],test:[{s:0,t:.1,return:11,success:12},{s:20,t:.9,return:20,success:23},{s:40,t:1.8,return:31,success:37},{s:60,t:2.7,return:43,success:49},{s:80,t:3.7,return:53,success:60},{s:100,t:4.6,return:60,success:68}]},
+    dqn:{train:[{s:0,t:0,return:7,success:8},{s:20,t:.4,return:20,success:23},{s:40,t:1,return:27,success:34},{s:60,t:1.6,return:39,success:46},{s:80,t:2.2,return:50,success:57},{s:100,t:3,return:59,success:69}],test:[{s:0,t:.1,return:5,success:6},{s:25,t:.7,return:17,success:19},{s:50,t:1.4,return:31,success:36},{s:75,t:2.2,return:43,success:51},{s:100,t:3.2,return:54,success:63}]}
+  };
+  const $ = id => document.getElementById(id);
+  let selectedRun = 'vdn';
+  let toastTimer;
+
+  function feedback(message) {
+    const toast = $('toast'); toast.textContent = message; toast.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 4600);
+  }
+
+  function navigate(screen) {
+    if (!['control','analysis','inspect'].includes(screen)) return;
+    document.querySelectorAll('.screen').forEach(section => { section.hidden = section.id !== screen; });
+    document.querySelectorAll('.nav button').forEach(button => {
+      if (button.dataset.screen === screen) button.setAttribute('aria-current','page');
+      else button.removeAttribute('aria-current');
+    });
+    $('breadcrumb').textContent = ({control:'CONTROL ROOM',analysis:'ANALYSIS',inspect:'INSPECT'})[screen];
+    if (location.hash !== '#' + screen) history.replaceState(null,'','#' + screen);
+    if (screen === 'analysis') drawChart();
+    if (screen === 'inspect') renderInspect();
+    window.scrollTo(0,0);
+  }
+
+  function renderRuns() {
+    const query = $('run-search').value.trim().toLocaleLowerCase();
+    const filter = $('status-filter').value;
+    const visible = runs.filter(run => (filter === 'all' || run.lane === filter) && run.name.toLocaleLowerCase().includes(query));
+    for (const lane of ['active','partial','queued']) {
+      const container = document.querySelector('[data-items="' + lane + '"]');
+      container.replaceChildren();
+      const members = visible.filter(run => run.lane === lane);
+      document.querySelector('[data-count="' + lane + '"]').textContent = members.length;
+      if (!members.length) { const empty = document.createElement('p'); empty.className = 'lane-empty'; empty.textContent = 'No matching records in this lane.'; container.append(empty); }
+      for (const run of members) {
+        const card = document.createElement('article'); card.className = 'run-card ' + run.lane;
+        const top = document.createElement('div'); top.className = 'card-top';
+        const badge = document.createElement('span'); badge.className = 'pill ' + ({active:'green',partial:'orange',queued:'blue'})[run.lane]; badge.textContent = ({active:'● Active · mock',partial:'◐ Partial · mock',queued:'○ Queued · mock'})[run.lane]; top.append(badge);
+        const heading = document.createElement('h3'); heading.textContent = run.name;
+        const meta = document.createElement('p'); meta.className = 'meta'; meta.textContent = run.subtitle + '  /  ' + run.seed;
+        const progress = document.createElement('div'); progress.className = 'progress-label';
+        const label = document.createElement('span'); label.textContent = 'Illustrative progress';
+        const value = document.createElement('strong'); value.textContent = run.step;
+        progress.append(label,value);
+        const meter = document.createElement('div'); meter.className = 'meter'; meter.setAttribute('role','progressbar'); meter.setAttribute('aria-label',run.name + ' illustrative progress'); meter.setAttribute('aria-valuenow',String(run.progress)); meter.setAttribute('aria-valuemin','0'); meter.setAttribute('aria-valuemax','100');
+        const fill = document.createElement('span'); fill.style.width = run.progress + '%'; meter.append(fill);
+        const actions = document.createElement('div'); actions.className = 'card-actions';
+        const inspect = document.createElement('button'); inspect.type = 'button'; inspect.className = 'btn primary'; inspect.textContent = 'Inspect record'; inspect.dataset.inspect = run.id; actions.append(inspect);
+        const operation = document.createElement('button'); operation.type = 'button'; operation.className = 'btn ' + (run.lane === 'active' ? 'danger' : ''); operation.textContent = run.lane === 'active' ? 'Simulate stop' : run.lane === 'queued' ? 'Simulate launch' : 'Simulate status check'; operation.dataset.action = run.lane === 'active' ? 'stop' : run.lane === 'queued' ? 'launch' : 'check'; operation.dataset.run = run.id; actions.append(operation);
+        card.append(top,heading,meta,progress,meter,actions); container.append(card);
+      }
+    }
+    $('visible-count').textContent = visible.length + ' of ' + runs.length + ' illustrative records';
+  }
+
+  const NS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag,attributes = {}) {
+    const node = document.createElementNS(NS,tag);
+    for (const [key,value] of Object.entries(attributes)) node.setAttribute(key,String(value));
+    return node;
+  }
+  function drawChart() {
+    const primary = $('primary-run').value, other = $('compare-run').value;
+    const metric = $('metric').value, axis = $('axis').value;
+    const series = [];
+    if ($('show-train').checked) series.push({run:primary,category:'Train',points:observations[primary].train,color:'#176e50',dash:''});
+    if ($('show-test').checked) series.push({run:primary,category:'Test',points:observations[primary].test,color:'#176e50',dash:'7 5'});
+    if ($('show-compare').checked && other !== primary) series.push({run:other,category:'Test',points:observations[other].test,color:'#315f96',dash:'7 5'});
+    const svg = $('chart'); svg.replaceChildren();
+    const title = svgEl('title',{id:'chart-title'}); title.textContent = 'Illustrative ' + (metric === 'return' ? 'episode return' : 'success rate') + ' learning curves';
+    const desc = svgEl('desc',{id:'chart-desc'}); desc.textContent = series.length ? series.map(item => item.category + ' for ' + runs.find(run => run.id === item.run).name).join('; ') + '. Horizontal axis: ' + (axis === 'step' ? 'training step' : 'elapsed hours from each run start') + '.' : 'No series selected.';
+    svg.append(title,desc);
+    const left = 56, right = 685, top = 26, bottom = 299, width = right-left, height = bottom-top;
+    const maxX = axis === 'step' ? 100 : 5;
+    for (let i = 0; i <= 4; i++) {
+      const y = bottom-i*height/4, x = left+i*width/4;
+      svg.append(svgEl('line',{x1:left,y1:y,x2:right,y2:y,stroke:'#dfe6df','stroke-width':1}));
+      svg.append(svgEl('line',{x1:x,y1:top,x2:x,y2:bottom,stroke:'#e8ece8','stroke-width':1}));
+      const yLabel = svgEl('text',{x:left-12,y:y+4,'text-anchor':'end',fill:'#60716a','font-size':11}); yLabel.textContent = String(i*25); svg.append(yLabel);
+      const xLabel = svgEl('text',{x:x,y:bottom+22,'text-anchor':'middle',fill:'#60716a','font-size':11}); xLabel.textContent = axis === 'step' ? String(i*25)+'k' : (i*1.25).toFixed(i % 4 === 0 ? 0 : 2).replace(/0$/,'')+'h'; svg.append(xLabel);
+    }
+    const axisLabel = svgEl('text',{x:(left+right)/2,y:bottom+51,'text-anchor':'middle',fill:'#34453b','font-size':12,'font-weight':700}); axisLabel.textContent = axis === 'step' ? 'Training step' : 'Elapsed hours since each run started'; svg.append(axisLabel);
+    const yTitle = svgEl('text',{x:left,y:16,fill:'#34453b','font-size':12,'font-weight':700}); yTitle.textContent = metric === 'return' ? 'Episode return · mock' : 'Success rate % · mock'; svg.append(yTitle);
+    for (const item of series) {
+      const coords = item.points.map(point => ({x:left+(axis === 'step' ? point.s : point.t)/maxX*width,y:bottom-point[metric]/100*height,point}));
+      svg.append(svgEl('polyline',{points:coords.map(p => p.x+','+p.y).join(' '),fill:'none',stroke:item.color,'stroke-width':3,'stroke-linejoin':'round','stroke-linecap':'round',...(item.dash ? {'stroke-dasharray':item.dash} : {})}));
+      for (const {x,y,point} of coords) {
+        const dot = svgEl('circle',{cx:x,cy:y,r:4.5,fill:'#fffefa',stroke:item.color,'stroke-width':2});
+        const tip = svgEl('title'); tip.textContent = runs.find(run => run.id === item.run).name + ' · ' + item.category + ' · step ' + point.s + 'k · ' + point.t + 'h · ' + point[metric] + (metric === 'success' ? '%' : ' return') + ' (mock)'; dot.append(tip); svg.append(dot);
+      }
+    }
+    if (!series.length) { const empty = svgEl('text',{x:370,y:166,'text-anchor':'middle',fill:'#61716b','font-size':16}); empty.textContent = 'Select at least one series to draw a curve.'; svg.append(empty); }
+    $('plot-subtitle').textContent = runs.find(run => run.id === primary).name + ' · ' + (series.length ? series.map(item => item.category).join(' + ') : 'no series');
+    const legend = $('legend'); legend.replaceChildren();
+    for (const item of series) { const entry = document.createElement('span'); const swatch = document.createElement('i'); swatch.className = 'swatch' + (item.dash ? ' test' : '') + (item.color === '#315f96' ? ' compare' : ''); swatch.setAttribute('aria-hidden','true'); entry.append(swatch,document.createTextNode(runs.find(run => run.id === item.run).name + ' · ' + item.category)); legend.append(entry); }
+    $('plot-warning').textContent = $('show-compare').checked && other === primary ? 'Choose a different comparison experiment; a duplicate Test series is intentionally omitted.' : 'Each category remains a separate series. Points are not aligned by array position.';
+    $('value-heading').textContent = metric === 'return' ? 'Episode return · mock' : 'Success rate % · mock';
+    const rows = $('point-rows'); rows.replaceChildren();
+    for (const item of series) for (const point of item.points) { const tr = document.createElement('tr'); for (const text of [runs.find(run => run.id === item.run).name,item.category,point.s+'k',point.t+' h',point[metric]+(metric === 'success' ? '%' : '')]) { const td = document.createElement('td'); td.textContent = text; tr.append(td); } rows.append(tr); }
+    if (!series.length) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 5; td.textContent = 'No series selected.'; tr.append(td); rows.append(tr); }
+  }
+
+  function renderInspect() {
+    const run = runs.find(item => item.id === selectedRun);
+    $('inspect-name').textContent = run.name;
+    $('inspect-condition').textContent = run.lane === 'partial' ? 'Partial record · mock' : run.lane === 'queued' ? 'Queued · mock' : 'Available · mock';
+    $('inspect-alert-title').textContent = run.lane === 'partial' ? 'A partial log is still inspectable' : 'Inspection is separate from process control';
+    $('inspect-alert').textContent = run.lane === 'partial' ? 'Example scenario: Train CSV ends at 41k, Test CSV ends at 40k, and saved actions are absent. Show available observations with a warning rather than inventing later points or treating this record as runnable.' : 'This example displays a read-only artifact summary. A displayed experiment is not evidence of an active process or a usable executable configuration.';
+    const artifacts = $('artifacts'); artifacts.replaceChildren();
+    const entries = [['Train CSV',run.lane === 'queued' ? 'Not present · mock' : run.lane === 'partial' ? 'Through step 41k · mock' : 'Available · mock'],['Test CSV',run.lane === 'queued' ? 'Not present · mock' : run.lane === 'partial' ? 'Through step 40k · mock' : 'Available · mock'],['Saved actions JSON',run.replay ? 'Example available · mock' : 'Not available · mock'],['Executable specification','Not verified · mock']];
+    for (const [label,value] of entries) { const row = document.createElement('div'); row.className = 'artifact'; const strong = document.createElement('strong'); strong.textContent = label; const span = document.createElement('span'); span.textContent = value; row.append(strong,span); artifacts.append(row); }
+    $('replay-button').disabled = !run.replay;
+    $('episode-select').disabled = !run.replay;
+    $('replay-explanation').textContent = run.replay ? 'Example saved actions are marked available. Choose an illustrative Test episode to preview fake feedback; nothing is loaded.' : 'No saved actions in this mock example. Test metrics alone cannot reconstruct an episode, so replay is unavailable.';
+    $('replay-state').textContent = run.replay ? 'Preview is optional and simulated.' : 'Replay unavailable for this example.';
+  }
+
+  document.addEventListener('click', event => {
+    const target = event.target.closest('button'); if (!target) return;
+    if (target.dataset.inspect) { selectedRun = target.dataset.inspect; navigate('inspect'); }
+    else if (target.dataset.screen) navigate(target.dataset.screen);
+    else if (target.dataset.action) { const run = runs.find(item => item.id === target.dataset.run); feedback('Simulation only: ' + ({stop:'stop',launch:'launch',check:'status check',refresh:'workspace status check'})[target.dataset.action] + (run ? ' for ' + run.name : '') + '. No process or file was touched.'); }
+  });
+  $('run-search').addEventListener('input',renderRuns);
+  $('status-filter').addEventListener('change',renderRuns);
+  for (const id of ['primary-run','compare-run','metric','axis','show-train','show-test','show-compare']) $(id).addEventListener('change',drawChart);
+  $('replay-button').addEventListener('click',() => { $('replay-state').textContent = 'Simulated preview: illustrative Test step ' + Number($('episode-select').value).toLocaleString() + ', no episode loaded.'; feedback('Mock replay preview only. No recorded actions or environment accessed.'); });
+  window.addEventListener('hashchange',() => navigate(location.hash.slice(1) || 'control'));
+  renderRuns(); navigate(location.hash.slice(1) || 'control');
+</script>
+</body>
+</html>
