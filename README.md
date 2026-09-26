@@ -39,7 +39,7 @@ Describes an environment to instanciate. A generic Pickling implementation exist
 
 #### MARL Studio
 
-Studio reads experiments from `logs/` by default. From the repository root, install the Python dependencies with `uv sync`, then build the frontend and start the backend:
+Studio reads experiments from `./logs` (relative to the backend process’s working directory) by default. From the repository root, install the Python dependencies with `uv sync`, then build the frontend and start the backend:
 
 ```bash
 cd src/studio/frontend
@@ -56,7 +56,7 @@ uv run python scripts/serve_studio.py          # Backend: http://127.0.0.1:5000
 cd src/studio/frontend && npm run dev           # Vite: http://localhost:5173 (proxies /api to the backend)
 ```
 
-To point Studio at a different logs directory, set `MARL_STUDIO_LOGS` to its absolute path **on the backend process** (e.g. `MARL_STUDIO_LOGS=/path/to/logs uv run python scripts/serve_studio.py`). Studio can launch, rename and delete experiments; use a copy of logs when testing those actions.
+To point Studio at a different logs directory, pass its path as the first argument (e.g. `uv run python scripts/serve_studio.py /path/to/logs`). Studio can launch, rename and delete experiments; use a copy of logs when testing those actions.
 
 The library search accepts free text (case-insensitive substring of experiment identity or parameter values) and parameter queries of the form `path OP value`. Operators are `=`, `!=`, `>`, `<`, `>=`, `<=` and `~` (case-insensitive substring). For example, `id=healthy`, `trainer.lr<1e-3`, `mixer=qmix`, or `name~vdn`. A leaf path such as `lr` also matches nested paths ending in `.lr`; quote values containing spaces (`name~"my experiment"`). Separate terms with spaces to AND them (`mixer=qmix lr<1e-3`). Numeric comparisons require numeric values; `=`/`!=` also work for strings and booleans.
 

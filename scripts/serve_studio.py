@@ -3,6 +3,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 
 import dotenv
 import typed_argparse as tap
@@ -11,13 +12,14 @@ logger = logging.getLogger(__name__)
 
 
 class Arguments(tap.TypedArgs):
+    logdir: Path = tap.arg(positional=True, default=Path("./logs"), help="Root directory containing experiments")
     port: int = tap.arg(default=5000)
 
 
 def main(args: Arguments):
     from studio.backend import run
 
-    run(port=args.port)
+    run(port=args.port, root=args.logdir)
 
 
 if __name__ == "__main__":

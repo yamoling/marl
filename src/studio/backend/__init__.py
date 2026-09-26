@@ -1,15 +1,16 @@
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
-def run(port: int = 5000):
-    """Serve MARL Studio on the loopback interface only. @ai-generated"""
+def run(port: int = 5000, root: Path | str | None = None):
+    """Serve MARL Studio on loopback using the chosen experiment root. @ai-generated"""
     import uvicorn
 
-    from .app import app
+    from .app import create_app
 
     try:
-        uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+        uvicorn.run(create_app(root), host="127.0.0.1", port=port, log_level="info")
     except KeyboardInterrupt:
         logger.info("Shutting down MARL Studio...")
