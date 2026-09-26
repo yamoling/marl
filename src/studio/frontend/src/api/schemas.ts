@@ -54,6 +54,12 @@ export const NamedWorkspaceSchema = z.object({ id: z.string(), name: z.string(),
 export type NamedWorkspace = z.infer<typeof NamedWorkspaceSchema>;
 export const WorkspacesSchema = z.object({ selected: z.string().nullable(), workspaces: z.array(NamedWorkspaceSchema) });
 export type Workspaces = z.infer<typeof WorkspacesSchema>;
+export const DirectoryListingSchema = z.object({
+  path: z.string(),
+  parent: z.string().nullable(),
+  directories: z.array(z.object({ name: z.string(), path: z.string() })),
+});
+export type DirectoryListing = z.infer<typeof DirectoryListingSchema>;
 
 // ---------------------------------------------------------------- common types
 

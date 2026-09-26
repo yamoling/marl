@@ -135,6 +135,16 @@ export function createMockApi(opts: MockOptions = {}): Api {
   return {
     kind: "mock",
     listWorkspaces: () => delay(() => ({ selected, workspaces: workspaces.map((w) => ({ ...w })) })),
+    browseDirectories: (path) =>
+      delay(() => {
+        const current = path ?? workspaces.find((w) => w.id === selected)?.logdir ?? "/logs";
+        return {
+          path: current,
+          parent: current === "/" ? null : current.slice(0, current.lastIndexOf("/")) || "/",
+          directories:
+            current === "/" ? [{ name: "logs", path: "/logs" }] : current === "/logs" ? [{ name: "archive", path: "/logs/archive" }] : [],
+        };
+      }),
     createWorkspace: (name, logdir) =>
       delay(() => {
         if (!name.trim()) throw new ApiError(400, "validation", "Name is required");

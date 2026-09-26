@@ -8,6 +8,7 @@ import { readStorage } from "../stores/storage";
 import { restoreWorkspace, STORAGE_KEY } from "../domain/workspace";
 import { displayNames } from "../domain/format";
 import Icon from "../components/shell/Icon.vue";
+import DirectoryPicker from "../components/shell/DirectoryPicker.vue";
 
 const router = useRouter();
 const workspaces = useNamedWorkspacesStore();
@@ -33,6 +34,12 @@ const editingId = ref<string | null>(null);
 const editedName = ref("");
 const editingRootId = ref<string | null>(null);
 const editedRoot = ref("");
+const pickerFor = ref<"new" | "root" | null>(null);
+const pickerInitial = computed(() =>
+    pickerFor.value === "root"
+        ? editedRoot.value
+        : newLogdir.value || workspaces.workspaces.find((w) => w.id === workspaces.selected)?.logdir,
+);
 const busy = ref(false);
 const error = ref("");
 
@@ -116,6 +123,13 @@ async function saveRoot(id: string): Promise<void> {
     });
 }
 
+/** Fill the relevant editable field with the directory selected on the server. @ai-generated */
+function chooseDirectory(path: string): void {
+    if (pickerFor.value === "root") editedRoot.value = path;
+    else newLogdir.value = path;
+    pickerFor.value = null;
+}
+
 /** Delete workspace configuration after confirmation, without deleting any files. @ai-generated */
 function trash(id: string, name: string): void {
     if (!window.confirm(`Trash workspace “${name}”? Experiments on disk will not be deleted.`)) return;
@@ -143,7 +157,10 @@ onMounted(() => void perform(() => workspaces.refresh()));
                     <label for="new-name">Workspace name</label>
                     <input id="new-name" v-model="name" placeholder="My workspace" :disabled="busy" />
                     <label for="new-logdir">Root log directory (optional; defaults to selected workspace)</label>
-                    <input id="new-logdir" v-model="newLogdir" placeholder="/path/to/logs" :disabled="busy" />
+                    <div class="path-entry">
+                        <input id="new-logdir" v-model="newLogdir" placeholder="/path/to/logs" :disabled="busy" />
+                        <button type="button" class="btn" :disabled="busy" @click="pickerFor = 'new'">Browse…</button>
+                    </div>
                     <div class="row">
                         <button type="button" class="btn" :disabled="busy" @click="creating = false">Cancel</button
                         ><button class="btn primary" :disabled="busy || !name.trim()" type="submit">Create</button>
@@ -202,7 +219,10 @@ onMounted(() => void perform(() => workspaces.refresh()));
                     @keydown.esc.prevent="editingRootId = null"
                 >
                     <label :for="`root-${w.id}`">Root log directory</label>
-                    <input :id="`root-${w.id}`" v-model="editedRoot" :disabled="busy" />
+                    <div class="path-entry">
+                        <input :id="`root-${w.id}`" v-model="editedRoot" :disabled="busy" />
+                        <button type="button" class="btn" :disabled="busy" @click="pickerFor = 'root'">Browse…</button>
+                    </div>
                     <button class="btn" type="submit" :disabled="busy || !editedRoot.trim()">Save</button>
                     <button class="btn" type="button" @click="editingRootId = null">Cancel</button>
                 </form>
@@ -223,6 +243,7 @@ onMounted(() => void perform(() => workspaces.refresh()));
                 </div>
             </article>
         </section>
+        <DirectoryPicker v-if="pickerFor" :initial="pickerInitial" @select="chooseDirectory" @close="pickerFor = null" />
     </main>
 </template>
 
@@ -406,9 +427,18 @@ input {
     background: none;
     cursor: text;
 }
-.root-form input {
+.path-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.path-entry input {
     width: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 0;
+}
+.path-entry button {
+    flex: none;
 }
 .experiments-preview {
     margin: 20px 0;

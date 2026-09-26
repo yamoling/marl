@@ -48,6 +48,34 @@ describe("home", () => {
   });
 });
 
+describe("directory picker", () => {
+  it("fills the create form with a selected server directory", async () => {
+    const pinia = (await import("pinia")).getActivePinia()!;
+    const wrapper = mount(HomePage, { global: { plugins: [pinia, router] } });
+    await settle();
+    await wrapper.get(".create-trigger").trigger("click");
+    await wrapper.get("#new-name").setValue("Archive");
+    await wrapper.get(".create-form .path-entry button").trigger("click");
+    await settle();
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain("/logs");
+    const archive = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] .folders button")].find((b) =>
+      b.textContent?.includes("archive"),
+    )!;
+    archive.click();
+    await settle();
+    const select = [...document.querySelectorAll<HTMLButtonElement>("[role=dialog] footer button")].find((b) =>
+      b.textContent?.includes("Select"),
+    )!;
+    select.click();
+    await wrapper.vm.$nextTick();
+    expect((wrapper.get("#new-logdir").element as HTMLInputElement).value).toBe("/logs/archive");
+    await wrapper.get(".create-form").trigger("submit");
+    await settle();
+    expect(useNamedWorkspacesStore().workspaces.find((w) => w.name === "Archive")?.logdir).toBe("/logs/archive");
+    wrapper.unmount();
+  });
+});
+
 describe("workspace card experiment previews", () => {
   it("shows each workspace's saved experiments with shortened names and their colours", async () => {
     const named = useNamedWorkspacesStore();

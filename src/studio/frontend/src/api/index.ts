@@ -7,6 +7,7 @@ import { encodeId, request } from "./client";
 import { backoffDelay, connectEvents, type ConnectionState, type LiveConnection, type LiveHandlers } from "./events";
 import {
   CatalogSchema,
+  DirectoryListingSchema,
   EpisodeSummarySchema,
   ExperimentDetailSchema,
   ExperimentSummarySchema,
@@ -24,6 +25,7 @@ import {
   TestStepsSchema,
   type BadItem,
   type Catalog,
+  type DirectoryListing,
   type EpisodeSummary,
   type ExperimentDetail,
   type ExperimentSummary,
@@ -62,6 +64,7 @@ export type ReplayParams = { step: number; test: number; onlySavedActions: boole
 export interface Api {
   readonly kind: "http" | "mock";
   listWorkspaces(): Promise<Workspaces>;
+  browseDirectories(path?: string): Promise<DirectoryListing>;
   createWorkspace(name: string, logdir?: string): Promise<NamedWorkspace>;
   renameWorkspace(id: string, name: string): Promise<NamedWorkspace>;
   setWorkspaceLogdir(id: string, logdir: string): Promise<NamedWorkspace>;
@@ -110,6 +113,7 @@ export function createHttpApi(): Api {
   return {
     kind: "http",
     listWorkspaces: () => request("GET", "/workspaces", { schema: WorkspacesSchema }),
+    browseDirectories: (path) => request("GET", "/workspaces/directories", { query: path ? { path } : {}, schema: DirectoryListingSchema }),
     createWorkspace: (name, logdir) =>
       request("POST", "/workspaces", { body: { name, ...(logdir === undefined ? {} : { logdir }) }, schema: NamedWorkspaceSchema }),
     renameWorkspace: (id, name) =>

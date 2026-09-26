@@ -1,5 +1,8 @@
 """Workspace metadata and selection."""
 
+import os
+from pathlib import Path
+
 from fastapi import APIRouter, Request
 
 from ..errors import bad_request, json_response
@@ -19,6 +22,28 @@ def _body(body, field):
 def list_workspaces(request: Request):
     """@ai-generated"""
     return json_response(request.app.state.workspaces.listing())
+
+
+@router.get("/directories")
+def browse_directories(request: Request, path: str | None = None):
+    """List server-side directories for the local workspace root picker. @ai-generated"""
+    workspaces = request.app.state.workspaces
+    with workspaces.lock:
+        initial = workspaces.items[workspaces.selected]["logdir"] if workspaces.selected else str(workspaces.default_root)
+    target = Path(path if path is not None else initial).expanduser()
+    if not target.is_absolute() or not target.is_dir():
+        raise bad_request("path must be an existing absolute directory")
+    target = target.resolve()
+    try:
+        with os.scandir(target) as entries:
+            directories = sorted(
+                ({"name": entry.name, "path": str(Path(entry.path).resolve())} for entry in entries if entry.is_dir()),
+                key=lambda entry: entry["name"].casefold(),
+            )
+    except OSError as exc:
+        raise bad_request(f"Cannot browse directory: {exc.strerror}") from exc
+    parent = target.parent if target.parent != target else None
+    return json_response({"path": str(target), "parent": str(parent) if parent else None, "directories": directories})
 
 
 @router.post("", status_code=201)

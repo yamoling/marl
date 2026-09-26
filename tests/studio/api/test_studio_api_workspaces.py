@@ -59,6 +59,29 @@ def test_workspace_lifecycle_keeps_global_library(tmp_path):
         assert http.get("/api/experiments/alpha").status_code == 200
 
 
+def test_browse_directories_on_server(tmp_path):
+    """The picker lists directories, not files, and rejects invalid or relative paths. @ai-generated"""
+    root = tmp_path / "logs"
+    root.mkdir()
+    (root / "alpha").mkdir()
+    (root / "Beta").mkdir()
+    (root / "note.txt").write_text("not a directory")
+    with make_client(root, workspace_file=tmp_path / "workspaces.json") as http:
+        expected = {
+            "path": str(root.resolve()),
+            "parent": str(tmp_path.resolve()),
+            "directories": [
+                {"name": "alpha", "path": str(root / "alpha")},
+                {"name": "Beta", "path": str(root / "Beta")},
+            ],
+        }
+        assert http.get("/api/workspaces/directories").json() == expected
+        assert http.get("/api/workspaces/directories", params={"path": str(root)}).json() == expected
+        assert http.get("/api/workspaces/directories", params={"path": str(root / "alpha")}).json()["directories"] == []
+        for path in ("relative/path", str(root / "note.txt"), str(root / "missing")):
+            assert http.get("/api/workspaces/directories", params={"path": path}).status_code == 400
+
+
 def test_legacy_logdirs_are_ignored_even_if_missing_and_cli_root_wins(tmp_path):
     old = tmp_path / "old"
     new = tmp_path / "new"
