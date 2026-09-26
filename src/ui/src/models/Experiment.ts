@@ -1,22 +1,18 @@
 import { z } from "zod";
-import { EnvConfigSchema } from "./Env";
+// Stored experiment specifications can outlive the Python classes that created them.
+// The UI only needs names for display; keep other fields for the JSON inspector.
+const NamedMetadataSchema = z
+  .object({ name: z.string().default("Unknown") })
+  .loose()
+  .catch({ name: "Unknown" });
 
-
-
-export const TrainerSchema = z.object({
-  name: z.string(),
-  gamma: z.number(),
-  ir_module: z.object().catchall(z.any()).nullable(),
-  grad_norm_clipping: z.number().nullable(),
-  train_interval: z.tuple([z.number(), z.string()]),
-});
-
+export const TrainerSchema = NamedMetadataSchema;
 
 export const ExperimentSchema = z.object({
   logdir: z.string(),
-  trainer: TrainerSchema,
-  env: EnvConfigSchema,
-  test_env: EnvConfigSchema.nullable(),
+  trainer: TrainerSchema.default({ name: "Unknown" }),
+  env: NamedMetadataSchema.default({ name: "Unknown" }),
+  test_env: NamedMetadataSchema.nullable().optional(),
   n_steps: z.number(),
   creation_timestamp: z.string().transform((str) => new Date(str)),
   loggers: z.array(z.string()),
@@ -24,5 +20,4 @@ export const ExperimentSchema = z.object({
 
 export type Experiment = z.infer<typeof ExperimentSchema>;
 export type Trainer = z.infer<typeof TrainerSchema>;
-export type EnvConfig = z.infer<typeof EnvConfigSchema>;
-
+export type EnvConfig = z.infer<typeof NamedMetadataSchema>;

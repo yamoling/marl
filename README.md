@@ -37,26 +37,44 @@ $ tensorboard --logdir logs
 
 Describes an environment to instanciate. A generic Pickling implementation exists, but it is sensitive to version changes etc, and if you have a project under development, you should prefer to implement your own EnvConfig subclass that can seamlessly be serialised and deserialised.
 
-#### Web UI
+#### MARL Studio
 
-**With the Brave browser:** you have to deactivate the Brave shield.
-
-You can also inspect your results with a dedicated web UI. You first have to build the sources, and then serve the files with the `serve.py` script.
+Studio reads experiments from `logs/` by default. From the repository root, install the Python dependencies with `uv sync`, then build the frontend and start the backend:
 
 ```bash
-$ cd src/ui
-$ npm install   # or deno install or bun install
-$ npm run build # Build the sources to src/ui/dist.
-$ cd ../..      # Go back to the root of the project
-$ python src/serve.py
+cd src/studio/frontend
+npm ci
+npm run build                 # Output: src/studio/frontend/dist/
+cd ../../..
+uv run python scripts/serve_studio.py  # http://127.0.0.1:5000
 ```
 
-To serve the files in development mode, you need two terminals.
+For frontend development, run these in separate terminals from the repository root:
 
 ```bash
-$ cd src/ui && npm run dev  # In one terminal
-$ python src/serve.py       # In an other terminal
+uv run python scripts/serve_studio.py          # Backend: http://127.0.0.1:5000
+cd src/studio/frontend && npm run dev           # Vite: http://localhost:5173 (proxies /api to the backend)
 ```
+
+To point Studio at a different logs directory, set `MARL_STUDIO_LOGS` to its absolute path **on the backend process** (e.g. `MARL_STUDIO_LOGS=/path/to/logs uv run python scripts/serve_studio.py`). Studio can launch, rename and delete experiments; use a copy of logs when testing those actions.
+
+The library search accepts free text (case-insensitive substring of experiment identity or parameter values) and parameter queries of the form `path OP value`. Operators are `=`, `!=`, `>`, `<`, `>=`, `<=` and `~` (case-insensitive substring). For example, `id=healthy`, `trainer.lr<1e-3`, `mixer=qmix`, or `name~vdn`. A leaf path such as `lr` also matches nested paths ending in `.lr`; quote values containing spaces (`name~"my experiment"`). Separate terms with spaces to AND them (`mixer=qmix lr<1e-3`). Numeric comparisons require numeric values; `=`/`!=` also work for strings and booleans.
+
+Browser smoke tests run only against generated temporary fixture logs, never your `logs/` directory. After `uv sync` and `npm ci`, install Chromium once with `cd src/studio/frontend && npx playwright install chromium`, then run `npm run test:e2e` from that directory. The test command builds the frontend and starts its own fixture-only backend.
+
+#### Legacy web UI (`src/ui`)
+
+The old Vue UI remains available but is legacy. **With the Brave browser:** disable Brave Shields if it blocks the UI. To build and serve it:
+
+```bash
+cd src/ui
+npm install
+npm run build
+cd ../..
+python src/serve.py
+```
+
+For legacy UI development, run `cd src/ui && npm run dev` and `python src/serve.py` in separate terminals.
 
 ## Repository Architecture & Guidelines
 
@@ -90,9 +108,9 @@ This module contains neural network related classes and functions as well as a _
 
 All classes inherit from the `NN` abstract class that enables each device management, randomization, and saving/loading.
 
-### Web UI
+### Web UIs
 
-The web UI is implemted with Vue in the frontend and FastAPI in the backend. The backend is located in the `src/ui` folder.
+MARL Studio uses a Vue frontend in `src/studio/frontend/` and a FastAPI backend in `src/studio/backend/`. The older UI in `src/ui/` is legacy.
 
 ## Algorithm Organization
 
