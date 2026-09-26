@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function loadHealthy(page: Page) {
   await page.goto("/");
+  await page.getByRole("button", { name: "Open Default" }).click();
   await expect(page.getByRole("heading", { name: "Welcome to MARL Studio" })).toBeVisible();
   await page.getByRole("button", { name: "Add experiments" }).last().click();
   await page.getByRole("textbox", { name: "Search experiments" }).fill("id=healthy");
@@ -11,6 +12,25 @@ async function loadHealthy(page: Page) {
   await page.getByRole("button", { name: "Load 1 selected" }).click();
   await expect(page.getByRole("region", { name: "Workspace" })).toContainText("1 experiment");
 }
+
+test("create, rename, and open a workspace using the shared logs directory", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Add a new workspace" }).click();
+  await page.getByRole("textbox", { name: "Workspace name" }).fill("Research");
+  await page.getByRole("button", { name: "Create" }).click();
+  await expect(page.locator(".workspace-card")).toHaveCount(2);
+  const card = page.locator(".workspace-card").last();
+  await card.getByRole("button", { name: "Rename Research" }).click();
+  await card.getByRole("textbox", { name: "Rename Research" }).fill("Renamed");
+  await card.getByRole("textbox", { name: "Rename Research" }).press("Enter");
+  await page.getByRole("button", { name: "Open Renamed" }).click();
+  await page.getByRole("button", { name: "Add experiments" }).last().click();
+  await expect(page.getByRole("checkbox", { name: "Select healthy" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("link", { name: "Choose workspace" })).toContainText("Renamed");
+  await page.getByRole("link", { name: "Choose workspace" }).click();
+  await expect(page.getByRole("heading", { name: "Renamed" })).toBeVisible();
+});
 
 test("plot train and test together, add another plot, maximize and minimize", async ({ page }) => {
   await loadHealthy(page);
@@ -73,6 +93,7 @@ test("inspect the experiment drawer and fixture episodes", async ({ page }) => {
 
 test("compare parameters from two disposable fixture experiments", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Open Default" }).click();
   await page.getByRole("button", { name: "Add experiments" }).last().click();
   await page.getByRole("checkbox", { name: "Select healthy" }).check();
   await page.getByRole("checkbox", { name: "Select light" }).check();

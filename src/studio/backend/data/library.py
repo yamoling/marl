@@ -15,6 +15,7 @@ from typing import Any
 
 import polars as pl
 
+from ..errors import conflict
 from . import health as health_checks
 from .cache import FileKey, file_key
 from .issues import Issue, health_of
@@ -111,6 +112,7 @@ class Library:
 
             root = logs_root()
         self.root = Path(root).resolve()
+        self.roots = (self.root,)
         self.pid_checker = pid_checker
         self.health_timeout = health_timeout
         self._records = dict[str, ExperimentRecord]()
@@ -122,6 +124,31 @@ class Library:
         """Maximal age of the last full fingerprint check of an experiment when listing."""
         self.hot_window_s = HOT_WINDOW_S
         """Files modified less than this ago make an experiment "hot" (always fully checked)."""
+
+    def set_roots(self, roots: Sequence[Path | str]):
+        """Replace the loaded roots and clear caches before exposing the new workspace. @ai-edited"""
+        resolved = tuple(Path(root).resolve() for root in roots)
+        self.roots = resolved
+        self.root = resolved[0] if resolved else self.root
+        self.invalidate()
+
+    def root_for(self, path: Path) -> Path:
+        """Return the configured root containing a discovered experiment path. @ai-generated"""
+        for root in self.roots:
+            if path.is_relative_to(root):
+                return root
+        raise ValueError("Experiment is outside loaded logdirs")
+
+    def _paths(self) -> dict[str, Path]:
+        """Discover all roots, rejecting ambiguous relative IDs rather than picking one. @ai-generated"""
+        paths: dict[str, Path] = {}
+        for root in self.roots:
+            for path in discover(root):
+                experiment_id = path.relative_to(root).as_posix()
+                if experiment_id in paths:
+                    raise conflict(f"Experiment ID {experiment_id} exists in multiple logdirs", "duplicate-experiment-id")
+                paths[experiment_id] = path
+        return paths
 
     # ------------------------------------------------------------ Records
 
@@ -137,16 +164,18 @@ class Library:
         relative = Path(experiment_id)
         if relative.is_absolute() or ".." in relative.parts:
             return None
-        path = (self.root / relative).resolve()
-        if path == self.root or not path.is_relative_to(self.root) or not path.is_dir():
-            return None
-        if not is_experiment_dir(path):
-            return None
-        return path
+        matches = []
+        for root in self.roots:
+            path = (root / relative).resolve()
+            if path != root and path.is_relative_to(root) and is_experiment_dir(path):
+                matches.append(path)
+        if len(matches) > 1:
+            raise conflict(f"Experiment ID {experiment_id} exists in multiple logdirs", "duplicate-experiment-id")
+        return matches[0] if matches else None
 
     def ids(self) -> list[str]:
         """@ai-generated"""
-        return [p.relative_to(self.root).as_posix() for p in discover(self.root)]
+        return list(self._paths())
 
     def get(self, experiment_id: str) -> ExperimentRecord | None:
         """The record of an experiment, rebuilt only when its fingerprint changes. @ai-generated"""
@@ -162,7 +191,7 @@ class Library:
 
     def _cached(self, path: Path) -> tuple[ExperimentRecord | None, Fingerprint]:
         """The cached record if its (full) fingerprint is unchanged, and the current fingerprint. @ai-generated"""
-        fp = scan_fingerprint(path, self.root, self.pid_checker)
+        fp = scan_fingerprint(path, self.root_for(path), self.pid_checker)
         self._quick[self._id_of(path)] = QuickState.after_full_check(path, fp, self.hot_window_s)
         with self._lock:
             record = self._records.get(self._id_of(path))
@@ -191,13 +220,13 @@ class Library:
 
     def _build(self, path: Path, fp: Fingerprint) -> ExperimentRecord:
         """@ai-generated"""
-        record = build_experiment(path, self.root, self.pid_checker, fp)
+        record = build_experiment(path, self.root_for(path), self.pid_checker, fp)
         with self._lock:
             self._records[record.id] = record
             return self._apply_health(record)
 
     def _id_of(self, path: Path) -> str:
-        return path.relative_to(self.root).as_posix()
+        return path.relative_to(self.root_for(path)).as_posix()
 
     def records(self) -> list[ExperimentRecord]:
         """
@@ -206,7 +235,7 @@ class Library:
 
         @ai-generated
         """
-        checked = [(path, *self._cached_for_listing(path)) for path in discover(self.root)]
+        checked = [(path, *self._cached_for_listing(path)) for path in self._paths().values()]
         stale = [(path, fp) for path, record, fp in checked if record is None and fp is not None]
         built = iter(_experiment_pool.map(lambda item: self._build(*item), stale))
         return [record if record is not None else next(built) for _, record, _ in checked]

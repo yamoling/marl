@@ -81,6 +81,19 @@ export const useLibraryStore = defineStore("library", () => {
     if (stale.value || error.value) void fetch();
   }
 
+  /** Drop cached library results and invalidate outstanding searches on workspace changes. @ai-generated */
+  function clear(): void {
+    seq++;
+    if (timer) clearTimeout(timer);
+    open.value = false;
+    items.value = [];
+    previews.value = {};
+    selected.value = [];
+    loading.value = false;
+    error.value = null;
+    stale.value = true;
+  }
+
   function markStale(): void {
     stale.value = true;
     if (open.value) void fetch();
@@ -98,12 +111,13 @@ export const useLibraryStore = defineStore("library", () => {
   /** Fetch a card's preview once (called when the card scrolls into view). @ai-generated */
   async function requestPreview(id: string): Promise<void> {
     if (previews.value[id]) return;
+    const my = seq;
     previews.value = { ...previews.value, [id]: { status: "loading", preview: null } };
     try {
       const p = await useApi().getPreview(id, 60);
-      previews.value = { ...previews.value, [id]: { status: "ok", preview: markRaw(p) } };
+      if (my === seq) previews.value = { ...previews.value, [id]: { status: "ok", preview: markRaw(p) } };
     } catch {
-      previews.value = { ...previews.value, [id]: { status: "error", preview: null } };
+      if (my === seq) previews.value = { ...previews.value, [id]: { status: "error", preview: null } };
     }
   }
 
@@ -123,6 +137,7 @@ export const useLibraryStore = defineStore("library", () => {
     fetch,
     show,
     markStale,
+    clear,
     toggleFacet,
     toggleSelected,
     requestPreview,

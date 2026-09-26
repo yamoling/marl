@@ -68,6 +68,7 @@ class EventHub:
         """Last `run-progress` payload of each running run."""
         self._watched = set[str]()
         self._last_scan = float("-inf")
+        self._workspace_epoch = 0
 
     # ------------------------------------------------------------ Subscribers
 
@@ -138,6 +139,16 @@ class EventHub:
             self._task.cancel()
             self._task = None
 
+    def reset(self):
+        """Discard previous workspace event state and notify live clients to reload. @ai-edited"""
+        with self._lock:
+            self._known = None
+            self._running.clear()
+            self._watched.clear()
+            self._last_scan = float("-inf")
+            self._workspace_epoch += 1
+        self.publish_threadsafe("workspace-changed", {})
+
     # ------------------------------------------------------------ Polling
 
     async def snapshot(self) -> dict[str, Any]:
@@ -193,14 +204,17 @@ class EventHub:
         """Re-read the experiments with running runs. @ai-generated"""
         with self._lock:
             polled = set(self._watched) | {p["experiment"] for p in self._running.values()}
-        records = {exp_id: r for exp_id in polled if (r := self.library.get(exp_id)) is not None}
+        library = self.library
+        records = {exp_id: r for exp_id in polled if (r := library.get(exp_id)) is not None}
         return self._progress_events(records, polled)
 
     def _scan(self) -> list[Event]:
         """Scan the logs root: added/removed/changed experiments, then running runs. @ai-generated"""
+        epoch = self._workspace_epoch
         self._last_scan = time.monotonic()
-        ids = self.library.ids()
-        keys = {exp_id: meta_key(self.library.root / exp_id) for exp_id in ids}
+        library = self.library
+        ids = library.ids()
+        keys = {exp_id: meta_key(library.resolve(exp_id)) for exp_id in ids}
         events = list[Event]()
         first = self._known is None
         known = self._known or {}
@@ -208,10 +222,14 @@ class EventHub:
             events += [("experiment-added", {"experiment": i}) for i in ids if i not in known]
             events += [("experiment-removed", {"experiment": i}) for i in known if i not in keys]
             events += [("experiment-changed", {"experiment": i}) for i in ids if i in known and known[i] != keys[i]]
-        records = {exp_id: r for exp_id in ids if (r := self.library.get(exp_id)) is not None}
+        records = {exp_id: r for exp_id in ids if (r := library.get(exp_id)) is not None}
+        if epoch != self._workspace_epoch:
+            return []
         with self._lock:
             polled = set(records) | set(self._watched) | {p["experiment"] for p in self._running.values()}
         progress = self._progress_events(records, polled)
+        if epoch != self._workspace_epoch:
+            return []
         self._known = keys
         return events + ([] if first else progress)
 

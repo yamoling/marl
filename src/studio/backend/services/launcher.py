@@ -419,7 +419,7 @@ def restart_run(
     from ..security import run_process
 
     record = ensure_launchable(library, record)
-    if run_process(run.path, record.path, library.root) is not None:
+    if run_process(run.path, record.path, library.root_for(record.path)) is not None:
         raise conflict(f"{run.dirname} is running", "run-active")
     if run.status not in ("CANCELLED", "CREATED"):
         raise conflict(f"Only cancelled or created runs can be restarted ({run.dirname} is {run.status})", "not-restartable")

@@ -1,11 +1,34 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../client";
-import { CatalogSchema, ExperimentDetailSchema, ExperimentSummarySchema, ParamRowSchema, parseArray, SeriesResultSchema } from "../schemas";
+import {
+  CatalogSchema,
+  ExperimentDetailSchema,
+  ExperimentSummarySchema,
+  NamedWorkspaceSchema,
+  ParamRowSchema,
+  parseArray,
+  SeriesResultSchema,
+  WorkspacesSchema,
+} from "../schemas";
 import { createMockApi } from "./index";
 
 const api = () => createMockApi({ latency: [0, 0], tickMs: 10_000 });
 
 describe("mock API", () => {
+  it("persists workspace root metadata in the mock API", async () => {
+    const a = api();
+    const initial = await a.listWorkspaces();
+    expect(WorkspacesSchema.parse(initial).workspaces).toEqual([{ id: "default", name: "Default", logdir: "/logs" }]);
+    const ids = (await a.listExperiments()).items.map((e) => e.id);
+    const created = await a.createWorkspace("Other");
+    expect(NamedWorkspaceSchema.parse(created)).toEqual({ id: created.id, name: "Other", logdir: "/logs" });
+    await a.selectWorkspace(created.id);
+    expect((await a.listExperiments()).items.map((e) => e.id)).toEqual(ids);
+    expect(await a.getExperiment(ids[0])).toMatchObject({ id: ids[0] });
+    expect((await a.deleteWorkspace(created.id)).selected).toBe("default");
+    expect((await a.listExperiments()).items.map((e) => e.id)).toEqual(ids);
+  });
+
   it("serves contract-shaped experiments, including degraded ones", async () => {
     const a = api();
     const { items } = await a.listExperiments();

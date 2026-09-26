@@ -20,7 +20,7 @@ STOP_DEADLINE_S = 30.0
 
 def stop_run(library: Library, record: ExperimentRecord, run: RunRecord) -> bool:
     """@ai-generated"""
-    stopped = stop_verified_run(run.path, record.path, library.root)
+    stopped = stop_verified_run(run.path, record.path, library.root_for(record.path))
     library.invalidate(record.id)
     return stopped
 
@@ -34,16 +34,20 @@ def stop_experiment(library: Library, record: ExperimentRecord, deadline_s: floa
     """
     end = time.monotonic() + deadline_s
     while time.monotonic() < end:
-        active = [(rundir, p) for rundir in run_dirs(record.path) if (p := run_process(rundir, record.path, library.root)) is not None]
+        active = [
+            (rundir, p)
+            for rundir in run_dirs(record.path)
+            if (p := run_process(rundir, record.path, library.root_for(record.path))) is not None
+        ]
         if not active:
             break
         launchers = {}
         for _, process in active:
-            launcher = launcher_of(process, record.path, library.root)
+            launcher = launcher_of(process, record.path, library.root_for(record.path))
             if launcher is not None and launcher.pid != process.pid:
                 launchers[launcher.pid] = launcher
         for rundir, _ in active:
-            stop_verified_run(rundir, record.path, library.root)
+            stop_verified_run(rundir, record.path, library.root_for(record.path))
         for launcher in launchers.values():
             try:
                 launcher.send_signal(SIGINT)
@@ -56,7 +60,7 @@ def stop_experiment(library: Library, record: ExperimentRecord, deadline_s: floa
 def ensure_inactive(library: Library, record: ExperimentRecord):
     """409 if any run has a verified process; 403 if a pid cannot be verified. @ai-generated"""
     for rundir in run_dirs(record.path):
-        if run_process(rundir, record.path, library.root) is not None:
+        if run_process(rundir, record.path, library.root_for(record.path)) is not None:
             raise conflict("The experiment has active runs", "runs-active")
 
 
@@ -90,7 +94,9 @@ def rename(library: Library, record: ExperimentRecord, new_id: Any) -> str:
     """
     if not isinstance(new_id, str):
         raise bad_request("new_id must be a string")
-    root = library.root
+    root = library.root_for(record.path)
+    if library.resolve(new_id) is not None:
+        raise conflict("Destination already exists in a loaded logdir", "destination-exists")
     target = safe_new_experiment_path(root, new_id)
     if target.exists() or target.is_symlink():
         raise conflict("Destination already exists", "destination-exists")

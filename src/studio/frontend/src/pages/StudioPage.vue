@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
  * MARL Studio main page: top bar, fields panel (left) and the plot workspace. Restores the
- * persisted workspace, fetches loaded experiments, connects live events and system readings.
+ * selected workspace's plots, fetches loaded experiments, connects live events and system readings.
  * Keyboard: Ctrl/⌘+K opens the library and focuses its search.
  */
 import { onBeforeUnmount, onMounted, ref } from "vue";
+
 import FieldsPanel from "../components/fields/FieldsPanel.vue";
 import LibrarySheet from "../components/library/LibrarySheet.vue";
 import PlotGrid from "../components/plots/PlotGrid.vue";
@@ -26,6 +27,7 @@ import { useSystemStore } from "../stores/system";
 import { useWorkspaceStore } from "../stores/workspace";
 
 const workspace = useWorkspaceStore();
+
 const experiments = useExperimentsStore();
 const library = useLibraryStore();
 const live = useLiveStore();
@@ -34,7 +36,6 @@ const actions = usePlotActions();
 const settingsOpen = ref(false);
 const librarySheet = ref<InstanceType<typeof LibrarySheet> | null>(null);
 
-workspace.restore();
 experiments.ensureAll();
 useUrlState();
 
@@ -53,6 +54,7 @@ onMounted(() => {
     window.addEventListener("beforeunload", workspace.persistNow);
 });
 onBeforeUnmount(() => {
+    workspace.persistNow();
     live.disconnect();
     system.stop();
     window.removeEventListener("keydown", onKey);
@@ -67,7 +69,6 @@ onBeforeUnmount(() => {
             <FieldsPanel />
             <section class="ws" aria-label="Workspace">
                 <div class="ws-head">
-                    <h1>Workspace</h1>
                     <span class="sub"
                         >{{ workspace.plots.length }} plot{{ workspace.plots.length === 1 ? "" : "s" }} ·
                         {{ experiments.loaded.length }} experiment{{ experiments.loaded.length === 1 ? "" : "s" }}</span
@@ -124,11 +125,7 @@ onBeforeUnmount(() => {
     gap: 12px;
     margin-bottom: 16px;
 }
-.ws-head h1 {
-    font-size: 21px;
-    margin: 0;
-    letter-spacing: -0.02em;
-}
+
 .sub {
     color: var(--ink3);
 }

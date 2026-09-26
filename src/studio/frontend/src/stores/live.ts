@@ -8,6 +8,7 @@ import { computed, ref } from "vue";
 import { useApi, type ConnectionState, type LiveConnection, type RunProgress } from "../api";
 import { useExperimentsStore } from "./experiments";
 import { useLibraryStore } from "./library";
+import { useNamedWorkspacesStore } from "./namedWorkspaces";
 import { useSeriesStore } from "./series";
 import { useToasts } from "./toasts";
 import { useUiStore } from "./ui";
@@ -102,6 +103,24 @@ export const useLiveStore = defineStore("live", () => {
         useExperimentsStore().refresh(experiment);
         useLibraryStore().markStale();
       },
+      "workspace-changed": () => {
+        // Another tab can change the server-wide root; return to the picker rather than showing stale data.
+        if (useNamedWorkspacesStore().switching) return;
+        void useApi()
+          .listWorkspaces()
+          .then((result) => {
+            const named = useNamedWorkspacesStore();
+            const active = named.active;
+            if (
+              !named.switching &&
+              active &&
+              (result.selected !== active.id || result.workspaces.find((w) => w.id === active.id)?.logdir !== active.logdir)
+            ) {
+              window.location.reload();
+            }
+          })
+          .catch((error) => console.warn("Could not check workspace change", error));
+      },
       "experiment-added": () => useLibraryStore().markStale(),
       "experiment-removed": ({ experiment }) => {
         useLibraryStore().markStale();
@@ -110,11 +129,15 @@ export const useLiveStore = defineStore("live", () => {
     });
   }
 
+  /** Stop old live updates and forget run overrides before selecting another workspace. @ai-edited */
   function disconnect(): void {
     conn?.close();
     conn = null;
     for (const t of pending.values()) clearTimeout(t);
     pending.clear();
+    lastInvalidation.clear();
+    runs.value = {};
+    state.value = "connecting";
   }
 
   return { state, runs, running, runningByExperiment, paused, connect, disconnect, onProgress, throttledInvalidate };

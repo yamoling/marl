@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class Arguments(tap.TypedArgs):
-    logdir: Path = tap.arg(positional=True, default=Path("./logs"), help="Root directory containing experiments")
+    logdir: Path | None = tap.arg(positional=True, default=None, help="Initial logs root (defaults to MARL_STUDIO_LOGS or project logs)")
     port: int = tap.arg(default=5000)
 
 

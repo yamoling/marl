@@ -12,6 +12,7 @@ from . import security, settings
 from .data.library import Library
 from .errors import ApiError, error_response, not_found
 from .services.events import EventHub, EventsConfig
+from .workspaces import Workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +42,28 @@ def create_app(
     events: EventsConfig | None = None,
     dist_dir: Path | None = None,
     system_interval: float = settings.SYSTEM_WS_INTERVAL_S,
+    workspace_file: Path | None = None,
 ) -> FastAPI:
     """
-    Build the MARL Studio app: one `Library` (default: `settings.logs_root()`), one event hub,
+    Build the MARL Studio app: one shared library and event hub,
     security middleware, API routers, then the SPA fallback.
 
-    @ai-generated
+    @ai-edited
     """
+    isolated_root = library.root if library is not None else Path(root).resolve() if root is not None else None
     library = library or Library(root if root is not None else settings.logs_root(), health_timeout=settings.HEALTH_TIMEOUT_S)
+    store_path = workspace_file or settings.workspaces_file(isolated_root=isolated_root)
+    workspaces = Workspaces(store_path, library.root)
+    if workspaces.selected is not None:
+        library.set_roots([workspaces.items[workspaces.selected]["logdir"]])
     hub = EventHub(library, events)
+
+    def change_root(root: Path):
+        """Switch the shared library and invalidate live subscribers on workspace changes. @ai-edited"""
+        library.set_roots([root])
+        hub.reset()
+
+    workspaces.on_change = change_root
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -58,6 +72,7 @@ def create_app(
 
     app = FastAPI(title="MARL Studio", lifespan=lifespan)
     app.state.library = library
+    app.state.workspaces = workspaces
     app.state.events = hub
     app.state.system_interval = system_interval
     app.state.dist_dir = dist_dir or settings.DIST_DIR
@@ -93,9 +108,9 @@ def create_app(
 
 def register_routers(app: FastAPI):
     """Register API routers before the SPA fallback. @ai-generated"""
-    from .routes import events, experiments, runs, series, system
+    from .routes import events, experiments, runs, series, system, workspaces
 
-    for module in (experiments, series, runs, events, system):
+    for module in (workspaces, experiments, series, runs, events, system):
         app.include_router(module.router)
 
 

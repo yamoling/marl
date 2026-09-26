@@ -1,6 +1,6 @@
 /**
  * The workspace: loaded experiments (order and colours) and plots. Persisted to
- * `localStorage["marl-studio.workspace"]` (debounced 300 ms), restored per plot with a toast on
+ * `localStorage["marl-studio.workspace.<id>"]` (debounced 300 ms), restored per plot with a toast on
  * failures ("Copy raw JSON"), export/import as JSON, and undo for plot deletion and unloading.
  */
 import { defineStore } from "pinia";
@@ -54,14 +54,16 @@ export const useWorkspaceStore = defineStore("workspace", () => {
   const undoStack = ref<UndoEntry[]>([]);
   let undoSeq = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let storageKey = STORAGE_KEY;
 
   const plots = computed(() => ws.value.plots);
   const loaded = computed(() => ws.value.experiments);
 
+  /** Persist to the currently active plotting workspace key. @ai-edited */
   function persistNow(): void {
     if (timer) clearTimeout(timer);
     timer = null;
-    writeStorage(STORAGE_KEY, serialiseWorkspace(ws.value));
+    writeStorage(storageKey, serialiseWorkspace(ws.value));
   }
   watch(
     ws,
@@ -91,11 +93,29 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     });
   }
 
-  /** Restore the persisted workspace (called once at startup). @ai-generated */
+  /** Restore the persisted plotting state for the current key. @ai-edited */
   function restore(): void {
-    const raw = readStorage(STORAGE_KEY);
+    const raw = readStorage(storageKey);
     if (raw === null) return;
     applyRestore(restoreWorkspace(raw), raw);
+  }
+
+  /** Switch plot persistence; optionally migrate the legacy plots into the original server selection. @ai-generated */
+  function switchTo(id: string, migrateLegacy = false): void {
+    if (storageKey !== STORAGE_KEY) persistNow();
+    if (timer) clearTimeout(timer);
+    timer = null;
+    storageKey = `${STORAGE_KEY}.${encodeURIComponent(id)}`;
+    if (migrateLegacy && readStorage(storageKey) === null) {
+      const legacy = readStorage(STORAGE_KEY);
+      if (legacy !== null) writeStorage(storageKey, legacy);
+    }
+    ws.value = emptyWorkspace();
+    maximizedId.value = null;
+    flashId.value = null;
+    addYFor.value = null;
+    undoStack.value = [];
+    restore();
   }
 
   const plot = (id: string) => ws.value.plots.find((p) => p.id === id);
@@ -244,6 +264,7 @@ export const useWorkspaceStore = defineStore("workspace", () => {
     addYFor,
     undoStack,
     restore,
+    switchTo,
     persistNow,
     plot,
     createPlot,

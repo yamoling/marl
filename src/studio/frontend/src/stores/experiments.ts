@@ -40,6 +40,14 @@ export const useExperimentsStore = defineStore("experiments", () => {
   const live = useLiveStore();
   const toasts = useToasts();
   const entries = ref<Record<string, ExperimentEntry>>({});
+  let generation = 0;
+
+  /** Discard cached experiments and invalidate requests started in the previous workspace. @ai-generated */
+  function clear(): void {
+    generation++;
+    entries.value = {};
+    checking.value = {};
+  }
 
   const loaded = computed(() => workspace.ws.experiments);
   const colours = computed<Record<string, string>>(() =>
@@ -59,13 +67,16 @@ export const useExperimentsStore = defineStore("experiments", () => {
    * @ai-generated
    */
   async function fetch(id: string, opts: { silent?: boolean } = {}): Promise<void> {
+    const current = generation;
     const prev = entries.value[id];
     if (!prev?.detail) entries.value[id] = { status: "loading", detail: null, catalog: null, error: null };
     try {
       const api = useApi();
       const [d, c] = await Promise.all([api.getExperiment(id), api.getCatalog(id)]);
+      if (current !== generation) return;
       entries.value[id] = { status: "ready", detail: markRaw(d), catalog: markRaw(c), error: null };
     } catch (e) {
+      if (current !== generation) return;
       const missing = e instanceof ApiError && e.status === 404;
       const message = (e as Error)?.message ?? String(e);
       entries.value[id] = {
@@ -134,14 +145,17 @@ export const useExperimentsStore = defineStore("experiments", () => {
     if (e?.detail) entries.value[id] = { ...e, detail: markRaw({ ...e.detail, capabilities, issues }) };
   }
 
-  /** Run the lazy capability checks and merge them into the detail. @ai-generated */
+  /** Run the lazy capability checks and merge them into the detail. @ai-edited */
   async function checkHealth(id: string): Promise<void> {
     if (checking.value[id]) return;
+    const current = generation;
     checking.value = { ...checking.value, [id]: true };
     try {
       const r = await useApi().checkHealth(id);
+      if (current !== generation) return;
       mergeHealth(id, r.capabilities, r.issues);
     } catch (e) {
+      if (current !== generation) return;
       toasts.push({
         level: "error",
         message: `Health check of ${id} failed`,
@@ -149,8 +163,10 @@ export const useExperimentsStore = defineStore("experiments", () => {
         actions: [{ label: "Retry", run: () => checkHealth(id) }],
       });
     } finally {
-      const { [id]: _done, ...rest } = checking.value;
-      checking.value = rest;
+      if (current === generation) {
+        const { [id]: _done, ...rest } = checking.value;
+        checking.value = rest;
+      }
     }
   }
 
@@ -303,6 +319,7 @@ export const useExperimentsStore = defineStore("experiments", () => {
   }
 
   return {
+    clear,
     entries,
     loaded,
     colours,

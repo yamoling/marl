@@ -1,10 +1,11 @@
 <script setup lang="ts">
-/** Top bar: brand, experiment pills, add/compare actions, running indicator, live status, settings. */
+/** Top bar: linked brand and workspace name, experiment pills, actions, live status, settings. */
 import { computed } from "vue";
 import { vTip } from "../../composables/tooltip";
 import { useExperimentsStore } from "../../stores/experiments";
 import { useLibraryStore } from "../../stores/library";
 import { useLiveStore } from "../../stores/live";
+import { useNamedWorkspacesStore } from "../../stores/namedWorkspaces";
 import { useUiStore } from "../../stores/ui";
 import ExperimentPill from "./ExperimentPill.vue";
 import Icon from "./Icon.vue";
@@ -14,6 +15,7 @@ const emit = defineEmits<{ settings: [] }>();
 const experiments = useExperimentsStore();
 const library = useLibraryStore();
 const live = useLiveStore();
+const named = useNamedWorkspacesStore();
 const ui = useUiStore();
 
 const canCompare = computed(() => experiments.loaded.length >= 2);
@@ -28,9 +30,12 @@ function openDrawer(id: string): void {
 
 <template>
     <header class="top">
-        <div class="brand">
-            <span class="logo"><Icon name="logo" :size="13" /></span>MARL Studio
-        </div>
+        <RouterLink class="brand" :to="{ name: 'home' }" aria-label="Choose workspace">
+            <span class="logo"><Icon name="logo" :size="13" /></span>
+            <span class="brand-text"
+                ><span>MARL Studio</span><span class="workspace-name">{{ named.active?.name }}</span></span
+            >
+        </RouterLink>
         <div class="xpills">
             <ExperimentPill v-for="id in experiments.loaded" :id="id" :key="id" @open="openDrawer" />
             <span v-if="!experiments.loaded.length" class="muted">No experiments loaded</span>
@@ -75,6 +80,29 @@ function openDrawer(id: string): void {
     gap: 8px;
     font-size: 15px;
     white-space: nowrap;
+    color: var(--ink);
+    text-decoration: none;
+}
+.brand:hover .workspace-name {
+    text-decoration: underline;
+}
+.brand:focus-visible {
+    outline: 2px solid var(--acc);
+    outline-offset: 4px;
+    border-radius: 4px;
+}
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.workspace-name {
+    color: var(--ink2);
+    font-size: 12px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
 }
 .logo {
     width: 26px;

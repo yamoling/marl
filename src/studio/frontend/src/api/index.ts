@@ -13,6 +13,8 @@ import {
   HealthResponseSchema,
   LaunchDefaultsSchema,
   LaunchResponseSchema,
+  NamedWorkspaceSchema,
+  WorkspacesSchema,
   ParamsByIdSchema,
   parseArray,
   PreviewSchema,
@@ -29,6 +31,8 @@ import {
   type LaunchDefaults,
   type LaunchRequest,
   type LaunchResponse,
+  type NamedWorkspace,
+  type Workspaces,
   type ParamRow,
   type Preview,
   type RenameResponse,
@@ -57,6 +61,12 @@ export type ReplayParams = { step: number; test: number; onlySavedActions: boole
 
 export interface Api {
   readonly kind: "http" | "mock";
+  listWorkspaces(): Promise<Workspaces>;
+  createWorkspace(name: string, logdir?: string): Promise<NamedWorkspace>;
+  renameWorkspace(id: string, name: string): Promise<NamedWorkspace>;
+  setWorkspaceLogdir(id: string, logdir: string): Promise<NamedWorkspace>;
+  deleteWorkspace(id: string): Promise<Workspaces>;
+  selectWorkspace(id: string): Promise<NamedWorkspace>;
   listExperiments(filter?: ExperimentFilter, signal?: AbortSignal): Promise<ListResult<ExperimentSummary>>;
   getExperiment(id: string, signal?: AbortSignal): Promise<ExperimentDetail>;
   checkHealth(id: string, signal?: AbortSignal): Promise<HealthResponse>;
@@ -99,6 +109,15 @@ export function createHttpApi(): Api {
 
   return {
     kind: "http",
+    listWorkspaces: () => request("GET", "/workspaces", { schema: WorkspacesSchema }),
+    createWorkspace: (name, logdir) =>
+      request("POST", "/workspaces", { body: { name, ...(logdir === undefined ? {} : { logdir }) }, schema: NamedWorkspaceSchema }),
+    renameWorkspace: (id, name) =>
+      request("PATCH", `/workspaces/${encodeURIComponent(id)}`, { body: { name }, schema: NamedWorkspaceSchema }),
+    setWorkspaceLogdir: (id, logdir) =>
+      request("PATCH", `/workspaces/${encodeURIComponent(id)}/logdir`, { body: { logdir }, schema: NamedWorkspaceSchema }),
+    deleteWorkspace: (id) => request("DELETE", `/workspaces/${encodeURIComponent(id)}`, { schema: WorkspacesSchema }),
+    selectWorkspace: (id) => request("POST", `/workspaces/${encodeURIComponent(id)}/select`, { schema: NamedWorkspaceSchema }),
     async listExperiments(filter = {}, signal) {
       const raw = await request("GET", "/experiments", {
         query: { q: filter.q, algo: csv(filter.algo), status: csv(filter.status), health: csv(filter.health) },

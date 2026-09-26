@@ -18,6 +18,13 @@ SYSTEM_WS_INTERVAL_S = 0.5
 MAX_SERIES_QUERIES = 200
 
 
+def workspaces_file(isolated_root: Path | None = None) -> Path:
+    """Keep explicitly supplied test roots isolated from the user's Studio settings. @ai-generated"""
+    if isolated_root is not None:
+        return isolated_root / ".studio-workspaces.json"
+    return Path(os.environ.get("MARL_STUDIO_WORKSPACES", Path.home() / ".config" / "marl-studio" / "workspaces.json")).expanduser()
+
+
 def logs_root() -> Path:
     """
     Root directory containing the experiments, independent of the server's cwd.

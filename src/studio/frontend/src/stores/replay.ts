@@ -119,16 +119,19 @@ export const useReplayStore = defineStore("replay", () => {
     }
   }
 
-  /** @ai-generated */
+  /** @ai-edited */
   async function loadSteps(id: string): Promise<number[]> {
+    const current = seq;
     stepsStatus.value = "loading";
     try {
       const s = await useApi().getTestSteps(id);
+      if (current !== seq) return [];
       testSteps.value = { ...testSteps.value, [id]: s };
       stepsStatus.value = "ok";
       return s;
     } catch {
-      stepsStatus.value = "error";
+      if (current !== seq) return [];
+      stepsStatus.value;
       return testSteps.value[id] ?? [];
     }
   }
@@ -251,6 +254,23 @@ export const useReplayStore = defineStore("replay", () => {
     pause();
   }
 
+  /** Cancel replay requests and clear experiment-scoped data on workspace changes. @ai-generated */
+  function reset(): void {
+    seq++;
+    if (episodesTimer) clearTimeout(episodesTimer);
+    episodesTimer = null;
+    episodesAbort?.abort();
+    clearSelection();
+    close();
+    experiment.value = null;
+    step.value = null;
+    testSteps.value = {};
+    episodes.value = [];
+    stepsStatus.value = "idle";
+    episodesStatus.value = "idle";
+    healthChecked.clear();
+  }
+
   // ---------------------------------------------------------------- playback
 
   function seek(x: number): void {
@@ -318,6 +338,7 @@ export const useReplayStore = defineStore("replay", () => {
     loadReplay,
     clearSelection,
     close,
+    reset,
     seek,
     play,
     pause,

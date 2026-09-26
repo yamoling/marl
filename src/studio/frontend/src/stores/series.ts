@@ -31,6 +31,7 @@ export const useSeriesStore = defineStore("series", () => {
   const revision = ref(0);
   const inflight = new Set<string>();
   let lastErrorToast = 0;
+  let generation = 0;
 
   const get = (q: SeriesQuery): SeriesEntry | undefined => cache.get(queryKey(q));
   const outcome = (q: SeriesQuery): SeriesOutcome | undefined => get(q)?.outcome ?? undefined;
@@ -60,6 +61,7 @@ export const useSeriesStore = defineStore("series", () => {
 
   /** @ai-generated */
   async function fetchOne(q: SeriesQuery, key: string, prev: SeriesEntry | undefined): Promise<void> {
+    const current = generation;
     inflight.add(key);
     put({
       key,
@@ -73,6 +75,7 @@ export const useSeriesStore = defineStore("series", () => {
     });
     try {
       const o = await useApi().series(q);
+      if (current !== generation) return;
       put({
         key,
         experiment: q.experiment,
@@ -84,7 +87,7 @@ export const useSeriesStore = defineStore("series", () => {
         revalidating: false,
       });
     } catch (err) {
-      if (isAbortError(err)) return;
+      if (current !== generation || isAbortError(err)) return;
       const message = (err as Error)?.message ?? String(err);
       put({
         key,
@@ -98,7 +101,7 @@ export const useSeriesStore = defineStore("series", () => {
       });
       notifyError(message);
     } finally {
-      inflight.delete(key);
+      if (current === generation) inflight.delete(key);
     }
   }
 
@@ -131,7 +134,10 @@ export const useSeriesStore = defineStore("series", () => {
     revision.value++;
   }
 
+  /** Invalidate requests from the previous workspace as well as cached series. @ai-edited */
   function clear(): void {
+    generation++;
+    inflight.clear();
     cache.clear();
     revision.value++;
   }

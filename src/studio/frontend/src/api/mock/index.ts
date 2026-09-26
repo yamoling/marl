@@ -5,7 +5,7 @@
  */
 import { ApiError } from "../client";
 import type { ConnectionState, LiveConnection, LiveHandlers } from "../events";
-import type { Api, ExperimentFilter } from "../index";
+import type { Api, ExperimentFilter, NamedWorkspace } from "../index";
 import {
   clientIssue,
   ReplayEpisodeSchema,
@@ -54,6 +54,15 @@ export function createMockApi(opts: MockOptions = {}): Api {
   const [lmin, lmax] = opts.latency ?? [40, 160];
   const tickMs = opts.tickMs ?? 1500;
   const world = createExperiments();
+  const workspaces: NamedWorkspace[] = [{ id: "default", name: "Default", logdir: "/logs" }];
+  let selected: string | null = "default";
+  let nextWorkspace = 0;
+  /** Resolve a workspace or mimic a backend 404. @ai-generated */
+  const workspaceById = (id: string): NamedWorkspace => {
+    const found = workspaces.find((w) => w.id === id);
+    if (!found) throw new ApiError(404, "not-found", `Workspace ${id} not found`);
+    return found;
+  };
   const subscribers = new Set<LiveHandlers>();
   let ticker: ReturnType<typeof setInterval> | null = null;
 
@@ -125,6 +134,43 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   return {
     kind: "mock",
+    listWorkspaces: () => delay(() => ({ selected, workspaces: workspaces.map((w) => ({ ...w })) })),
+    createWorkspace: (name, logdir) =>
+      delay(() => {
+        if (!name.trim()) throw new ApiError(400, "validation", "Name is required");
+        if (logdir !== undefined && !logdir.trim()) throw new ApiError(400, "validation", "Log directory is required");
+        const w = { id: `workspace-${++nextWorkspace}`, name: name.trim(), logdir: logdir ?? workspaceById(selected ?? "default").logdir };
+        workspaces.push(w);
+        return { ...w };
+      }),
+    renameWorkspace: (id, name) =>
+      delay(() => {
+        if (!name.trim()) throw new ApiError(400, "validation", "Name is required");
+        const w = workspaceById(id);
+        w.name = name.trim();
+        return { ...w };
+      }),
+    setWorkspaceLogdir: (id, logdir) =>
+      delay(() => {
+        if (!logdir.trim()) throw new ApiError(400, "validation", "Log directory is required");
+        const w = workspaceById(id);
+        w.logdir = logdir;
+        return { ...w };
+      }),
+    deleteWorkspace: (id) =>
+      delay(() => {
+        const index = workspaces.findIndex((w) => w.id === id);
+        if (index < 0) throw new ApiError(404, "not-found", `Workspace ${id} not found`);
+        workspaces.splice(index, 1);
+        if (selected === id) selected = workspaces[0]?.id ?? null;
+        return { selected, workspaces: workspaces.map((w) => ({ ...w })) };
+      }),
+    selectWorkspace: (id) =>
+      delay(() => {
+        const w = workspaceById(id);
+        selected = id;
+        return { ...w };
+      }),
     listExperiments: (filter: ExperimentFilter = {}, signal) =>
       delay(() => {
         const items = [...world.values()]

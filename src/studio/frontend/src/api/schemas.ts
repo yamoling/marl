@@ -49,6 +49,12 @@ const nullableBool = () => z.boolean().nullable().catch(null);
 /** Numbers where the backend sends `null` for NaN/±inf. */
 const numOrNull = z.number().nullable();
 
+/** Named workspace metadata served by the backend. */
+export const NamedWorkspaceSchema = z.object({ id: z.string(), name: z.string(), logdir: z.string() });
+export type NamedWorkspace = z.infer<typeof NamedWorkspaceSchema>;
+export const WorkspacesSchema = z.object({ selected: z.string().nullable(), workspaces: z.array(NamedWorkspaceSchema) });
+export type Workspaces = z.infer<typeof WorkspacesSchema>;
+
 // ---------------------------------------------------------------- common types
 
 export const LEVELS = ["info", "warning", "error"] as const;
@@ -544,6 +550,7 @@ export const EVENT_SCHEMAS = {
   "experiment-added": ExperimentRefSchema,
   "experiment-removed": ExperimentRefSchema,
   "experiment-changed": ExperimentRefSchema,
+  "workspace-changed": PingSchema,
   ping: PingSchema,
 } as const;
 export type LiveEventName = keyof typeof EVENT_SCHEMAS;
