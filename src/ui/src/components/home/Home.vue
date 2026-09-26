@@ -41,6 +41,8 @@ import MetricsPanel from "./MetricsPanel.vue";
 import ExperimentTable from "./ExperimentTable.vue";
 import { useResultsStore } from "../../stores/ResultsStore";
 import { useMetricsStore } from "../../stores/MetricsStore";
+import { useSettingsStore } from "../../stores/SettingsStore";
+const settingsStore = useSettingsStore();
 const resultsStore = useResultsStore();
 const metricsStore = useMetricsStore();
 const router = useRouter();
@@ -88,7 +90,11 @@ const datasetPerLabel = computed(() => {
     return res;
 });
 
+/** Only unit-granularity Test ticks represent replayable training steps. @ai-edited */
 function onTestEpisodeClicked(logdir: string, timeStep: number) {
+    if (resultsStore.granularity !== 1 || settingsStore.settings.visualization.useWallTime || resultsStore.loading.get(logdir)) {
+        return;
+    }
     if (confirm(`Open ${logdir} at time step ${timeStep} ?`)) {
         const target = router.resolve({
             path: `/inspect/${logdir}`,

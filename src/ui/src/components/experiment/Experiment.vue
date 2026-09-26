@@ -1,29 +1,26 @@
 <template>
     <div class="experiment-panel">
-        <div v-if="loadError" class="experiment-load-error">
-            <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="error-icon" />
-            <h3>Failed to load experiment</h3>
-            <p class="text-muted">{{ loadError }}</p>
-            <button class="btn btn-outline-primary btn-sm" @click="() => router.push('/home')">
-                Back to home
-            </button>
-        </div>
-        <template v-else>
-            <ExperimentDetailsPane v-if="experiment != null" :experiment="experiment" :is-open="isDetailsPaneOpen"
-                @toggle="toggleDetailsPane" />
-            <div class="workspace" :class="{ 'with-replay': showReplayPane }">
-                <section class="workspace-main">
-                    <MetricsTable :logdir="logdir" @view-episode="onViewEpisode" />
-                </section>
+        <ExperimentDetailsPane
+            v-if="experiment != null"
+            :experiment="experiment"
+            :is-open="isDetailsPaneOpen"
+            @toggle="toggleDetailsPane"
+        />
+        <div class="workspace" :class="{ 'with-replay': showReplayPane }">
+            <section class="workspace-main">
+                <div v-if="loadError" class="alert alert-warning mb-2" role="alert">
+                    Experiment metadata could not be loaded for "{{ logdir }}" ({{ loadError }}). Results may still be available below;
+                    check the experiment metadata and reload the page to retry.
+                </div>
+                <MetricsTable :logdir="logdir" @view-episode="onViewEpisode" />
+            </section>
 
-                <section v-show="showReplayPane" class="workspace-replay">
-                    <div class="inline-replay">
-                        <EpisodeReplay ref="episodeReplay" :logdir="logdir" :experiment="experiment"
-                            @close="() => (showReplayPane = false)" />
-                    </div>
-                </section>
-            </div>
-        </template>
+            <section v-show="showReplayPane" class="workspace-replay">
+                <div class="inline-replay">
+                    <EpisodeReplay ref="episodeReplay" :logdir="logdir" :experiment="experiment" @close="() => (showReplayPane = false)" />
+                </div>
+            </section>
+        </div>
     </div>
 </template>
 
@@ -31,19 +28,19 @@
 import { onMounted, onUnmounted, ref } from "vue";
 import { Experiment } from "../../models/Experiment";
 import MetricsTable from "./MetricsTable.vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { useExperimentStore } from "../../stores/ExperimentStore";
 import EpisodeReplay from "../visualisation/EpisodeReplay.vue";
 import ExperimentDetailsPane from "./ExperimentDetailsPane.vue";
 import { ReplayEpisodeSummary } from "../../models/Episode";
 
 const route = useRoute();
-const router = useRouter();
+
 const logdir = (route.params.logdir as string[]).join("/");
 const experiment = ref(null as Experiment | null);
 const experimentStore = useExperimentStore();
 const isDetailsPaneOpen = ref(false);
-const loading = ref(true);
+
 const loadError = ref<string | null>(null);
 const showReplayPane = ref(false);
 const episodeReplay = ref();
@@ -63,17 +60,17 @@ function onViewEpisode(summary: ReplayEpisodeSummary) {
     episodeReplay.value.load(summary);
 }
 
+/** Load metadata independently so unavailable metadata does not hide existing results. @ai-edited */
 onMounted(async () => {
-    loading.value = true;
     window.addEventListener("keydown", onEscapePressed);
-    const res = await experimentStore.getExperiment(logdir);
-    if (res == null) {
-        loadError.value = `Could not load experiment at "${logdir}". Check the error notification for details.`;
-        loading.value = false;
-        return;
+    try {
+        experiment.value = await experimentStore.getExperiment(logdir);
+        if (experiment.value == null) {
+            loadError.value = "The server returned no experiment metadata.";
+        }
+    } catch (e) {
+        loadError.value = e instanceof Error ? e.message : String(e);
     }
-    experiment.value = res;
-    loading.value = false;
 });
 
 onUnmounted(() => window.removeEventListener("keydown", onEscapePressed));
@@ -129,21 +126,6 @@ onUnmounted(() => window.removeEventListener("keydown", onEscapePressed));
     min-width: 0;
     overflow-y: auto;
     overflow-x: auto;
-}
-
-.experiment-load-error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    min-height: 50vh;
-    text-align: center;
-}
-
-.experiment-load-error .error-icon {
-    font-size: 3rem;
-    color: var(--bs-danger);
 }
 
 @media (max-width: 1200px) {
