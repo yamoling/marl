@@ -10,7 +10,7 @@ run's own start.
 import logging
 import math
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal, get_args
@@ -57,15 +57,11 @@ class SeriesQuery:
     max_points: int = 1000
 
     @classmethod
-    def from_json(cls, data: Any) -> "SeriesQuery":
+    def from_json(cls, data: dict) -> "SeriesQuery":
         """
         Validate an API query (snake_case keys, defaults as in api-contract.md).
         Raises TypeError for values of the wrong type and ValueError for invalid values.
-
-        @ai-generated
         """
-        if not isinstance(data, dict):
-            raise TypeError("A query must be an object")
         unknown = set(data) - {f for f in cls.__dataclass_fields__}
         if unknown:
             raise ValueError(f"Unknown query fields: {', '.join(sorted(unknown))}")
@@ -223,7 +219,7 @@ def nice_number(value: float) -> int:
     return max(1, int(best))
 
 
-def auto_resolution(xs: Sequence[np.ndarray]) -> int:
+def auto_resolution(xs: Iterable[np.ndarray]) -> int:
     """
     Exact x values (resolution = gcd of the x values) when all runs lie on an integer lattice with
     fewer than 2000 distinct values; otherwise a nice number giving about 500 buckets.
@@ -369,7 +365,6 @@ def compute(record: ExperimentRecord, query: SeriesQuery) -> SeriesResult:
 
 
 def _compute(record: ExperimentRecord, query: SeriesQuery, runs: list[RunRecord], issues: list[Issue]) -> SeriesResult:
-    """@ai-generated"""
     missing = [run_id for run_id in (query.runs or ()) if record.run(run_id) is None]
 
     def load(run: RunRecord) -> tuple[np.ndarray, np.ndarray] | None:
@@ -384,7 +379,7 @@ def _compute(record: ExperimentRecord, query: SeriesQuery, runs: list[RunRecord]
             missing.append(run.id)
         else:
             data.append((run, *loaded))
-    resolution = query.resolution or auto_resolution([x for _, x, _ in data])
+    resolution = query.resolution or auto_resolution((x for _, x, _ in data))
     if not data:
         issues.append(_issue(Level.INFO, "missing-metric", f"No selected run has {query.table}/{query.metric}."))
         return SeriesResult([], None, None, None, [], [], [], missing, resolution, issues)
