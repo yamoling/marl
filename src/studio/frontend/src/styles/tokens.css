@@ -1,0 +1,92 @@
+/*
+ * Design tokens of MARL Studio, extracted from the Composer mockup
+ * (.agents/plans/2026-09-26-ui-refactor/mockups/design-b-composer.html).
+ * Light theme only; every colour is a variable so a dark theme can be added later.
+ */
+:root {
+  /* surfaces and ink */
+  --bg: #f7f7f5;
+  --card: #fff;
+  --panel: #fbfbfa;
+  --foot: #fcfcfb;
+  --ink: #1d1d27;
+  --ink2: #5d5d6c;
+  --ink3: #9a9aa8;
+  --line: #ebebef;
+  --line2: #e0e0e7;
+  --line-hover: #cfcfe0;
+  --hover: #f1f1f6;
+  --seg-bg: #f2f2f6;
+  --close-bg: #f2f2f6;
+  --close-bg-hover: #e7e7ef;
+  --bar-track: #eeeef3;
+
+  /* accent (metrics) */
+  --acc: #6d5ef5;
+  --acc2: #5646e0;
+  --acc-soft: #efedff;
+  --acc-soft2: #e2defe;
+  --logo-grad: linear-gradient(135deg, #8b7bff, #5646e0);
+
+  /* parameters */
+  --param: #0e9f8e;
+  --param-ink: #0b6f63;
+  --param-soft: #e0f5f2;
+
+  /* status */
+  --warn: #c07a00;
+  --warn-soft: #fff4dc;
+  --err: #d64550;
+  --err-soft: #fde8ea;
+  --ok: #2f9e6e;
+  --ok-soft: #e3f5ec;
+  --hot: #e8793a;
+  --missing: #b9b9c4;
+
+  /* shape */
+  --r: 12px;
+  --r-sm: 8px;
+  --r-btn: 9px;
+  --r-sheet: 16px;
+  --r-pop: 11px;
+
+  /* elevation */
+  --sh: 0 1px 2px rgba(20, 20, 50, 0.04), 0 4px 14px rgba(20, 20, 50, 0.05);
+  --sh-hi: 0 2px 4px rgba(20, 20, 50, 0.05), 0 14px 34px rgba(20, 20, 50, 0.1);
+  --sh-pop: 0 12px 40px rgba(20, 20, 50, 0.18), 0 0 0 1px rgba(20, 20, 50, 0.06);
+  --sh-sheet: 0 30px 80px rgba(20, 20, 50, 0.25);
+  --scrim: rgba(30, 28, 50, 0.26);
+  --backdrop: rgba(30, 28, 50, 0.28);
+  --toast-bg: #25223f;
+  --tip-bg: rgba(30, 27, 60, 0.94);
+
+  /* typography */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs: 13px;
+  --fs-sm: 12px;
+  --fs-xs: 11px;
+  --fs-eyebrow: 10px;
+
+  /* focus */
+  --focus-ring: 0 0 0 3px var(--acc-soft);
+
+  /* chart theme (read by charts/render.ts) */
+  --chart-text: #7a7a88;
+  --chart-grid: rgba(30, 30, 70, 0.06);
+  --chart-axis: rgba(30, 30, 70, 0.22);
+  --chart-font: 11px system-ui, -apple-system, sans-serif;
+  --chart-tooltip-bg: rgba(30, 27, 60, 0.94);
+  --chart-tooltip-text: #fff;
+  --chart-bg: #fff;
+
+  /* z layers */
+  --z-top: 20;
+  --z-backdrop: 55;
+  --z-overlay: 60;
+  --z-scrim: 90;
+  --z-sheet: 100;
+  --z-dialog: 200;
+  --z-pop: 300;
+  --z-toast: 400;
+}

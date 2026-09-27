@@ -61,18 +61,20 @@
                 </label>
             </div>
 
-            <div class="series-grid" v-if="seriesLabels.length > 0">
-                <div class="series-row" v-for="label in seriesLabels" :key="label">
-                    <span class="series-name">{{ label }}</span>
+            <div class="series-grid" v-if="seriesEntries.length > 0">
+                <div class="series-row" v-for="series in seriesEntries" :key="series.key">
+                    <span class="series-name">{{ series.label }}</span>
                     <label class="option-label compact">
-                        <input type="checkbox" :checked="isSeriesVisible(label)"
-                            @change="toggleSeriesVisibility(label)" />
+                        <input type="checkbox" :checked="isSeriesVisible(series.key)" @change="toggleSeriesVisibility(series.key)" />
                         Series
                     </label>
                     <label class="option-label compact" :class="{ disabled: !enablePlusMinus }">
-                        <input type="checkbox" :checked="isBandVisible(label)"
-                            :disabled="!enablePlusMinus || !isSeriesVisible(label)"
-                            @change="toggleBandVisibility(label)" />
+                        <input
+                            type="checkbox"
+                            :checked="isBandVisible(series.key)"
+                            :disabled="!enablePlusMinus || !isSeriesVisible(series.key)"
+                            @change="toggleBandVisibility(series.key)"
+                        />
                         Band
                     </label>
                 </div>
@@ -118,20 +120,40 @@ const enablePlusMinus = ref(true);
 const showOptions = ref(false);
 const hiddenSeries = ref({} as Record<string, boolean>);
 const hiddenBands = ref({} as Record<string, boolean>);
-const seriesIndicesByLabel = ref(new Map<string, number[]>());
-const bandIndicesByLabel = ref(new Map<string, number[]>());
+const seriesIndicesByKey = ref(new Map<string, number[]>());
+const bandIndicesByKey = ref(new Map<string, number[]>());
+const sourceIndices = ref<number[]>([]);
 const category = computed(() => props.datasets.at(0)?.category);
 
-const seriesLabels = computed(() => Array.from(new Set(props.datasets.map((ds) => ds.logdir.replace("logs/", "")))).sort());
+/** Keep visibility independent for series from the same experiment. @ai-generated */
+function seriesKey(ds: Dataset) {
+    return JSON.stringify([ds.logdir, ds.category, ds.label]);
+}
+
+/** Provide distinct labels and controls for each source series. @ai-generated */
+const seriesEntries = computed(() =>
+    Array.from(
+        new Map(
+            props.datasets.map((ds) => [
+                seriesKey(ds),
+                {
+                    key: seriesKey(ds),
+                    label: `${ds.logdir.replace("logs/", "")} (${ds.category}: ${ds.label})`,
+                },
+            ]),
+        ).values(),
+    ).sort((a, b) => a.label.localeCompare(b.label)),
+);
 
 watch(colours, updateChartData);
 
-watch(seriesLabels, (labels) => {
+/** Preserve per-series visibility when the plotted datasets change. @ai-edited */
+watch(seriesEntries, (entries) => {
     const nextSeries = {} as Record<string, boolean>;
     const nextBands = {} as Record<string, boolean>;
-    labels.forEach((label) => {
-        nextSeries[label] = hiddenSeries.value[label] ?? false;
-        nextBands[label] = hiddenBands.value[label] ?? false;
+    entries.forEach(({ key }) => {
+        nextSeries[key] = hiddenSeries.value[key] ?? false;
+        nextBands[key] = hiddenBands.value[key] ?? false;
     });
     hiddenSeries.value = nextSeries;
     hiddenBands.value = nextBands;
@@ -151,19 +173,22 @@ function formatDuration(seconds: number) {
     return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
+/** Rebuild chart datasets and retain their source indices for point navigation. @ai-edited */
 function updateChartData() {
-    if (chart == null || props.datasets.length == 0) {
+    if (chart == null) {
         return;
     }
     const allTicks = [] as number[];
     const datasets = [] as ChartDataset[];
     const seriesIndices = new Map<string, number[]>();
     const bandIndices = new Map<string, number[]>();
+    const sources: number[] = [];
     let index = 0;
-    props.datasets.forEach((ds) => {
+    props.datasets.forEach((ds, sourceIndex) => {
         allTicks.push(...ds.ticks);
         const colour = colourStore.get(ds.logdir);
-        const legendLabel = ds.logdir.replace("logs/", "");
+        const key = seriesKey(ds);
+        const legendLabel = `${ds.logdir.replace("logs/", "")} (${ds.category}: ${ds.label})`;
         if (enablePlusMinus.value) {
             let lower;
             if (plusMinus.value == "Standard deviation") {
@@ -187,7 +212,8 @@ function updateChartData() {
                 backgroundColor: lowerColour,
                 fill: "+1",
             });
-            bandIndices.set(legendLabel, [...(bandIndices.get(legendLabel) ?? []), index]);
+            bandIndices.set(key, [...(bandIndices.get(key) ?? []), index]);
+            sources.push(sourceIndex);
             index += 1;
         }
         datasets.push({
@@ -196,7 +222,8 @@ function updateChartData() {
             borderColor: colour,
             backgroundColor: colour,
         });
-        seriesIndices.set(legendLabel, [...(seriesIndices.get(legendLabel) ?? []), index]);
+        seriesIndices.set(key, [...(seriesIndices.get(key) ?? []), index]);
+        sources.push(sourceIndex);
         index += 1;
         if (enablePlusMinus.value) {
             let upper;
@@ -221,29 +248,32 @@ function updateChartData() {
                 backgroundColor: upperColour,
                 fill: "-1",
             });
-            bandIndices.set(legendLabel, [...(bandIndices.get(legendLabel) ?? []), index]);
+            bandIndices.set(key, [...(bandIndices.get(key) ?? []), index]);
+            sources.push(sourceIndex);
             index += 1;
         }
     });
-    seriesIndicesByLabel.value = seriesIndices;
-    bandIndicesByLabel.value = bandIndices;
+    seriesIndicesByKey.value = seriesIndices;
+    bandIndicesByKey.value = bandIndices;
+    sourceIndices.value = sources;
     chart.data = { datasets };
     applyVisibilityState();
     chart.update();
 }
 
+/** Apply series and band visibility by source identity, not display label. @ai-edited */
 function applyVisibilityState() {
     if (chart == null) {
         return;
     }
-    seriesIndicesByLabel.value.forEach((indices, label) => {
-        const hidden = hiddenSeries.value[label] ?? false;
+    seriesIndicesByKey.value.forEach((indices, key) => {
+        const hidden = hiddenSeries.value[key] ?? false;
         indices.forEach((datasetIndex) => {
             chart!.getDatasetMeta(datasetIndex).hidden = hidden;
         });
     });
-    bandIndicesByLabel.value.forEach((indices, label) => {
-        const hidden = (hiddenSeries.value[label] ?? false) || (hiddenBands.value[label] ?? false) || !enablePlusMinus.value;
+    bandIndicesByKey.value.forEach((indices, key) => {
+        const hidden = (hiddenSeries.value[key] ?? false) || (hiddenBands.value[key] ?? false) || !enablePlusMinus.value;
         indices.forEach((datasetIndex) => {
             chart!.getDatasetMeta(datasetIndex).hidden = hidden;
         });
@@ -284,6 +314,7 @@ onMounted(() => {
     updateChartData();
 });
 
+/** Bind clicks and legend actions to the actual chart dataset indices. @ai-edited */
 function initialiseChart(): Chart {
     return new Chart(canvas.value, {
         type: "line",
@@ -298,19 +329,13 @@ function initialiseChart(): Chart {
                 mode: "nearest",
             },
             animation: false,
-            onClick: (event, datasetElement, chart) => {
-                if (datasetElement.length > 0) {
-                    // Since we use {interaction.mode = "nearest"}, we receive the point that we clicked on.
-                    // If plusMinus is enabled, we have 3 datasets per run: lower, mean, upper.
-                    let datasetIndex = datasetElement[0].datasetIndex;
-                    if (enablePlusMinus.value) {
-                        datasetIndex = Math.floor(datasetIndex / 3);
-                    }
-                    const dataset = props.datasets[datasetIndex];
-                    if (dataset == null) {
-                        return;
-                    }
-                    emits("datapoint-clicked", dataset.logdir, props.datasets[datasetIndex].ticks[datasetElement[datasetIndex].index]);
+            onClick: (_, elements) => {
+                const point = elements[0];
+                if (point == null) return;
+                const dataset = props.datasets[sourceIndices.value[point.datasetIndex]];
+                const tick = dataset?.ticks[point.index];
+                if (dataset?.category === "Test" && dataset.mean[point.index] != null && tick != null && Number.isFinite(tick)) {
+                    emits("datapoint-clicked", dataset.logdir, tick);
                 }
             },
             plugins: {
@@ -324,9 +349,9 @@ function initialiseChart(): Chart {
                         },
                     },
                     onClick: (_, legendItem) => {
-                        if (typeof legendItem.text === "string" && legendItem.text.length > 0) {
-                            toggleSeriesVisibility(legendItem.text);
-                        }
+                        if (legendItem.datasetIndex == null) return;
+                        const dataset = props.datasets[sourceIndices.value[legendItem.datasetIndex]];
+                        if (dataset != null) toggleSeriesVisibility(seriesKey(dataset));
                     },
                 },
                 tooltip: {

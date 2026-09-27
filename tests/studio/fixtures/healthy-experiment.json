@@ -1,0 +1,107 @@
+{
+ "n_steps": 10000,
+ "logdir": "logs/healthy",
+ "loggers": [
+  "csv"
+ ],
+ "creation_timestamp": "2026-09-14T17:18:54.253707+00:00",
+ "trainer": {
+  "gamma": 0.95,
+  "ir_module": null,
+  "grad_norm_clipping": 10.0,
+  "train_interval": [
+   5,
+   "step"
+  ],
+  "qnetwork": {
+   "n_actions": 5,
+   "n_agents": 4,
+   "obs_shape": [
+    12,
+    12,
+    13
+   ],
+   "extras_shape": [
+    5
+   ],
+   "n_objectives": 1,
+   "noisy": false,
+   "duelling": true,
+   "independent": false,
+   "mlp_sizes": [
+    16
+   ],
+   "hidden_activation": "relu",
+   "class-name": "QCNN",
+   "name": "QCNN"
+  },
+  "memory": {
+   "max_size": 1000,
+   "class-name": "TransitionMemory",
+   "name": "TransitionMemory"
+  },
+  "mixer": {
+   "n_objectives": 1,
+   "n_agents": 4,
+   "state_size": 1872,
+   "state_extras_size": 1,
+   "embed_size": 64,
+   "hypernet_embed_size": 64,
+   "class-name": "QMix",
+   "name": "QMix"
+  },
+  "train_policy": {
+   "epsilon": {
+    "start_value": 1.0,
+    "end_value": 0.05,
+    "n_steps": 4000,
+    "class-name": "LinearSchedule",
+    "name": "LinearSchedule"
+   },
+   "class-name": "EpsilonGreedy",
+   "name": "EpsilonGreedy"
+  },
+  "lr": 0.0005,
+  "batch_size": 64,
+  "double_qlearning": true,
+  "test_policy": {
+   "class-name": "ArgMax",
+   "name": "ArgMax"
+  },
+  "target_updater": {
+   "tau": 0.01,
+   "class-name": "SoftUpdate",
+   "name": "SoftUpdate"
+  },
+  "optimiser_type": "adam",
+  "vbe": null,
+  "class-name": "QMix",
+  "name": "QMix-QCNN-double-duelling"
+ },
+ "env": {
+  "agent_id": true,
+  "time_limit": 78,
+  "last_action": false,
+  "maven_noise_size": null,
+  "level_or_path": 6,
+  "obs_type": "layered",
+  "state_type": "flattened",
+  "pbrs": false,
+  "class-name": "LLEConfig",
+  "name": "LLE-lvl6"
+ },
+ "test_env": {
+  "agent_id": true,
+  "time_limit": 78,
+  "last_action": false,
+  "maven_noise_size": null,
+  "level_or_path": 6,
+  "obs_type": "layered",
+  "state_type": "flattened",
+  "pbrs": false,
+  "class-name": "LLEConfig",
+  "name": "LLE-lvl6"
+ },
+ "class-name": "Experiment",
+ "name": "Experiment"
+}

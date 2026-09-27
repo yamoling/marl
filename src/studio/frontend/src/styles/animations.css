@@ -1,0 +1,102 @@
+/* Running indicators adopted from the Atlas mockup: pulsing dot and shimmering progress bar. */
+.pulse {
+  display: inline-block;
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.7);
+  }
+}
+
+.prog {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.prog i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--acc), color-mix(in srgb, var(--acc) 60%, #fff), var(--acc));
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+  transition: width 0.4s ease;
+}
+.prog.static i {
+  animation: none;
+  background: var(--acc);
+}
+.prog.indeterminate i {
+  width: 35% !important;
+  animation: indeterminate 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes popin {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+@keyframes grow {
+  from {
+    opacity: 0.4;
+    transform: scale(0.97);
+  }
+}
+@keyframes flash {
+  0% {
+    outline-color: var(--acc);
+    box-shadow: 0 0 0 8px var(--acc-soft2);
+  }
+  100% {
+    outline-color: transparent;
+  }
+}
+
+/* Static indicators only when the user asks for reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .prog i,
+  .prog.indeterminate i {
+    animation: none !important;
+  }
+  .prog i {
+    background: var(--acc);
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

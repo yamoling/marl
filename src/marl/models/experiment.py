@@ -103,13 +103,30 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
 
     @property
     def runs(self):
-        """All the runs related to the experiment."""
+        """Read runs from their discovered directories, not stale serialized paths.
+
+        @ai-edited
+        """
         for f in os.listdir(self.logdir):
             rundir = self.logpath / f
             if not rundir.is_dir():
                 continue
             try:
-                yield LightRun[E, T].load(rundir)
+                run = LightRun[E, T].load(rundir)
+                saved_path = Path(run.rundir)
+                expected = rundir.resolve()
+                if saved_path.is_absolute():
+                    valid = saved_path.resolve() == expected
+                else:
+                    valid = saved_path.parts in (
+                        (self.logpath.parent.name, self.logpath.name, f),
+                        (self.logpath.name, f),
+                        (f,),
+                    )
+                if not valid:
+                    raise ValueError(f"Run metadata in {rundir} points to {run.rundir}")
+                run.rundir = str(expected)
+                yield run
             except FileNotFoundError:
                 # Not a run directory
                 pass

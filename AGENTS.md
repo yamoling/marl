@@ -21,6 +21,28 @@ MARL is a research-oriented Python repository for prototyping multi-agent reinfo
 - Runnable examples are in `examples/`; tests are in `tests/`; project scripts are in `scripts/`; user-facing architecture and design documentation is in `doc/`.
 - The repository is intended for algorithm development rather than as a stable external library. Preserve serialization compatibility and experiment provenance when making changes.
 
+## .agents directory
+
+The [.agents/](.agents/) playground directory contains the following sub-directories:
+
+- [.agents/scratch/](scratch/): toy/test scripts
+- [.agents/reports/](reports/): reports, bug reports.
+- [.agents/audits/](audits/): audits.
+- [.agents/plans/](plans/): plans, design documents.
+- [.agents/reviews/](reviews/): reviews, feedback.
+- [.agents/handoffs/](handoffs/): conversation handoffs that summarize the state of a conversation to be resumed later.
+
+When creating a file in one of these directories, name it with the date of creation and its topic, e.g.: `.plan/2026-09-12-user-login.md`, `.reviews/2026-09-10-introduction.md`. If the task requires you to create multiple files, then create a sub-directory with the task name and an `index.md` as entrypoint that contains a table of contents. For instance:
+
+- `.plans/2026-09-12-user-login`
+  - `index.md`
+  - `implementation.md`
+  - `tests.md`
+  - `secutity.md`
+  - etc
+
+You are allowed to create other sub-directories with other names if you deem it appropriate.
+
 ## Behaviour
 
 ### Prompt output

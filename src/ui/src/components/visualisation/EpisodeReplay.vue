@@ -4,15 +4,15 @@
             <h5 class="mb-0">Replay episode</h5>
             <button type="button" class="btn btn-outline-danger btn-sm" @click="() => emits('close')">Close</button>
         </div>
-        <font-awesome-icon v-if="replayStore.loading" class="mx-auto d-block my-5" icon="spinner" spin
-            style="height: 100px; width: 100px" />
+        <font-awesome-icon v-if="loading" class="mx-auto d-block my-5" icon="spinner" spin style="height: 100px; width: 100px" />
 
         <div v-else-if="error != null" class="alert alert-danger my-4" role="alert">
             <h6 class="alert-heading">
                 <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="me-2" />
                 Failed to Load Episode
             </h6>
-            <p class="mb-0">{{ error }}</p>
+            <p class="mb-2">{{ error }}</p>
+            <button v-if="lastReplay" type="button" class="btn btn-outline-danger btn-sm" @click="load(lastReplay)">Retry replay</button>
         </div>
 
         <Accordion v-show="episode != null && episode.replay_mismatch" class="mismatch-details-accordion mb-1">
@@ -23,14 +23,13 @@
                 </AccordionHeader>
                 <AccordionContent>
                     <p class="my-2">
-                        The agent's actions during replay do not match the actions stored on disk during training and
-                        testing. The below replay sticks to the actions stored on disk but still shows the "extras" of
-                        the loaded agent.
+                        The agent's actions during replay do not match the actions stored on disk during training and testing. The below
+                        replay sticks to the actions stored on disk but still shows the "extras" of the loaded agent.
                     </p>
                     <p class="mb-2">
-                        <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU.
-                        Since CPU and GPU random number generators may have different implementations, they can lean to
-                        different sampling sequences and therefore divergent episode trajectories.
+                        <strong>Common cause:</strong> Training may have been performed on GPU but replayed on CPU. Since CPU and GPU random
+                        number generators may have different implementations, they can lean to different sampling sequences and therefore
+                        divergent episode trajectories.
                     </p>
                     <h6 class="mb-1">Mismatch details</h6>
                     <ul v-if="mismatchDetails.length > 0" class="mb-0 ps-3">
@@ -46,8 +45,7 @@
             <section class="replay-row top-row">
                 <img :src="'data:image/jpg;base64, ' + currentFrame" />
                 <aside class="top-right">
-                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="episode.action_space"
-                        :n-agents="nAgents" />
+                    <ActionPanel :episode="episode" :current-step="currentStep" :action-space="episode.action_space" :n-agents="nAgents" />
                 </aside>
             </section>
 
@@ -56,13 +54,22 @@
                     <div class="timeline-toolbar">
                         <div class="manual-step-input me-5">
                             Step
-                            <input type="text" class="form-control form-control-sm" :value="currentStep" size="4"
-                                @keyup.enter="changeStep" />
+                            <input
+                                type="text"
+                                class="form-control form-control-sm"
+                                :value="currentStep"
+                                size="4"
+                                @keyup.enter="changeStep"
+                            />
                             <span class="text-muted">/ {{ episodeLength }}</span>
                         </div>
 
-                        <button type="button" class="btn btn-outline-primary btn-sm" :disabled="episode == null"
-                            @click="trackWizardModal?.showModal">
+                        <button
+                            type="button"
+                            class="btn btn-outline-primary btn-sm"
+                            :disabled="episode == null"
+                            @click="trackWizardModal?.showModal"
+                        >
                             Choose tracks
                         </button>
                         <span v-if="tracks.length > 0" class="timeline-toolbar-summary text-secondary">
@@ -76,20 +83,27 @@
                             <div class="timeline-track-toolbar">
                                 <div class="timeline-track-toolbar-left">
                                     <div class="btn-group btn-group-sm timeline-track-order">
-                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                            @click.stop="() => tracksStore.remove(props.logdir, track)">
+                                        <button
+                                            type="button"
+                                            class="btn btn-sm btn-outline-danger"
+                                            @click.stop="() => tracksStore.remove(props.logdir, track)"
+                                        >
                                             <font-awesome-icon :icon="['fas', 'xmark']" />
                                         </button>
-                                        <button type="button"
+                                        <button
+                                            type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index <= 0"
-                                            @click="() => tracksStore.swap(props.logdir, index, index - 1)">
+                                            @click="() => tracksStore.swap(props.logdir, index, index - 1)"
+                                        >
                                             <font-awesome-icon :icon="['fas', 'arrow-up']" />
                                         </button>
-                                        <button type="button"
+                                        <button
+                                            type="button"
                                             class="btn btn-outline-secondary timeline-track-order-button"
                                             :disabled="index >= tracks.length - 1"
-                                            @click="() => tracksStore.swap(props.logdir, index, index + 1)">
+                                            @click="() => tracksStore.swap(props.logdir, index, index + 1)"
+                                        >
                                             <font-awesome-icon :icon="['fas', 'arrow-down']" />
                                         </button>
                                     </div>
@@ -98,16 +112,23 @@
                                         {{ track.label }}
                                     </span>
 
-                                    <select class="form-select form-select-sm timeline-track-kind" :value="track.kind"
+                                    <select
+                                        class="form-select form-select-sm timeline-track-kind"
+                                        :value="track.kind"
                                         :aria-label="`${track.label} representation`"
-                                        @change="(event) => onTimelineTrackKindChange(track, event)">
+                                        @change="(event) => onTimelineTrackKindChange(track, event)"
+                                    >
                                         <option value="numeric">Numerical</option>
                                         <option value="categorical">Categorical</option>
                                     </select>
                                 </div>
                             </div>
-                            <TimelineChartTracks :key="`${track.label}:${track.kind}`" :track="track"
-                                :current-step="currentStep" @select-step="selectStep" />
+                            <TimelineChartTracks
+                                :key="`${track.label}:${track.kind}`"
+                                :track="track"
+                                :current-step="currentStep"
+                                @select-step="selectStep"
+                            />
                         </div>
                     </div>
                 </div>
@@ -120,8 +141,12 @@
                         <AccordionContent>
                             <div class="agent-details-grid mt-3">
                                 <div v-for="agent in nAgents" :key="agent">
-                                    <AgentInfo :episode="episode" :agent-num="agent - 1" :current-step="currentStep"
-                                        :experiment="experiment" />
+                                    <AgentInfo
+                                        :episode="episode"
+                                        :agent-num="agent - 1"
+                                        :current-step="currentStep"
+                                        :experiment="experiment"
+                                    />
                                 </div>
                             </div>
                         </AccordionContent>
@@ -178,6 +203,9 @@ const tracks = computed(() => {
 });
 
 const error = ref<string | null>(null);
+const lastReplay = ref<ReplayEpisodeSummary | null>(null);
+const loading = ref(false);
+let requestId = 0;
 const currentStep = ref(0);
 const nAgents = computed(() => episode.value?.episode.actions[0]?.length ?? 0);
 const episodeLength = computed(() => episode.value?.length() || 0);
@@ -256,18 +284,31 @@ function onTimelineTrackKindChange(track: Track, event: Event) {
     tracksStore.update(props.logdir, { label: track.label, kind });
 }
 
+/** Show replay failures locally and ignore older responses after selecting a different episode. @ai-edited */
 async function load(replay: ReplayEpisodeSummary) {
+    const currentRequest = ++requestId;
+    lastReplay.value = replay;
     error.value = null;
     episode.value = null;
-    episode.value = await replayStore.getEpisode(
-        replay.time_step,
-        replay.test_num,
-        replay.rundir,
-        settingsStore.resolveReplay(props.experiment).onlySavedActions,
-    );
-    tracksStore.notifyTracks(episode.value.tracks);
-    currentStep.value = 0;
-    error.value = null;
+    loading.value = true;
+    try {
+        const loaded = await replayStore.getEpisode(
+            replay.time_step,
+            replay.test_num,
+            replay.rundir,
+            settingsStore.resolveReplay(props.experiment).onlySavedActions,
+        );
+        if (currentRequest !== requestId) return;
+        tracksStore.notifyTracks(loaded.tracks);
+        episode.value = loaded;
+        currentStep.value = 0;
+    } catch (e) {
+        if (currentRequest === requestId) {
+            error.value = e instanceof Error ? e.message : String(e);
+        }
+    } finally {
+        if (currentRequest === requestId) loading.value = false;
+    }
 }
 
 defineExpose({
