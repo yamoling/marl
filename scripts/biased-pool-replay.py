@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 STUDY_LAYOUT_TYPE = "interdependent-2-9x9_agents3_lasers2"
 """The perspective-tuning layout whose best trials provide the replay-study hyperparameters."""
 DEFAULT_STUDY_JOURNAL = Path("tunings", "perspective.journal")
+PARAMETERS_FILE = "seeded_replay_parameters.json"
 SOLUTIONS_FILE = "solutions.json"
 """Cached shortest plans, stored next to the layouts of the pool and keyed by layout file name."""
 SOLUTIONS_FILE_NO_GEMS = "solutions-no-gems.json"
@@ -36,6 +38,11 @@ SOLUTIONS_FILE_NO_GEMS = "solutions-no-gems.json"
 Algo = Literal["vdn", "qmix", "dqn"]
 """Policy gradient methods have no replay memory to bias and are out of the scope of this script."""
 ALGOS: tuple[Algo, ...] = get_args(Algo)
+
+
+def parse_n_bias(value: str) -> int | Literal["auto"]:
+    """Convert a CLI replay count while retaining the 'auto' sentinel. @ai-generated"""
+    return "auto" if value == "auto" else int(value)
 
 
 class Args(tap.TypedArgs):
@@ -48,10 +55,11 @@ class Args(tap.TypedArgs):
     offset: int = tap.arg("--offset", default=1_000, help="Index of the first training layout (non-negative integer).")
     n_tests: int = tap.arg("--n-tests", default=500, help="Number of held-out test maps (positive integer).")
     algos: list[Algo] = tap.arg("--algos", nargs="+", help="Value-based algorithms to train.")
-    n_bias: int = tap.arg(
+    n_bias: int | Literal["auto"] = tap.arg(
         "--n-bias",
-        default=0,
-        help="Number of training layouts to solve and bias towards. 0 means every training layout.",
+        type=parse_n_bias,
+        default="auto",
+        help="Number of training layouts to demonstrate. 'auto' uses every training layout; 0 uses no demonstrations.",
     )
     bias_factor: float = tap.arg(
         "--bias-factor",
@@ -64,7 +72,12 @@ class Args(tap.TypedArgs):
     quiet: bool = tap.arg("--quiet", default=True)
     dry_run: bool = tap.arg("--dry-run", default=False)
     test_interval: int = tap.arg("--test-interval", default=50_000)
-    logdir_prefix: str = tap.arg("--logdir-prefix", default="bias-", help="Prefix of the experiment log directories.")
+
+    @property
+    def logdir_prefix(self):
+        if self.n_bias == "auto" or self.n_bias > 0:
+            return "bias-"
+        return "unbiased-"
 
     @property
     def requested_seeds(self):
@@ -100,18 +113,20 @@ def make_journal_trainer(
     factor: float,
 ):
     """
-    Rebuild a tuned trainer from the journal parameters and bias its replay memory.
+    Rebuild a tuned trainer from the journal parameters, optionally biasing its replay memory.
 
     The trainer is built by the very factory of the tuning study, so that the parameters read from
-    the journal are replayed into the exact search space that produced them: the biased condition
-    and its control therefore only differ by the demonstrations held in the memory, whose capacity
-    remains the tuned `memory_size`.
+    the journal are replayed into the same search space that produced them. The online memory
+    retains the tuned `memory_size`; the demonstration items are additional permanent storage.
+
+    @ai-edited
     """
     if algo not in ("dqn", "vdn", "qmix"):
         raise NotImplementedError(f"Only value-based algorithms are in the scope of this study, got {algo!r}.")
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": tuning.GAMMA}
     trainer = tuning.make_dqn_trainer(trial, algo, env, n_steps, catch_all)
-    trainer.memory = bias_memory(trainer.memory, demos, factor)
+    if len(demos) > 0:
+        trainer.memory = bias_memory(trainer.memory, demos, factor)
     return trainer
 
 
@@ -213,8 +228,7 @@ def bias_memory(base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], d
     Episode memories (recurrent networks) are biased with whole episodes, transition memories with
     the individual transitions of those same episodes. Demonstrations are persisted once as a
     pickle artifact and materialized lazily in each worker. The wrapped memory keeps the capacity
-    that the trainer asked for, so a biased run only differs from its control by the extra,
-    never-evicted items.
+    the trainer asked for, with the never-evicted items added on top of that capacity.
 
     @ai-edited
     """
@@ -223,13 +237,20 @@ def bias_memory(base_memory: ReplayMemory[Transition] | ReplayMemory[Episode], d
     return BiasedMemory.from_episodes(demos, base_memory, factor=factor)
 
 
+def demonstration_count(args: Args) -> int:
+    """Resolve 'auto' to the full training pool size."""
+    return args.pool_size if args.n_bias == "auto" else args.n_bias
+
+
 def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     """
     Create (or resume) the biased experiment of one algorithm.
 
-    The bias lives in the trainer's `memory`, which is serialised with the experiment: an existing
-    experiment is resumed as it is, demonstrations included, and the layouts of its pool are never
-    solved again.
+    The bias lives in the trainer's `memory`, which is serialized with the experiment: an existing
+    experiment is loaded as it is, demonstrations included, and the layouts of its pool are never
+    solved again. Missing seeds start new runs, not checkpoint-based training resumes.
+
+    @ai-edited
     """
     logdir = experiment_logdir(spec, algo, args.n_steps, args.pool_size, args.logdir_prefix)
     try:
@@ -237,14 +258,70 @@ def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     except FileNotFoundError:
         pass
     params = load_best_params(args.study_journal, algo)
-    demos = make_demonstrations(spec, args.n_bias or args.pool_size, args.offset)
+    count = demonstration_count(args)
+    demos = make_demonstrations(spec, count, args.offset) if count else []
     train_env = make_env(spec.path, args.pool_size, offset=args.offset, time_limit=spec.time_limit)
     test_env = make_env(spec.path, args.n_tests, offset=args.offset + args.pool_size, time_limit=spec.time_limit)
     trial = cast(optuna.Trial, FixedTrial(params))
     trainer = make_journal_trainer(trial, algo, train_env, demos, args.n_steps, args.bias_factor)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
+    export_parameters(exp, args, spec, algo, params)
     logger.info(f"Created experiment in {exp.logdir} with parameters {params}")
     return exp
+
+
+def export_parameters(exp: marl.Experiment, args: Args, spec: PoolSpec, algo: Algo, params: dict):
+    """Export the original experiment specification and layout identities for later verification. @ai-generated"""
+    layouts = layout_files(spec.path)[args.offset : args.offset + args.pool_size + args.n_tests]
+    selected = []
+    for layout in layouts:
+        selected.append({"name": layout.name, "sha256": hashlib.sha256(layout.read_bytes()).hexdigest()})
+    memory = exp.trainer.memory
+    biased = isinstance(memory, BiasedMemory)
+    count = demonstration_count(args)
+    manifest = {
+        "principle": "seeded replay memory" if biased else "standard replay memory",
+        "algorithm": algo,
+        "trainer": json.loads(exp.trainer.to_json()),
+        "pool_directory": str(spec.path.resolve()),
+        "time_limit": spec.time_limit,
+        "observation_type": "perspective",
+        "state_type": "flattened",
+        "sequential_pool": True,
+        "offset": args.offset,
+        "training_layouts": selected[: args.pool_size],
+        "test_layouts": selected[args.pool_size :],
+        "demonstration_layouts": [item["name"] for item in selected[:count]],
+        "solver": {"method": "find_shortest", "collect_gems": True, "time_limit": spec.time_limit} if biased else None,
+        "tuning": {
+            "journal": str(args.study_journal.resolve()),
+            "study_name": f"{algo.upper()}-{STUDY_LAYOUT_TYPE}",
+            "best_params": params,
+        },
+        "replay": {
+            "bias_factor": args.bias_factor if biased else None,
+            "demonstration_items": memory.n_bias if biased else 0,
+            "demonstration_sha256": memory.demonstrations.checksum if biased else None,
+            "online_capacity": memory.wrapped.max_size if biased else memory.max_size,
+            "sampling": "weighted_without_replacement" if biased else "uniform_without_replacement",
+        },
+        "run": {
+            "n_steps": args.n_steps,
+            "requested_seeds": args.requested_seeds,
+            "test_interval": args.test_interval,
+            "n_tests": args.n_tests,
+            "n_jobs": args.n_jobs,
+            "gpu_strategy": args.gpu_strategy,
+            "disabled_gpus": args.disabled_gpus,
+            "save_weights": True,
+            "save_actions": True,
+        },
+    }
+    path = Path(exp.logdir) / PARAMETERS_FILE
+    with path.open("w") as output:
+        json.dump(manifest, output, indent=2)
+        output.write("\n")
+    logger.info(f"Exported experiment parameters to {path}")
 
 
 def run_experiment(exp: marl.Experiment, args: Args):
@@ -283,8 +360,8 @@ def main(args: Args):
         raise ValueError(f"--pool-size must be a positive integer, got {args.pool_size}")
     if args.n_tests <= 0:
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
-    if args.n_bias < 0 or args.n_bias > args.pool_size:
-        raise ValueError(f"--n-bias must be in [0, {args.pool_size}], got {args.n_bias}")
+    if args.n_bias != "auto" and (args.n_bias < 0 or args.n_bias > args.pool_size):
+        raise ValueError(f"--n-bias must be 'auto' or in [0, {args.pool_size}], got {args.n_bias}")
     if not args.pool_dirs:
         raise ValueError("Provide at least one pool directory (e.g. layouts/canonicals/asymmetric).")
     for pool_dir in args.pool_dirs:
