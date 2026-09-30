@@ -243,4 +243,4 @@ class PPO(Trainer):
     def make_agent(self):
         from marl.agents import SimpleAgent
 
-        return SimpleAgent(self.actor)
+        return SimpleAgent.from_actor(self.actor)

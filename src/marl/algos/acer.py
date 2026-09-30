@@ -171,7 +171,7 @@ class ACER(Trainer):
     def make_agent(self):
         from marl.agents import SimpleAgent
 
-        return SimpleAgent(self.actor, record_probabilities=True)
+        return SimpleAgent.from_actor(self.actor, record_probabilities=True)
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
         return {}

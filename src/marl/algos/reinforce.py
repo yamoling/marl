@@ -71,4 +71,4 @@ class Reinforce(Trainer):
         """Use the same actor interface for behaviour and training. @ai-edited"""
         from marl.agents import SimpleAgent
 
-        return SimpleAgent(self.actor)
+        return SimpleAgent.from_actor(self.actor)
