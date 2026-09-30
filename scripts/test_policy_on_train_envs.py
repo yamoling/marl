@@ -12,8 +12,9 @@ import random
 import sys
 import time
 import traceback
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ from lle.characterization.plan import profile_plan
 import marl
 from marl import Agent
 from marl.runners import compute_test_seed, seeded_rollout
+from marl.utils.gpu import GPUAllocationError, GPUAllocator
 
 EPISODES_PER_CHECKPOINT = 500
 
@@ -122,14 +124,12 @@ def _evaluate_episode(env: Any, agent: Agent, checkpoint_step: int, test_num: in
 
 
 def process_task(task: Task) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+    """Evaluate checkpoints using the parent's assigned device. @ai-edited"""
     train_logs: list[dict[str, Any]] = []
     test_logs: list[dict[str, Any]] = []
     try:
         run = marl.Run.load(task.runpath)
-        if task.device == "cpu":
-            device = torch.device("cpu")
-        else:
-            device = torch.device(f"cuda:{run.seed % torch.cuda.device_count()}" if torch.cuda.is_available() else "cpu")
+        device = torch.device(task.device)
         print(f"Processing {task.runpath} on {device}")
         agent = run.make_agent().to(device)
         train_env, test_env = None, None
@@ -220,6 +220,54 @@ def write_results(runpath: Path, train_logs: list[dict], test_logs: list[dict], 
         write_pool_results(runpath / "test-policy-on-test-envs.csv", test_logs, overwrite=overwrite)
 
 
+def scheduled_tasks(executor: ProcessPoolExecutor, tasks: list[Task], n_jobs: int):
+    """
+    Dispatch the tasks to at most `n_jobs` workers, placing the GPU tasks with a parent-owned scatter allocator.
+
+    A GPU task that fits on no GPU goes back to the end of the queue. If no queued task can start and no task
+    is running, a `GPUAllocationError` is raised: GPU tasks never fall back to the CPU. CPU tasks do not query GPUs.
+
+    @ai-generated
+    """
+    if any(task.device == "gpu" for task in tasks) and not torch.cuda.is_available():
+        raise GPUAllocationError("CUDA is not available. Use --device=cpu to evaluate on the CPU.")
+    allocator = GPUAllocator("scatter")
+    queue = deque(enumerate(tasks))
+    futures = {}
+    try:
+        while queue or futures:
+            for _ in range(len(queue)):
+                if len(futures) >= n_jobs:
+                    break
+                key, task = queue.popleft()
+                assigned = task
+                if task.device == "gpu":
+                    index = allocator.acquire(key, 0)
+                    if index is None:
+                        queue.append((key, task))
+                        continue
+                    assigned = replace(task, device=f"cuda:{index}")
+                try:
+                    future = executor.submit(process_task, assigned)
+                except BaseException:
+                    if task.device == "gpu":
+                        allocator.release(key)
+                    raise
+                futures[future] = (key, task)
+            if not futures:
+                raise GPUAllocationError(f"No GPU can host any of the {len(queue)} remaining evaluation task(s) and no task is running.")
+            completed, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in completed:
+                key, task = futures.pop(future)
+                if task.device == "gpu":
+                    allocator.release(key)
+                yield future, task
+    finally:
+        for key, task in futures.values():
+            if task.device == "gpu":
+                allocator.release(key)
+
+
 def process_logdirs(
     paths: list[Path],
     n_jobs: int,
@@ -230,6 +278,7 @@ def process_logdirs(
     dry_run: bool,
     device: str = "gpu",
 ):
+    """Evaluate pending runs with coordinated scatter placement. @ai-edited"""
     tasks = [
         t
         for logdir in paths
@@ -252,9 +301,7 @@ def process_logdirs(
         mp_context=multiprocessing.get_context("spawn"),
         max_tasks_per_child=1,
     ) as executor:
-        futures = {executor.submit(process_task, task): task for task in tasks}
-        for future in as_completed(futures):
-            task = futures[future]
+        for future, task in scheduled_tasks(executor, tasks, min(n_jobs, len(tasks))):
             try:
                 train, test, error = future.result()
             except Exception:  # noqa: BLE001 - one failed worker must not discard other workers' results

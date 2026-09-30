@@ -1,6 +1,6 @@
 import subprocess
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Hashable, Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -87,6 +87,106 @@ def _break_tie(gpus: list[GPU], affinity: int | None) -> GPU:
     return gpus[affinity % len(gpus)]
 
 
+class GPUAllocationError(RuntimeError):
+    """Raised when work must run on a GPU but no allowed GPU can host it."""
+
+
+def pick_gpu(
+    gpus: list[GPU],
+    required_memory_mb: int,
+    strategy: Literal["scatter", "group"],
+    *,
+    pending_memory_mb: Mapping[int, int] | None = None,
+    active_workers: Mapping[int, int] | None = None,
+    affinity: int | None = None,
+) -> GPU | None:
+    """
+    Choose the GPU that best hosts `required_memory_mb` according to `strategy`, or None if none fits.
+
+    - `pending_memory_mb`: memory promised to workers on each GPU that is not yet visible in the telemetry.
+    - `active_workers`: number of workers that the caller already assigned to each GPU.
+
+    "scatter" prefers the lowest compute load, i.e. the utilization plus one unit per active worker (which
+    spreads workers that have not initialized CUDA yet), then the most available memory. "group" prefers the
+    least available memory that still fits, so as to pack the workers on as few GPUs as possible. Ties are
+    broken with the `affinity` (see `_break_tie`).
+
+    @ai-generated
+    """
+    pending = pending_memory_mb or {}
+    workers = active_workers or {}
+
+    def available(gpu: GPU) -> int:
+        return gpu.free_memory - pending.get(gpu.index, 0)
+
+    score: Callable[[GPU], tuple[float, ...]]
+    match strategy:
+        case "scatter":
+            score = lambda gpu: (gpu.utilization + workers.get(gpu.index, 0), -available(gpu))
+        case "group":
+            score = lambda gpu: (available(gpu),)
+        case _:
+            raise ValueError(f"Unknown fit strategy: {strategy}. Choose 'group' or 'scatter'")
+    candidates = [gpu for gpu in gpus if available(gpu) > required_memory_mb]
+    if len(candidates) == 0:
+        return None
+    best = min(map(score, candidates))
+    return _break_tie([gpu for gpu in candidates if score(gpu) == best], affinity)
+
+
+class GPUAllocator:
+    """
+    GPU reservations of the workers started by one launcher process.
+
+    Every acquisition refreshes the GPU telemetry. A reservation holds the memory that its worker may still
+    allocate: the launcher lowers it with `set_pending` once the worker's own usage shows up in the telemetry,
+    so that this memory is not counted twice. Independent launchers do not share their reservations.
+    """
+
+    def __init__(
+        self,
+        strategy: Literal["scatter", "group"] = "scatter",
+        disabled_gpus: Collection[int] = (),
+        *,
+        affinity: int | None = None,
+    ):
+        self.strategy: Literal["scatter", "group"] = strategy
+        self.disabled_gpus = disabled_gpus
+        self.affinity = affinity
+        self._reservations: dict[Hashable, tuple[int, int]] = {}
+        """Worker key -> (GPU index, pending memory in MB)"""
+
+    def acquire(self, key: Hashable, required_memory_mb: int) -> int | None:
+        """
+        Reserve `required_memory_mb` on the best GPU for the worker `key` and return the GPU index,
+        or None if no GPU can fit it.
+
+        @ai-generated
+        """
+        if key in self._reservations:
+            raise KeyError(f"Worker {key!r} already holds a GPU reservation")
+        pending = dict[int, int]()
+        workers = dict[int, int]()
+        for index, memory in self._reservations.values():
+            pending[index] = pending.get(index, 0) + memory
+            workers[index] = workers.get(index, 0) + 1
+        gpus = list_gpus(self.disabled_gpus)
+        gpu = pick_gpu(gpus, required_memory_mb, self.strategy, pending_memory_mb=pending, active_workers=workers, affinity=self.affinity)
+        if gpu is None:
+            return None
+        self._reservations[key] = (gpu.index, required_memory_mb)
+        return gpu.index
+
+    def set_pending(self, key: Hashable, pending_memory_mb: int):
+        """Set the memory that the worker `key` may still allocate on its GPU. @ai-generated"""
+        index, _ = self._reservations[key]
+        self._reservations[key] = (index, max(0, pending_memory_mb))
+
+    def release(self, key: Hashable):
+        """Release the reservation of a finished worker. @ai-generated"""
+        del self._reservations[key]
+
+
 def scatter_plan(
     n_runs: int,
     required_memory_mb: int,
@@ -95,20 +195,22 @@ def scatter_plan(
     affinity: int | None = None,
 ):
     """
-    Assign each run to the GPU with the most free memory, accounting for the previous assignments.
+    Plan the placement of `n_runs` simultaneous runs with the "scatter" strategy of `pick_gpu`, accounting
+    for the runs planned before. Use `GPUAllocator` instead when workers start and finish over time.
 
-    Ties between GPUs with the same amount of free memory are broken with the `affinity`, if any.
+    @ai-edited
     """
     gpus = list_gpus(disabled_gpus)
     devices = list[int]()
+    pending = dict[int, int]()
+    workers = dict[int, int]()
     for _ in range(n_runs):
-        candidates = [gpu for gpu in gpus if gpu.free_memory > required_memory_mb]
-        if len(candidates) == 0:
-            raise RuntimeError(f"Not enough GPUs to fit {n_runs} runs with {required_memory_mb} MB each.")
-        most_free = max(gpu.free_memory for gpu in candidates)
-        selected = _break_tie([gpu for gpu in candidates if gpu.free_memory == most_free], affinity)
+        selected = pick_gpu(gpus, required_memory_mb, "scatter", pending_memory_mb=pending, active_workers=workers, affinity=affinity)
+        if selected is None:
+            raise GPUAllocationError(f"Not enough GPUs to fit {n_runs} runs with {required_memory_mb} MB each.")
         devices.append(selected.index)
-        selected.free_memory -= required_memory_mb
+        pending[selected.index] = pending.get(selected.index, 0) + required_memory_mb
+        workers[selected.index] = workers.get(selected.index, 0) + 1
     return devices
 
 
@@ -157,27 +259,12 @@ def select_gpu(
     """
     Select a GPU that can fit the estimated memory requirements.
 
-    GPUs that are equally good according to the fit strategy are discriminated by the `affinity`,
-    if any (see `_break_tie`).
+    See `pick_gpu` for the fit strategies. Concurrent launchers should use a `GPUAllocator` instead,
+    which accounts for the workers that they already started.
+
+    @ai-edited
     """
-
-    def best_fit(gpus: list[GPU], estimated_memory: int, score: Callable[[GPU], float]):
-        candidates = [gpu for gpu in gpus if gpu.free_memory > estimated_memory]
-        if len(candidates) == 0:
-            return None
-        best_score = max(score(gpu) for gpu in candidates)
-        return _break_tie([gpu for gpu in candidates if score(gpu) == best_score], affinity)
-
-    devices = list_gpus(disabled_devices)
-    match fit_strategy:
-        case "group":
-            # The least free memory first, so as to group the runs on a single GPU.
-            return best_fit(devices, estimated_memory_MB, lambda gpu: -gpu.free_memory)
-        case "scatter":
-            # The more utilization, the less the score.
-            return best_fit(devices, estimated_memory_MB, lambda gpu: gpu.free_memory * (1.1 - gpu.utilization))
-        case _:
-            raise ValueError(f"Unknown fit strategy: {fit_strategy}. Choose 'group' or 'scatter'")
+    return pick_gpu(list_gpus(disabled_devices), estimated_memory_MB, fit_strategy, affinity=affinity)
 
 
 def wait_for_fitting_gpu(
@@ -210,15 +297,20 @@ def get_device(
     """
     Get the given (GPU) device that fits the requirements.
 
+    With `device="auto"`, a `GPUAllocationError` is raised when CUDA is unavailable or when no GPU fits:
+    the CPU is only used when requested explicitly.
+
     Arguments:
         - device: "auto" (default), "cuda" or "cpu"
         - fit_strategy:
             - "group": Fit the process in the GPU that has the least free memory (group all possible runs on a single GPU).
-            - "scatter": Fit the process in the GPU that has the most free memory (scatter runs across all GPUs).
+            - "scatter": Prefer the least compute load, then the most free memory.
         - estimated_memory_MB: Estimated memory usage in MB.
         - affinity: Tie-breaker between equally good GPUs. When None (default), the first one is
         always selected. Otherwise, the GPU at index `affinity` (modulo the number of equally good
         GPUs) is selected, which spreads processes with distinct affinities across the devices.
+
+    @ai-edited
     """
     if isinstance(device, torch.device):
         return device
@@ -230,8 +322,11 @@ def get_device(
         return torch.device(device)
 
     if not torch.cuda.is_available():
-        return torch.device("cpu")
+        raise GPUAllocationError("device='auto' requires CUDA, but CUDA is not available. Pass device='cpu' to use the CPU.")
     gpu = select_gpu(fit_strategy, estimated_memory_MB, disabled_devices, affinity=affinity)
     if gpu is None:
-        return torch.device("cpu")
+        raise GPUAllocationError(
+            f"No GPU has more than {estimated_memory_MB} MB of free memory (disabled GPUs: {list(disabled_devices or [])}). "
+            "Free some GPU memory, enable more GPUs, or pass device='cpu' to use the CPU."
+        )
     return torch.device(f"cuda:{gpu.index}")

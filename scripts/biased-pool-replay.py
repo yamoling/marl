@@ -24,6 +24,7 @@ import marl
 from marl.algos import DQN
 from marl.env import EnvConfig
 from marl.models import BiasedMemory, EpisodeMemory, ReplayMemory, TransitionMemory
+from marl.runners import parallel_run
 
 logger = logging.getLogger(__name__)
 
@@ -324,30 +325,32 @@ def export_parameters(exp: marl.Experiment, args: Args, spec: PoolSpec, algo: Al
     logger.info(f"Exported experiment parameters to {path}")
 
 
-def run_experiment(exp: marl.Experiment, args: Args):
+def missing_runs(exp: marl.Experiment, args: Args) -> list[marl.Run]:
+    """
+    Create the runs of the requested seeds that are not complete in the experiment.
+
+    Incomplete seeds restart from step zero: `create_runs` rewrites their `run.json`.
+
+    @ai-edited
+    """
     completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in args.requested_seeds}
-    seeds = list(set(args.requested_seeds) - set(completed_seeds))
-    seeds.sort()
+    seeds = sorted(set(args.requested_seeds) - completed_seeds)
     if len(seeds) == 0:
         logger.info(f"All requested seeds are complete in {exp.logdir}")
-        return
-    logger.info(f"Resuming {exp.logdir} with the missing seeds {seeds}")
-    exp.run(
-        seeds=seeds,
-        save_weights=True,
-        save_actions=True,
-        test_interval=args.test_interval,
-        n_tests=args.n_tests,
-        n_jobs=args.n_jobs,
-        gpu_strategy=args.gpu_strategy,
-        disabled_gpus=args.disabled_gpus,
-        quiet=args.quiet,
-        limit_torch_threads=None,
-    )
+        return []
+    logger.info(f"Queueing {exp.logdir} with the missing seeds {seeds}")
+    return exp.create_runs(seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=True, save_actions=True)
 
 
 def main(args: Args):
-    """Validate the selected pools and launch or preview the requested runs. @ai-edited"""
+    """
+    Validate the selected pools and launch or preview the requested runs.
+
+    The missing runs of every pool and algorithm share a single queue, so that the runs of an experiment
+    start without waiting for the runs of the previous experiments to finish.
+
+    @ai-edited
+    """
     if args.n_seeds <= 0:
         raise ValueError(f"--n-seeds must be positive, got {args.n_seeds}")
     if args.n_jobs <= 0:
@@ -364,6 +367,7 @@ def main(args: Args):
         raise ValueError(f"--n-bias must be 'auto' or in [0, {args.pool_size}], got {args.n_bias}")
     if not args.pool_dirs:
         raise ValueError("Provide at least one pool directory (e.g. layouts/canonicals/asymmetric).")
+    runs = list[marl.Run]()
     for pool_dir in args.pool_dirs:
         if not pool_dir.is_dir():
             raise ValueError(f"Layout pool is not a directory: {pool_dir}")
@@ -385,7 +389,18 @@ def main(args: Args):
                     logger.info(f"[new] {args.n_seeds} runs -> {logdir}")
                 continue
             exp = get_experiment(args, spec, algo)
-            run_experiment(exp, args)
+            runs += missing_runs(exp, args)
+    if len(runs) == 0:
+        return
+    logger.info(f"Starting {len(runs)} runs with {args.n_jobs} parallel jobs")
+    parallel_run(
+        runs,
+        n_jobs=args.n_jobs,
+        gpu_strategy=args.gpu_strategy,
+        disabled_gpus=args.disabled_gpus,
+        quiet=args.quiet,
+        limit_torch_threads=None,
+    )
 
 
 if __name__ == "__main__":

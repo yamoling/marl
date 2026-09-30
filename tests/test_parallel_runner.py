@@ -3,31 +3,20 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from marl.models.run import Run
-from marl.runners.parallel_runner import _start_run, submit
+from marl.runners.parallel_runner import _spawn_worker, _start_run
 
 
-def test_submit_passes_only_run_directory_to_worker():
-    pool = Mock()
-    handle = object()
-    pool.apply_async.return_value = handle
+def test_spawn_worker_passes_only_run_directory():
+    context = Mock()
     run = SimpleNamespace(rundir="logs/example/run-0")
 
-    result = submit(
-        pool,
-        run,
-        "cpu",
-        quiet=True,
-        render_tests=False,
-        estimated_gpu_memory=0,
-        gpu_strategy="scatter",
-        disabled_gpus=(),
-        limit_torch_threads=False,
-    )
+    process = _spawn_worker(context, run, "cpu", quiet=True, render_tests=False, limit_torch_threads=None)
 
-    assert result is handle
-    worker_kwargs = pool.apply_async.call_args.kwargs["kwds"]
-    assert worker_kwargs["rundir"] == run.rundir
-    assert "run" not in worker_kwargs
+    assert process is context.Process.return_value
+    process.start.assert_called_once()
+    args = context.Process.call_args.kwargs["args"]
+    assert args[0] == run.rundir
+    assert run not in args
 
 
 def test_worker_loads_run_from_directory(monkeypatch, tmp_path):
@@ -42,19 +31,8 @@ def test_worker_loads_run_from_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(Run, "load", staticmethod(load))
     monkeypatch.setattr("marl.runners.parallel_runner.simple_run", simple_run)
 
-    result = _start_run(
-        tmp_path.as_posix(),
-        "cpu",
-        quiet=True,
-        render_tests=False,
-        estimated_gpu_memory=0,
-        auto_device_strategy="scatter",
-        disabled_gpus=(),
-        limit_torch_threads=None,
-        device_affinity=None,
-    )
+    _start_run(tmp_path.as_posix(), "cpu", quiet=True, render_tests=False, limit_torch_threads=None)
 
-    assert result == "result"
     assert loaded_paths == [tmp_path]
     simple_run.assert_called_once()
     args = simple_run.call_args.args

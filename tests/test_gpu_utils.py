@@ -1,5 +1,6 @@
 import subprocess
 
+import pytest
 import torch
 
 from marl.utils import gpu
@@ -101,3 +102,80 @@ def test_scatter_plan_affinity_shifts_the_assignment(monkeypatch):
     assert gpu.scatter_plan(4, 1000) == [0, 1, 2, 3]
     assert gpu.scatter_plan(4, 1000, affinity=1) == [1, 2, 3, 0]
     assert gpu.scatter_plan(2, 1000, affinity=3) == [3, 0]
+
+
+def test_scatter_prefers_idle_even_when_busy_gpu_has_more_memory(monkeypatch):
+    devices = [
+        gpu.GPU(0, 24000, 1000, 23000, 70),
+        gpu.GPU(1, 12000, 4000, 8000, 0),
+    ]
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=None: devices)
+    assert gpu.select_gpu("scatter", 1000).index == 1
+    assert gpu.scatter_plan(2, 1000) == [1, 0]
+    assert gpu.select_gpu("group", 1000).index == 1
+
+
+def test_scatter_zero_memory_estimate_still_spreads_workers(monkeypatch):
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=(): _identical_gpus(3))
+    assert gpu.scatter_plan(6, 0) == [0, 1, 2, 0, 1, 2]
+
+
+def test_allocator_refreshes_and_releases(monkeypatch):
+    devices = _identical_gpus(3)
+    snapshots = []
+
+    def list_gpus(disabled_devices):
+        """@ai-generated"""
+        snapshots.append(tuple(disabled_devices))
+        return devices
+
+    monkeypatch.setattr(gpu, "list_gpus", list_gpus)
+    allocator = gpu.GPUAllocator("scatter")
+    assert allocator.acquire("a", 1000) == 0
+    assert allocator.acquire("b", 1000) == 1
+    allocator.release("a")
+    devices[0].utilization = 0.9
+    assert allocator.acquire("c", 1000) == 2
+    allocator.release("c")
+    devices[0].utilization = 0
+    assert allocator.acquire("d", 1000) == 0
+    assert len(snapshots) == 4
+
+
+def test_allocator_respects_memory_capacity(monkeypatch):
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=(): [gpu.GPU(0, 3000, 500, 2500, 0)])
+    allocator = gpu.GPUAllocator("scatter")
+    assert allocator.acquire("a", 1000) == 0
+    assert allocator.acquire("b", 1000) == 0
+    assert allocator.acquire("c", 1000) is None
+    # Once the usage of "a" is visible in the telemetry, its memory is not counted twice.
+    allocator.set_pending("a", 0)
+    assert allocator.acquire("c", 1000) == 0
+    allocator.release("b")
+    allocator.release("c")
+    assert allocator.acquire("d", 2000) == 0
+
+
+def test_group_allocator_packs_until_full(monkeypatch):
+    devices = [gpu.GPU(0, 10000, 1000, 9000, 0), gpu.GPU(1, 10000, 7500, 2500, 0)]
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=(): devices)
+    allocator = gpu.GPUAllocator("group")
+    assert [allocator.acquire(key, 1000) for key in range(3)] == [1, 1, 0]
+
+
+def test_get_device_auto_never_falls_back_to_cpu(monkeypatch):
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=None: [])
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    with pytest.raises(gpu.GPUAllocationError):
+        gpu.get_device("auto")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(gpu.GPUAllocationError):
+        gpu.get_device("auto")
+    assert gpu.get_device("cpu").type == "cpu"
+
+
+def test_scatter_plan_reports_insufficient_capacity(monkeypatch):
+    monkeypatch.setattr(gpu, "list_gpus", lambda disabled_devices=(): [])
+    assert gpu.select_gpu("scatter", 1000) is None
+    with pytest.raises(RuntimeError, match="Not enough GPUs"):
+        gpu.scatter_plan(1, 1000)

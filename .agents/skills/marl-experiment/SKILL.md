@@ -68,7 +68,16 @@ experiment.run(seeds=[3, 4], test_interval=5_000, n_tests=5)
 
 Before adding work, inspect `experiment.runs` and `run.is_complete`. Do not pass an existing seed to `run`: `create_runs` rewrites its `run.json`, and the runner starts at step zero, randomizes the trainer, and opens fresh CSV logs. This is **not** checkpoint-based resume; it can overwrite an interrupted or completed seed's data. Use unused seeds for new runs, or preserve the old directory before deliberately restarting a seed.
 
-For parallel execution, set `n_jobs`, `gpu_strategy` (`"group"` or `"scatter"`), `device`, and optionally `disabled_gpus`. Start with a single seed/job before scheduling a larger sweep.
+For parallel execution, set `n_jobs`, `gpu_strategy` (`"group"` or `"scatter"`), `device`, and optionally `disabled_gpus`. Start with a single seed/job before scheduling a larger sweep. With `device="auto"`, runs are never moved to the CPU implicitly: a `GPUAllocationError` is raised when no GPU can host them, so pass `device="cpu"` explicitly for CPU training.
+
+`Experiment.run` blocks until all its runs finish. To run several experiments without waiting for each one, create their runs (with unused seeds) and pass them all to one shared queue; each experiment gets its own GPU memory estimate:
+
+```python
+from marl.runners import parallel_run
+
+runs = [run for exp in experiments for run in exp.create_runs(seeds=[0, 1, 2], n_tests=1, test_interval=5_000, save_weights=True, save_actions=True)]
+parallel_run(runs, n_jobs=8, gpu_strategy="scatter")
+```
 
 ## Storage and names
 

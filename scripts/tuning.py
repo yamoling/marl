@@ -58,7 +58,7 @@ class Args(tap.TypedArgs):
     )
     n_steps: int = tap.arg(
         "--n-steps",
-        default=1_000_000,
+        default=600_000,
         help="Number of training steps per trial.",
     )
     disabled_gpus: list[int] = tap.arg(

@@ -402,7 +402,8 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
 
         Parameters:
         ---------
-        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their available memory.
+        - `gpu_strategy`: Strategy to select the GPU to run the experiment on when `device` is set to "auto". If "group", fits as many runs as possible on a single GPU. If "scatter", scatters runs across GPUs according to their load, then their available memory. With "auto", a `GPUAllocationError` is raised when no GPU can host the runs: pass `device="cpu"` to train on the CPU.
+        - To queue the runs of several experiments together, pass the runs of their `create_runs` to `marl.runners.parallel_run`.
         - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
         - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
         - `device_affinity`: Tie-breaker between GPUs that are equally good candidates. If None, it is based on the experiment logdir.
