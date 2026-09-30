@@ -15,17 +15,17 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 
 import marl
-from marl.algos import DQN, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
+from marl.algos import ACER, DQN, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
 from marl.env import EnvConfig, LLEPool
 from marl.models import Policy, TransitionMemory
 from marl.nn import mixers, model_bank
 from marl.utils import Schedule
 from marl.utils.tuning import suggest
 
-Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "qplex"]
+Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer", "qplex"]
 Setting = Literal["cooperative", "independent"]
 
-ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "mappo", "ippo")
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer")
 DEFAULT_POOL_DIR = Path("layouts", "tuning", "cooperative")
 TRAIN_POOL_SIZE = 500
 TEST_POOL_SIZE = 500
@@ -229,6 +229,30 @@ def make_ppo_trainer(
     )
 
 
+def make_acer_trainer(
+    trial: optuna.Trial,
+    algo: Literal["macer", "iacer"],
+    env: EnvConfig[DiscreteMARLEnv],
+    catch_all: dict,
+):
+    """Build an episode-based ACER trainer with an independent or mixed critic. @ai-generated"""
+    actor, _ = model_bank.actor_critics.from_env(env, recurrent=False, independent=True)
+    critic = model_bank.qnetworks.from_env(env, recurrent=False, independent=True, duelling=False)
+    mixer = mixers.VDN.from_env(env) if algo == "macer" else None
+    return suggest(
+        ACER,
+        trial,
+        actor=actor,
+        critic=critic,
+        mixer=mixer,
+        train_interval=(1, "episode"),
+        entropy_coef=Schedule.constant(trial.suggest_float("entropy_coef", 1e-4, 0.1, log=True)),
+        gamma=GAMMA,
+        ir_module=None,
+        catch_all=catch_all,
+    )
+
+
 def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv], args: Args):
     """
     Build the requested trainer from an Optuna trial.
@@ -238,6 +262,8 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv
         return make_dqn_trainer(trial, algo, env, args.n_steps, catch_all)
     if algo in ("mappo", "ippo"):
         return make_ppo_trainer(trial, algo, env, catch_all)
+    if algo in ("macer", "iacer"):
+        return make_acer_trainer(trial, algo, env, catch_all)
     raise NotImplementedError()
 
 
@@ -249,9 +275,10 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
     their logs, so that they remain inspectable.
     """
     if trial.number < args.n_jobs:
+        import random
         import time
 
-        time.sleep(trial.number * 5)
+        time.sleep(random.random() * 20)
     train_env = make_env(spec, TRAIN_POOL_SIZE)
     test_env = make_env(spec, TEST_POOL_SIZE, offset=TRAIN_POOL_SIZE)
     trainer = make_trainer(trial, algo, train_env, args)

@@ -116,23 +116,34 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
         res = self.pid is not None
         return res
 
-    @ttl_cache(maxsize=1024, ttl=1)
-    def latest_train_step(self) -> int:
+    @staticmethod
+    def _last_time_step(lf: pl.LazyFrame) -> int:
+        """
+        Last non-null time step of a metrics frame, or 0 if there is none.
+        Robust to empty files, missing columns and truncated last rows (e.g. after a crash).
+
+        @ai-generated
+        """
         try:
-            max_train = self.train_metrics.last().select(TIME_STEP_COL).collect().item()
-            if max_train >= self.n_steps:
-                return max_train
-            max_training_data = self.reader.training_data.last().select(TIME_STEP_COL).collect().item()
-            return max(max_train, max_training_data)
+            df = lf.select(pl.col(TIME_STEP_COL).drop_nulls()).tail(1).collect()
         except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
             return 0
+        if df.height == 0:
+            return 0
+        return int(df.item())
+
+    @ttl_cache(maxsize=1024, ttl=1)
+    def latest_train_step(self) -> int:
+        """@ai-edited"""
+        max_train = LightRun._last_time_step(self.train_metrics)
+        if max_train >= self.n_steps:
+            return max_train
+        return max(max_train, LightRun._last_time_step(self.reader.training_data))
 
     @ttl_cache(maxsize=1024, ttl=1)
     def latest_test_step(self) -> int:
-        try:
-            return self.reader.test_metrics.last().select(TIME_STEP_COL).collect().item()
-        except (pl.exceptions.ColumnNotFoundError, pl.exceptions.NoDataError):
-            return 0
+        """@ai-edited"""
+        return LightRun._last_time_step(self.reader.test_metrics)
 
     @property
     def is_complete(self):

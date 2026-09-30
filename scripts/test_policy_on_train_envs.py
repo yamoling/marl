@@ -159,13 +159,13 @@ def discover_checkpoint_steps(runpath: Path) -> list[int]:
 
 def gather_missing_time_steps(filepath: Path, timesteps: list[int]) -> set[int]:
     try:
-        df = pl.read_csv(filepath)
+        df = pl.read_csv(filepath, ignore_errors=True).drop_nulls()
         missing = set(timesteps)
         for (t, *_), group in df.group_by("time_step"):
             if group.height == 500 and t in missing:
                 missing.remove(t)
         return missing
-    except FileNotFoundError:
+    except (FileNotFoundError, pl.exceptions.NoDataError):
         return set(timesteps)
 
 
