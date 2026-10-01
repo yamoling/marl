@@ -1,5 +1,5 @@
 import marl
-from marl.models import TransitionMemory
+from marl.models import EpisodeMemory, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import qnetworks
 
@@ -7,8 +7,8 @@ from marl.nn.model_bank import qnetworks
 def maser():
     env = marl.env.LLEConfig(6, agent_id=True)
     qnetwork = qnetworks.from_env(env)
-    memory = TransitionMemory(50_000)
-    trainer = marl.algos.MASER(qnetwork, memory, mixer=mixers.VDN.from_env(env))
+    memory = EpisodeMemory(5_000)
+    trainer = marl.algos.MASER(qnetwork, memory, mixer=mixers.VDN.from_env(env), train_interval=(1, "episode"))
     exp = marl.Experiment.create(env, trainer)
     exp.run(16, n_jobs=4, save_weights=False, save_actions=False, limit_torch_threads=None, device_affinity=7)
 

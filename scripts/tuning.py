@@ -15,17 +15,18 @@ from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 
 import marl
-from marl.algos import ACER, DQN, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
+from marl.algos import ACER, DQN, HAVEN, MASER, PPO, VDN, HardUpdate, QMix, SoftUpdate, TargetParametersUpdater
 from marl.env import EnvConfig, LLEPool
-from marl.models import Policy, TransitionMemory
+from marl.models import EpisodeMemory, Policy, TransitionMemory
 from marl.nn import mixers, model_bank
 from marl.utils import Schedule
 from marl.utils.tuning import suggest
 
-Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer", "qplex"]
+Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer", "qplex", "haven", "maser"]
 Setting = Literal["cooperative", "independent"]
 
-ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer")
+ALGOS: tuple[Algo, ...] = ("vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer", "haven", "maser")
+HAVEN_N_SUBGOALS = 8
 DEFAULT_POOL_DIR = Path("layouts", "tuning", "cooperative")
 TRAIN_POOL_SIZE = 500
 TEST_POOL_SIZE = 500
@@ -120,7 +121,7 @@ def parse_pool_spec(pool_dir: Path) -> PoolSpec:
     return PoolSpec(path=pool_dir, time_limit=world.width * world.height, layout_type=layout_type)
 
 
-def make_env(spec: PoolSpec, size: int, *, offset: int = 0) -> LLEPool:
+def make_env(spec: PoolSpec, size: int, *, offset: int = 0, extra_padding_size: int | None = None) -> LLEPool:
     """
     Create a perspective-observation, flattened-state layout pool.
     """
@@ -128,14 +129,18 @@ def make_env(spec: PoolSpec, size: int, *, offset: int = 0) -> LLEPool:
         spec.path,
         size,
         offset=offset,
+        extra_padding_size=extra_padding_size,
         time_limit=spec.time_limit,
         obs_type="perspective",
         state_type="flattened",
     )
 
 
-def suggest_train_policy(trial: optuna.Trial, env: EnvConfig[DiscreteMARLEnv], n_steps: int) -> tuple[Policy, bool]:
-    match trial.suggest_categorical("train_policy.__type__", ["epsilon-greedy", "noisy", "softmax"]):
+def suggest_train_policy(
+    trial: optuna.Trial, env: EnvConfig[DiscreteMARLEnv], n_steps: int, *, allow_noisy: bool = True
+) -> tuple[Policy, bool]:
+    choices = ["epsilon-greedy", "noisy", "softmax"] if allow_noisy else ["epsilon-greedy", "softmax"]
+    match trial.suggest_categorical("train_policy.__type__", choices):
         case "noisy":
             return marl.policy.ArgMax(), True
         case "softmax":
@@ -195,6 +200,121 @@ def make_dqn_trainer(
         case "qmix":
             return suggest(QMix, trial, mixer=mixers.QMix.from_env(env), **shared_kwargs)
     raise NotImplementedError()
+
+
+def make_maser_trainer(
+    trial: optuna.Trial,
+    env: EnvConfig[DiscreteMARLEnv],
+    n_steps: int,
+    catch_all: dict,
+):
+    """Build a MASER trainer (episode replay, QMix mixer). @ai-generated"""
+    train_policy, noisy = suggest_train_policy(trial, env, n_steps)
+    qnetwork = model_bank.qnetworks.from_env(
+        env,
+        recurrent=False,
+        independent=True,
+        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
+        noisy=noisy,
+    )
+    mixer = trial.suggest_categorical("mixer", ["vdn", "qmix"])
+    return suggest(
+        MASER,
+        trial,
+        qnetwork=qnetwork,
+        mixer=mixers.QMix.from_env(env) if mixer == "qmix" else mixers.VDN.from_env(env),
+        gamma=GAMMA,
+        lr=trial.suggest_float("lr", 5e-5, 3e-3, log=True),
+        batch_size=trial.suggest_int("batch_size", 8, 32),
+        memory=EpisodeMemory(trial.suggest_int("memory_size", 500, 10_000, step=100)),
+        train_interval=(1, "episode"),
+        target_updater=suggest_target_updater(trial),
+        optimiser_type=trial.suggest_categorical("optimiser_type", ["adam", "rmsprop"]),
+        double_qlearning=True,
+        train_policy=train_policy,
+        test_policy=marl.policy.ArgMax(),
+        ir_module=None,
+        vbe=None,
+        catch_all=catch_all,
+    )
+
+
+def make_haven_trainer(
+    trial: optuna.Trial,
+    env: EnvConfig[DiscreteMARLEnv],
+    n_steps: int,
+    catch_all: dict,
+):
+    """Build a HAVEN trainer from a macro DQN and a worker DQN sharing their hyperparameters. @ai-generated"""
+    n_subgoals = HAVEN_N_SUBGOALS
+    n_workers = env.n_agents
+    n_meta_extras = env.extras_shape[0] - n_subgoals
+    n_agent_extras = 0
+    k = trial.suggest_int("k", 2, 10)
+    duelling = trial.suggest_categorical("qnetwork.duelling", [True, False])
+    meta_qnetwork = model_bank.qnetworks.QCNN(
+        n_subgoals, n_workers, env.observation_shape, (n_meta_extras + n_subgoals,), duelling=duelling
+    )
+    worker_qnetwork = model_bank.qnetworks.QCNN(
+        env.n_actions, n_workers, env.observation_shape, (n_meta_extras + n_agent_extras + n_subgoals,), duelling=duelling
+    )
+    memory_size = trial.suggest_int("memory_size", 5_000, 100_000, step=1_000)
+    shared = {
+        "gamma": GAMMA,
+        "lr": trial.suggest_float("lr", 5e-5, 3e-3, log=True),
+        "batch_size": trial.suggest_int("batch_size", 32, 256, step=8),
+        "train_interval": (5, "step"),
+        "optimiser_type": trial.suggest_categorical("optimiser_type", ["adam", "rmsprop"]),
+        "double_qlearning": True,
+        "test_policy": marl.policy.ArgMax(),
+        "ir_module": None,
+        "vbe": None,
+        "catch_all": catch_all,
+    }
+    meta_policy, _ = suggest_train_policy(trial, env, n_steps, allow_noisy=False)
+    meta_trainer = suggest(
+        DQN,
+        trial,
+        prefix="meta",
+        qnetwork=meta_qnetwork,
+        memory=TransitionMemory(max(1, memory_size // k)),
+        mixer=mixers.VDN(),
+        target_updater=suggest_target_updater(trial),
+        train_policy=meta_policy,
+        **shared,
+    )
+    worker_trainer = suggest(
+        DQN,
+        trial,
+        prefix="worker",
+        qnetwork=worker_qnetwork,
+        memory=TransitionMemory(memory_size),
+        mixer=mixers.VDN(),
+        target_updater=suggest_target_updater(trial),
+        train_policy=marl.policy.EpsilonGreedy.linear(
+            1.0,
+            trial.suggest_float("worker.epsilon_end", 0.01, 0.1),
+            trial.suggest_int("worker.epsilon_n_steps", int(0.01 * n_steps), int(0.5 * n_steps)),
+        ),
+        **shared,
+    )
+    return suggest(
+        HAVEN,
+        trial,
+        meta_trainer=meta_trainer,
+        worker_trainer=worker_trainer,
+        n_workers=n_workers,
+        n_subgoals=n_subgoals,
+        k=k,
+        n_meta_extras=n_meta_extras,
+        n_agent_extras=n_agent_extras,
+        n_meta_warmup_steps=0,
+        value_network=None,
+        value_mixer=None,
+        value_lr=None,
+        use_previous_meta_action=True,
+        catch_all=catch_all,
+    )
 
 
 def make_ppo_trainer(
@@ -264,6 +384,10 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: EnvConfig[DiscreteMARLEnv
         return make_ppo_trainer(trial, algo, env, catch_all)
     if algo in ("macer", "iacer"):
         return make_acer_trainer(trial, algo, env, catch_all)
+    if algo == "maser":
+        return make_maser_trainer(trial, env, args.n_steps, catch_all)
+    if algo == "haven":
+        return make_haven_trainer(trial, env, args.n_steps, catch_all)
     raise NotImplementedError()
 
 
@@ -279,8 +403,9 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
         import time
 
         time.sleep(random.random() * 20)
-    train_env = make_env(spec, TRAIN_POOL_SIZE)
-    test_env = make_env(spec, TEST_POOL_SIZE, offset=TRAIN_POOL_SIZE)
+    padding = HAVEN_N_SUBGOALS if algo == "haven" else None
+    train_env = make_env(spec, TRAIN_POOL_SIZE, extra_padding_size=padding)
+    test_env = make_env(spec, TEST_POOL_SIZE, offset=TRAIN_POOL_SIZE, extra_padding_size=padding)
     trainer = make_trainer(trial, algo, train_env, args)
     logdir = Path("logs", f"optuna-{algo}-{spec.layout_type}-{trial.number}")
     experiment = marl.Experiment.create(

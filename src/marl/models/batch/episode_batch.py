@@ -104,6 +104,61 @@ class EpisodeBatch(Batch):
         all_obs_ = np.array([e.all_observations for e in self.episodes], dtype=np.float32)
         return torch.from_numpy(all_obs_).transpose(1, 0).to(self.device)
 
+    @cached_property
+    def _packed_indices(self) -> torch.Tensor:
+        """
+        Flat indices, in a (batch, time + 1) layout, of the items of `all_obs` that are not padding.
+
+        Computed on the CPU so that unpacking does not require a device synchronisation.
+
+        @ai-generated
+        """
+        n_steps = self._max_episode_len + 1
+        indices = np.concatenate([np.arange(len(e) + 1) + i * n_steps for i, e in enumerate(self._base_episodes)])
+        return torch.from_numpy(indices).to(self.device)
+
+    @cached_property
+    def packed_all_obs(self) -> torch.Tensor:
+        """
+        The non-padding items of `all_obs`, i.e. a tensor of shape (n_valid, *obs_shape) ordered by episode, then
+        by time step. Use `unpack_all` to restore the (time + 1, batch, ...) layout of the outputs computed from it.
+
+        Building it is much cheaper than `all_obs` when episodes have different lengths. It is built from the
+        stored episodes and therefore ignores any value assigned to `obs` or `next_obs`.
+
+        @ai-generated
+        """
+        return self._stack_to_device([o for e in self._base_episodes for o in e.all_observations])
+
+    @cached_property
+    def packed_all_extras(self) -> torch.Tensor:
+        """The non-padding items of `all_extras`, ordered like `packed_all_obs`. @ai-generated"""
+        return self._stack_to_device([x for e in self._base_episodes for x in e.all_extras])
+
+    def _stack_to_device(self, arrays: list[np.ndarray]) -> torch.Tensor:
+        """
+        Stack float32 arrays into a tensor on `self.device`. For CUDA devices, stack them directly into pinned memory
+        to speed up the (asynchronous) transfer.
+
+        @ai-generated
+        """
+        if self.device.type != "cuda":
+            return torch.from_numpy(np.array(arrays, dtype=np.float32)).to(self.device)
+        stacked = torch.empty((len(arrays), *np.shape(arrays[0])), dtype=torch.float32, pin_memory=True)
+        np.stack(arrays, out=stacked.numpy(), casting="unsafe")
+        return stacked.to(self.device, non_blocking=True)
+
+    def unpack_all(self, packed: torch.Tensor) -> torch.Tensor:
+        """
+        Scatter a tensor of shape (n_valid, *rest) computed from `packed_all_obs` into a zero-padded tensor of shape
+        (time + 1, batch, *rest), i.e. the layout of `all_obs`.
+
+        @ai-generated
+        """
+        unpacked = packed.new_zeros(self.size * (self._max_episode_len + 1), *packed.shape[1:])
+        unpacked = unpacked.index_copy(0, self._packed_indices, packed)
+        return unpacked.view(self.size, self._max_episode_len + 1, *packed.shape[1:]).transpose(0, 1)
+
     @property
     def extras(self) -> torch.Tensor:
         return self._extras

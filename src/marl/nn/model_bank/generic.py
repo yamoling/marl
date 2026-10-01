@@ -61,8 +61,11 @@ class MLP(NN):
     def forward(self, obs: torch.Tensor, extras: torch.Tensor, /) -> torch.Tensor:
         *dims, _ = obs.shape
         obs = torch.concat((obs, extras), dim=-1)
+        if self.independent and obs.ndim != 3:
+            # Independent layers use `bmm`, which needs (batch, n_agents, features) inputs: flatten leading dims (e.g. time).
+            obs = obs.reshape(-1, *obs.shape[-2:])
         x = self.nn.forward(obs)
-        return x.view(*dims, *self.output_shape)
+        return x.reshape(*dims, *self.output_shape)
 
     def __hash__(self):
         return id(self)
