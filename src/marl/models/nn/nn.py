@@ -1,6 +1,7 @@
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any, Literal
 
@@ -53,7 +54,7 @@ class NN(torch.nn.Module, Serializable):
                     subchild.to(device)
         return self
 
-    @property
+    @cached_property
     def is_recurrent(self):
         for nn in self.children():
             if isinstance(nn, NN) and nn.is_recurrent:

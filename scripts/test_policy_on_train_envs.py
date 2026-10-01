@@ -30,6 +30,8 @@ from marl.runners import compute_test_seed, seeded_rollout
 from marl.utils.gpu import GPUAllocationError, GPUAllocator
 
 EPISODES_PER_CHECKPOINT = 500
+torch.set_num_threads(4)
+torch.set_num_interop_threads(4)
 
 
 def parse_args() -> argparse.Namespace:

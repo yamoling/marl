@@ -1,3 +1,4 @@
+import random
 from abc import abstractmethod
 from collections import deque
 from collections.abc import Iterable
@@ -5,7 +6,6 @@ from dataclasses import KW_ONLY, dataclass, field
 from functools import cached_property
 from typing import Literal
 
-import numpy as np
 from marlenv import Episode, Transition
 from typing_extensions import TypeVar
 
@@ -46,8 +46,14 @@ class ReplayMemory[T](Serializable):
         pass
 
     def sample(self, batch_size: int) -> Batch:
-        """Sample the memory to retrieve a `Batch`"""
-        indices = np.random.choice(range(len(self)), batch_size, replace=False)
+        """
+        Sample the memory to retrieve a `Batch`.
+
+        `random.sample` is O(batch_size), whereas `np.random.choice(..., replace=False)` permutes the whole memory.
+
+        @ai-edited
+        """
+        indices = random.sample(range(len(self)), batch_size)
         return self.get_batch(indices)
 
     @abstractmethod

@@ -1,13 +1,13 @@
 from copy import copy, deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeGuard
 
 import torch
 from marlenv import Episode, Observation, State, Transition
 
 from marl import policy
-from marl.models import Agent, Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
+from marl.models import NN, Agent, Batch, Mixer, Policy, QNetwork, ReplayMemory, Trainer
 from marl.models.batch import EpisodeBatch
 from marl.utils.tuning import tuning
 
@@ -79,7 +79,14 @@ class DQN[M: (Mixer | None)](Trainer):
             if self.mixer is not None and self.target_mixer is not None:
                 self.target_mixer.load_state_dict(self.mixer.state_dict())
 
-    def _make_optimiser(self, fused: bool = False):
+    def _make_optimiser(self, fused: bool | None = None):
+        """
+        Args:
+            fused: None lets PyTorch pick the multi-tensor (foreach) implementation on CUDA. Note that an explicit
+                `False` falls back to the much slower per-parameter loop.
+
+        @ai-edited
+        """
         match self.optimiser_type:
             case "adam":
                 return torch.optim.Adam(self.target_updater.parameters, lr=self.lr, fused=fused)
@@ -127,17 +134,24 @@ class DQN[M: (Mixer | None)](Trainer):
         logs = logs | self.target_updater.update(time_step)
         return logs
 
-    def _compute_qtargets(self, batch: Batch):
-        """Bootstrap legal actions and pass the selected joint action to mixers. @ai-generated"""
-        # We use the all_obs_ and all_extras_ to handle the case of recurrent qnetworks that require the first element of the sequence.
-        next_qvalues = self.qtarget.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+    def _compute_qtargets(self, batch: Batch, next_online_qvalues: torch.Tensor | None = None):
+        """
+        Bootstrap legal actions and pass the selected joint action to mixers.
+
+        Args:
+            next_online_qvalues: Q-values of the next observations by the online network, used for double
+                Q-learning. Computed here if not given.
+        """
+        next_qvalues = self._all_qvalues(self.qtarget, batch)[1:]
         # For double q-learning, we use the qnetwork to select the best action. Otherwise, we use the target qnetwork.
-        if self.double_qlearning:
+        if next_online_qvalues is not None:
+            qvalues_for_index = next_online_qvalues
+        elif self.double_qlearning:
             # It is necessary to switch to eval mode for some layers such as NoisyLayers.
             # Not switching to eval mode will cause the predicted Q-values to be off and
             # will cause torch to crash with a RuntimeError because of version mismatch.
             self.qnetwork.eval()
-            qvalues_for_index = self.qnetwork.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+            qvalues_for_index = self._all_qvalues(self.qnetwork, batch)[1:]
             self.qnetwork.train()
         else:
             qvalues_for_index = next_qvalues
@@ -171,9 +185,59 @@ class DQN[M: (Mixer | None)](Trainer):
             batch.rewards = batch.rewards + ir
         return batch, logs
 
+    @staticmethod
+    def _can_pack(batch: Batch, network: NN) -> TypeGuard[EpisodeBatch]:
+        """
+        Whether `network` can be applied on the padding-free items of the batch only, which requires an
+        `EpisodeBatch`. A `TypeGuard` (not `TypeIs`) since a `False` result does not exclude an `EpisodeBatch`.
+        """
+        return isinstance(batch, EpisodeBatch) and not network.is_recurrent
+
+    def _all_qvalues(self, network: QNetwork, batch: Batch) -> torch.Tensor:
+        """
+        Q-values of `all_obs`, i.e. from the first observation (which recurrent networks need) to the last next
+        observation.
+
+        With episode batches, non-recurrent networks are only applied to the items that are not padding (whose
+        Q-values are then zero).
+        """
+        if self._can_pack(batch, network):
+            return batch.unpack_all(network.batch_qvalues(batch.packed_all_obs, batch.packed_all_extras))
+        return network.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)
+
+    def _compute_qvalues_and_next(self, batch: Batch):
+        """
+        Compute the online Q-values like `_compute_qvalues`, and also return the (detached) online Q-values of the
+        next observations when they come for free, i.e. for double Q-learning on episode batches.
+
+        In this case, both come from a single forward pass over `all_obs`, since `all_obs[t] == obs[t]` on every
+        non-padding time step. Noisy networks are excluded because their train and eval modes differ.
+
+        Returns:
+            The Q-values of all actions, the (mixed) Q-values of the chosen actions and the next online Q-values
+            (or None).
+
+        @ai-generated
+        """
+        # Subclasses that redefine how Q-values are computed (e.g. LAN) keep their own computation.
+        overridden = type(self)._compute_qvalues is not DQN._compute_qvalues
+        if overridden or not isinstance(batch, EpisodeBatch) or self.qnetwork.noisy:
+            return *self._compute_qvalues(batch), None
+        every_qvalues = self._all_qvalues(self.qnetwork, batch)
+        all_qvalues, qvalues = self._mix_chosen_qvalues(every_qvalues[:-1], batch)
+        next_online_qvalues = every_qvalues[1:].detach() if self.double_qlearning else None
+        return all_qvalues, qvalues, next_online_qvalues
+
     def _compute_qvalues(self, batch: Batch):
-        """Gather the selected action while preserving any objective dimension."""
-        all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
+        """Gather the selected action while preserving any objective dimension. @ai-edited"""
+        if self._can_pack(batch, self.qnetwork):
+            all_qvalues = self._all_qvalues(self.qnetwork, batch)[:-1]
+        else:
+            all_qvalues = self.qnetwork.batch_qvalues(batch.obs, batch.extras, masks=batch.masks)
+        return self._mix_chosen_qvalues(all_qvalues, batch)
+
+    def _mix_chosen_qvalues(self, all_qvalues: torch.Tensor, batch: Batch):
+        """Select the Q-values of the chosen actions and mix them. @ai-generated"""
         if self.qnetwork.is_multi_objective:
             indices = batch.actions.unsqueeze(-1).unsqueeze(-1).expand(*batch.actions.shape, 1, self.qnetwork.n_objectives)
             qvalues = torch.gather(all_qvalues, dim=-2, index=indices).squeeze(-2)
@@ -200,9 +264,12 @@ class DQN[M: (Mixer | None)](Trainer):
         return loss, td_error
 
     def train(self, time_step: int, batch: Batch):
-        _, qvalues = self._compute_qvalues(batch)
+        _, qvalues, next_online_qvalues = self._compute_qvalues_and_next(batch)
         with torch.no_grad():
-            qtargets = self._compute_qtargets(batch)
+            if next_online_qvalues is None:
+                qtargets = self._compute_qtargets(batch)
+            else:
+                qtargets = self._compute_qtargets(batch, next_online_qvalues)
         td_loss, td_error = self._compute_td_loss(qvalues, qtargets, batch)
         logs = {"td-loss": float(td_loss.item())}
         self.optimiser.zero_grad()

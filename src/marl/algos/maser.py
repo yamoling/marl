@@ -4,8 +4,7 @@ from dataclasses import KW_ONLY, dataclass, field
 import torch
 import torch.nn.functional as F
 
-from marl.models import NN, Batch, Mixer, QNetwork
-from marl.models.batch import EpisodeBatch
+from marl.models import NN, Batch, Mixer
 from marl.utils.tuning import tuning
 
 from .dqn import DQN
@@ -167,50 +166,11 @@ class MASER(DQN[Mixer]):
         individual_rewards = contributions * proxy_rewards.unsqueeze(-1) + self.intrinsic_weight * intrinsic_rewards
         return proxy_rewards, individual_rewards
 
-    @staticmethod
-    def _can_pack(network: NN, batch: Batch) -> bool:
-        """Whether `network` can be applied on the padding-free items of the batch only. @ai-generated"""
-        return isinstance(batch, EpisodeBatch) and not network.is_recurrent
-
-    def _all_qvalues(self, network: QNetwork, batch: Batch) -> torch.Tensor:
-        """
-        Q-values of `all_obs`, with shape (time + 1, batch, n_agents, n_actions).
-
-        Non-recurrent networks are only applied to the items that are not padding (whose Q-values are then zero).
-
-        @ai-generated
-        """
-        if self._can_pack(network, batch):
-            assert isinstance(batch, EpisodeBatch)
-            return batch.unpack_all(network.batch_qvalues(batch.packed_all_obs, batch.packed_all_extras))
-        return network.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)
-
     def _embeddings(self, batch: Batch) -> torch.Tensor:
         """Representation of the observations, with shape (time, batch, n_agents, embedding_size). @ai-generated"""
-        if self._can_pack(self.representation, batch):
-            assert isinstance(batch, EpisodeBatch)
+        if self._can_pack(batch, self.representation):
             return batch.unpack_all(self.representation.forward(batch.packed_all_obs, batch.packed_all_extras))[:-1]
         return self.representation.forward(batch.all_obs[:-1], batch.all_extras[:-1])
-
-    def _compute_qvalues_and_next(self, batch: Batch):
-        """
-        Compute the online Q-values of the current time steps and, if double Q-learning is used, the online Q-values
-        of the next time steps (detached) that select the bootstrapped actions.
-
-        Unless the network is noisy (whose train and eval modes differ), both come from a single forward pass over
-        `all_obs`, since `all_obs[t] == obs[t]` on every non-padded time step.
-
-        @ai-generated
-        """
-        if self.qnetwork.noisy:
-            all_qvalues, qtotal = self._compute_qvalues(batch)
-            return all_qvalues, qtotal, None
-        every_qvalues = self._all_qvalues(self.qnetwork, batch)
-        all_qvalues = every_qvalues[:-1]
-        chosen_qvalues = all_qvalues.gather(-1, batch.actions.unsqueeze(-1)).squeeze(-1)
-        qtotal = self.mixer.forward_batch(chosen_qvalues, batch, all_qvalues, batch.actions)
-        next_online_qvalues = every_qvalues[1:].detach() if self.double_qlearning else None
-        return all_qvalues, qtotal, next_online_qvalues
 
     def _compute_maser_targets(
         self,
@@ -231,7 +191,7 @@ class MASER(DQN[Mixer]):
             qvalues_for_index = next_online_qvalues
         elif self.double_qlearning:
             self.qnetwork.eval()
-            qvalues_for_index = self.qnetwork.batch_qvalues(batch.all_obs, batch.all_extras, masks=batch.all_masks)[1:]
+            qvalues_for_index = self._all_qvalues(self.qnetwork, batch)[1:]
             self.qnetwork.train()
         else:
             qvalues_for_index = next_qvalues

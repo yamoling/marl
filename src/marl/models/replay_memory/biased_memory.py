@@ -92,7 +92,7 @@ class BiasedMemory[T](ReplayMemory[T]):
         probs = np.ones(len(self))
         probs[: self.n_bias] *= self.factor
         probs /= probs.sum()
-        indices = np.random.choice(range(len(self)), batch_size, replace=False, p=probs)
+        indices = np.random.choice(len(self), batch_size, replace=False, p=probs)
         return self.get_batch(indices)
 
     @override

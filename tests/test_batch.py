@@ -275,6 +275,123 @@ def test_transition_minibatch_preserves_modified_tensors_and_metadata(monkeypatc
     torch.testing.assert_close(child.masks, batch.masks[indices])
 
 
+EPISODE_FIELDS = (
+    "obs",
+    "next_obs",
+    "all_obs",
+    "extras",
+    "next_extras",
+    "all_extras",
+    "states",
+    "next_states",
+    "all_states",
+    "states_extras",
+    "next_states_extras",
+    "available_actions",
+    "next_available_actions",
+    "all_available_actions",
+    "actions",
+    "rewards",
+    "dones",
+    "masks",
+)
+
+
+def _episodes(time_limits=(3, 7, 5), end_game: int = 6):
+    """Episodes of different lengths, some of them done (end_game) and some truncated (time limit). @ai-generated"""
+    from marlenv import Builder, Episode
+
+    episodes = []
+    for time_limit in time_limits:
+        env = Builder(DiscreteMockEnv(end_game=end_game, reward_step=1.5)).time_limit(time_limit, add_extra=False).build()
+        obs, state = env.reset()
+        episode = Episode.new(obs, state)
+        done = False
+        while not done:
+            action = env.sample_action()
+            step = env.step(action)
+            transition = Transition.from_step(obs, state, action, step)
+            transition["custom"] = np.array([float(len(episode))], dtype=np.float32)
+            episode.add(transition)
+            obs, state = step.obs, step.state
+            done = step.done or step.truncated
+        episodes.append(episode)
+    return episodes
+
+
+def _reference_field(episodes, field: str, n_steps: int):
+    """How `EpisodeBatch` used to compute each field: from episodes padded with `Episode.padded`. @ai-generated"""
+    padded = [e.padded(n_steps) if len(e.actions) < n_steps else e for e in episodes]
+    match field:
+        case "all_obs":
+            values = [e.all_observations for e in padded]
+        case "masks":
+            return torch.from_numpy(np.array([e.mask for e in padded], dtype=np.float32)).squeeze(-1).transpose(0, 1)
+        case "dones":
+            return torch.from_numpy(np.array([e.dones for e in padded], dtype=bool).squeeze(-1)).transpose(1, 0)
+        case "rewards":
+            return torch.from_numpy(np.array([e.rewards for e in padded], dtype=np.float32)).transpose(1, 0).squeeze(-1)
+        case "actions":
+            return torch.from_numpy(np.array([e.actions for e in padded])).transpose(1, 0)
+        case "all_states":
+            values = [e.all_states for e in padded]
+        case "all_extras" | "states_extras" | "next_states_extras" | "states" | "next_states":
+            values = [getattr(e, field) for e in padded]
+        case "all_available_actions":
+            return torch.from_numpy(np.array([e.all_available_actions for e in padded], dtype=bool)).transpose(1, 0)
+        case "available_actions" | "next_available_actions":
+            return torch.from_numpy(np.array([getattr(e, field) for e in padded], dtype=bool)).transpose(1, 0)
+        case _:
+            values = [getattr(e, field) for e in padded]
+    return torch.from_numpy(np.array(values, dtype=np.float32)).transpose(1, 0)
+
+
+def test_episode_batch_fields_match_padded_episodes():
+    """Every field must keep the values (including padding), dtypes and shapes of padded episodes. @ai-generated"""
+    episodes = _episodes()
+    assert any(e.is_done for e in episodes) and any(not e.is_done for e in episodes)
+    batch = marl.models.batch.EpisodeBatch(episodes)
+    n_steps = max(len(e) for e in episodes)
+    for field in EPISODE_FIELDS:
+        expected = _reference_field(episodes, field, n_steps)
+        actual = getattr(batch, field)
+        assert actual.dtype == expected.dtype, f"Mismatch dtype for field {field!r}"
+        assert actual.shape == expected.shape, f"Mismatch shape for field {field!r}"
+        assert torch.equal(actual, expected), f"Mismatch values for field {field!r}"
+    expected_custom = torch.from_numpy(np.array([e["custom"] for e in [e.padded(n_steps) for e in episodes]], dtype=np.float32))
+    assert torch.equal(batch["custom"], expected_custom.transpose(1, 0))
+
+
+def test_episode_minibatch_keeps_the_time_dimension_of_its_parent():
+    """PPO indexes parent tensors with minibatch tensors, so both need the same time dimension. @ai-generated"""
+    episodes = _episodes()
+    batch = marl.models.batch.EpisodeBatch(episodes)
+    minibatch = batch.get_minibatch([0, 2])  # The two shortest episodes
+    n_steps = max(len(e) for e in episodes)
+    for field in EPISODE_FIELDS:
+        expected = getattr(batch, field)[:, [0, 2]]
+        actual = getattr(minibatch, field)
+        assert actual.shape == expected.shape, f"Mismatch shape for field {field!r}"
+        assert torch.equal(actual, expected), f"Mismatch values for field {field!r}"
+        assert actual.shape[0] in (n_steps, n_steps + 1)
+
+
+def test_episode_batch_packed_observations_match_all_obs():
+    """Packing and unpacking must round-trip the non-padding items, whichever is computed first. @ai-generated"""
+    episodes = _episodes()
+    for all_obs_first in (True, False):
+        batch = marl.models.batch.EpisodeBatch(episodes)
+        if all_obs_first:
+            batch.all_obs
+        packed = batch.packed_all_obs
+        assert packed.shape[0] == sum(len(e) + 1 for e in episodes)
+        unpacked = batch.unpack_all(packed)
+        valid = batch.all_masks.bool()
+        assert torch.equal(unpacked[valid], batch.all_obs[valid])
+        assert torch.all(unpacked[~valid] == 0)
+        assert torch.equal(batch.unpack_all(batch.packed_all_extras), batch.all_extras)
+
+
 def test_transition_batch_extend_preserves_metadata():
     batch = _make_batch(4)
     batch.gamma = torch.tensor(0.95)
