@@ -19,7 +19,7 @@ from marl.algos import ACER, DQN, HAVEN, MASER, PPO, VDN, HardUpdate, QMix, Soft
 from marl.env import EnvConfig, LLEPool
 from marl.models import EpisodeMemory, Policy, TransitionMemory
 from marl.nn import mixers, model_bank
-from marl.utils import Schedule
+from marl.utils import DeviceLike, Schedule
 from marl.utils.tuning import suggest
 
 Algo = Literal["vdn", "qmix", "dqn", "mappo", "ippo", "macer", "iacer", "qplex", "haven", "maser"]
@@ -72,6 +72,11 @@ class Args(tap.TypedArgs):
         "--gpu-strategy",
         default="scatter",
         help="GPU strategy to use.",
+    )
+    device: DeviceLike = tap.arg(
+        "--device",
+        default="auto",
+        help='Device to use ("auto", "cpu", "cuda:<gpu_id>", or an int index).',
     )
     algos: list[Algo] = tap.arg(
         "--algos",
@@ -137,15 +142,21 @@ def make_env(spec: PoolSpec, size: int, *, offset: int = 0, extra_padding_size: 
 
 
 def suggest_train_policy(
-    trial: optuna.Trial, env: EnvConfig[DiscreteMARLEnv], n_steps: int, *, allow_noisy: bool = True
+    trial: optuna.Trial,
+    env: EnvConfig[DiscreteMARLEnv],
+    n_steps: int,
+    *,
+    allow_noisy: bool = True,
+    n_actions: int | None = None,
 ) -> tuple[Policy, bool]:
+    """Suggest exploration with an optional action count for hierarchical policies. @ai-edited"""
     choices = ["epsilon-greedy", "noisy", "softmax"] if allow_noisy else ["epsilon-greedy", "softmax"]
     match trial.suggest_categorical("train_policy.__type__", choices):
         case "noisy":
             return marl.policy.ArgMax(), True
         case "softmax":
             tau = trial.suggest_float("train_policy.tau", 0.01, 10.0, log=True)
-            return marl.policy.SoftmaxPolicy(env.n_actions, tau=tau), False
+            return marl.policy.SoftmaxPolicy(env.n_actions if n_actions is None else n_actions, tau=tau), False
         case _:
             policy = marl.policy.EpsilonGreedy.linear(
                 1.0,
@@ -271,7 +282,7 @@ def make_haven_trainer(
         "vbe": None,
         "catch_all": catch_all,
     }
-    meta_policy, _ = suggest_train_policy(trial, env, n_steps, allow_noisy=False)
+    meta_policy, _ = suggest_train_policy(trial, env, n_steps, allow_noisy=False, n_actions=n_subgoals)
     meta_trainer = suggest(
         DQN,
         trial,
@@ -423,6 +434,7 @@ def objective(trial: optuna.Trial, algo: Algo, spec: PoolSpec, args: Args) -> fl
         n_tests=TEST_POOL_SIZE,
         n_jobs=args.n_run_jobs,
         gpu_strategy=args.gpu_strategy,
+        device=args.device,
         device_affinity=trial.number,
         disabled_gpus=args.disabled_gpus,
         quiet=True,

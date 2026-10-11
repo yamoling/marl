@@ -46,13 +46,7 @@ class ReplayMemory[T](Serializable):
         pass
 
     def sample(self, batch_size: int) -> Batch:
-        """
-        Sample the memory to retrieve a `Batch`.
-
-        `random.sample` is O(batch_size), whereas `np.random.choice(..., replace=False)` permutes the whole memory.
-
-        @ai-edited
-        """
+        """Sample the memory to retrieve a `Batch`."""
         indices = random.sample(range(len(self)), batch_size)
         return self.get_batch(indices)
 
