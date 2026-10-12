@@ -114,7 +114,12 @@ class PPO(Trainer):
         return returns, advantages
 
     def train(self, step_num: int):
-        """Optimize every rollout item once per epoch, including a final short minibatch. @ai-generated"""
+        """
+        Optimize every rollout item once per epoch, including a final short minibatch.
+
+        The logged quantities stay on the device and are transferred to the host once per call; the only
+        per-minibatch synchronisation left is the KL early-stopping check, when it is enabled.
+        """
         if not self.memory.is_full:
             return {}
         batch = self.memory.as_batch().to(self.device)
@@ -132,7 +137,7 @@ class PPO(Trainer):
         if self.mixer is not None:
             # For IPPO, the advantages are already computed agent-wise.
             advantages = advantages.repeat_interleave(batch.n_agents).view(*advantages.shape, batch.n_agents)
-        log_lists = defaultdict(list)
+        log_lists = defaultdict[str, list[torch.Tensor]](list)
         early_stopped = False
         epoch_indices = (np.random.permutation(batch.size) for _ in range(self.n_epochs))
         minibatches = (
@@ -168,11 +173,11 @@ class PPO(Trainer):
                 agent_masks = minibatch.masks
                 if agent_masks.ndim < ratio.ndim:
                     agent_masks = agent_masks.unsqueeze(-1).expand_as(ratio)
-                approx_kl_div = (((ratio - 1) - log_ratio) * agent_masks).sum().div(agent_masks.sum()).item()
+                approx_kl_div = (((ratio - 1) - log_ratio) * agent_masks).sum().div(agent_masks.sum())
                 log_lists["approx-kl-divergence"].append(approx_kl_div)
             # KL divergence early stopping, cf Stable baselines implementation
             # https://github.com/DLR-RM/stable-baselines3/blob/08d984c3ee30093ea37409cf29cfb7efdd4bdcfd/stable_baselines3/ppo/ppo.py#L267
-            if self.early_stopping_kl is not None and approx_kl_div > 1.5 * self.early_stopping_kl:
+            if self.early_stopping_kl is not None and approx_kl_div.item() > 1.5 * self.early_stopping_kl:
                 early_stopped = True
                 break
 
@@ -209,24 +214,37 @@ class PPO(Trainer):
             loss.backward()
             if self.grad_norm_clipping is not None:
                 norm = torch.nn.utils.clip_grad_norm_(self._parameters, self.grad_norm_clipping)
-                log_lists["norms"].append(norm.detach().cpu().item())
+                log_lists["norms"].append(norm.detach())
             self._optimizer.step()
-            log_lists["actor_loss"].append(actor_loss.item())
-            log_lists["critic_loss"].append(critic_loss.item())
-            log_lists["entropy_loss"].append(entropy_loss.item())
-            log_lists["loss"].append(loss.item())
-            log_lists["ratios"].append(ratio.detach().cpu().numpy())
-            log_lists["entropies"].append(entropy.detach().cpu().numpy())
-        log_lists = {key: np.concatenate([np.asarray(v).reshape(-1) for v in values]) for key, values in log_lists.items()}
+            log_lists["actor_loss"].append(actor_loss.detach())
+            log_lists["critic_loss"].append(critic_loss.detach())
+            log_lists["entropy_loss"].append(entropy_loss.detach())
+            log_lists["loss"].append(loss.detach())
+            log_lists["ratios"].append(ratio.detach())
+            log_lists["entropies"].append(entropy.detach())
         return {
             **ir_logs,
             "early_stopped": early_stopped,
             "ppoc/c1": self.c1.value,
             "ppoc/c2": self.c2.value,
-            **{f"ppoc/mean-{key}": np.mean(values) for key, values in log_lists.items()},
-            **{f"ppoc/max-{key}": np.max(values) for key, values in log_lists.items()},
-            **{f"ppoc/min-{key}": np.min(values) for key, values in log_lists.items()},
+            **self._summarise_logs(log_lists),
         }
+
+    @staticmethod
+    def _summarise_logs(log_lists: dict[str, list[torch.Tensor]]) -> dict[str, float]:
+        """Mean, max and min of every logged quantity, with a single device-to-host transfer. @ai-generated"""
+        if len(log_lists) == 0:
+            return {}
+        with torch.no_grad():
+            stats = []
+            for values in log_lists.values():
+                flat = torch.cat([v.reshape(-1).to(torch.float64) for v in values])
+                stats.append(torch.stack([flat.mean(), flat.max(), flat.min()]))
+            means, maxs, mins = torch.stack(stats).cpu().unbind(-1)
+        logs = {}
+        for stat, values in (("mean", means), ("max", maxs), ("min", mins)):
+            logs.update({f"ppoc/{stat}-{key}": v for key, v in zip(log_lists.keys(), values.tolist())})
+        return logs
 
     def update_step(self, transition: Transition, time_step: int):
         if not isinstance(self.memory, TransitionMemory):
