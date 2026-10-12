@@ -13,6 +13,7 @@ from marl.env import LLEConfig
 from marl.models import EpisodeMemory, Trainer, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import actor_critics, qnetworks
+from marl.policy import EpsilonGreedy
 from marl.runners import parallel_run
 
 logger = logging.getLogger(__name__)
@@ -24,10 +25,18 @@ MASER_MEMORY_SIZE = 5_000
 """Number of episodes in MASER's buffer (as in the paper)."""
 HAVEN_N_SUBGOALS = 8
 HAVEN_K = 5
+EPSILON_START = 1.0
+EPSILON_END = 0.02
+EPSILON_STEPS = 200_000
+
+
+def make_train_policy():
+    """Fresh epsilon-greedy policy, linearly annealed over the first `EPSILON_STEPS` time steps. @ai-generated"""
+    return EpsilonGreedy.linear(EPSILON_START, EPSILON_END, EPSILON_STEPS)
 
 
 def make_env(extra_padding_size: int | None = None):
-    return LLEConfig(6, pbrs="joint", agent_id=True, extra_padding_size=extra_padding_size)
+    return LLEConfig(6, pbrs="joint", pbrs_subgoals="crossing", agent_id=True, extra_padding_size=extra_padding_size)
 
 
 def make_haven():
@@ -50,8 +59,8 @@ def make_haven():
         (n_meta_extras + n_agent_extras + HAVEN_N_SUBGOALS,),
         duelling=False,
     )
-    meta_trainer = algos.DQN(meta_qnetwork, TransitionMemory(MEMORY_SIZE // HAVEN_K), mixer=mixers.VDN())
-    worker_trainer = algos.DQN(worker_qnetwork, TransitionMemory(MEMORY_SIZE), mixer=mixers.VDN())
+    meta_trainer = algos.DQN(meta_qnetwork, TransitionMemory(MEMORY_SIZE // HAVEN_K), mixer=mixers.VDN(), train_policy=make_train_policy())
+    worker_trainer = algos.DQN(worker_qnetwork, TransitionMemory(MEMORY_SIZE), mixer=mixers.VDN(), train_policy=make_train_policy())
     trainer = algos.HAVEN(meta_trainer, worker_trainer, n_workers, HAVEN_N_SUBGOALS, HAVEN_K, n_meta_extras, n_agent_extras)
     return env, trainer
 
@@ -63,21 +72,34 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
     env = make_env()
     match algo:
         case "vdn":
+            # Hyperparameters of the ECAI 2024 paper.
             return env, algos.VDN(
-                qnetworks.from_env(env, independent=True),
+                qnetworks.from_env(env),
                 TransitionMemory(MEMORY_SIZE),
+                train_policy=make_train_policy(),
                 gamma=0.95,
                 lr=5e-4,
                 grad_norm_clipping=10.0,
             )
         case "qmix":
-            return env, algos.QMix(qnetworks.from_env(env), TransitionMemory(MEMORY_SIZE), mixer=mixers.QMix.from_env(env))
+            return env, algos.QMix(
+                qnetworks.from_env(env),
+                TransitionMemory(MEMORY_SIZE),
+                mixer=mixers.QMix.from_env(env),
+                train_policy=make_train_policy(),
+            )
         case "mappo":
             actor, critic = actor_critics.from_env(env, recurrent=False)
             return env, algos.PPO(actor, critic, mixers.VDN())
         case "maser":
             memory = EpisodeMemory(MASER_MEMORY_SIZE)
-            return env, algos.MASER(qnetworks.from_env(env), memory, mixer=mixers.VDN(), train_interval=(1, "episode"))
+            return env, algos.MASER(
+                qnetworks.from_env(env),
+                memory,
+                mixer=mixers.VDN(),
+                train_interval=(1, "episode"),
+                train_policy=make_train_policy(),
+            )
 
 
 class Args(tap.TypedArgs):
@@ -99,7 +121,7 @@ class Args(tap.TypedArgs):
 
 
 def logdir_of(algo: Algo, n_steps: int):
-    return Path("logs", f"lle6-pbrs-{algo}-{n_steps}-bis")
+    return Path("logs", f"lle6-pbrs-{algo}-{n_steps}-crossing-eps{EPSILON_END:g}")
 
 
 def get_experiment(args: Args, algo: Algo) -> marl.Experiment:
