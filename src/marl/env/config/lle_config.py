@@ -14,7 +14,7 @@ class LLEConfig(EnvConfig[lle.LLE]):
     _: KW_ONLY
     obs_type: ObservationTypeLiteral = "layered"
     state_type: ObservationTypeLiteral = "flattened"
-    pbrs: bool = False
+    pbrs: Literal["individual", "joint"] | None = None
     time_limit: int | None = -1
     """If <= 0, set to width * height // 2."""
 
@@ -33,9 +33,9 @@ class LLEConfig(EnvConfig[lle.LLE]):
             case other:
                 raise NotImplementedError(f"Invalid LLE map: {other}")
         builder = lle_builder.obs_type(self.obs_type).state_type(self.state_type)
-        if self.pbrs:
+        if self.pbrs is not None:
             lasers_to_reward = None
             if self.level_or_path == 6:
                 lasers_to_reward = [(4, 0), (6, 12)]
-            builder = builder.pbrs(reward_value=1.0, gamma=1.0, lasers_to_reward=lasers_to_reward)
+            builder = builder.pbrs(reward_value=1.0, gamma=1.0, lasers_to_reward=lasers_to_reward, with_extras=self.pbrs)
         return builder.build()

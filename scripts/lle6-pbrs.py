@@ -27,7 +27,7 @@ HAVEN_K = 5
 
 
 def make_env(extra_padding_size: int | None = None):
-    return LLEConfig(6, pbrs=True, agent_id=True, extra_padding_size=extra_padding_size)
+    return LLEConfig(6, pbrs="joint", agent_id=True, extra_padding_size=extra_padding_size)
 
 
 def make_haven():
@@ -63,7 +63,13 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
     env = make_env()
     match algo:
         case "vdn":
-            return env, algos.VDN(qnetworks.from_env(env), TransitionMemory(MEMORY_SIZE))
+            return env, algos.VDN(
+                qnetworks.from_env(env, independent=True),
+                TransitionMemory(MEMORY_SIZE),
+                gamma=0.95,
+                lr=5e-4,
+                grad_norm_clipping=10.0,
+            )
         case "qmix":
             return env, algos.QMix(qnetworks.from_env(env), TransitionMemory(MEMORY_SIZE), mixer=mixers.QMix.from_env(env))
         case "mappo":
@@ -93,7 +99,7 @@ class Args(tap.TypedArgs):
 
 
 def logdir_of(algo: Algo, n_steps: int):
-    return Path("logs", f"lle6-pbrs-{algo}-{n_steps}")
+    return Path("logs", f"lle6-pbrs-{algo}-{n_steps}-bis")
 
 
 def get_experiment(args: Args, algo: Algo) -> marl.Experiment:
