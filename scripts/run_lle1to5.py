@@ -2,26 +2,34 @@
 Run MAPPO, IPPO, DQN (independent, no mixer), VDN and QMIX on LLE levels 1 to 5 (included) with
 layered observations, for 1M time steps and 10 seeds.
 
-- MAPPO/IPPO use the actor/critic networks from `actor_critics.from_env` and the `PPO` arguments
-  set in `make_trainer`. MAPPO uses a VDN (sum) mixer over the individual critic values.
-- DQN/VDN/QMIX use the default hyperparameters of their trainer class, the default Q-network from
-  `qnetworks.from_env`, and a `TransitionMemory` of `MEMORY_SIZE` transitions (the memory has no
-  default). QMIX uses `mixers.QMix.from_env` with its default sizes.
+The hyperparameters of every algorithm are those of the best trial of its study in the
+certified-cooperation tuning journal (`tunings/certified-cooperation.journal`, studies named
+`<ALGO>-<layout type>`). The trainers are rebuilt by replaying these parameters with a `FixedTrial`
+into the search space that produced the journal (`scripts/tuning.py` at commit d2ea0990):
+
+- MAPPO/IPPO: uniform-width actor/critic MLPs, PPO arguments and, for MAPPO, the VDN or QMIX mixer.
+- DQN/VDN/QMIX: uniform-width Q-network, training policy, target updater and the other tuned trainer
+  fields. The memory was not tuned and keeps a `TransitionMemory` of `MEMORY_SIZE` transitions.
 
 All runs of all experiments share a single job queue. Existing experiments are reused and only
 their missing seeds are launched, so the script can safely be re-run to complete a sweep.
 
-Run with `uv run python scripts/run_ppo_lle1to5.py [options]` from the repository root.
+Run with `uv run python scripts/run_lle1to5.py [options]` from the repository root.
 
 @ai-generated
 """
 
+import functools
 import logging
 from pathlib import Path
 from typing import Literal, cast
 
+import optuna
 import torch
 import typed_argparse as tap
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
+from optuna.trial import FixedTrial
 
 import marl
 from marl import Experiment, algos
@@ -30,7 +38,8 @@ from marl.models import Run, Trainer, TransitionMemory
 from marl.nn import mixers
 from marl.nn.model_bank import actor_critics, qnetworks
 from marl.runners import parallel_run
-from marl.utils import DeviceLike
+from marl.utils import DeviceLike, Schedule
+from marl.utils.tuning import suggest
 
 logger = logging.getLogger(__name__)
 
@@ -39,42 +48,122 @@ Algo = Literal["mappo", "ippo", "dqn", "vdn", "qmix"]
 ALGOS: tuple[Algo, ...] = ("mappo", "ippo", "dqn", "vdn", "qmix")
 N_STEPS = 1_000_000
 MEMORY_SIZE = 50_000
-LR = 5e-4
-GRAD_NORM_CLIP = 10.0
+"""The certified-cooperation study did not tune the memory: DQN then defaulted to a 50k transition memory."""
+GAMMA = 0.99
+DEFAULT_JOURNAL = Path("tunings", "certified-cooperation.journal")
+DEFAULT_LAYOUT_TYPE = "cooperative-9x9_agents3_lasers2"
+"""The certified-cooperation layout whose best trials provide the hyperparameters."""
 
 
-def make_trainer(env: LLEConfig, algo: Algo) -> Trainer:
-    e_greedy = marl.policy.EpsilonGreedy.linear(1, 0.05, 200_000)
+@functools.cache
+def load_best_params(journal: Path, layout_type: str, algo: Algo) -> dict:
+    """Read the best hyperparameters of an algorithm from an Optuna journal. @ai-generated"""
+    if not journal.exists():
+        raise FileNotFoundError(f"No tuning journal at {journal}.")
+    storage = JournalStorage(JournalFileBackend(journal.as_posix()))
+    study_name = f"{algo.upper()}-{layout_type}"
+    try:
+        study = optuna.load_study(study_name=study_name, storage=storage)
+    except KeyError:
+        available = sorted(summary.study_name for summary in optuna.get_all_study_summaries(storage))
+        raise KeyError(f"{journal} has no study {study_name!r}. Available studies: {available}") from None
+    n_complete = sum(trial.state == optuna.trial.TrialState.COMPLETE for trial in study.trials)
+    if n_complete == 0:
+        raise RuntimeError(f"Study {study_name!r} has no complete trials.")
+    logger.info(f"Using best trial {study.best_trial.number} of {study_name} (value {study.best_value}, {n_complete} complete trials)")
+    return study.best_params
+
+
+def hidden_sizes(trial: optuna.Trial, prefix: str) -> list[int]:
+    """Uniform-width MLP architecture of the certified-cooperation search space. @ai-generated"""
+    return [trial.suggest_int(f"{prefix}.size", 32, 512, step=32)] * trial.suggest_int(f"{prefix}.n_layers", 1, 5)
+
+
+def make_ppo_trainer(trial: optuna.Trial, algo: Literal["mappo", "ippo"], env: LLEConfig) -> algos.PPO:
+    """
+    Rebuild a PPO trainer in the search space of the certified-cooperation study
+    (`make_ppo_trainer` of `scripts/tuning.py` at commit d2ea0990).
+
+    @ai-generated
+    """
+    sizes = hidden_sizes(trial, "actor_critic")
+    actor, critic = actor_critics.from_env(
+        env,
+        False,
+        independent=True,
+        actor_kwargs={"mlp_sizes": sizes},
+        critic_kwargs={"mlp_sizes": sizes},
+    )
+    train_interval = trial.suggest_int("train_interval", 10, 250, step=10)
+    minibatch_size = trial.suggest_int("minibatch_size", 5, train_interval)
+    if trial.suggest_categorical("c2_type", ["linear", "constant"]) == "linear":
+        c2 = Schedule.linear(
+            start_value=trial.suggest_float("c2_start", 0.0, 1.0),
+            end_value=trial.suggest_float("c2_end", 0.0, 1.0),
+            n_steps=trial.suggest_int("c2_n_steps", 1, N_STEPS),
+        )
+    else:
+        c2 = Schedule.constant(trial.suggest_float("c2", 0.0, 1.0))
+    early_stopping_kl = None
+    if trial.suggest_categorical("early_stopping_enabled", [True, False]):
+        early_stopping_kl = trial.suggest_float("early_stopping_kl", 1e-3, 0.1, log=True)
+    mixer = None
+    if algo == "mappo":
+        mixer_name = trial.suggest_categorical("mixer", ["vdn", "qmix"])
+        mixer = mixers.VDN.from_env(env) if mixer_name == "vdn" else mixers.QMix.from_env(env)
+    return algos.PPO(
+        actor,
+        critic,
+        mixer=mixer,
+        lr_actor=trial.suggest_float("lr_actor", 1e-5, 1e-3, log=True),
+        lr_critic=trial.suggest_float("lr_critic", 1e-5, 1e-3, log=True),
+        train_interval=(train_interval, "step"),
+        minibatch_size=minibatch_size,
+        n_epochs=trial.suggest_int("n_epochs", 5, 20),
+        eps_clip=trial.suggest_float("eps_clip", 0.01, 0.3),
+        gae_lambda=0.95,
+        c2=c2,
+        normalize_advantages=trial.suggest_categorical("normalize_advantages", [True, False]),
+        early_stopping_kl=early_stopping_kl,
+    )
+
+
+def make_dqn_trainer(trial: optuna.Trial, algo: Literal["dqn", "vdn", "qmix"], env: LLEConfig) -> algos.DQN:
+    """
+    Rebuild a value-based trainer in the search space of the certified-cooperation study
+    (`make_dqn_trainer` of `scripts/tuning.py` at commit d2ea0990).
+
+    @ai-generated
+    """
+    qnetwork = qnetworks.from_env(
+        env,
+        independent=True,
+        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
+        noisy=trial.suggest_categorical("qnetwork.noisy", [False, True]),
+        mlp_sizes=hidden_sizes(trial, "qnetwork"),
+    )
+    kwargs = {
+        "qnetwork": qnetwork,
+        "memory": TransitionMemory(MEMORY_SIZE),
+        "test_policy": marl.policy.ArgMax(),
+        "vbe": None,
+        "catch_all": {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": GAMMA},
+    }
     match algo:
-        case "mappo" | "ippo":
-            actor, critic = actor_critics.from_env(env, recurrent=False)
-            mixer = mixers.VDN() if algo == "mappo" else None
-            return algos.PPO(actor, critic, mixer, minibatch_size=32, n_epochs=10, early_stopping_kl=0.1)
         case "dqn":
-            return algos.DQN(
-                qnetworks.from_env(env),
-                TransitionMemory(MEMORY_SIZE),
-                lr=LR,
-                grad_norm_clipping=GRAD_NORM_CLIP,
-                train_policy=e_greedy,
-            )
+            return suggest(algos.DQN, trial, mixer=None, **kwargs)
         case "vdn":
-            return algos.VDN(
-                qnetworks.from_env(env),
-                TransitionMemory(MEMORY_SIZE),
-                lr=LR,
-                grad_norm_clipping=GRAD_NORM_CLIP,
-                train_policy=e_greedy,
-            )
+            return suggest(algos.VDN, trial, **kwargs)
         case "qmix":
-            return algos.QMix(
-                qnetworks.from_env(env),
-                TransitionMemory(MEMORY_SIZE),
-                mixer=mixers.QMix.from_env(env),
-                lr=LR,
-                grad_norm_clipping=GRAD_NORM_CLIP,
-                train_policy=e_greedy,
-            )
+            return suggest(algos.QMix, trial, mixer=mixers.QMix.from_env(env), **kwargs)
+
+
+def make_trainer(env: LLEConfig, algo: Algo, params: dict) -> Trainer:
+    """Rebuild the trainer of `algo` from the tuned parameters of the journal. @ai-generated"""
+    trial = cast(optuna.Trial, FixedTrial(params))
+    if algo in ("mappo", "ippo"):
+        return make_ppo_trainer(trial, algo, env)
+    return make_dqn_trainer(trial, algo, env)
 
 
 class Args(tap.TypedArgs):
@@ -87,12 +176,15 @@ class Args(tap.TypedArgs):
     disabled_gpus: list[int] = tap.arg("--disabled-gpus", default=[], nargs="*")
     test_interval: int = tap.arg("--test-interval", default=10_000)
     n_tests: int = tap.arg("--n-tests", default=5)
-    quiet: bool = tap.arg("--quiet", default=False)
+    journal: Path = tap.arg("--journal", default=DEFAULT_JOURNAL, help="Optuna journal providing the hyperparameters.")
+    layout_type: str = tap.arg("--layout-type", default=DEFAULT_LAYOUT_TYPE, help="Layout type of the studies to read.")
 
 
 def collect_runs(args: Args) -> list[Run]:
     """
     Create the experiments that do not exist yet and the runs of all seeds that are missing.
+
+    @ai-generated
     """
     invalid = set(args.levels) - set(LEVELS)
     if invalid:
@@ -113,14 +205,17 @@ def collect_runs(args: Args) -> list[Run]:
                 logger.info(f"[skip] {name}: all seeds already exist.")
                 continue
             if args.dry_run:
+                if exp is None:
+                    load_best_params(args.journal, args.layout_type, algo)
                 logger.info(f"[dry-run] {name}: would run seeds {seeds} -> {logdir}")
                 continue
             if exp is None:
                 env = LLEConfig(level, obs_type="layered")
-                exp = Experiment.create(env, make_trainer(env, algo), logdir=name, n_steps=N_STEPS)
-                logger.info(f"[new] Created experiment {exp.logdir}")
+                params = load_best_params(args.journal, args.layout_type, algo)
+                exp = Experiment.create(env, make_trainer(env, algo, params), logdir=name, n_steps=N_STEPS)
+                logger.info(f"[new] Created experiment {exp.logdir} with parameters {params}")
             logger.info(f"{name}: queueing seeds {seeds}")
-            runs += exp.create_runs(seeds, args.n_tests, args.test_interval, save_weights=True, save_actions=True)
+            runs += exp.create_runs(seeds, args.n_tests, args.test_interval, save_weights=False, save_actions=False)
     return runs
 
 
@@ -138,7 +233,7 @@ def main(args: Args):
         device=args.device,
         gpu_strategy=args.gpu_strategy,
         disabled_gpus=args.disabled_gpus,
-        quiet=args.quiet,
+        quiet=True,
     )
 
 
