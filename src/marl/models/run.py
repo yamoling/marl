@@ -171,7 +171,7 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
                 self._cleanup_pid_file()
                 return
             return pid
-        except FileNotFoundError:
+        except (FileNotFoundError, ValueError):
             return
 
     @property

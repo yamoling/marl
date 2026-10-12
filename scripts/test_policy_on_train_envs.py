@@ -30,8 +30,8 @@ from marl.runners import compute_test_seed, seeded_rollout
 from marl.utils.gpu import GPUAllocationError, GPUAllocator
 
 EPISODES_PER_CHECKPOINT = 500
-torch.set_num_threads(4)
-torch.set_num_interop_threads(4)
+# torch.set_num_threads(4)
+# torch.set_num_interop_threads(4)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,8 +56,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
+        nargs="+",
         default=None,
-        help="Evaluate only the run with this seed (default: evaluate every run).",
+        help="Evaluate only the runs with these seeds (default: evaluate every run).",
     )
     parser.add_argument(
         "--checkpoint-steps",
@@ -175,16 +176,19 @@ def collect_tasks(
     logdir: Path,
     *,
     overwrite: bool,
-    seed: int | None = None,
+    seed: int | list[int] | None = None,
     checkpoint_steps: bool = False,
     device: str = "gpu",
 ):
+    """Collect the evaluation tasks of the runs of `logdir`, optionally restricted to the given seed(s). @ai-edited"""
     exp = marl.Experiment.load(logdir)
     if seed is not None:
-        run = exp.get_run(seed)
-        if run is None:
-            raise ValueError(f"No run with seed {seed} found in experiment directory: {logdir}")
-        runs = [run]
+        runs = []
+        for s in [seed] if isinstance(seed, int) else seed:
+            run = exp.get_run(s)
+            if run is None:
+                raise ValueError(f"No run with seed {s} found in experiment directory: {logdir}")
+            runs.append(run)
     else:
         runs = list(exp.runs)
     tasks = list[Task]()
@@ -274,7 +278,7 @@ def process_logdirs(
     paths: list[Path],
     n_jobs: int,
     shuffle: bool,
-    seed: int | None,
+    seed: int | list[int] | None,
     overwrite: bool,
     checkpoint_steps: bool,
     dry_run: bool,

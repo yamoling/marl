@@ -1,4 +1,3 @@
-import hashlib
 import json
 import logging
 import os
@@ -36,9 +35,12 @@ SOLUTIONS_FILE = "solutions.json"
 """Cached shortest plans, stored next to the layouts of the pool and keyed by layout file name."""
 SOLUTIONS_FILE_NO_GEMS = "solutions-no-gems.json"
 """Plans that are not required to collect the gems are cached separately: they are shorter."""
-Algo = Literal["vdn", "qmix", "dqn"]
-"""Policy gradient methods have no replay memory to bias and are out of the scope of this script."""
-ALGOS: tuple[Algo, ...] = get_args(Algo)
+ValueBasedAlgo = Literal["vdn", "qmix", "dqn"]
+PolicyGradientAlgo = Literal["mappo", "ippo"]
+"""Policy gradient methods have no replay memory to bias: they only serve as unbiased baselines (`--n-bias 0`)."""
+Algo = Literal[ValueBasedAlgo, PolicyGradientAlgo]
+ALGOS: tuple[Algo, ...] = get_args(ValueBasedAlgo) + get_args(PolicyGradientAlgo)
+POLICY_GRADIENT_ALGOS: tuple[PolicyGradientAlgo, ...] = get_args(PolicyGradientAlgo)
 
 
 def parse_n_bias(value: str) -> int | Literal["auto"]:
@@ -55,7 +57,7 @@ class Args(tap.TypedArgs):
     pool_size: int = tap.arg("--pool-size", default=500, help="Size of the training pool (positive integer).")
     offset: int = tap.arg("--offset", default=1_000, help="Index of the first training layout (non-negative integer).")
     n_tests: int = tap.arg("--n-tests", default=500, help="Number of held-out test maps (positive integer).")
-    algos: list[Algo] = tap.arg("--algos", nargs="+", help="Value-based algorithms to train.")
+    algos: list[Algo] = tap.arg("--algos", nargs="+", help="Algorithms to train. 'mappo' and 'ippo' require --n-bias 0 (no replay memory).")
     n_bias: int | Literal["auto"] = tap.arg(
         "--n-bias",
         type=parse_n_bias,
@@ -119,12 +121,17 @@ def make_journal_trainer(
     The trainer is built by the very factory of the tuning study, so that the parameters read from
     the journal are replayed into the same search space that produced them. The online memory
     retains the tuned `memory_size`; the demonstration items are additional permanent storage.
+    Policy gradient trainers only have an on-policy rollout buffer and cannot be biased.
 
     @ai-edited
     """
-    if algo not in ("dqn", "vdn", "qmix"):
-        raise NotImplementedError(f"Only value-based algorithms are in the scope of this study, got {algo!r}.")
     catch_all = {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": tuning.GAMMA}
+    if algo in POLICY_GRADIENT_ALGOS:
+        if len(demos) > 0:
+            raise ValueError(f"{algo!r} has no replay memory to bias with demonstrations.")
+        return tuning.make_ppo_trainer(trial, algo, env, catch_all)
+    if algo not in ("dqn", "vdn", "qmix"):
+        raise NotImplementedError(f"Unsupported algorithm {algo!r}.")
     trainer = tuning.make_dqn_trainer(trial, algo, env, n_steps, catch_all)
     if len(demos) > 0:
         trainer.memory = bias_memory(trainer.memory, demos, factor)
@@ -250,8 +257,6 @@ def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     The bias lives in the trainer's `memory`, which is serialized with the experiment: an existing
     experiment is loaded as it is, demonstrations included, and the layouts of its pool are never
     solved again. Missing seeds start new runs, not checkpoint-based training resumes.
-
-    @ai-edited
     """
     logdir = experiment_logdir(spec, algo, args.n_steps, args.pool_size, args.logdir_prefix)
     try:
@@ -266,63 +271,8 @@ def get_experiment(args: Args, spec: PoolSpec, algo: Algo):
     trial = cast(optuna.Trial, FixedTrial(params))
     trainer = make_journal_trainer(trial, algo, train_env, demos, args.n_steps, args.bias_factor)
     exp = marl.Experiment.create(train_env, trainer, test_env=test_env, logdir=logdir, n_steps=args.n_steps)
-    export_parameters(exp, args, spec, algo, params)
     logger.info(f"Created experiment in {exp.logdir} with parameters {params}")
     return exp
-
-
-def export_parameters(exp: marl.Experiment, args: Args, spec: PoolSpec, algo: Algo, params: dict):
-    """Export the original experiment specification and layout identities for later verification. @ai-generated"""
-    layouts = layout_files(spec.path)[args.offset : args.offset + args.pool_size + args.n_tests]
-    selected = []
-    for layout in layouts:
-        selected.append({"name": layout.name, "sha256": hashlib.sha256(layout.read_bytes()).hexdigest()})
-    memory = exp.trainer.memory
-    biased = isinstance(memory, BiasedMemory)
-    count = demonstration_count(args)
-    manifest = {
-        "principle": "seeded replay memory" if biased else "standard replay memory",
-        "algorithm": algo,
-        "trainer": json.loads(exp.trainer.to_json()),
-        "pool_directory": str(spec.path.resolve()),
-        "time_limit": spec.time_limit,
-        "observation_type": "perspective",
-        "state_type": "flattened",
-        "sequential_pool": True,
-        "offset": args.offset,
-        "training_layouts": selected[: args.pool_size],
-        "test_layouts": selected[args.pool_size :],
-        "demonstration_layouts": [item["name"] for item in selected[:count]],
-        "solver": {"method": "find_shortest", "collect_gems": True, "time_limit": spec.time_limit} if biased else None,
-        "tuning": {
-            "journal": str(args.study_journal.resolve()),
-            "study_name": f"{algo.upper()}-{STUDY_LAYOUT_TYPE}",
-            "best_params": params,
-        },
-        "replay": {
-            "bias_factor": args.bias_factor if biased else None,
-            "demonstration_items": memory.n_bias if biased else 0,
-            "demonstration_sha256": memory.demonstrations.checksum if biased else None,
-            "online_capacity": memory.wrapped.max_size if biased else memory.max_size,
-            "sampling": "weighted_without_replacement" if biased else "uniform_without_replacement",
-        },
-        "run": {
-            "n_steps": args.n_steps,
-            "requested_seeds": args.requested_seeds,
-            "test_interval": args.test_interval,
-            "n_tests": args.n_tests,
-            "n_jobs": args.n_jobs,
-            "gpu_strategy": args.gpu_strategy,
-            "disabled_gpus": args.disabled_gpus,
-            "save_weights": True,
-            "save_actions": True,
-        },
-    }
-    path = Path(exp.logdir) / PARAMETERS_FILE
-    with path.open("w") as output:
-        json.dump(manifest, output, indent=2)
-        output.write("\n")
-    logger.info(f"Exported experiment parameters to {path}")
 
 
 def missing_runs(exp: marl.Experiment, args: Args) -> list[marl.Run]:
@@ -330,8 +280,6 @@ def missing_runs(exp: marl.Experiment, args: Args) -> list[marl.Run]:
     Create the runs of the requested seeds that are not complete in the experiment.
 
     Incomplete seeds restart from step zero: `create_runs` rewrites their `run.json`.
-
-    @ai-edited
     """
     completed_seeds = {run.seed for run in exp.runs if run.is_complete and run.seed in args.requested_seeds}
     seeds = sorted(set(args.requested_seeds) - completed_seeds)
@@ -339,7 +287,7 @@ def missing_runs(exp: marl.Experiment, args: Args) -> list[marl.Run]:
         logger.info(f"All requested seeds are complete in {exp.logdir}")
         return []
     logger.info(f"Queueing {exp.logdir} with the missing seeds {seeds}")
-    return exp.create_runs(seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=True, save_actions=True)
+    return exp.create_runs(seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=True, save_actions=False)
 
 
 def main(args: Args):
@@ -365,6 +313,9 @@ def main(args: Args):
         raise ValueError(f"--n-tests must be a positive integer, got {args.n_tests}")
     if args.n_bias != "auto" and (args.n_bias < 0 or args.n_bias > args.pool_size):
         raise ValueError(f"--n-bias must be 'auto' or in [0, {args.pool_size}], got {args.n_bias}")
+    policy_gradient = [algo for algo in args.algos if algo in POLICY_GRADIENT_ALGOS]
+    if policy_gradient and args.n_bias != 0:
+        raise ValueError(f"{policy_gradient} have no replay memory to bias: they require --n-bias 0, got {args.n_bias}")
     if not args.pool_dirs:
         raise ValueError("Provide at least one pool directory (e.g. layouts/canonicals/asymmetric).")
     runs = list[marl.Run]()
