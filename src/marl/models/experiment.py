@@ -115,9 +115,8 @@ class LightExperiment[E: MARLEnv, T: Trainer](Serializable):
                 run = LightRun[E, T].load(rundir)
                 saved_path = Path(run.rundir)
                 expected = rundir.resolve()
-                if saved_path.is_absolute():
-                    valid = saved_path.resolve() == expected
-                else:
+                valid = saved_path.resolve() == expected
+                if not valid and not saved_path.is_absolute():
                     valid = saved_path.parts in (
                         (self.logpath.parent.name, self.logpath.name, f),
                         (self.logpath.name, f),

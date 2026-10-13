@@ -21,7 +21,7 @@ N_STEPS = 500_000
 N_TRIALS = 20
 N_RANDOM_TRIALS = 5
 SEEDS = (0, 1, 2, 3)
-Algo = Literal["mappo", "ippo", "vdn", "qmix"]
+Algo = Literal["mappo", "ippo", "dqn", "vdn", "qmix"]
 LOGGER = logging.getLogger(__name__)
 
 
@@ -52,7 +52,7 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
             grad_norm_clipping=grad_clip,
             ir_module=None,
         )
-    if algo in ("vdn", "qmix"):
+    if algo in ("dqn", "vdn", "qmix"):
         qnetwork = qnetworks.from_env(env, recurrent=False, independent=True, duelling=False, noisy=False)
         kwargs: dict[str, Any] = {
             "memory": TransitionMemory(trial.suggest_int("memory_size", 5_000, 100_000, step=5_000)),
@@ -72,6 +72,8 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
             "grad_norm_clipping": grad_clip,
             "ir_module": None,
         }
+        if algo == "dqn":
+            return algos.DQN(qnetwork, **kwargs)
         if algo == "vdn":
             return algos.VDN(qnetwork, **kwargs)
         return algos.QMix(qnetwork, mixer=mixers.QMix.from_env(env), **kwargs)
@@ -84,7 +86,7 @@ def objective(trial: optuna.Trial, algo: Algo, args: argparse.Namespace) -> floa
     experiment = Experiment.create(
         env,
         make_trainer(trial, algo, env),
-        n_steps=N_STEPS,
+        n_steps=args.n_steps,
         logdir=Path("logs", args.name, algo, "score-0", f"trial-{trial.number:02d}"),
         loggers=("csv",),
     )
@@ -107,8 +109,8 @@ def objective(trial: optuna.Trial, algo: Algo, args: argparse.Namespace) -> floa
     scores = []
     for run in runs:
         results = run.test_metrics.select("time_step", "score-0").collect()
-        if not run.is_complete or results.height != 1 or results["time_step"][0] != N_STEPS:
-            raise RuntimeError(f"Expected one evaluation at {N_STEPS} for seed {run.seed}; inspect {run.rundir}.")
+        if not run.is_complete or results.height != 1 or results["time_step"][0] != args.n_steps:
+            raise RuntimeError(f"Expected one evaluation at {args.n_steps} for seed {run.seed}; inspect {run.rundir}.")
         score = float(results["score-0"][0])
         if not math.isfinite(score):
             raise RuntimeError(f"Non-finite return for seed {run.seed}; inspect {run.rundir}.")
@@ -138,6 +140,35 @@ def tune(storage: JournalStorage, algo: Algo, args: argparse.Namespace) -> optun
     return study
 
 
+def dry_run(args: argparse.Namespace) -> None:
+    """Read the journal and report the same remaining budget used by tuning. @ai-generated"""
+    storage = JournalStorage(JournalFileBackend(args.storage.as_posix())) if args.storage.exists() else None
+    for algo in args.algos:
+        study_name = f"{args.name}-{algo}-score-0"
+        trials = []
+        if storage is not None:
+            try:
+                trials = optuna.load_study(study_name=study_name, storage=storage).trials
+            except KeyError:
+                LOGGER.info("%s: study not found in %s", study_name, args.storage)
+        else:
+            LOGGER.info("%s: journal does not exist: %s", study_name, args.storage)
+        counts = {state.name: sum(trial.state == state for trial in trials) for state in optuna.trial.TrialState}
+        remaining = max(0, N_TRIALS - len(trials))
+        LOGGER.info(
+            "%s: %d/%d trials recorded (%s); %d trials remaining = %d seeded runs (%d seeds per trial)",
+            study_name,
+            len(trials),
+            N_TRIALS,
+            ", ".join(f"{state}={count}" for state, count in counts.items()),
+            remaining,
+            remaining * len(SEEDS),
+            len(SEEDS),
+        )
+        if counts["RUNNING"] or counts["WAITING"]:
+            LOGGER.warning("%s: tuning is blocked by unfinished trials; reconcile them or use a fresh --name.", study_name)
+
+
 def main() -> None:
     """Parse execution options and launch the requested independent studies. @ai-generated"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -147,15 +178,26 @@ def main() -> None:
     parser.add_argument("--gpu-strategy", choices=("scatter", "group"), default="scatter")
     parser.add_argument("--disabled-gpus", nargs="*", type=int, default=[])
     parser.add_argument("--sampler-seed", type=int, default=0)
-    parser.add_argument("--algos", nargs="+", choices=("mappo", "ippo", "vdn", "qmix"), default=["mappo", "ippo", "vdn", "qmix"])
+    parser.add_argument("--n-steps", type=int, default=N_STEPS, help="Training steps per seeded run (default: 500000).")
+    parser.add_argument(
+        "--algos", nargs="+", choices=("mappo", "ippo", "dqn", "vdn", "qmix"), default=["mappo", "ippo", "dqn", "vdn", "qmix"]
+    )
     parser.add_argument("--n-jobs", type=int, default=1, help="Number of Optuna trials run in parallel per study.")
     parser.add_argument("--n-experiment-jobs", type=int, default=2, help="Number of seeded runs trained in parallel per trial.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Read the journal and report remaining trials and seeded runs without training."
+    )
     args = parser.parse_args()
+    if args.n_steps < 1:
+        parser.error("--n-steps must be positive")
     if args.n_jobs < 1 or args.n_experiment_jobs < 1:
         parser.error("--n-jobs and --n-experiment-jobs must be positive")
     if not args.name or Path(args.name).name != args.name or args.name in (".", ".."):
         parser.error("--name must be a single directory name")
     logging.basicConfig(level=logging.INFO)
+    if args.dry_run:
+        dry_run(args)
+        return
     args.storage.parent.mkdir(parents=True, exist_ok=True)
     storage = JournalStorage(JournalFileBackend(args.storage.as_posix()))
     for algo in args.algos:
