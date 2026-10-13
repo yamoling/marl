@@ -12,7 +12,8 @@ into the search space that produced the journal (`scripts/tuning.py` at commit d
   fields. The memory was not tuned and keeps a `TransitionMemory` of `MEMORY_SIZE` transitions.
 
 All runs of all experiments share a single job queue. Existing experiments are reused and only
-their missing seeds are launched, so the script can safely be re-run to complete a sweep.
+missing or incomplete seeds are launched. Incomplete runs restart from step zero, replacing their
+partial metrics; completed and actively running seeds are left untouched.
 
 Run with `uv run python scripts/run_lle1to5.py [options]` from the repository root.
 
@@ -168,6 +169,9 @@ def make_trainer(env: LLEConfig, algo: Algo, params: dict) -> Trainer:
 
 class Args(tap.TypedArgs):
     dry_run: bool = tap.arg("--dry-run", default=False, help="Only print what would be created/run.")
+    no_training_data: bool = tap.arg(
+        "--no-training-data", default=False, help="Do not log trainer-update metrics; retain training-episode and test metrics."
+    )
     levels: list[int] = tap.arg("--levels", default=list(LEVELS), nargs="*", help=f"LLE levels to run (default: all, {list(LEVELS)}).")
     n_seeds: int = tap.arg("--n-seeds", default=10, help="Number of seeds per experiment (seeds 0..n-1).")
     device: DeviceLike = tap.arg("--device", default="auto", help='"auto", "cpu", "cuda:<id>" or a GPU index.')
@@ -182,7 +186,8 @@ class Args(tap.TypedArgs):
 
 def collect_runs(args: Args) -> list[Run]:
     """
-    Create the experiments that do not exist yet and the runs of all seeds that are missing.
+    Create missing experiments and queue missing or incomplete seeds, excluding active runs.
+        Incomplete seeds restart from step zero rather than resuming from a checkpoint.
 
     @ai-generated
     """
@@ -196,13 +201,13 @@ def collect_runs(args: Args) -> list[Run]:
             logdir = Path("logs") / name
             if logdir.exists():
                 exp = Experiment.load(logdir)
-                existing = {run.seed for run in exp.runs}
+                existing = {run.seed for run in exp.runs if run.is_running or run.is_complete}
             else:
                 exp = None
                 existing = set()
             seeds = [s for s in range(args.n_seeds) if s not in existing]
             if not seeds:
-                logger.info(f"[skip] {name}: all seeds already exist.")
+                logger.info(f"[skip] {name}: all seeds are complete or currently running.")
                 continue
             if args.dry_run:
                 if exp is None:
@@ -215,7 +220,14 @@ def collect_runs(args: Args) -> list[Run]:
                 exp = Experiment.create(env, make_trainer(env, algo, params), logdir=name, n_steps=N_STEPS)
                 logger.info(f"[new] Created experiment {exp.logdir} with parameters {params}")
             logger.info(f"{name}: queueing seeds {seeds}")
-            runs += exp.create_runs(seeds, args.n_tests, args.test_interval, save_weights=False, save_actions=False)
+            runs += exp.create_runs(
+                seeds,
+                args.n_tests,
+                args.test_interval,
+                save_weights=False,
+                save_actions=False,
+                save_training_data=not args.no_training_data,
+            )
     return runs
 
 

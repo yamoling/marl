@@ -484,6 +484,7 @@ def test_training_episode_respects_exact_run_budget():
     trainer = DQN(qnetworks.from_env(env, hidden_sizes=(8,)), memory=TransitionMemory(100))
     run = SimpleNamespace(
         n_steps=3,
+        log_training_data=True,
         should_test_at=lambda t: False,
         logger=SimpleNamespace(log_training_data=lambda *args: None, log_train=lambda *args: None),
     )

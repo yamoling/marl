@@ -305,7 +305,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         n_steps: int = 1_000_000,
         test_env: EnvConfig[Env] | None = None,
         loggers: Collection[LoggerType] = ("csv",),
-    ):
+    ) -> "Experiment[Env, Tr]":
         """
         Create a new experiment with the given parameters and save it to disk.
 
@@ -356,6 +356,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         test_interval: int,
         save_weights: bool,
         save_actions: bool,
+        save_training_data: bool,
     ):
         if isinstance(seeds, int):
             seeds = list(range(seeds))
@@ -374,6 +375,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
                 loggers=self.loggers,
                 save_weights=save_weights,
                 save_actions=save_actions,
+                save_training_data=save_training_data,
             )
             for seed in seeds
         ]
@@ -383,12 +385,13 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
     def run(
         self,
         seeds: int | Collection[int] = 1,
-        gpu_strategy: Literal["scatter", "group"] = "group",
-        save_weights: bool = True,
-        save_actions: bool = True,
         n_tests: int = 1,
         test_interval: int = 5000,
         *,
+        gpu_strategy: Literal["scatter", "group"] = "group",
+        save_weights: bool = True,
+        save_actions: bool = True,
+        save_training_data: bool = True,
         quiet: bool = False,
         device: DeviceLike = "auto",
         render_tests: bool = False,
@@ -407,6 +410,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
         - `n_jobs`: Number of parallel jobs to run. If "auto", uses the number GPUs not disabled.
         - `limit_torch_threads`: Limit each parallel worker to one PyTorch intra-op and inter-op thread.
         - `device_affinity`: Tie-breaker between GPUs that are equally good candidates. If None, it is based on the experiment logdir.
+        - `log_training_data`: Log trainer-update metrics. Disabling this retains training-episode and test metrics.
         """
         from marl.runners import parallel_run, sequential_run
 
@@ -414,7 +418,7 @@ class Experiment[E: MARLEnv, T: Trainer](LightExperiment):
             n_jobs = torch.cuda.device_count() - len(disabled_gpus)
         if isinstance(seeds, int):
             seeds = list(range(seeds))
-        runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions)
+        runs = self.create_runs(seeds, n_tests, test_interval, save_weights, save_actions, save_training_data=save_training_data)
         if device_affinity is None:
             device_affinity = hash(self.logdir)
         if n_jobs <= 1 or len(runs) <= 1:

@@ -140,7 +140,6 @@ class CSVSource:
                 infer_schema_length=SCHEMA_ROWS,
                 truncate_ragged_lines=True,
                 ignore_errors=True,
-                n_threads=1,
             )
         except (pl.exceptions.PolarsError, OSError, UnicodeDecodeError):
             return {}
@@ -181,7 +180,6 @@ class CSVSource:
             columns=names,
             ignore_errors=True,
             truncate_ragged_lines=True,
-            n_threads=READ_THREADS,
         )
         return df.with_columns(pl.col(c).cast(pl.Float64, strict=False) for c in names)
 

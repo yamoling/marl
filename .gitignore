@@ -209,7 +209,9 @@ papers/
 *.log
 .playwright-mcp
 envs/*
-plots/
+plots/*
+# Studio plot components are source files, not generated figures.
+!src/studio/frontend/src/components/plots/
 maps/
 prompt.md
 .agents/scratches

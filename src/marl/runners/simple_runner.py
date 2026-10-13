@@ -72,14 +72,16 @@ def _train_episode[A](
             step.truncated = True
         transition = Transition.from_step(obs, state, action.action, step, **action.details)
         training_metrics = trainer.update_step(transition, time_step)
-        run.logger.log_training_data(training_metrics, time_step)
+        if run.log_training_data:
+            run.logger.log_training_data(training_metrics, time_step)
         episode.add(transition)
         obs = step.obs
         state = step.state
         time_step += 1
     run.logger.log_train(episode.metrics, time_step)
     training_logs = trainer.update_episode(episode, episode_num, time_step)
-    run.logger.log_training_data(training_logs, time_step)
+    if run.log_training_data:
+        run.logger.log_training_data(training_logs, time_step)
     return episode
 
 

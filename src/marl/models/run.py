@@ -31,6 +31,7 @@ class LightRun[E: MARLEnv, T: Trainer](Serializable):
     loggers: Collection[LoggerType] = ("csv",)
     save_weights: bool = False
     save_actions: bool = True
+    log_training_data: bool = True
 
     @classmethod
     def load(cls, rundir: Path):
@@ -236,7 +237,9 @@ class Run[E: MARLEnv, T: Trainer](LightRun):
         loggers: Collection[LoggerType] = ("csv",),
         save_weights: bool = True,
         save_actions: bool = True,
+        save_training_data: bool = True,
     ):
+        """Create and persist a seeded run with its recording options. @ai-edited"""
         run = Run(
             seed,
             rundir,
@@ -249,6 +252,7 @@ class Run[E: MARLEnv, T: Trainer](LightRun):
             loggers=loggers,
             save_weights=save_weights,
             save_actions=save_actions,
+            log_training_data=save_training_data,
         )
         run.save()
         return run

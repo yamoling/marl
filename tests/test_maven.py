@@ -121,7 +121,7 @@ def test_truncated_episode_bootstraps_with_episode_noise(noise_size, wrapped):
     trainer = Mock()
     trainer.update_step.return_value = {}
     trainer.update_episode.return_value = {}
-    run = SimpleNamespace(n_steps=1, should_test_at=lambda _: False, logger=Mock())
+    run = SimpleNamespace(n_steps=1, log_training_data=True, should_test_at=lambda _: False, logger=Mock())
 
     episode = _train_episode(env, env, agent, trainer, 0, 0, False, True, run)
 

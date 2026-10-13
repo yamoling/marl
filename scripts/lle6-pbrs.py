@@ -18,7 +18,7 @@ from marl.runners import parallel_run
 
 logger = logging.getLogger(__name__)
 
-Algo = Literal["vdn", "qmix", "mappo", "maser", "haven"]
+Algo = Literal["dqn", "vdn", "qmix", "mappo", "maser", "haven"]
 ALGOS: tuple[Algo, ...] = get_args(Algo)
 MEMORY_SIZE = 50_000
 MASER_MEMORY_SIZE = 5_000
@@ -71,6 +71,15 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
         return make_haven()
     env = make_env()
     match algo:
+        case "dqn":
+            return env, algos.DQN(
+                qnetworks.from_env(env),
+                TransitionMemory(MEMORY_SIZE),
+                train_policy=make_train_policy(),
+                gamma=0.95,
+                lr=5e-4,
+                grad_norm_clipping=10.0,
+            )
         case "vdn":
             # Hyperparameters of the ECAI 2024 paper.
             return env, algos.VDN(
@@ -87,10 +96,12 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
                 TransitionMemory(MEMORY_SIZE),
                 mixer=mixers.QMix.from_env(env),
                 train_policy=make_train_policy(),
+                gamma=0.95,
+                lr=5e-4,
             )
         case "mappo":
             actor, critic = actor_critics.from_env(env, recurrent=False)
-            return env, algos.PPO(actor, critic, mixers.VDN())
+            return env, algos.PPO(actor, critic, mixers.VDN(), gamma=0.95)
         case "maser":
             memory = EpisodeMemory(MASER_MEMORY_SIZE)
             return env, algos.MASER(
@@ -99,6 +110,8 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
                 mixer=mixers.VDN(),
                 train_interval=(1, "episode"),
                 train_policy=make_train_policy(),
+                gamma=0.95,
+                lr=5e-4,
             )
 
 
@@ -167,7 +180,9 @@ def main(args: Args):
             continue
         exp = get_experiment(args, algo)
         logger.info(f"Queueing {exp.logdir} with seeds {seeds}")
-        runs += exp.create_runs(seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=False, save_actions=False)
+        runs += exp.create_runs(
+            seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=False, save_actions=False, save_training_data=False
+        )
     if len(runs) == 0:
         return
     logger.info(f"Starting {len(runs)} runs with {args.n_jobs} parallel jobs")
