@@ -26,7 +26,7 @@ MASER_MEMORY_SIZE = 5_000
 HAVEN_N_SUBGOALS = 8
 HAVEN_K = 5
 EPSILON_START = 1.0
-EPSILON_END = 0.02
+EPSILON_END = 0.05
 EPSILON_STEPS = 200_000
 
 
@@ -61,7 +61,16 @@ def make_haven():
     )
     meta_trainer = algos.DQN(meta_qnetwork, TransitionMemory(MEMORY_SIZE // HAVEN_K), mixer=mixers.VDN(), train_policy=make_train_policy())
     worker_trainer = algos.DQN(worker_qnetwork, TransitionMemory(MEMORY_SIZE), mixer=mixers.VDN(), train_policy=make_train_policy())
-    trainer = algos.HAVEN(meta_trainer, worker_trainer, n_workers, HAVEN_N_SUBGOALS, HAVEN_K, n_meta_extras, n_agent_extras)
+    trainer = algos.HAVEN(
+        meta_trainer,
+        worker_trainer,
+        n_workers,
+        HAVEN_N_SUBGOALS,
+        HAVEN_K,
+        n_meta_extras,
+        n_agent_extras,
+        grad_norm_clipping=10.0,
+    )
     return env, trainer
 
 
@@ -98,6 +107,7 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
                 train_policy=make_train_policy(),
                 gamma=0.95,
                 lr=5e-4,
+                grad_norm_clipping=10.0,
             )
         case "mappo":
             actor, critic = actor_critics.from_env(env, recurrent=False)
@@ -112,6 +122,7 @@ def make_env_and_trainer(algo: Algo) -> tuple[LLEConfig, Trainer]:
                 train_policy=make_train_policy(),
                 gamma=0.95,
                 lr=5e-4,
+                grad_norm_clipping=10.0,
             )
 
 
@@ -138,7 +149,6 @@ def logdir_of(algo: Algo, n_steps: int):
 
 
 def get_experiment(args: Args, algo: Algo) -> marl.Experiment:
-    """Load the experiment of `algo` if it exists, otherwise create it. @ai-generated"""
     logdir = logdir_of(algo, args.n_steps)
     if logdir.exists():
         return marl.Experiment.load(logdir)
@@ -181,7 +191,12 @@ def main(args: Args):
         exp = get_experiment(args, algo)
         logger.info(f"Queueing {exp.logdir} with seeds {seeds}")
         runs += exp.create_runs(
-            seeds, n_tests=args.n_tests, test_interval=args.test_interval, save_weights=False, save_actions=False, save_training_data=False
+            seeds,
+            n_tests=args.n_tests,
+            test_interval=args.test_interval,
+            save_weights=False,
+            save_actions=False,
+            save_training_data=False,
         )
     if len(runs) == 0:
         return
