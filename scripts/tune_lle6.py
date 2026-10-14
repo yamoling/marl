@@ -32,16 +32,16 @@ def make_env() -> LLEConfig:
 def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
     """Suggest baseline hyperparameters, keeping network architectures fixed. @ai-generated"""
     gamma = trial.suggest_float("gamma", 0.95, 0.999)
-    grad_clip = trial.suggest_float("grad_norm_clipping", 1.0, 20.0, log=True)
+    grad_clip = trial.suggest_float("grad_norm_clipping", 1.0, 50.0)
     if algo in ("mappo", "ippo"):
-        actor, critic = actor_critics.from_env(env, recurrent=False, independent=True)
+        actor, critic = actor_critics.from_env(env, recurrent=False, independent=False)
         return algos.PPO(
             actor,
             critic,
             mixer=mixers.VDN.from_env(env) if algo == "mappo" else None,
             train_interval=(trial.suggest_int("train_interval", 50, 100), "step"),
             n_epochs=trial.suggest_int("n_epochs", 2, 10),
-            minibatch_size=trial.suggest_categorical("minibatch_size", [8, 16, 32]),
+            minibatch_size=trial.suggest_int("minibatch_size", 8, train_interval // 2),
             lr_actor=trial.suggest_float("lr_actor", 5e-5, 3e-3, log=True),
             lr_critic=trial.suggest_float("lr_critic", 5e-5, 3e-3, log=True),
             eps_clip=trial.suggest_float("eps_clip", 0.1, 0.3),
@@ -55,15 +55,15 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
     if algo in ("dqn", "vdn", "qmix"):
         qnetwork = qnetworks.from_env(env, recurrent=False, independent=True, duelling=False, noisy=False)
         kwargs: dict[str, Any] = {
-            "memory": TransitionMemory(trial.suggest_int("memory_size", 5_000, 100_000, step=5_000)),
-            "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128, 256]),
-            "train_interval": (trial.suggest_categorical("train_interval", [1, 5, 10]), "step"),
+            "memory": TransitionMemory(trial.suggest_int("memory_size", 5_000, 100_000, step=1_000)),
+            "batch_size": trial.suggest_int("batch_size", 16, 128),
+            "train_interval": (5, "step"),
             "lr": trial.suggest_float("lr", 5e-5, 3e-3, log=True),
             "target_updater": algos.SoftUpdate(trial.suggest_float("target_tau", 1e-3, 5e-2, log=True)),
             "train_policy": EpsilonGreedy.linear(
                 1.0,
                 trial.suggest_float("epsilon_end", 0.01, 0.1),
-                trial.suggest_int("epsilon_steps", 25_000, 250_000, step=25_000),
+                trial.suggest_int("epsilon_steps", 25_000, 250_000, step=1_000),
             ),
             "test_policy": ArgMax(),
             "optimiser_type": trial.suggest_categorical("optimiser_type", ["adam", "rmsprop"]),
@@ -173,7 +173,7 @@ def main() -> None:
     """Parse execution options and launch the requested independent studies. @ai-generated"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", default="lle6-layered-500k", help="Search identity and logs subdirectory; change for a fresh search.")
-    parser.add_argument("--storage", type=Path, default=Path("tunings", "lle6-layered-500k.journal"))
+    parser.add_argument("--storage", type=Path, default=Path("tunings", "lle6-layered-500k-2.journal"))
     parser.add_argument("--device", default="auto", help="auto, cpu, or cuda:<index> (auto requires an available GPU).")
     parser.add_argument("--gpu-strategy", choices=("scatter", "group"), default="scatter")
     parser.add_argument("--disabled-gpus", nargs="*", type=int, default=[])
