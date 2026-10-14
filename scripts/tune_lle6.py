@@ -33,13 +33,14 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
     """Suggest baseline hyperparameters, keeping network architectures fixed. @ai-generated"""
     gamma = trial.suggest_float("gamma", 0.95, 0.999)
     grad_clip = trial.suggest_float("grad_norm_clipping", 1.0, 50.0)
+    train_interval = trial.suggest_int("train_interval", 50, 100)
     if algo in ("mappo", "ippo"):
         actor, critic = actor_critics.from_env(env, recurrent=False, independent=False)
         return algos.PPO(
             actor,
             critic,
             mixer=mixers.VDN.from_env(env) if algo == "mappo" else None,
-            train_interval=(trial.suggest_int("train_interval", 50, 100), "step"),
+            train_interval=(train_interval, "step"),
             n_epochs=trial.suggest_int("n_epochs", 2, 10),
             minibatch_size=trial.suggest_int("minibatch_size", 8, train_interval // 2),
             lr_actor=trial.suggest_float("lr_actor", 5e-5, 3e-3, log=True),
