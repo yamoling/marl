@@ -1,15 +1,12 @@
 """
 Run MAPPO, IPPO, DQN (independent, no mixer), VDN and QMIX on LLE levels 1 to 5 (included) with
-layered observations, for 1M time steps and 10 seeds.
+layered observations and 10 seeds. The number of time steps depends on the level (see `N_STEPS`).
 
-The hyperparameters of every algorithm are those of the best trial of its study in the
-certified-cooperation tuning journal (`tunings/certified-cooperation.journal`, studies named
-`<ALGO>-<layout type>`). The trainers are rebuilt by replaying these parameters with a `FixedTrial`
-into the search space that produced the journal (`scripts/tuning.py` at commit d2ea0990):
-
-- MAPPO/IPPO: uniform-width actor/critic MLPs, PPO arguments and, for MAPPO, the VDN or QMIX mixer.
-- DQN/VDN/QMIX: uniform-width Q-network, training policy, target updater and the other tuned trainer
-  fields. The memory was not tuned and keeps a `TransitionMemory` of `MEMORY_SIZE` transitions.
+The hyperparameters of every algorithm are those of the best trial of its study in the LLE6 tuning
+journal (`tunings/lle6-layered-500k.journal`, studies named `<name>-<algo>-score-0`). The trainers are
+rebuilt by replaying these parameters with a `FixedTrial` into the search space that produced the
+journal (`make_trainer` of `scripts/tune_lle6.py`). Studies that are not in the journal yet
+(e.g. DQN and IPPO) raise an error when their experiment has to be created.
 
 All runs of all experiments share a single job queue. Existing experiments are reused and only
 missing or incomplete seeds are launched. Incomplete runs restart from step zero, replacing their
@@ -31,140 +28,48 @@ import typed_argparse as tap
 from optuna.storages import JournalStorage
 from optuna.storages.journal import JournalFileBackend
 from optuna.trial import FixedTrial
+from tune_lle6 import make_trainer as suggest_trainer
 
-import marl
-from marl import Experiment, algos
+from marl import Experiment
 from marl.env import LLEConfig
-from marl.models import Run, Trainer, TransitionMemory
-from marl.nn import mixers
-from marl.nn.model_bank import actor_critics, qnetworks
+from marl.models import Run, Trainer
 from marl.runners import parallel_run
-from marl.utils import DeviceLike, Schedule
-from marl.utils.tuning import suggest
+from marl.utils import DeviceLike
 
 logger = logging.getLogger(__name__)
 
 LEVELS = [1, 2, 3, 4, 5]
 Algo = Literal["mappo", "ippo", "dqn", "vdn", "qmix"]
 ALGOS: tuple[Algo, ...] = ("mappo", "ippo", "dqn", "vdn", "qmix")
-N_STEPS = 1_000_000
-MEMORY_SIZE = 50_000
-"""The certified-cooperation study did not tune the memory: DQN then defaulted to a 50k transition memory."""
-GAMMA = 0.99
-DEFAULT_JOURNAL = Path("tunings", "certified-cooperation.journal")
-DEFAULT_LAYOUT_TYPE = "cooperative-9x9_agents3_lasers2"
-"""The certified-cooperation layout whose best trials provide the hyperparameters."""
+N_STEPS = {1: 400_000, 2: 400_000, 3: 600_000, 4: 600_000, 5: 1_000_000, 6: 1_000_000}
+"""Number of training time steps per LLE level."""
+DEFAULT_JOURNAL = Path("tunings", "lle6-layered-500k.journal")
+DEFAULT_STUDY_NAME = "lle6-layered-500k"
+"""Search name of the studies; their full name is `<name>-<algo>-score-0`."""
 
 
 @functools.cache
-def load_best_params(journal: Path, layout_type: str, algo: Algo) -> dict:
+def load_best_params(journal: Path, study_name: str, algo: Algo) -> dict:
     """Read the best hyperparameters of an algorithm from an Optuna journal. @ai-generated"""
     if not journal.exists():
         raise FileNotFoundError(f"No tuning journal at {journal}.")
     storage = JournalStorage(JournalFileBackend(journal.as_posix()))
-    study_name = f"{algo.upper()}-{layout_type}"
+    full_name = f"{study_name}-{algo}-score-0"
     try:
-        study = optuna.load_study(study_name=study_name, storage=storage)
+        study = optuna.load_study(study_name=full_name, storage=storage)
     except KeyError:
         available = sorted(summary.study_name for summary in optuna.get_all_study_summaries(storage))
-        raise KeyError(f"{journal} has no study {study_name!r}. Available studies: {available}") from None
+        raise KeyError(f"{journal} has no study {full_name!r}. Available studies: {available}") from None
     n_complete = sum(trial.state == optuna.trial.TrialState.COMPLETE for trial in study.trials)
     if n_complete == 0:
-        raise RuntimeError(f"Study {study_name!r} has no complete trials.")
-    logger.info(f"Using best trial {study.best_trial.number} of {study_name} (value {study.best_value}, {n_complete} complete trials)")
+        raise RuntimeError(f"Study {full_name!r} has no complete trials.")
+    logger.info(f"Using best trial {study.best_trial.number} of {full_name} (value {study.best_value}, {n_complete} complete trials)")
     return study.best_params
-
-
-def hidden_sizes(trial: optuna.Trial, prefix: str) -> list[int]:
-    """Uniform-width MLP architecture of the certified-cooperation search space. @ai-generated"""
-    return [trial.suggest_int(f"{prefix}.size", 32, 512, step=32)] * trial.suggest_int(f"{prefix}.n_layers", 1, 5)
-
-
-def make_ppo_trainer(trial: optuna.Trial, algo: Literal["mappo", "ippo"], env: LLEConfig) -> algos.PPO:
-    """
-    Rebuild a PPO trainer in the search space of the certified-cooperation study
-    (`make_ppo_trainer` of `scripts/tuning.py` at commit d2ea0990).
-
-    @ai-generated
-    """
-    sizes = hidden_sizes(trial, "actor_critic")
-    actor, critic = actor_critics.from_env(
-        env,
-        False,
-        independent=True,
-        actor_kwargs={"mlp_sizes": sizes},
-        critic_kwargs={"mlp_sizes": sizes},
-    )
-    train_interval = trial.suggest_int("train_interval", 10, 250, step=10)
-    minibatch_size = trial.suggest_int("minibatch_size", 5, train_interval)
-    if trial.suggest_categorical("c2_type", ["linear", "constant"]) == "linear":
-        c2 = Schedule.linear(
-            start_value=trial.suggest_float("c2_start", 0.0, 1.0),
-            end_value=trial.suggest_float("c2_end", 0.0, 1.0),
-            n_steps=trial.suggest_int("c2_n_steps", 1, N_STEPS),
-        )
-    else:
-        c2 = Schedule.constant(trial.suggest_float("c2", 0.0, 1.0))
-    early_stopping_kl = None
-    if trial.suggest_categorical("early_stopping_enabled", [True, False]):
-        early_stopping_kl = trial.suggest_float("early_stopping_kl", 1e-3, 0.1, log=True)
-    mixer = None
-    if algo == "mappo":
-        mixer_name = trial.suggest_categorical("mixer", ["vdn", "qmix"])
-        mixer = mixers.VDN.from_env(env) if mixer_name == "vdn" else mixers.QMix.from_env(env)
-    return algos.PPO(
-        actor,
-        critic,
-        mixer=mixer,
-        lr_actor=trial.suggest_float("lr_actor", 1e-5, 1e-3, log=True),
-        lr_critic=trial.suggest_float("lr_critic", 1e-5, 1e-3, log=True),
-        train_interval=(train_interval, "step"),
-        minibatch_size=minibatch_size,
-        n_epochs=trial.suggest_int("n_epochs", 5, 20),
-        eps_clip=trial.suggest_float("eps_clip", 0.01, 0.3),
-        gae_lambda=0.95,
-        c2=c2,
-        normalize_advantages=trial.suggest_categorical("normalize_advantages", [True, False]),
-        early_stopping_kl=early_stopping_kl,
-    )
-
-
-def make_dqn_trainer(trial: optuna.Trial, algo: Literal["dqn", "vdn", "qmix"], env: LLEConfig) -> algos.DQN:
-    """
-    Rebuild a value-based trainer in the search space of the certified-cooperation study
-    (`make_dqn_trainer` of `scripts/tuning.py` at commit d2ea0990).
-
-    @ai-generated
-    """
-    qnetwork = qnetworks.from_env(
-        env,
-        independent=True,
-        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=trial.suggest_categorical("qnetwork.noisy", [False, True]),
-        mlp_sizes=hidden_sizes(trial, "qnetwork"),
-    )
-    kwargs = {
-        "qnetwork": qnetwork,
-        "memory": TransitionMemory(MEMORY_SIZE),
-        "test_policy": marl.policy.ArgMax(),
-        "vbe": None,
-        "catch_all": {"n_agents": env.n_agents, "n_actions": env.n_actions, "gamma": GAMMA},
-    }
-    match algo:
-        case "dqn":
-            return suggest(algos.DQN, trial, mixer=None, **kwargs)
-        case "vdn":
-            return suggest(algos.VDN, trial, **kwargs)
-        case "qmix":
-            return suggest(algos.QMix, trial, mixer=mixers.QMix.from_env(env), **kwargs)
 
 
 def make_trainer(env: LLEConfig, algo: Algo, params: dict) -> Trainer:
     """Rebuild the trainer of `algo` from the tuned parameters of the journal. @ai-generated"""
-    trial = cast(optuna.Trial, FixedTrial(params))
-    if algo in ("mappo", "ippo"):
-        return make_ppo_trainer(trial, algo, env)
-    return make_dqn_trainer(trial, algo, env)
+    return suggest_trainer(cast(optuna.Trial, FixedTrial(params)), algo, env)
 
 
 class Args(tap.TypedArgs):
@@ -181,7 +86,7 @@ class Args(tap.TypedArgs):
     test_interval: int = tap.arg("--test-interval", default=10_000)
     n_tests: int = tap.arg("--n-tests", default=5)
     journal: Path = tap.arg("--journal", default=DEFAULT_JOURNAL, help="Optuna journal providing the hyperparameters.")
-    layout_type: str = tap.arg("--layout-type", default=DEFAULT_LAYOUT_TYPE, help="Layout type of the studies to read.")
+    study_name: str = tap.arg("--study-name", default=DEFAULT_STUDY_NAME, help="Search name of the studies to read.")
 
 
 def collect_runs(args: Args) -> list[Run]:
@@ -211,13 +116,13 @@ def collect_runs(args: Args) -> list[Run]:
                 continue
             if args.dry_run:
                 if exp is None:
-                    load_best_params(args.journal, args.layout_type, algo)
+                    load_best_params(args.journal, args.study_name, algo)
                 logger.info(f"[dry-run] {name}: would run seeds {seeds} -> {logdir}")
                 continue
             if exp is None:
-                env = LLEConfig(level, obs_type="layered")
-                params = load_best_params(args.journal, args.layout_type, algo)
-                exp = Experiment.create(env, make_trainer(env, algo, params), logdir=name, n_steps=N_STEPS)
+                env = LLEConfig(level, obs_type="layered", state_type="flattened")
+                params = load_best_params(args.journal, args.study_name, algo)
+                exp = Experiment.create(env, make_trainer(env, algo, params), logdir=name, n_steps=N_STEPS[level])
                 logger.info(f"[new] Created experiment {exp.logdir} with parameters {params}")
             logger.info(f"{name}: queueing seeds {seeds}")
             runs += exp.create_runs(
