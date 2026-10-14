@@ -2,7 +2,7 @@ import random
 from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import torch
 from marlenv import MARLEnv
@@ -12,7 +12,7 @@ from torch.nn import ModuleList
 
 from marl.models.nn import NN, Actor, CategoricalActor, QNetwork
 from marl.models.nn.options import OptionCriticNetwork
-from marl.nn.model_bank.generic import CNN
+from marl.nn.model_bank.generic import CNN, MLP
 from marl.utils import Schedule
 
 
@@ -24,25 +24,51 @@ class CNNOptionCritic(OptionCriticNetwork):
 
     def __init__(self, policies: torch.nn.ModuleList, q_options: QNetwork, options_termination: NN):
         assert len(q_options.output_shape) == 1, "Multi-objective options are not supported"
-        super().__init__((1,), q_options.output_size)
+        super().__init__((1,), q_options.n_actions)
         self.policies = policies
         self.q_options = q_options
         self.options_termination = options_termination
 
+    def to_dict(self):
+        """Serialize registered heads as recipes, not raw PyTorch modules. @ai-generated"""
+        return {
+            "class-name": self.__class__.__name__,
+            "name": self.name,
+            "policies": [cast(CategoricalActor, policy).to_dict() for policy in self.policies],
+            "q_options": self.q_options.to_dict(),
+            "options_termination": self.options_termination.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any], *, exact_type: bool = False):
+        """Reconstruct the module list and registered value/termination heads. @ai-generated"""
+        policies = ModuleList([CategoricalActor.from_dict(dict(policy)) for policy in d["policies"]])
+        return cls(policies, QNetwork.from_dict(dict(d["q_options"])), NN.from_dict(dict(d["options_termination"])))
+
+    def materialize(self, root, *, _seen: set[int] | None = None):
+        """Visit registered serializable heads without indexing Module internals. @ai-generated"""
+        if _seen is None:
+            _seen = set()
+        if id(self) in _seen:
+            return
+        _seen.add(id(self))
+        for child in (*self.policies, self.q_options, self.options_termination):
+            cast(NN, child).materialize(root, _seen=_seen)
+
     @classmethod
     def from_env(cls, env: MARLEnv, n_options: int, **kwargs):
-        from marl.nn.model_bank.actor_critics import CNNActor
+        """Build compatible convolutional policy, value, and termination heads. @ai-edited"""
+        from marl.nn.model_bank.actor_critics import CategoricalConvActor
         from marl.nn.model_bank.qnetworks import QCNN
 
         assert len(env.observation_shape) == 3
-        policies = torch.nn.ModuleList([CNNActor(env.observation_shape, env.extras_size, env.n_actions) for _ in range(n_options)])
-        assert len(env.observation_shape) == 3
-        terminations = CNN((n_options,), env.observation_shape, env.extras_size, output_activation="sigmoid")
-        q_options = QCNN(n_options, env.observation_shape, env.extras_shape)
-        return CNNOptionCritic(policies, q_options, terminations, **kwargs)
+        policies = torch.nn.ModuleList([CategoricalConvActor.from_env(env, **kwargs) for _ in range(n_options)])
+        terminations = OptionTermination((n_options,), n_options, env.observation_shape, env.extras_shape)
+        q_options = QCNN(n_options, env.n_agents, env.observation_shape, env.extras_shape, duelling=False)
+        return cls(policies, q_options, terminations)
 
     def compute_q_options(self, obs: Tensor, extras: Tensor) -> Tensor:
-        return self.q_options.forward(obs, extras)
+        return self.q_options.batch_qvalues(obs, extras)
 
     def termination_probability(self, obs: Tensor, extras: Tensor, options: Tensor) -> Tensor:
         probs = self.options_termination.forward(obs, extras)
@@ -53,19 +79,15 @@ class CNNOptionCritic(OptionCriticNetwork):
         return probs.squeeze(-1)
 
     def policy(self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor):
-        if not isinstance(options, Tensor):
-            logits = [self.policies[option].forward(obs, extra) for option, obs, extra in zip(options, obs, extras)]
-            logits = torch.stack(logits)
-        else:
-            # To avoid looping on the whole batch, we perform one forward pass for each policy and
-            # then gather the relevant logits according to the options tensor.
-            logits = torch.stack([policy.forward(obs, extras) for policy in self.policies])
-            # Turn the options of shape (batch_size, n_agents, n_actions) to (1, batch_size, n_agents, n_actions) to gather the correct logits for each agent and option
-            index = options.unsqueeze(0).expand(1, -1, -1, available_actions.shape[-1])
-            logits = torch.gather(logits, dim=0, index=index).squeeze(0)
-        logits[~available_actions] = -torch.inf
-        dist = torch.distributions.Categorical(logits=logits)
-        return dist
+        """Select agent-wise option logits without dropping leading batch axes. @ai-edited"""
+        options = torch.as_tensor(options, dtype=torch.long, device=obs.device)
+        if options.ndim == available_actions.ndim and options.shape[-1] == 1:
+            options = options.squeeze(-1)
+        options = torch.broadcast_to(options, available_actions.shape[:-1])
+        logits = torch.stack([policy.forward(obs, extras) for policy in self.policies], dim=-2)
+        index = options[..., None, None].expand(*options.shape, 1, available_actions.shape[-1])
+        logits = logits.gather(-2, index).squeeze(-2)
+        return Categorical(logits=logits.masked_fill(~available_actions, -torch.inf))
 
     def __hash__(self):
         return id(self)
@@ -160,11 +182,11 @@ class OptionTermination(NN):
 
     def __post_init__(self):
         super().__post_init__()
-        self.cnn = CNN((self.n_options,), self.obs_shape, self.extras_shape[0])
+        self.cnn = CNN(self.obs_shape)
+        self.mlp = MLP((self.n_options,), self.cnn.output_size, self.extras_shape[0], output_activation="sigmoid")
 
     def forward(self, obs: Tensor, extras: Tensor, *args, **kwargs):
-        output = self.cnn.forward(obs, extras)
-        return torch.nn.functional.sigmoid(output)
+        return self.mlp(self.cnn(obs), extras)
 
     def __hash__(self):
         return id(self)

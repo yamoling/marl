@@ -17,8 +17,7 @@ if TYPE_CHECKING:
 class OptionAgent(Agent):
     """Agent wrapper for Option-Critic policies.
 
-    The trainer and the agent share the same `SimpleOptionCritic` module,
-    including the mutable `options` state.
+    The trainer and agent share network weights; active options belong to the agent.
     """
 
     oc: "OptionCriticNetwork"
@@ -84,11 +83,16 @@ class OptionAgent(Agent):
         return super().new_episode()
 
     def set_training(self):
+        if self.is_testing:
+            self.options = self._saved_options.copy()
+            self.force_update_next_option = self._saved_force_update
         self.policy = self.train_policy
-        self.options = self._saved_options
         return super().set_training()
 
     def set_testing(self):
-        self._saved_options = self.options
+        """Snapshot training state once, even for multiple test episodes."""
+        if self.is_training:
+            self._saved_options = self.options.copy()
+            self._saved_force_update = self.force_update_next_option
         self.policy = self.test_policy
         return super().set_testing()

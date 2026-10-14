@@ -24,7 +24,7 @@ class OptionCriticNetwork(NN):
         r"""
         Compute the value upon arrival at the given observation and considering the active options as:
 
-        $$U_\Omega(\omega, s') = (1 - \beta_\omega(s')) Q_\Omega(s', \omega) + \beta_\omega(s) V_\Omega(s')$$
+        $$U_\Omega(\omega, s') = (1 - \beta_\omega(s')) Q_\Omega(s', \omega) + \beta_\omega(s') V_\Omega(s')$$
         """
         termination_probs = self.termination_probability(obs, extras, options)
         q_options = self.compute_q_options(obs, extras)

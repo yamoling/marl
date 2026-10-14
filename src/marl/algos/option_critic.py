@@ -1,6 +1,7 @@
 from copy import deepcopy
-from dataclasses import KW_ONLY, InitVar, dataclass, field
-from typing import Any
+from dataclasses import KW_ONLY, dataclass, field
+from pathlib import Path
+from typing import Any, Literal
 
 import torch
 from marlenv import Transition
@@ -22,16 +23,17 @@ class OptionCritic(Trainer):
     mixer: Mixer | None = None
     batch_size: int = 32
     critic_train_interval: int = 4
-    memory_size: InitVar[int] = 10_000
+    memory_size: int = 10_000
     gamma: float = 0.99
     lr: float = 1e-4
     termination_reg: float = 0.01
     entropy_reg: float = 0.01
-    q_updater: InitVar[TargetParametersUpdater | None] = None
+    q_updater: TargetParametersUpdater | None = None
     target_updater: TargetParametersUpdater = field(init=False)
     option_train_policy: Policy = field(default_factory=lambda: EpsilonGreedy.constant(0.1))
+    train_interval: tuple[int, Literal["step", "episode"]] = (1, "step")
 
-    def __post_init__(self, memory_size: int, q_updater: TargetParametersUpdater | None):
+    def __post_init__(self):
         super().__post_init__()
         self.target_oc = deepcopy(self.oc)
         self.target_mixer = deepcopy(self.mixer)
@@ -39,10 +41,8 @@ class OptionCritic(Trainer):
         if self.mixer is not None:
             parameters.extend(self.mixer.parameters())
         self.optim = torch.optim.Adam(parameters, lr=self.lr)
-        self.memory = TransitionMemory(memory_size)
-        if q_updater is None:
-            q_updater = HardUpdate(200)
-        self.target_updater = q_updater
+        self.memory = TransitionMemory(self.memory_size)
+        self.target_updater = self.q_updater if self.q_updater is not None else HardUpdate(200)
         self.target_updater.add_parameters(self.oc.parameters(), self.target_oc.parameters())
         if self.mixer is not None and self.target_mixer is not None:
             self.target_updater.add_parameters(self.mixer.parameters(), self.target_mixer.parameters())
@@ -58,7 +58,7 @@ class OptionCritic(Trainer):
         return self.oc.n_options
 
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
-        tb = TransitionBatch([transition], self.device)
+        tb = TransitionBatch([transition], device=self.device)
         policy_loss, term_loss = self.actor_loss(tb)
         loss = policy_loss + term_loss
         logs = {
@@ -80,7 +80,7 @@ class OptionCritic(Trainer):
     def critic_loss(self, batch: Batch):
         if self.mixer is None:
             batch = batch.for_individual_learners().to(self.device)
-        options = batch["options"].unsqueeze(-1)
+        options = batch["options"].long().unsqueeze(-1)
         q_options = self.oc.compute_q_options(batch.obs, batch.extras)
         q_options = torch.gather(q_options, dim=-1, index=options).squeeze(-1)
         if self.mixer is not None:
@@ -101,7 +101,7 @@ class OptionCritic(Trainer):
         """
         if self.mixer is None:
             batch = batch.for_individual_learners().to(self.device)
-        options = batch["options"].unsqueeze(-1)
+        options = batch["options"].long().unsqueeze(-1)
         with torch.no_grad():
             # Compute current state Q-values for policy loss
             q_options = self.oc.compute_q_options(batch.obs, batch.extras)
@@ -125,7 +125,9 @@ class OptionCritic(Trainer):
         # Policy loss: policy gradient using Q_U bootstrapped target
         values = batch.rewards + self.gamma * batch.not_dones * next_values
         policy_advantages = values - q_options
-        dist = self.oc.policy(batch.obs, batch.extras, batch.available_actions, batch["options"].squeeze(0).tolist())
+        if self.mixer is not None:
+            policy_advantages = policy_advantages.unsqueeze(-1)
+        dist = self.oc.policy(batch.obs, batch.extras, batch.available_actions, options.squeeze(-1))
         log_probs = dist.log_prob(batch.actions)
         entropies = dist.entropy()
         policy_loss = -log_probs * policy_advantages - self.entropy_reg * entropies
@@ -135,10 +137,31 @@ class OptionCritic(Trainer):
         # A_Ω(s', ω) = Q_Ω(s', ω) - V_Ω(s')
         next_termination_probs = self.oc.termination_probability(batch.next_obs, batch.next_extras, options)
         next_advantage = next_q_options_continued - next_q_max
-        termination_loss = next_termination_probs * (next_advantage + self.termination_reg) * batch.not_dones
+        not_dones = batch.not_dones
+        if self.mixer is not None:
+            next_advantage = next_advantage.unsqueeze(-1)
+            not_dones = not_dones.unsqueeze(-1)
+        termination_loss = next_termination_probs * (next_advantage + self.termination_reg) * not_dones
         termination_loss = torch.mean(termination_loss)
 
         return policy_loss, termination_loss
+
+    def save(self, directory: Path):
+        """Keep online and target weights distinct despite identical module names. @ai-generated"""
+        for name in ("oc", "target_oc", "mixer", "target_mixer"):
+            network = getattr(self, name)
+            if network is not None:
+                destination = directory / name
+                destination.mkdir(parents=True, exist_ok=True)
+                network.save(destination)
+
+    def load(self, directory: Path):
+        """Load separated weights, accepting legacy flat weight directories. @ai-generated"""
+        for name in ("oc", "target_oc", "mixer", "target_mixer"):
+            network = getattr(self, name)
+            if network is not None:
+                source = directory / name
+                network.load(source if source.is_dir() else directory)
 
     def make_agent(self, test_policy: Policy | None = None):
         from marl.agents import OptionAgent
