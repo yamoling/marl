@@ -33,8 +33,9 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
     """Suggest baseline hyperparameters, keeping network architectures fixed. @ai-generated"""
     gamma = trial.suggest_float("gamma", 0.95, 0.999)
     grad_clip = trial.suggest_float("grad_norm_clipping", 1.0, 50.0)
-    train_interval = trial.suggest_int("train_interval", 50, 100)
+
     if algo in ("mappo", "ippo"):
+        train_interval = trial.suggest_int("train_interval", 50, 100)
         actor, critic = actor_critics.from_env(env, recurrent=False, independent=False)
         return algos.PPO(
             actor,
@@ -83,6 +84,10 @@ def make_trainer(trial: optuna.Trial, algo: Algo, env: LLEConfig) -> Trainer:
 
 def objective(trial: optuna.Trial, algo: Algo, args: argparse.Namespace) -> float:
     """Train four parallel replicas and validate their single final evaluations. @ai-generated"""
+    if trial.number < 5:
+        import time
+
+        time.sleep(trial.number * 5)
     env = make_env()
     experiment = Experiment.create(
         env,
@@ -174,7 +179,7 @@ def main() -> None:
     """Parse execution options and launch the requested independent studies. @ai-generated"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--name", default="lle6-layered-500k", help="Search identity and logs subdirectory; change for a fresh search.")
-    parser.add_argument("--storage", type=Path, default=Path("tunings", "lle6-layered-500k-2.journal"))
+    parser.add_argument("--storage", type=Path, default=Path("tunings", "lle6-layered-500k-vdn-qmix-mappo.journal"))
     parser.add_argument("--device", default="auto", help="auto, cpu, or cuda:<index> (auto requires an available GPU).")
     parser.add_argument("--gpu-strategy", choices=("scatter", "group"), default="scatter")
     parser.add_argument("--disabled-gpus", nargs="*", type=int, default=[])
