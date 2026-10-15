@@ -125,7 +125,7 @@ Each training algorithm has its own dedicated file in the `src/marl/training` mo
 | IPPO                 |        ?        | ✓           | MAPPO with `mixer=None`                                                               |
 | MAPPO                |        ?        | ✓           | Multi-Agent PPO with centralized critic                                               |
 | DDPG                 |        ✗        | ✗           | Continuous control                                                                    |
-| Option-Critic        |        ✗        | ?           | Hierarchical RL                                                                       |
+| Option-Critic        |        ✗        | Unit-tested | Agent-wise OC; LLE6 CPU smoke passed; mixer variant experimental                      |
 | RND                  |        ✓        | ✓           | Random Network Distillation                                                           |
 | Social Influence     |        ✗        | ✓           | Causal influence intrinsic reward with a Model of Other Agents (on top of IPPO/MAPPO) |
 | ICM                  |        ✓        | ✓           | Intrinsic Curiosity Module, agent-wise (on top of any trainer with an `ir_module`)    |
