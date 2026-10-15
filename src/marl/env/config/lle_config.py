@@ -61,7 +61,7 @@ class LLEConfig(EnvConfig[lle.LLE]):
             case "crossing":
                 sources = world.laser_sources if lasers_to_reward is None else [world.source_at(pos) for pos in lasers_to_reward]
                 # Two subgoals per laser, hence half the reward of the "laser" subgoals for the same total shaping.
-                shaping = LaserCrossingShaping(SingleObjective(world.n_agents), world, sources, reward_value=0.5)
+                shaping = LaserCrossingShaping(SingleObjective(world.n_agents), world, sources, reward_value=1)
                 builder = builder.add_extras(LaserCrossingSubgoals(shaping, joint=self.pbrs == "joint"))
                 env = builder.name(f"{name}-CrossingPBRS").build()
                 env.reward_strategy = shaping

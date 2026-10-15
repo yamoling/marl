@@ -180,13 +180,7 @@ def make_dqn_trainer(
     catch_all: dict,
 ):
     train_policy, noisy = suggest_train_policy(trial, env, n_steps)
-    qnetwork = model_bank.qnetworks.from_env(
-        env,
-        recurrent=False,
-        independent=True,
-        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=noisy,
-    )
+    qnetwork = suggest_qnetwork(trial, env, noisy)
     shared_kwargs = {
         "qnetwork": qnetwork,
         "gamma": GAMMA,
@@ -196,7 +190,7 @@ def make_dqn_trainer(
         "train_interval": (5, "step"),
         "target_updater": suggest_target_updater(trial),
         "optimiser_type": trial.suggest_categorical("optimiser_type", ["adam", "rmsprop"]),
-        "double_qlearning": True,
+        "double_qlearning": trial.suggest_categorical("double_qlearning", [True, False]),
         "train_policy": train_policy,
         "test_policy": marl.policy.ArgMax(),
         "ir_module": None,
@@ -213,6 +207,16 @@ def make_dqn_trainer(
     raise NotImplementedError()
 
 
+def suggest_qnetwork(trial: optuna.Trial, env: EnvConfig[DiscreteMARLEnv], noisy: bool):
+    return model_bank.qnetworks.from_env(
+        env,
+        recurrent=False,
+        independent=trial.suggest_categorical("qnetwork.independent", [True, False]),
+        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
+        noisy=noisy,
+    )
+
+
 def make_maser_trainer(
     trial: optuna.Trial,
     env: EnvConfig[DiscreteMARLEnv],
@@ -221,13 +225,7 @@ def make_maser_trainer(
 ):
     """Build a MASER trainer (episode replay, QMix mixer). @ai-generated"""
     train_policy, noisy = suggest_train_policy(trial, env, n_steps)
-    qnetwork = model_bank.qnetworks.from_env(
-        env,
-        recurrent=False,
-        independent=True,
-        duelling=trial.suggest_categorical("qnetwork.duelling", [True, False]),
-        noisy=noisy,
-    )
+    qnetwork = suggest_qnetwork(trial, env, noisy)
     mixer = trial.suggest_categorical("mixer", ["vdn", "qmix"])
     return suggest(
         MASER,
@@ -236,12 +234,12 @@ def make_maser_trainer(
         mixer=mixers.QMix.from_env(env) if mixer == "qmix" else mixers.VDN.from_env(env),
         gamma=GAMMA,
         lr=trial.suggest_float("lr", 5e-5, 3e-3, log=True),
-        batch_size=trial.suggest_int("batch_size", 8, 32),
-        memory=EpisodeMemory(trial.suggest_int("memory_size", 500, 10_000, step=100)),
+        batch_size=trial.suggest_int("batch_size", 8, 25),
+        memory=EpisodeMemory(trial.suggest_int("memory_size", 500, 2_100, step=100)),
         train_interval=(1, "episode"),
         target_updater=suggest_target_updater(trial),
         optimiser_type=trial.suggest_categorical("optimiser_type", ["adam", "rmsprop"]),
-        double_qlearning=True,
+        double_qlearning=trial.suggest_categorical("ddqn", [True, False]),
         train_policy=train_policy,
         test_policy=marl.policy.ArgMax(),
         ir_module=None,
