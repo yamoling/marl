@@ -13,14 +13,14 @@ from marl.algos.qtarget_updater import HardUpdate
 from marl.env import LLEConfig
 from marl.models import EpisodeMemory, Trainer, TransitionMemory
 from marl.nn import mixers
-from marl.nn.model_bank import actor_critics, qnetworks
+from marl.nn.model_bank import CNNOptionCritic, actor_critics, qnetworks
 from marl.policy import EpsilonGreedy
 from marl.runners import parallel_run
 from marl.utils import Schedule
 
 logger = logging.getLogger(__name__)
 
-Algo = Literal["dqn", "vdn", "qmix", "qplex", "mappo", "ippo", "maser", "haven"]
+Algo = Literal["dqn", "vdn", "qmix", "qplex", "mappo", "ippo", "maser", "haven", "option-critic"]
 ALGOS: tuple[Algo, ...] = get_args(Algo)
 GAMMA = 0.95
 """Discount factor of every algorithm. With gamma=0.99, VDN and MASER fail on this level (see the 2026-10-15 report)."""
@@ -54,6 +54,7 @@ IPPO_LR_CRITIC = 2.31e-5
 IPPO_ENTROPY_COEF = 0.229
 IPPO_EPS_CLIP = 0.177
 IPPO_EARLY_STOPPING_KL = 0.0243
+OC_N_OPTIONS = 3
 
 
 def make_train_policy():
@@ -140,7 +141,7 @@ def make_env_and_trainer(algo: Algo, pbrs: bool = True) -> tuple[LLEConfig, Trai
     """Build the environment (with or without PBRS) and the trainer of the given algorithm. @ai-edited"""
     if algo == "haven":
         return make_haven(pbrs)
-    env = make_env(rlc2025=algo in RLC2025_ALGOS or algo == "ippo", pbrs=pbrs)
+    env = make_env(rlc2025=algo in RLC2025_ALGOS or algo in ("ippo", "option-critic"), pbrs=pbrs)
     match algo:
         case "dqn":
             return env, algos.DQN(
@@ -210,6 +211,14 @@ def make_env_and_trainer(algo: Algo, pbrs: bool = True) -> tuple[LLEConfig, Trai
                 early_stopping_kl=IPPO_EARLY_STOPPING_KL,
                 gamma=GAMMA,
             )
+        case "option-critic":
+            return env, algos.OptionCritic(
+                CNNOptionCritic.from_env(env, n_options=OC_N_OPTIONS),
+                env.n_agents,
+                mixer=mixers.VDN.from_env(env),
+                gamma=GAMMA,
+                option_train_policy=EpsilonGreedy.linear(EPSILON_START, EPSILON_END, EPSILON_STEPS),
+            )
         case "maser":
             return env, algos.MASER(
                 qnetworks.from_env(env, duelling=False),
@@ -251,6 +260,8 @@ def logdir_of(algo: Algo, n_steps: int, pbrs: bool = True):
         suffix = "rlc2025"
     elif algo == "mappo":
         suffix = f"ppo{PPO_TRAIN_INTERVAL}x{PPO_N_EPOCHS}-ent{PPO_ENTROPY_COEF:g}"
+    elif algo == "option-critic":
+        suffix = f"{OC_N_OPTIONS}options-rlc2025env"
     elif algo == "ippo":
         suffix = f"ppo{IPPO_TRAIN_INTERVAL}x{IPPO_N_EPOCHS}-ent{IPPO_ENTROPY_COEF:g}-rlc2025env"
     else:
