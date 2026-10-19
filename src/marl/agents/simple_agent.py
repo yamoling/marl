@@ -20,15 +20,15 @@ class SimpleAgent[T: torch.distributions.Distribution](Agent):
         actor-critic algorithms such as ACER need them to compute their importance sampling weights."""
 
     @staticmethod
-    def from_actor(actor: Actor, record_probabilities: bool = False) -> SimpleAgent:
+    def from_actor(actor: Actor, record_probabilities: bool = False, greedy_at_test: bool = True) -> SimpleAgent:
         """
-        Build the most specific agent for the given actor: a `DiscreteAgent` (greedy at test time)
-        for categorical actors, and a plain sampling `SimpleAgent` otherwise.
+        Build the most specific agent for the given actor: a `DiscreteAgent` for categorical actors
+        (greedy at test time unless `greedy_at_test` is False), and a plain sampling `SimpleAgent` otherwise.
         """
         from marl.models.nn import CategoricalActor
 
         if isinstance(actor, CategoricalActor):
-            return DiscreteAgent(actor, record_probabilities)
+            return DiscreteAgent(actor, record_probabilities, greedy_at_test)
         return SimpleAgent(actor, record_probabilities)
 
     def _select_actions(self, distribution: T) -> torch.Tensor:
@@ -60,21 +60,42 @@ class SimpleAgent[T: torch.distributions.Distribution](Agent):
 
 
 class DiscreteAgent(SimpleAgent[torch.distributions.Categorical]):
-    """Categorical agent that samples while training and acts greedily (argmax) while testing."""
+    """
+    Categorical agent that samples while training. While testing, it acts greedily (argmax) if
+    `greedy_at_test` is set, and samples from the policy otherwise.
+    """
+
+    def __init__(self, actor: Actor[torch.distributions.Categorical], record_probabilities: bool = False, greedy_at_test: bool = True):
+        super().__init__(actor, record_probabilities)
+        self.greedy_at_test = greedy_at_test
+        """Whether to take the argmax of the policy at test time (True) or to sample from it (False)."""
 
     @override
     def _select_actions(self, distribution: torch.distributions.Categorical) -> torch.Tensor:
-        if self.is_training:
+        if self.is_training or not self.greedy_at_test:
             return distribution.sample()
         return distribution.logits.argmax(dim=-1)
 
 
 class DiscreteOneHotAgent(SimpleAgent[torch.distributions.OneHotCategorical]):
-    """One-hot categorical agent that samples while training and acts greedily (argmax) while testing."""
+    """
+    One-hot categorical agent that samples while training. While testing, it acts greedily (argmax)
+    if `greedy_at_test` is set, and samples from the policy otherwise.
+    """
+
+    def __init__(
+        self,
+        actor: Actor[torch.distributions.OneHotCategorical],
+        record_probabilities: bool = False,
+        greedy_at_test: bool = True,
+    ):
+        super().__init__(actor, record_probabilities)
+        self.greedy_at_test = greedy_at_test
+        """Whether to take the argmax of the policy at test time (True) or to sample from it (False)."""
 
     @override
     def _select_actions(self, distribution: torch.distributions.OneHotCategorical) -> torch.Tensor:
-        if self.is_training:
+        if self.is_training or not self.greedy_at_test:
             return distribution.sample()
         greedy = distribution.logits.argmax(dim=-1)
         return torch.nn.functional.one_hot(greedy, distribution.event_shape[-1]).to(distribution.probs.dtype)

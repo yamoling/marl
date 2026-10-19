@@ -34,6 +34,8 @@ class PPO(Trainer):
     early_stopping_kl: float | None = None
     """Early stopping if the KL divergence between the old and new policy is higher than this threshold. If None, no early stopping is applied."""
     value_loss: Literal["huber", "mse"] = "huber"
+    greedy_at_test: bool = True
+    """Whether discrete agents take the argmax of the policy at test time (True) or sample from it (False)."""
 
     def __post_init__(self):
         super().__post_init__()
@@ -261,4 +263,4 @@ class PPO(Trainer):
     def make_agent(self):
         from marl.agents import SimpleAgent
 
-        return SimpleAgent.from_actor(self.actor)
+        return SimpleAgent.from_actor(self.actor, greedy_at_test=self.greedy_at_test)
