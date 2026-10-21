@@ -4,6 +4,26 @@ from collections.abc import Callable
 import torch
 
 
+def _disable_python_bmm_override():
+    """
+    PyTorch >= 2.14 routes every CUDA `aten::bmm` (including the ones issued by autograd) through a Python-level
+    dispatcher (`torch._native`) that sends outer products to a Triton kernel. With the small batches of
+    independent (agent-wise) layers, this Python routing costs far more host time than the kernels themselves.
+    Restore the native cuBLAS kernel. No-op on PyTorch versions without `torch._native`.
+
+    @ai-generated
+    """
+    try:
+        from torch._native import registry
+
+        registry.deregister_op_overrides(disable_op_symbols="bmm")
+    except (ImportError, AttributeError):
+        pass
+
+
+_disable_python_bmm_override()
+
+
 class AbsLayer(torch.nn.Module):
     def forward(self, x: torch.Tensor):
         return torch.abs(x)

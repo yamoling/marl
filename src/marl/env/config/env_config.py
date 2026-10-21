@@ -15,6 +15,7 @@ class EnvConfig[E: MARLEnv](Serializable):
     _: KW_ONLY
     agent_id: bool = True
     time_limit: int | None = None
+    time_limit_add_extra: bool = True
     last_action: bool = False
     extra_padding_size: int | None = None
     maven_noise_size: int | None = None
@@ -67,7 +68,7 @@ class EnvConfig[E: MARLEnv](Serializable):
         base_env = self.make_base_env()
         builder = marlenv.Builder(base_env)
         if self.time_limit is not None:
-            builder = builder.time_limit(self.time_limit)
+            builder = builder.time_limit(self.time_limit, add_extra=self.time_limit_add_extra)
         if self.agent_id:
             builder = builder.agent_id()
         if self.last_action:

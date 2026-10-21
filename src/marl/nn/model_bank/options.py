@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Any, Literal, cast
 
+import numpy as np
 import torch
 from marlenv import MARLEnv
 from torch import Tensor
@@ -79,14 +80,25 @@ class CNNOptionCritic(OptionCriticNetwork):
         return probs.squeeze(-1)
 
     def policy(self, obs: Tensor, extras: Tensor, available_actions: torch.Tensor, options: Sequence[int] | torch.Tensor):
-        """Select agent-wise option logits without dropping leading batch axes. @ai-edited"""
-        options = torch.as_tensor(options, dtype=torch.long, device=obs.device)
+        """
+        Select agent-wise option logits without dropping leading batch axes.
+
+        Only the policies of the options that are actually active are evaluated (and back-propagated through);
+        the logits of the other options would be discarded anyway.
+
+        @ai-edited
+        """
+        if isinstance(options, torch.Tensor):
+            active = torch.unique(options).tolist()
+        else:
+            active = np.unique(np.asarray(options)).tolist()
+        options = torch.as_tensor(options, dtype=torch.long).to(obs.device, non_blocking=True)
         if options.ndim == available_actions.ndim and options.shape[-1] == 1:
             options = options.squeeze(-1)
         options = torch.broadcast_to(options, available_actions.shape[:-1])
-        logits = torch.stack([policy.forward(obs, extras) for policy in self.policies], dim=-2)
-        index = options[..., None, None].expand(*options.shape, 1, available_actions.shape[-1])
-        logits = logits.gather(-2, index).squeeze(-2)
+        logits = self.policies[active[0]].forward(obs, extras)
+        for option in active[1:]:
+            logits = torch.where((options == option).unsqueeze(-1), self.policies[option].forward(obs, extras), logits)
         return Categorical(logits=logits.masked_fill(~available_actions, -torch.inf))
 
     def __hash__(self):

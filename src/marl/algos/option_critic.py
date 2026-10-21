@@ -1,7 +1,7 @@
 from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import torch
 from marlenv import Transition
@@ -57,25 +57,46 @@ class OptionCritic(Trainer):
     def n_options(self):
         return self.oc.n_options
 
+    def to(self, device: torch.device) -> Self:
+        """
+        Move the networks and the optimizer state, using the fused Adam kernel on CUDA.
+
+        @ai-generated
+        """
+        state = self.optim.state_dict()
+        super().to(device)
+        for group in state["param_groups"]:
+            group["fused"] = True if device.type == "cuda" else None
+        self.optim.load_state_dict(state)
+        return self
+
     def update_step(self, transition: Transition, time_step: int) -> dict[str, Any]:
+        """
+        Update the actor on `transition` and, periodically, the critic on a replayed batch.
+
+        The losses are read back to the host with a single transfer once the optimizer step has been queued,
+        instead of one blocking `.item()` per loss in the middle of the step.
+
+        @ai-edited
+        """
         tb = TransitionBatch([transition], device=self.device)
         policy_loss, term_loss = self.actor_loss(tb)
         loss = policy_loss + term_loss
-        logs = {
-            "termination loss": term_loss.item(),
-            "policy loss": policy_loss.item(),
-            **self.option_train_policy.update(time_step),
-        }
+        policy_logs = self.option_train_policy.update(time_step)
+        losses = [term_loss, policy_loss]
         self.memory.add(transition)
         if self.memory.can_sample(self.batch_size) and time_step % self.critic_train_interval == 0:
             critic_loss = self.critic_loss(self.memory.sample(self.batch_size).to(self.device))
             loss = loss + critic_loss
-            logs["critic loss"] = critic_loss.item()
+            losses.append(critic_loss)
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()
-        logs = logs | self.target_updater.update(time_step)
-        return logs
+        values = torch.stack(losses).detach().tolist()
+        logs = {"termination loss": values[0], "policy loss": values[1], **policy_logs}
+        if len(values) > 2:
+            logs["critic loss"] = values[2]
+        return logs | self.target_updater.update(time_step)
 
     def critic_loss(self, batch: Batch):
         if self.mixer is None:

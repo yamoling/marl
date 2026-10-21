@@ -155,7 +155,7 @@ class TransitionBatch(Batch):
         if key in self._cache:
             return self._cache[key]
         items = np.array([t[key] for t in self.transitions], dtype=np.float32)
-        res = torch.from_numpy(items).to(self.device)
+        res = torch.from_numpy(items).to(self.device, non_blocking=True)
         self._cache[key] = res
         return res
 
@@ -203,19 +203,23 @@ class TransitionBatch(Batch):
 
     @cached_property
     def states(self):
-        return torch.from_numpy(np.array([t.state.data for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.state.data for t in self.transitions], dtype=np.float32)).to(self.device, non_blocking=True)
 
     @cached_property
     def states_extras(self):
-        return torch.from_numpy(np.array([t.state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.state.extras for t in self.transitions], dtype=np.float32)).to(self.device, non_blocking=True)
 
     @cached_property
     def next_states(self):
-        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.next_state.data for t in self.transitions], dtype=np.float32)).to(
+            self.device, non_blocking=True
+        )
 
     @cached_property
     def next_states_extras(self):
-        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(self.device)
+        return torch.from_numpy(np.array([t.next_state.extras for t in self.transitions], dtype=np.float32)).to(
+            self.device, non_blocking=True
+        )
 
     @cached_property
     def masks(self):
@@ -231,4 +235,4 @@ class TransitionBatch(Batch):
 
     @cached_property
     def probs(self):
-        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device)  # type:ignore
+        return torch.from_numpy(np.array([t.probs for t in self.transitions], dtype=np.float32)).to(self.device, non_blocking=True)  # type:ignore

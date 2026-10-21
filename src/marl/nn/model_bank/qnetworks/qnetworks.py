@@ -15,12 +15,16 @@ from marl.nn.utils import MySequential
 class QCNN(QNetwork):
     _: KW_ONLY
     mlp_sizes: Sequence[int] = (256, 128)
+    filters: Sequence[int] = (32, 64, 64)
     hidden_activation: ActivationType = "relu"
 
     def __post_init__(self):
+        """Build the CNN and action head with serializable layer widths. @ai-edited"""
         super().__post_init__()
         assert len(self.obs_shape) == 3
-        self.cnn = CNN(self.obs_shape, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation)
+        self.cnn = CNN(
+            self.obs_shape, filters=self.filters, hidden_activation=self.hidden_activation, output_activation=self.hidden_activation
+        )
         if self.noisy:
             self.mlp = MySequential(
                 MLP(

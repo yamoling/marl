@@ -46,14 +46,20 @@ class OptionAgent(Agent):
         self.force_update_next_option = False
 
     def update_options(self, obs: torch.Tensor, extras: torch.Tensor):
-        """Checks for each option if it should terminate or not."""
+        """
+        Checks for each option if it should terminate or not.
+
+        Termination probabilities and option values are read back with a single device-to-host transfer.
+
+        @ai-edited
+        """
         # Add the batch dimension for the option (hence the list)
-        options = torch.tensor([self.options], dtype=torch.long, device=self.device)
+        options = torch.tensor([self.options], dtype=torch.long).to(self.device, non_blocking=True)
         end_probs = self.oc.termination_probability(obs, extras, options).flatten()
-        end_probs = end_probs.numpy(force=True)
+        q_options = self.oc.compute_q_options(obs, extras).view(self.n_agents, self.n_options)
+        host = torch.cat((end_probs, q_options.flatten())).numpy(force=True)
+        end_probs, q_options = host[: self.n_agents], host[self.n_agents :].reshape(self.n_agents, self.n_options)
         r = np.random.random(end_probs.shape).astype(dtype=np.float32)
-        q_options = self.oc.compute_q_options(obs, extras)
-        q_options = q_options.view(self.n_agents, self.n_options).numpy(force=True)
         chosen_options = self.policy.get_action(q_options)
         if self.force_update_next_option:
             self.options = chosen_options.tolist()
